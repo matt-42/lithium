@@ -1,5 +1,5 @@
 
-IODDIR=$1
+IODDIR=$1/libraries
 INCDIR=$2
 mkdir -p $INCDIR/iod
 
