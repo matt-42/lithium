@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 2.8)
 
 project(iod)
 
-add_definitions(-std=c++1z)
+add_definitions(-std=c++17)
 
 enable_testing()
 
@@ -14,4 +14,3 @@ add_custom_target(prepare_include_dir ALL
 add_subdirectory(libraries/metamap)
 add_subdirectory(libraries/metajson)
 add_subdirectory(libraries/symbol)
-add_subdirectory(libraries/di)
