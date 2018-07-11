@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 2.8)
 
 project(iod)
 
-add_definitions(-std=c++17)
+add_definitions(-std=c++1z)
 
 enable_testing()
 
