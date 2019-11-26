@@ -4,6 +4,3 @@
 [submodule "libraries/metamap"]
 	path = libraries/metamap
 	url = git@github.com:iodcpp/metamap.git
-[submodule "libraries/metajson"]
-	path = libraries/metajson
-	url = git@github.com:iodcpp/metajson.git
