@@ -79,7 +79,7 @@ struct sqlite_statement {
       this->read_column(i, v);
       i++;
     };
-    ::iod::tuple_apply_each(read_elt, o);
+    ::iod::tuple_map(o, read_elt);
   }
 
   // Fill a metamap with the current result row.
@@ -116,7 +116,7 @@ struct sqlite_statement {
     sqlite3_reset(stmt_);
     sqlite3_clear_bindings(stmt_);
     int i = 1;
-    iod::tuple_apply_each(
+    iod::tuple_map(std::forward_as_tuple(args...),
         [&](auto& m) {
           int err;
           if ((err = this->bind(stmt_, i, m)) != SQLITE_OK)
@@ -124,8 +124,7 @@ struct sqlite_statement {
                 std::string("Sqlite error during binding: ") +
                 sqlite3_errmsg(db_));
           i++;
-        },
-        std::forward_as_tuple(args...));
+        });
 
     last_step_ret_ = sqlite3_step(stmt_);
     if (last_step_ret_ != SQLITE_ROW and last_step_ret_ != SQLITE_DONE)
@@ -282,6 +281,8 @@ struct sqlite_connection {
 };
 
 struct sqlite_database {
+  typedef sqlite_connection connection_type;
+  
   sqlite_database() {}
 
   template <typename... O>

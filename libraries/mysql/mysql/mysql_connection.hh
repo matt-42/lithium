@@ -258,9 +258,9 @@ namespace iod
       }
 
       foreach(o) | [&] (auto& m) {
-        // Find m.symbol().name() position.
+        // Find iod::symbol_string(k) position.
         for (int i = 0; i < num_fields_; i++)
-          if (!strcmp(fields_[i].name, m.symbol().name()))
+          if (!strcmp(fields_[i].name, iod::symbol_string(k)))
             // bind the column.
           {
             this->bind_output(bind[i], real_lengths + i, m.value());
@@ -302,7 +302,7 @@ namespace iod
     {
       foreach(o) | [&] (auto& m) {
         for (int i = 0; i < num_fields_; i++)
-          if (!strcmp(fields_[i].name, m.symbol().name()))
+          if (!strcmp(fields_[i].name, iod::symbol_string(k)))
             this->fetch_column(bind, real_lengths[i], m.value(), i);
       };      
     }
@@ -374,7 +374,7 @@ namespace iod
                                0,NULL, 0);
 
       if (!con)
-        throw error::internal_server_error("Cannot connect to the database");
+        throw http_error::internal_server_error("Cannot connect to the database");
 
       if (has_key(options, _charset))
         mysql_set_character_set(con, get_c_str(options.get(_charset, "")));
@@ -489,7 +489,7 @@ namespace iod
         con_ = mysql_init(con_);
         con_ = mysql_real_connect(con_, host_.c_str(), user_.c_str(), passwd_.c_str(), database_.c_str() ,0,NULL, 0);
         if (!con_)
-          throw error::internal_server_error("Cannot connect to the database");
+          throw http_error::internal_server_error("Cannot connect to the database");
 
         mysql_set_character_set(con_, "utf8");
       }

@@ -88,12 +88,12 @@ int main()
     std::cout << (1000 * (get_time_in_seconds() - t)) / K << std::endl;
     
     if (!(c("SELECT * from users where name = ? and age = ?")("Bob", 24) >> res))
-      throw error::not_found("User not found.");
+      throw http_error::not_found("User not found.");
 
     int age;
     std::string name;
     if (!(c("SELECT age, name from users where name = ? and age = ?")("Bob", 24) >> std::tie(age, name)))
-      throw error::not_found("User not found.");
+      throw http_error::not_found("User not found.");
     std::cout << name << " " << age  << std::endl;
 
     
