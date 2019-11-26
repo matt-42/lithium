@@ -1,6 +1,0 @@
-[submodule "libraries/symbol"]
-	path = libraries/symbol
-	url = git@github.com:iodcpp/symbol.git
-[submodule "libraries/metamap"]
-	path = libraries/metamap
-	url = git@github.com:iodcpp/metamap.git
