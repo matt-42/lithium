@@ -11,10 +11,8 @@
 
 namespace iod {
 
-namespace http_client {
 
-using iod::metamap::make_metamap;
-using iod::metamap::metamap;
+
 
 inline size_t curl_write_callback(char* ptr, size_t size, size_t nmemb,
                                   void* userdata);
@@ -43,9 +41,9 @@ struct http_client {
     url_ss << url_prefix_ << url;
 
     // Get params
-    auto get_params = iod::metamap::get_or(arguments, s::get_parameters, make_metamap());
+    auto get_params = iod::get_or(arguments, s::get_parameters, make_metamap());
     bool first = true;
-    iod::metamap::map(get_params, [&](auto k, auto v) {
+    iod::map(get_params, [&](auto k, auto v) {
       if (first)
         url_ss << '?';
       else
@@ -54,7 +52,7 @@ struct http_client {
       value_ss << v;
       char* escaped = curl_easy_escape(curl_, value_ss.str().c_str(),
                                        value_ss.str().size());
-      url_ss << iod::symbol::symbol_string(k) << '=' << escaped;
+      url_ss << iod::symbol_string(k) << '=' << escaped;
       first = false;
       curl_free(escaped);
     });
@@ -64,19 +62,19 @@ struct http_client {
     curl_easy_setopt(curl_, CURLOPT_URL, url_ss.str().c_str());
 
     // POST parameters.
-    bool is_urlencoded = not iod::metamap::has_key(arguments, s::jsonencoded);
+    bool is_urlencoded = not iod::has_key(arguments, s::jsonencoded);
     std::stringstream post_stream;
     std::string rq_body;
     if (is_urlencoded) { // urlencoded
       req_body_buffer_.str("");
 
       auto post_params =
-          iod::metamap::get_or(arguments, s::post_parameters, make_metamap());
+          iod::get_or(arguments, s::post_parameters, make_metamap());
       first = true;
-      iod::metamap::map(post_params, [&](auto k, auto v) {
+      iod::map(post_params, [&](auto k, auto v) {
         if (!first)
           post_stream << "&";
-        post_stream << iod::symbol::symbol_string(k) << "=";
+        post_stream << iod::symbol_string(k) << "=";
         std::stringstream value_str;
         value_str << v;
         char* escaped = curl_easy_escape(curl_, value_str.str().c_str(),
@@ -89,12 +87,12 @@ struct http_client {
       req_body_buffer_.str(rq_body);
 
     } else // Json encoded
-      rq_body = iod::metajson::json_encode(
-          iod::metamap::get_or(arguments, s::post_parameters, make_metamap()));
+      rq_body = iod::json_encode(
+          iod::get_or(arguments, s::post_parameters, make_metamap()));
 
     enum { GET, POST, PUT, DELETE };
 
-    int http_method = iod::metamap::get_or(arguments, s::method, GET);
+    int http_method = iod::get_or(arguments, s::method, GET);
 
     // HTTP POST
     if (http_method == POST) {
@@ -180,5 +178,4 @@ size_t curl_write_callback(char* ptr, size_t size, size_t nmemb,
   return size * nmemb;
 }
 
-} // namespace http_client
 } // namespace iod

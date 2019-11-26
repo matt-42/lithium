@@ -1,6 +1,6 @@
 #pragma once
 
-namespace iod { namespace callable_traits {
+namespace iod {
 
   template <typename ...T>
   struct typelist {};
@@ -114,4 +114,4 @@ namespace iod { namespace callable_traits {
     static const bool value = sizeof(test<F, A...>(0)) == 1;    
   };
 
-}}
+}

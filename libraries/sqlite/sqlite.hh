@@ -13,11 +13,6 @@
 #include <sqlite3.h>
 
 namespace iod {
-namespace sqlite {
-
-using namespace ::iod::callable_traits;
-using ::iod::metamap::make_metamap;
-using ::iod::metamap::metamap;
 
 struct blob : public std::string {
   using std::string::string;
@@ -75,7 +70,8 @@ struct sqlite_statement {
     if (ncols != sizeof...(A)) {
       std::stringstream ss;
       ss << "Invalid number of parameters: SQL request has " << ncols
-         << " fields but the function to process it has " << sizeof...(A) << " parameters.";
+         << " fields but the function to process it has " << sizeof...(A)
+         << " parameters.";
       throw std::runtime_error(ss.str());
     }
     int i = 0;
@@ -83,23 +79,14 @@ struct sqlite_statement {
       this->read_column(i, v);
       i++;
     };
-    ::iod::metamap::tuple_apply_each(read_elt, o);
-  }
-
-  inline void prepare_for_reading() {
-    ready_for_reading_ = true;
-    sqlite3_reset(stmt_);
-    sqlite3_clear_bindings(stmt_);
-    last_step_ret_ = sqlite3_step(stmt_);
-    if (last_step_ret_ != SQLITE_ROW and last_step_ret_ != SQLITE_DONE)
-      throw std::runtime_error(sqlite3_errstr(last_step_ret_));
+    ::iod::tuple_apply_each(read_elt, o);
   }
 
   // Fill a metamap with the current result row.
   template <typename... A> int operator>>(metamap<A...>& o) {
 
     if (not ready_for_reading_)
-      prepare_for_reading();
+      this->operator()();
     if (empty())
       return false;
     row_to_metamap(o);
@@ -111,7 +98,7 @@ struct sqlite_statement {
   template <typename T> int operator>>(T& o) {
 
     if (not ready_for_reading_)
-      prepare_for_reading();
+      this->operator()();
     if (empty())
       return false;
     this->read_column(0, o);
@@ -129,7 +116,7 @@ struct sqlite_statement {
     sqlite3_reset(stmt_);
     sqlite3_clear_bindings(stmt_);
     int i = 1;
-    iod::metamap::tuple_apply_each(
+    iod::tuple_apply_each(
         [&](auto& m) {
           int err;
           if ((err = this->bind(stmt_, i, m)) != SQLITE_OK)
@@ -150,12 +137,12 @@ struct sqlite_statement {
   // Apply a function to all result rows.
   template <typename F> void operator|(F f) {
     if (not ready_for_reading_)
-      prepare_for_reading();
+      this->operator()();
 
     while (last_step_ret_ == SQLITE_ROW) {
       typedef callable_arguments_tuple_t<F> tp;
       typedef std::remove_reference_t<std::tuple_element_t<0, tp>> T;
-      if constexpr (iod::metamap::is_metamap<T>::ret) {
+      if constexpr (iod::is_metamap<T>::ret) {
         T o;
         row_to_metamap(o);
         f(o);
@@ -306,8 +293,7 @@ struct sqlite_database {
                            SQLITE_OPEN_CREATE);
     if (has_key(options, s::synchronous)) {
       std::stringstream ss;
-      ss << "PRAGMA synchronous="
-         << iod::metamap::get_or(options, s::synchronous, 2);
+      ss << "PRAGMA synchronous=" << iod::get_or(options, s::synchronous, 2);
       con_(ss.str())();
     }
   }
@@ -317,5 +303,5 @@ struct sqlite_database {
   sqlite_connection con_;
   std::string path_;
 };
-} // namespace sqlite
+
 } // namespace iod

@@ -1,0 +1,159 @@
+
+X symbol
+X metamap
+X metajson
+cmdparser
+vpp
+di
+silicon
+messagepack
+protobuf
+
+
+
+metajson stream API:
+
+   output channel like Functor:
+     operator()(char c)
+     operator()(const char* c, int len)
+
+   input channel like Functor:
+     get() -> char (-1 if end of file)
+     peek() -> read next char without consuming it.
+     eof() -> true if end of file
+
+json_decode(stream)
+
+
+
+
+
+Silicon simplifications:
+   remove handlers with a variable number of arguments, just have:
+   handler(auto params, auto middlewares)
+
+   consequences:
+      no dependency injection.
+      no ARGS... anymore
+
+   simpler api:
+     s::mysql = mysql_middleware(s::host = "123.23.45.32", s::username = "user", s::password = "pass"),
+     s::redis = redis_middleware()
+
+     http_serve(s::tls_cert = "/tmp",
+                s::nthread = 4,
+
+api["/user/$user_id/create"],  [&] (http_ctx sl) {
+        sl.session_id();                         
+        auto params = sl.parameters(s::user_id = int(), s::post_id = int(), s::name = std::string());
+        auto mysql = mysql.connection();
+
+        sl.respond(s::status = 200, s::json_body = params, s::encoding = "utf8");
+     }
+
+Refactor:
+ - backend: use a map of route -> handler.
+      pass to the handler
+   
+
+
+Async body read:
+   - Request triger the handler.
+   - Whenever the handler request the body with (ctx.read_body()):
+        if upload_data_size resume the handler and pass it a string view to upload data.
+        if upload_data_size return EOF
+        if upload_data has already been read, suspend the handler, quit mhd_handler with MHD_YES.
+
+        while(s = ctx.read_body())
+          // do something with the body.
+          
+
+
+Async body read2:
+   sl.post_processor = [](char* key, char* data, int size) {
+        if (!strcmp("photo", key))
+           
+
+
+    }("user_id" = int(), s::photo = [] (char* data, int size) {})
+
+
+New way to get parameters, to let the framework know in advance what to do.
+
+  api["/test"] = [] (mhd::mhd_ctx& ctx,
+                     post<"name", std::string> name,
+                     get<"user_id", int> user_id,
+                     post<"photo", temp_file> photo_file)
+    {
+      //ctx.respond("hello world\n");
+      ctx.respond("hello world\n");
+    };
+
+Or, let the user choose:
+
+  api["/test"] = [] (mhd::mhd_ctx& ctx)
+    {
+      ctx.respond("hello world\n");
+    };
+
+
+  api["/test"] = [] (mhd::mhd_ctx& ctx)
+    {
+      ctx.with_parameters(s::name = std::string(),
+                          s::age = int()
+         ).do([] (auto params) {
+
+         ctx.respond("hello world + age");
+
+      };
+      
+    };
+
+But then, silicon-like is better:
+
+  api("/test/$var/create", post(s::name = std::string()), get(s::user_id = int()),
+      [] (mhd::mhd_ctx& ctx, auto params)
+  {
+  };
+
+because we don't need coroutine to parse parameters
+but harder to code.
+but what do we want at the end ??
+
+We have solution1:
+
+
+coroutine + 2% overhead, simpler code:
+  api["/test"] = [] (mhd::mhd_ctx& ctx)
+    {
+      auto params ctx.parameters(s::name = std::string(),
+                                 s::age = int()
+                                 s::photo = temp_file("test"));
+    };
+
+
+no coroutine, zero overhead, harder code, variadic template everywhere:
+  api("/test/$var/create", post(s::name = std::string()), get(s::user_id = int()),
+      [] (mhd::mhd_ctx& ctx, auto params)
+  {
+  };
+
+
+go coroutines !
+
+
+
+
+epoll + ctx:
+
+   epoll_tcp_server.listen(8080, [] (socket s) {
+
+     char* data;
+     int size
+     while (e = s.next_event())
+     {
+       // do something with e.
+     }
+
+  });
+  
