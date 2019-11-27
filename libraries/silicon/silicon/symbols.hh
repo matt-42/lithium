@@ -5,9 +5,19 @@
     IOD_SYMBOL(ATTR)
 #endif
 
-#ifndef IOD_SYMBOL_all_fields
-#define IOD_SYMBOL_all_fields
-    IOD_SYMBOL(all_fields)
+#ifndef IOD_SYMBOL_after_destroy
+#define IOD_SYMBOL_after_destroy
+    IOD_SYMBOL(after_destroy)
+#endif
+
+#ifndef IOD_SYMBOL_after_insert
+#define IOD_SYMBOL_after_insert
+    IOD_SYMBOL(after_insert)
+#endif
+
+#ifndef IOD_SYMBOL_after_update
+#define IOD_SYMBOL_after_update
+    IOD_SYMBOL(after_update)
 #endif
 
 #ifndef IOD_SYMBOL_auto_increment
@@ -25,6 +35,11 @@
     IOD_SYMBOL(before_destroy)
 #endif
 
+#ifndef IOD_SYMBOL_before_insert
+#define IOD_SYMBOL_before_insert
+    IOD_SYMBOL(before_insert)
+#endif
+
 #ifndef IOD_SYMBOL_before_update
 #define IOD_SYMBOL_before_update
     IOD_SYMBOL(before_update)
@@ -33,11 +48,6 @@
 #ifndef IOD_SYMBOL_blocking
 #define IOD_SYMBOL_blocking
     IOD_SYMBOL(blocking)
-#endif
-
-#ifndef IOD_SYMBOL_callbacs
-#define IOD_SYMBOL_callbacs
-    IOD_SYMBOL(callbacs)
 #endif
 
 #ifndef IOD_SYMBOL_https_cert
@@ -95,11 +105,6 @@
     IOD_SYMBOL(primary_key)
 #endif
 
-#ifndef IOD_SYMBOL_primary_keys
-#define IOD_SYMBOL_primary_keys
-    IOD_SYMBOL(primary_keys)
-#endif
-
 #ifndef IOD_SYMBOL_read_access
 #define IOD_SYMBOL_read_access
     IOD_SYMBOL(read_access)
@@ -108,11 +113,6 @@
 #ifndef IOD_SYMBOL_read_only
 #define IOD_SYMBOL_read_only
     IOD_SYMBOL(read_only)
-#endif
-
-#ifndef IOD_SYMBOL_read_write
-#define IOD_SYMBOL_read_write
-    IOD_SYMBOL(read_write)
 #endif
 
 #ifndef IOD_SYMBOL_select

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <utility>
+#include <tuple>
 
 namespace iod {
 
@@ -34,6 +35,7 @@ namespace iod {
     inline metamap() = default;
     inline metamap(self&&) = default;
     inline metamap(const self&) = default;
+    self& operator=(const self&) = default;
 
     metamap(self& other)
       : metamap(const_cast<const self&>(other)) {}
@@ -64,6 +66,28 @@ namespace iod {
     return sizeof...(Ms);
   }
   
+  template <typename M>
+  struct metamap_size_t
+  {
+  };
+  template <typename... Ms>
+  struct metamap_size_t<metamap<Ms...>>
+  {
+    enum { value = sizeof...(Ms) };
+  };
+  template <typename M>
+  constexpr int metamap_size()
+  {
+    return metamap_size_t<std::decay_t<M>>::value;
+  }
+
+
+  template <typename... Ks>
+  decltype(auto) metamap_values(const metamap<Ks...>& map)
+  {
+    return std::forward_as_tuple(map[typename Ks::_iod_symbol_type()]...);
+  }
+
   template <typename K, typename M>
   constexpr auto has_key(M&& map, K k)
   {
