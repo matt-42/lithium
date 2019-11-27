@@ -11,8 +11,9 @@ int main() {
   using namespace iod;
 
   auto db = sqlite_database("iod_sqlite_test.db");
-  auto schema = sql_orm_shema("users")
-                 .fields(s::id(s::auto_increment, s::primary_key) = int(), s::age = int(), s::name = std::string(),
+  auto schema = sql_orm_schema("users")
+                 .fields(s::id(s::autoset, s::primary_key) = int(), s::age(s::read_only) = int(), 
+                        s::name = std::string(),
                          s::login = std::string())
                  .callbacks(
                    s::after_insert = [] (auto p) { std::cout << "inserted " << json_encode(p) << std::endl; },
@@ -38,7 +39,8 @@ int main() {
   orm.update(u);
   assert(orm.count() == 1);
   auto u2 = orm.find_by_id(john_id);
-  assert(u2.name == "John2" and u2.age == 31 and u2.login == "foo");
+  // age field is read only. It should not have been affected by the update.
+  assert(u2.name == "John2" and u2.age == 42 and u2.login == "foo");
 
   // Remove.
   orm.remove(u2);

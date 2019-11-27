@@ -241,7 +241,7 @@ struct sqlite_connection {
   }
 
   sqlite_statement operator()(const std::string& req) {
-    std::cout << req << std::endl;
+    //std::cout << req << std::endl;
     auto it = stm_cache_->find(req);
     if (it != stm_cache_->end())
       return it->second;
@@ -287,7 +287,7 @@ struct sqlite_database {
 
   template <typename... O>
   sqlite_database(const std::string& path, O... options_) {
-    auto options = metamap(options_...);
+    auto options = make_metamap(options_...);
 
     path_ = path;
     con_.connect(path, SQLITE_OPEN_FULLMUTEX | SQLITE_OPEN_READWRITE |

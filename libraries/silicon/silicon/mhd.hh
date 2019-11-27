@@ -40,6 +40,7 @@ namespace iod {
                   size_t * upload_data_size,
                   void ** ptr)
   {
+
     MHD_Response* response = nullptr;
     int ret = 0;
 
@@ -57,13 +58,13 @@ namespace iod {
       return MHD_YES;
     }
 
-    auto& api = * (S*)cls;
 
     http_request rq{connection, *pp, url};
     http_response resp;
 
     try
     {
+      auto& api = * (S*)cls;
       //api(std::string("/") + std::string(method) + url, &rq, &resp, connection);      
       api.call(method, url, rq, resp);
 
@@ -159,6 +160,7 @@ namespace iod {
     }
 
     MHD_Daemon* daemon_;
+
     char* cert_, *key_;
   };
 
@@ -184,16 +186,16 @@ namespace iod {
   **
   */
   template <typename A, typename... O>
-  auto http_serve(A& api, int port, O&&... opts)
+  auto http_serve(A& api, int port, O... opts)
   {
 
     int flags = MHD_USE_SELECT_INTERNALLY;
-    auto options = D(opts...);
-    if (options.has(s::one_thread_per_connection))
+    auto options = make_metamap(opts...);
+    if (has_key(options, s::one_thread_per_connection))
       flags = MHD_USE_THREAD_PER_CONNECTION;
-    else if (options.has(s::select))
+    else if (has_key(options, s::select))
       flags = MHD_USE_SELECT_INTERNALLY;
-    else if (options.has(s::linux_epoll))
+    else if (has_key(options, s::linux_epoll))
     {
 #if MHD_VERSION >= 0x00095100
       flags = MHD_USE_EPOLL_INTERNALLY;
@@ -216,10 +218,10 @@ namespace iod {
     };
 
     std::string https_cert, https_key;
-    if (options.has(s::https_cert) || options.has(s::https_key))
+    if (has_key(options, s::https_cert) || has_key(options, s::https_key))
     {
-      std::string cert_file = options.get(s::https_cert, "");
-      std::string key_file = options.get(s::https_key, "");
+      std::string cert_file = get_or(options, s::https_cert, "");
+      std::string key_file = get_or(options, s::https_key, "");
 #ifdef MHD_USE_TLS
       flags |= MHD_USE_TLS;
 #else
@@ -237,13 +239,13 @@ namespace iod {
     char* https_cert_buffer = https_cert.size() ? strdup(https_cert.c_str()) : 0;
     char* https_key_buffer = https_key.size() ? strdup(https_key.c_str()) : 0;
   
-    int thread_pool_size = options.get(s::nthreads, std::thread::hardware_concurrency());
+    int thread_pool_size = get_or(options, s::nthreads, std::thread::hardware_concurrency());
     
-    auto s = api;
-    using api_t = decltype(s);
+    using api_t = std::decay_t<decltype(api)>;
     
     MHD_Daemon* d;
 
+    void* cls = (void*)  &api;
     if (https_key.size() > 0)
     {
       if (MHD_is_feature_supported(MHD_FEATURE_SSL) == MHD_NO)
@@ -256,7 +258,7 @@ namespace iod {
                              NULL,
                              NULL,
                              &mhd_handler<api_t>,
-                             (void*)&api,
+                             cls,
                              MHD_OPTION_THREAD_POOL_SIZE, thread_pool_size,
                              MHD_OPTION_HTTPS_MEM_KEY, https_key_buffer,
                              MHD_OPTION_HTTPS_MEM_CERT, https_cert_buffer,
@@ -268,7 +270,7 @@ namespace iod {
                              NULL,
                              NULL,
                              &mhd_handler<api_t>,
-                             (void*)&api,
+                             cls,
                              MHD_OPTION_HTTPS_MEM_KEY, https_key_buffer,
                              MHD_OPTION_HTTPS_MEM_CERT, https_cert_buffer,
                              MHD_OPTION_END);
@@ -283,7 +285,7 @@ namespace iod {
                              NULL,
                              NULL,
                              &mhd_handler<api_t>,
-                             (void*)&api,
+                             cls,
                              MHD_OPTION_THREAD_POOL_SIZE, thread_pool_size,
                              MHD_OPTION_END);
       else
@@ -293,14 +295,14 @@ namespace iod {
                              NULL,
                              NULL,
                              &mhd_handler<api_t>,
-                             (void*)&api,
+                             cls,
                              MHD_OPTION_END);
     }
 
     if (d == NULL)
       throw std::runtime_error("Cannot start the microhttpd daemon");
 
-    if (!options.has(s::non_blocking))
+    if (!has_key(options, s::non_blocking))
     {
       while (true) usleep(1e6);
     }

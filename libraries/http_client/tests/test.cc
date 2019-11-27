@@ -5,5 +5,5 @@ int main()
 {
   iod::http_client client;
   
-  std::cout << client("http://www.google.com").body << std::endl;
+  std::cout << client.get("http://www.google.com").body << std::endl;
 }

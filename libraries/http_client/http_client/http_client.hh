@@ -11,16 +11,15 @@
 
 namespace iod {
 
+inline size_t curl_write_callback(char* ptr, size_t size, size_t nmemb, void* userdata);
 
-
-
-inline size_t curl_write_callback(char* ptr, size_t size, size_t nmemb,
-                                  void* userdata);
-
-inline size_t curl_read_callback(void* ptr, size_t size, size_t nmemb,
-                                 void* stream);
+inline size_t curl_read_callback(void* ptr, size_t size, size_t nmemb, void* stream);
 
 struct http_client {
+
+
+  enum { GET, POST, PUT, DELETE };
+
   inline http_client(const std::string& prefix = "") : url_prefix_(prefix) {
     curl_global_init(CURL_GLOBAL_ALL);
     curl_ = curl_easy_init();
@@ -30,8 +29,7 @@ struct http_client {
 
   inline http_client& operator=(const http_client&) = delete;
 
-  template <typename... A>
-  inline auto operator()(const std::string_view& url, const A&... args) {
+  template <typename... A> inline auto operator()(int http_method, const std::string_view& url, const A&... args) {
 
     struct curl_slist* headers_list = NULL;
 
@@ -50,14 +48,13 @@ struct http_client {
         url_ss << "&";
       std::stringstream value_ss;
       value_ss << v;
-      char* escaped = curl_easy_escape(curl_, value_ss.str().c_str(),
-                                       value_ss.str().size());
+      char* escaped = curl_easy_escape(curl_, value_ss.str().c_str(), value_ss.str().size());
       url_ss << iod::symbol_string(k) << '=' << escaped;
       first = false;
       curl_free(escaped);
     });
 
-    std::cout << url_ss.str() << std::endl;
+    //std::cout << url_ss.str() << std::endl;
     // Pass the url to libcurl.
     curl_easy_setopt(curl_, CURLOPT_URL, url_ss.str().c_str());
 
@@ -68,8 +65,7 @@ struct http_client {
     if (is_urlencoded) { // urlencoded
       req_body_buffer_.str("");
 
-      auto post_params =
-          iod::get_or(arguments, s::post_parameters, make_metamap());
+      auto post_params = iod::get_or(arguments, s::post_parameters, make_metamap());
       first = true;
       iod::map(post_params, [&](auto k, auto v) {
         if (!first)
@@ -77,8 +73,7 @@ struct http_client {
         post_stream << iod::symbol_string(k) << "=";
         std::stringstream value_str;
         value_str << v;
-        char* escaped = curl_easy_escape(curl_, value_str.str().c_str(),
-                                         value_str.str().size());
+        char* escaped = curl_easy_escape(curl_, value_str.str().c_str(), value_str.str().size());
         first = false;
         post_stream << escaped;
         curl_free(escaped);
@@ -87,12 +82,7 @@ struct http_client {
       req_body_buffer_.str(rq_body);
 
     } else // Json encoded
-      rq_body = iod::json_encode(
-          iod::get_or(arguments, s::post_parameters, make_metamap()));
-
-    enum { GET, POST, PUT, DELETE };
-
-    int http_method = iod::get_or(arguments, s::method, GET);
+      rq_body = iod::json_encode(iod::get_or(arguments, s::post_parameters, make_metamap()));
 
     // HTTP POST
     if (http_method == POST) {
@@ -113,11 +103,10 @@ struct http_client {
 
     if (http_method == PUT or http_method == POST)
       if (is_urlencoded)
-        headers_list = curl_slist_append(
-            headers_list, "Content-Type: application/x-www-form-urlencoded");
-      else
         headers_list =
-            curl_slist_append(headers_list, "Content-Type: application/json");
+            curl_slist_append(headers_list, "Content-Type: application/x-www-form-urlencoded");
+      else
+        headers_list = curl_slist_append(headers_list, "Content-Type: application/json");
 
     // HTTP DELETE
     if (http_method == DELETE)
@@ -128,8 +117,7 @@ struct http_client {
                      0); // Enable cookies but do no write a cookiejar.
 
     body_buffer_.clear();
-    curl_easy_setopt(curl_, CURLOPT_WRITEFUNCTION,
-                     curl_write_callback);
+    curl_easy_setopt(curl_, CURLOPT_WRITEFUNCTION, curl_write_callback);
     curl_easy_setopt(curl_, CURLOPT_WRITEDATA, this);
 
     curl_easy_setopt(curl_, CURLOPT_HTTPHEADER, headers_list);
@@ -151,6 +139,15 @@ struct http_client {
     return make_metamap(s::status = response_code, s::body = body_buffer_);
   }
 
+  template <typename... P>
+  auto get(const std::string& url, P... params) { return this->operator()(GET, url, params...); }
+  template <typename... P>
+  auto put(const std::string& url, P... params) { return this->operator()(PUT, url, params...); }
+  template <typename... P>
+  auto post(const std::string& url, P... params) { return this->operator()(POST, url, params...); }
+  template <typename... P>
+  auto delete_(const std::string& url, P... params) { return this->operator()(DELETE, url, params...); }
+
   inline void read(char* ptr, int size) { body_buffer_.append(ptr, size); }
 
   inline size_t write(char* ptr, int size) {
@@ -165,17 +162,28 @@ struct http_client {
   std::string url_prefix_;
 };
 
-inline size_t curl_read_callback(void* ptr, size_t size, size_t nmemb,
-                                 void* userdata) {
+inline size_t curl_read_callback(void* ptr, size_t size, size_t nmemb, void* userdata) {
   http_client* client = (http_client*)userdata;
   return client->write((char*)ptr, size * nmemb);
 }
 
-size_t curl_write_callback(char* ptr, size_t size, size_t nmemb,
-                           void* userdata) {
+size_t curl_write_callback(char* ptr, size_t size, size_t nmemb, void* userdata) {
   http_client* client = (http_client*)userdata;
   client->read(ptr, size * nmemb);
   return size * nmemb;
+}
+
+template <typename... P> auto http_get(const std::string& url, P... params) {
+  return http_client{}.get(url, params...);
+}
+template <typename... P> auto http_post(const std::string& url, P... params) {
+  return http_client{}.post(url, params...);
+}
+template <typename... P> auto http_put(const std::string& url, P... params) {
+  return http_client{}.put(url, params...);
+}
+template <typename... P> auto http_delete(const std::string& url, P... params) {
+  return http_client{}.delete_(url, params...);
 }
 
 } // namespace iod

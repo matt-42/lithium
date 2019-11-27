@@ -21,17 +21,27 @@ template <typename T, typename F> struct delayed_assignator {
 
 template <typename Req, typename Resp> struct api {
 
+  typedef api<Req, Resp> self;
+
   using H = std::function<void(Req&, Resp&)>;
   struct VH {
     int verb = ANY;
     H handler;
+    std::string url_spec;
   };
 
-  H& operator()(const std::string_view& r) { return routes_map_[r]; }
+  H& operator()(const std::string_view& r) 
+  { 
+    auto& vh = routes_map_[r];
+    vh.verb = ANY;
+    vh.url_spec = r;
+    return vh.handler;
+  }
 
-  H& operator()(int verb, const std::string_view& r) {
+  H& operator()(int verb, std::string_view r) {
     auto& vh = routes_map_[r];
     vh.verb = verb;
+    vh.url_spec = r;
     return vh.handler;
   }
 
@@ -44,8 +54,24 @@ template <typename Req, typename Resp> struct api {
     return ANY;
   }
 
-  auto call(std::string_view& method, std::string route, Req* request,
-            Resp* response) {
+  void add_subapi(std::string prefix, const self& subapi)
+  {
+    subapi.routes_map_.for_all_routes([this, prefix] (auto r, auto h) {
+      this->routes_map_[prefix + r] = h;
+    });
+
+  }
+
+  void print_routes()
+  {
+    std::cout << "=====================" << std::endl;
+    routes_map_.for_all_routes([this] (auto r, auto h) {
+      std::cout << r << std::endl;
+    });
+    std::cout << "=====================" << std::endl;
+  }
+  auto call(const char* method, std::string route, Req& request,
+            Resp& response) {
     // skip the last / of the url.
     std::string_view route2(route);
     if (route2.size() != 0 and route2[route2.size() - 1] == '/')
@@ -53,8 +79,11 @@ template <typename Req, typename Resp> struct api {
 
     auto it = routes_map_.find(route2);
     if (it != routes_map_.end()) {
-      if (it->second->verb == ANY or parse_verb(method) == it->second->verb)
-        it->second->handler(request, response);
+      if (it->second.verb == ANY or parse_verb(method) == it->second.verb)
+      {
+        request.url_spec = it->second.url_spec;
+        it->second.handler(request, response);
+      }
       else
         throw http_error::not_found("Method ", method, " not implemented on route ",
                                route2);
@@ -62,7 +91,7 @@ template <typename Req, typename Resp> struct api {
       throw http_error::not_found("Route ", route2, " does not exist.");
   }
 
-  dynamic_routing_table<H> routes_map_;
+  dynamic_routing_table<VH> routes_map_;
 };
 
 } // namespace iod

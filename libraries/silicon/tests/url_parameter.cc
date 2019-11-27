@@ -2,9 +2,7 @@
 #include <iod/silicon/request.hh>
 #include "test.hh"
 
-
-IOD_SYMBOL(id);
-IOD_SYMBOL(id2);
+#include "symbols.hh"
 
 using namespace iod;
 
@@ -12,7 +10,8 @@ template <typename... O>
 auto url_decode_test(const char* spec, const char* url, O... param) {
 
     auto info = make_url_parser_info(spec);
-    auto p = parse_url_parameters(info, url, param...);
+    auto obj = make_metamap(param...);
+    auto p = parse_url_parameters(info, url, obj);
     return p;
 }
 

@@ -20,14 +20,9 @@
     IOD_SYMBOL(after_update)
 #endif
 
-#ifndef IOD_SYMBOL_auto_increment
-#define IOD_SYMBOL_auto_increment
-    IOD_SYMBOL(auto_increment)
-#endif
-
-#ifndef IOD_SYMBOL_before_create
-#define IOD_SYMBOL_before_create
-    IOD_SYMBOL(before_create)
+#ifndef IOD_SYMBOL_autoset
+#define IOD_SYMBOL_autoset
+    IOD_SYMBOL(autoset)
 #endif
 
 #ifndef IOD_SYMBOL_before_destroy
@@ -70,6 +65,11 @@
     IOD_SYMBOL(linux_epoll)
 #endif
 
+#ifndef IOD_SYMBOL_name
+#define IOD_SYMBOL_name
+    IOD_SYMBOL(name)
+#endif
+
 #ifndef IOD_SYMBOL_non_blocking
 #define IOD_SYMBOL_non_blocking
     IOD_SYMBOL(non_blocking)
@@ -80,24 +80,14 @@
     IOD_SYMBOL(nthreads)
 #endif
 
-#ifndef IOD_SYMBOL_on_create_success
-#define IOD_SYMBOL_on_create_success
-    IOD_SYMBOL(on_create_success)
-#endif
-
-#ifndef IOD_SYMBOL_on_destroy_success
-#define IOD_SYMBOL_on_destroy_success
-    IOD_SYMBOL(on_destroy_success)
-#endif
-
-#ifndef IOD_SYMBOL_on_update_success
-#define IOD_SYMBOL_on_update_success
-    IOD_SYMBOL(on_update_success)
-#endif
-
 #ifndef IOD_SYMBOL_one_thread_per_connection
 #define IOD_SYMBOL_one_thread_per_connection
     IOD_SYMBOL(one_thread_per_connection)
+#endif
+
+#ifndef IOD_SYMBOL_optional
+#define IOD_SYMBOL_optional
+    IOD_SYMBOL(optional)
 #endif
 
 #ifndef IOD_SYMBOL_primary_key
@@ -118,6 +108,11 @@
 #ifndef IOD_SYMBOL_select
 #define IOD_SYMBOL_select
     IOD_SYMBOL(select)
+#endif
+
+#ifndef IOD_SYMBOL_test
+#define IOD_SYMBOL_test
+    IOD_SYMBOL(test)
 #endif
 
 #ifndef IOD_SYMBOL_validate

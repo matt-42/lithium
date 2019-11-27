@@ -1,3 +1,5 @@
+#pragma once
+
 #include <boost/lexical_cast.hpp>
 #include <iostream>
 #include <microhttpd.h>
@@ -9,6 +11,7 @@
 
 #include <iod/metamap/metamap.hh>
 #include <iod/silicon/error.hh>
+#include <iod/silicon/urldecode.hh>
 
 namespace iod {
 
@@ -19,13 +22,26 @@ struct http_request {
 
   const char* header(const char* k) const;
 
-  template <typename O> void url_parameters(O& res) const;
-  template <typename O> void get_parameters(O& res) const;
-  template <typename O> void post_parameters(O& res) const;
+
+  // With list of parameters: s::id = int(), s::name = string(), ...
+  template <typename S, typename V, typename... T> auto url_parameters(assign_exp<S,V> e, T... tail);
+  template <typename S, typename V, typename... T> auto get_parameters(assign_exp<S,V> e, T... tail);
+  template <typename S, typename V, typename... T> auto post_parameters(assign_exp<S,V> e, T... tail);
+
+  // Const wrapper.
+  template <typename O> auto url_parameters(const O& res);
+  template <typename O> auto get_parameters(const O& res);
+  template <typename O> auto post_parameters(const O& res);
+
+  // With a metamap.
+  template <typename O> auto url_parameters(O& res);
+  template <typename O> auto get_parameters(O& res);
+  template <typename O> auto post_parameters(O& res);
 
   MHD_Connection* mhd_connection;
   std::string body;
   std::string url;
+  std::string url_spec;
 };
 
 template <typename F>
@@ -73,10 +89,9 @@ auto make_url_parser_info(const std::string_view url) {
   return info;
 }
 
-template <typename... O>
+template <typename O>
 auto parse_url_parameters(const url_parser_info& fmt,
-                          const std::string_view url, O... fields)
-
+                          const std::string_view url, O& obj)
 {
   // get the indexes of the slashes in url.
   std::vector<int> slashes;
@@ -88,7 +103,6 @@ auto parse_url_parameters(const url_parser_info& fmt,
   // For each field in O...
   //  find the location of the field in the url thanks to fmt.
   //  get it.
-  auto obj = make_metamap(fields...);
   map(obj, [&](auto k, auto v) {
     const char* symbol_str = symbol_string(k);
     auto it = fmt.find(symbol_str);
@@ -117,23 +131,6 @@ auto parse_url_parameters(const url_parser_info& fmt,
 inline const char* http_request::header(const char* k) const {
   return MHD_lookup_connection_value(mhd_connection, MHD_HEADER_KIND, k);
 }
-
-// template <typename O> void http_request::get_parameters(O& res) const {
-//   std::set<void*> found;
-//   auto add = [&](const char* k, const char* v) {
-//     urldecode2(found, std::string(k) + "=" + v, res, true);
-//   };
-
-//   MHD_get_connection_values(mhd_connection, MHD_GET_ARGUMENT_KIND,
-//                             &mhd_keyvalue_iterator<decltype(add)>, &add);
-
-//   // Check for missing fields.
-//   std::string missing =
-//       urldecode_check_missing_fields_on_subset<S>(found, res, true);
-//   if (missing.size())
-//     throw http_error::bad_request("Error while decoding the GET parameter: ",
-//                              missing);
-// }
 
 // template <typename P, typename O, typename C>
 // void decode_url_arguments(O& res, const C& url) {
@@ -192,14 +189,10 @@ inline const char* http_request::header(const char* k) const {
 //   }
 // }
 
-// template <typename P, typename O>
-// void decode_post_parameters_urlencoded(O& res, http_request* r) const {
-//   try {
-//     urldecode(r->body, res);
-//   } catch (error::error err) {
-//     throw http_error::bad_request("Error in POST parameters: ", err.what());
-//   }
-// }
+template <typename O>
+void decode_post_parameters_urlencoded(O& res, http_request& r) {
+    urldecode(r.body, res);
+}
 
 // template <typename P, typename T>
 // auto decode_parameters(http_request* r, P procedure, T& res) const {
@@ -230,5 +223,65 @@ inline const char* http_request::header(const char* k) const {
 //                              e.what());
 //   }
 // }
+
+  template <typename S, typename V, typename... T> auto http_request::url_parameters(assign_exp<S,V> e, T... tail)
+  {
+    return url_parameters(make_metamap(e, tail...));
+  }
+
+  template <typename S, typename V, typename... T> auto http_request::get_parameters(assign_exp<S,V> e, T... tail)
+  {
+    return get_parameters(make_metamap(e, tail...));
+  }
+
+  template <typename S, typename V, typename... T> auto http_request::post_parameters(assign_exp<S,V> e, T... tail)
+  {
+    auto o = make_metamap(e, tail...);
+    return post_parameters(o);
+  }
+
+  template <typename O> auto http_request::url_parameters(const O& res)
+  { 
+    O r; return url_parameters(r);
+  }
+
+  template <typename O> auto http_request::get_parameters(const O& res)
+  { 
+    O r; return get_parameters(r);
+  }
+  template <typename O> auto http_request::post_parameters(const O& res)
+  { 
+    O r; return post_parameters(r);
+  }
+
+  template <typename O> auto http_request::url_parameters(O& res)
+  {
+    auto info = make_url_parser_info(url_spec);
+    return parse_url_parameters(info, url, res);
+  }
+
+  template <typename O> auto http_request::get_parameters(O& res) {
+    std::set<void*> found;
+    auto add = [&](const char* k, const char* v) {
+      urldecode2(found, std::string(k) + "=" + v, res, true);
+    };
+
+    MHD_get_connection_values(mhd_connection, MHD_GET_ARGUMENT_KIND,
+                              &mhd_keyvalue_iterator<decltype(add)>, &add);
+
+    // Check for missing fields.
+    std::string missing =
+        urldecode_check_missing_fields(found, res, true);
+    if (missing.size())
+      throw http_error::bad_request("Error while decoding the GET parameter: ",
+                              missing);
+    return res;
+  }
+
+  template <typename O> auto http_request::post_parameters(O& res)
+  {
+    urldecode(body, res);
+    return res;
+  }
 
 } // namespace iod

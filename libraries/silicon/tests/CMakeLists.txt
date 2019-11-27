@@ -31,6 +31,10 @@ add_executable(sql_orm sql_orm.cc)
 target_link_libraries(sql_orm ${MHD_LIBS} curl sqlite3)
 add_test(sql_orm sql_orm)
 
-#add_executable(crud crud.cc)
-#target_link_libraries(crud ${MHD_LIBS} curl)
-#add_test(crud crud)
+add_executable(hello_world hello_world.cc)
+target_link_libraries(hello_world ${MHD_LIBS} curl sqlite3)
+add_test(hello_world hello_world)
+
+add_executable(crud crud.cc)
+target_link_libraries(crud ${MHD_LIBS} curl sqlite3)
+add_test(crud crud)

@@ -10,7 +10,7 @@ namespace iod {
 struct sqlite_connection;
 struct mysql_connection;
 
-using s::auto_increment;
+using s::autoset;
 using s::primary_key;
 using s::read_only;
 
@@ -24,7 +24,11 @@ template <typename SCHEMA, typename C> struct sql_orm {
     get_or(schema_.get_callbacks(), s, [](auto p) {})(o);
   }
 
-  void create_table_if_not_exists() {
+  inline void drop_table_if_exists() {
+    con_(std::string("DROP TABLE IF EXISTS ") + schema_.table_name());
+  } 
+  
+  inline void create_table_if_not_exists() {
     std::stringstream ss;
     ss << "CREATE TABLE if not exists " << schema_.table_name() << " (";
 
@@ -35,7 +39,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
       typedef typename A::left_t K;
       typedef typename A::right_t V;
 
-      bool auto_increment = SCHEMA::template is_auto_increment<F>::value;
+      bool autoset = SCHEMA::template is_autoset<F>::value;
       bool primary_key = SCHEMA::template is_primary_key<F>::value;
       K k;
       V v;
@@ -45,20 +49,20 @@ template <typename SCHEMA, typename C> struct sql_orm {
       ss << iod::symbol_string(k) << " " << con_.type_to_string(v);
 
       if (std::is_same<C, sqlite_connection>::value) {
-        if (auto_increment or primary_key)
+        if (autoset or primary_key)
           ss << " PRIMARY KEY ";
       }
 
       if (std::is_same<C, mysql_connection>::value) {
-        if (auto_increment)
-          ss << " AUTO_INCREMENT NOT NULL";
+        if (autoset)
+          ss << " autoset NOT NULL";
         if (primary_key)
           ss << " PRIMARY KEY ";
       }
 
       // To activate when pgsql_connection is implemented.
       // if (std::is_same<C, pgsql_connection>::value and
-      //     m.attributes().has(s::auto_increment))
+      //     m.attributes().has(s::autoset))
       //   ss << " SERIAL ";
 
       first = false;
@@ -74,7 +78,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     }
   }
 
-  auto find_by_id(int id) {
+  auto find_by_id(int id, bool* found = nullptr) {
     O o;
     std::stringstream field_ss;
     bool first = true;
@@ -88,6 +92,8 @@ template <typename SCHEMA, typename C> struct sql_orm {
     int res =
         con_("SELECT " + field_ss.str() + " from " + schema_.table_name() + " where id = ?")(id) >>
         o;
+    if (found) *found = res;
+
     call_callback(s::read_access, o);
     return o;
   }
@@ -125,7 +131,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
   // Save all fields except auto increment.
   // The db will automatically fill auto increment keys.
-  template <typename N> int insert(const N& o) {
+  template <typename N> int insert(N& o) {
     std::stringstream ss;
     std::stringstream vs;
 
@@ -135,7 +141,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     ss << "INSERT into " << schema_.table_name() << "(";
 
     bool first = true;
-    iod::map(schema_.without_auto_increment(), [&](auto k, auto v) {
+    iod::map(schema_.without_autoset(), [&](auto k, auto v) {
       if (!first) {
         ss << ",";
         vs << ",";
@@ -145,9 +151,9 @@ template <typename SCHEMA, typename C> struct sql_orm {
       vs << "?";
     });
 
-    auto values = intersection(schema_.without_auto_increment(), o);
+    auto values = intersection(schema_.without_autoset(), o);
     map(values, [&](auto k, auto& v) { v = o[k]; });
-    // auto values = intersection(o, schema_.without_auto_increment());
+    // auto values = intersection(o, schema_.without_autoset());
 
     ss << ") VALUES (" << vs.str() << ")";
     auto req = con_(ss.str());
@@ -159,7 +165,8 @@ template <typename SCHEMA, typename C> struct sql_orm {
   };
   template <typename S, typename V, typename... A>
   int insert(const assign_exp<S, V>& a, A&&... tail) {
-    return insert(make_metamap(a, tail...));
+    auto m = make_metamap(a, tail...);
+    return insert(m);
   }
 
   // Iterate on all the rows of the table.
@@ -288,7 +295,7 @@ template <typename... F> struct orm_fields {
 
   CHECK_FIELD_ATTR(primary_key);
   CHECK_FIELD_ATTR(read_only);
-  CHECK_FIELD_ATTR(auto_increment);
+  CHECK_FIELD_ATTR(autoset);
 
   auto all_info() { return fields_; }
 
@@ -302,15 +309,15 @@ template <typename... F> struct orm_fields {
                             [](auto... e) { return make_metamap(e...); });
   }
 
-  auto without_auto_increment() { return substract(all_fields(), auto_increment()); }
+  auto without_autoset() { return substract(all_fields(), autoset()); }
 
   std::tuple<F...> fields_;
 };
 
 template <typename MD = orm_fields<>, typename CB = decltype(make_metamap())>
-struct sql_orm_shema : public MD {
+struct sql_orm_schema : public MD {
 
-  sql_orm_shema(const std::string& table_name, CB cb = CB(), MD md = MD())
+  sql_orm_schema(const std::string& table_name, CB cb = CB(), MD md = MD())
       : MD(md), table_name_(table_name), callbacks_(cb) {}
 
   template <typename D> auto connect(D& db) { return sql_orm(*this, db.get_connection()); }
@@ -320,11 +327,11 @@ struct sql_orm_shema : public MD {
 
   template <typename... P> auto callbacks(P... params_list) {
     auto cbs = make_metamap(params_list...);
-    return sql_orm_shema<MD, decltype(cbs)>(table_name_, cbs, *static_cast<MD*>(this));
+    return sql_orm_schema<MD, decltype(cbs)>(table_name_, cbs, *static_cast<MD*>(this));
   }
 
   template <typename... P> auto fields(P... p) {
-    return sql_orm_shema<orm_fields<P...>, CB>(table_name_, callbacks_, orm_fields<P...>(p...));
+    return sql_orm_schema<orm_fields<P...>, CB>(table_name_, callbacks_, orm_fields<P...>(p...));
   }
 
   std::string table_name_;

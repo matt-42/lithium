@@ -24,6 +24,12 @@ namespace iod {
       typedef std::remove_const_t<std::remove_reference_t<V>> vtype;
       return make_variable(S{}, e.right);
     }
+
+    template <typename S>
+    decltype(auto) exp_to_variable(const symbol<S>& e)
+    {
+      return exp_to_variable(S() = int());
+    }
     
     template <typename ...T>
     inline decltype(auto) make_metamap_helper(T&&... args)
