@@ -1,3 +1,7 @@
+#pragma once
+
+#include <sstream>
+#include <random>
 
 namespace iod {
 
@@ -10,11 +14,11 @@ namespace iod {
   }
   
   inline std::string session_cookie(http_request& request,
-				    http_request& response,
+				    http_response& response,
 				    const char* key = "silicon_token")
   {
     std::string token;
-    const char* token_ = MHD_lookup_connection_value(request.mhd_connection, MHD_COOKIE_KIND, key.c_str());
+    const char* token_ = MHD_lookup_connection_value(request.mhd_connection, MHD_COOKIE_KIND, key);
 
     if (!token_)
       {

@@ -1,5 +1,8 @@
 #include <iod/http_client/http_client.hh>
 #include <iod/silicon/silicon.hh>
+#include <iod/silicon/sql_http_session.hh>
+
+#include "symbols.hh"
 
 using namespace iod;
 
@@ -10,33 +13,33 @@ int main() {
   // Database
   sqlite_database db("./test_sqlite_authentication.sqlite");
   // Users table
-  sql_orm_schema user_orm("users").fields(s::id(s::autoset) = int(), s::login = std::string(),
+  auto user_orm = sql_orm_schema("users").fields(s::id(s::autoset) = int(), s::login = std::string(),
                             s::password = std::string());
   // Session.
-  sql_session session(s::user_id = int());
+  sql_http_session session("user_sessions", s::user_id = int());
 
   my_api(GET, "/who_am_i") = [&](http_request& request, http_response& response) {
-    auto sess = session.get(db, request);
+    auto sess = session.connect(db, request, response);
     if (sess.logged_in())
-      response.write(json_encode(user_orm.connect(db).find_one(s::id = sess.id)));
+      response.write(json_encode(user_orm.connect(db).find_one(s::id = sess.values().id)));
     else
-      throw http_error::unauthorized("Please login.")    
+      throw http_error::unauthorized("Please login.");   
   };
 
   my_api(POST, "/login") = [&](http_request& request, http_response& response) {
-    auto lp = r.post_parameters(s::login = std::string(), s::password = std::string());
+    auto lp = request.post_parameters(s::login = std::string(), s::password = std::string());
     bool exists = false;
     auto user = user_orm.connect(db).find_one(exists, lp);
     if (exists)
     {
-      session.connect(db, request).login(s::user_id = user.id);
+      session.connect(db, request, response).store(s::user_id = user.id);
       return true;
     }
     else throw http_error::unauthorized("Bad login or password.");
   };
 
   my_api(POST, "/register") = [&](http_request& request, http_response& response) {
-    auto new_user = r.post_parameters(s::login = std::string(), s::password = std::string());
+    auto new_user = request.post_parameters(s::login = std::string(), s::password = std::string());
     bool exists = false;
     auto user_db = user_orm.connect(db)
     auto user = user_db.find_one(exists, s::login == new_user.login);
@@ -46,7 +49,7 @@ int main() {
   };
 
   my_api(GET, "/logout") = [&](http_request& request, http_response& response) {
-      session.connect(db, request).logout();
+      session.connect(db, request, response).logout();
   };
 
 

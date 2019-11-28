@@ -85,11 +85,6 @@
     IOD_SYMBOL(one_thread_per_connection)
 #endif
 
-#ifndef IOD_SYMBOL_optional
-#define IOD_SYMBOL_optional
-    IOD_SYMBOL(optional)
-#endif
-
 #ifndef IOD_SYMBOL_primary_key
 #define IOD_SYMBOL_primary_key
     IOD_SYMBOL(primary_key)
@@ -108,6 +103,11 @@
 #ifndef IOD_SYMBOL_select
 #define IOD_SYMBOL_select
     IOD_SYMBOL(select)
+#endif
+
+#ifndef IOD_SYMBOL_session_id
+#define IOD_SYMBOL_session_id
+    IOD_SYMBOL(session_id)
 #endif
 
 #ifndef IOD_SYMBOL_test

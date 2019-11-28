@@ -70,6 +70,11 @@
     IOD_SYMBOL(non_blocking)
 #endif
 
+#ifndef IOD_SYMBOL_password
+#define IOD_SYMBOL_password
+    IOD_SYMBOL(password)
+#endif
+
 #ifndef IOD_SYMBOL_post
 #define IOD_SYMBOL_post
     IOD_SYMBOL(post)
@@ -103,5 +108,10 @@
 #ifndef IOD_SYMBOL_test2
 #define IOD_SYMBOL_test2
     IOD_SYMBOL(test2)
+#endif
+
+#ifndef IOD_SYMBOL_user_id
+#define IOD_SYMBOL_user_id
+    IOD_SYMBOL(user_id)
 #endif
 

@@ -17,7 +17,8 @@ using s::read_only;
 template <typename SCHEMA, typename C> struct sql_orm {
 
   typedef decltype(std::declval<SCHEMA>().all_fields()) O;
-
+  typedef O object_type;
+  
   sql_orm(SCHEMA& schema, C& con) : schema_(schema), con_(con) {}
 
   template <typename S, typename O> void call_callback(S s, O& o) {
@@ -239,6 +240,9 @@ template <typename SCHEMA, typename C> struct sql_orm {
     iod::reduce(pks, con_(ss.str()));
 
     call_callback(s::after_destroy, o);
+  }
+  template <typename A, typename B, typename... T> void remove(const assign_exp<A, B>& o, T... tail) {
+    return remove(make_metamap(o, tail...));
   }
 
   SCHEMA schema_;

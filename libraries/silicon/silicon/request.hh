@@ -22,7 +22,6 @@ struct http_request {
 
   const char* header(const char* k) const;
 
-
   // With list of parameters: s::id = int(), s::name = string(), ...
   template <typename S, typename V, typename... T> auto url_parameters(assign_exp<S,V> e, T... tail);
   template <typename S, typename V, typename... T> auto get_parameters(assign_exp<S,V> e, T... tail);
