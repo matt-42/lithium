@@ -86,11 +86,18 @@ namespace iod {
 
 
         {
-          auto it2 = childs.find("*"); // wildcard.
-          if (it2 != childs.end())
-            return it2->second.find(r, c);
-          else
-            return end();
+          // if one child is a url param {{param_name}}, choose it
+          for (auto& kv : childs)
+          {
+            auto name = kv.first;
+            if (name.size() > 4 and 
+                name[0] == '{' and
+                name[1] == '{' and
+                name[name.size() -2] == '}' and
+                name[name.size() -1] == '}')
+              return kv.second.find(r, c);                
+          }
+          return end();
         }
       }
 

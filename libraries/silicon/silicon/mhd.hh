@@ -58,7 +58,6 @@ namespace iod {
       return MHD_YES;
     }
 
-
     http_request rq{connection, *pp, url};
     http_response resp;
 

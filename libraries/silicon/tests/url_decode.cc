@@ -14,12 +14,12 @@ bool is_error(std::string s, O& obj)
   }
   catch (http_error e)
   {
-    std::cout << e.what() << std::endl;
+    std::cout << "urldecode_error "  << e.what() << std::endl;
     err = true;
   }
   catch (std::exception& e)
   {
-    std::cout << e.what() << std::endl;
+    std::cout << "urldecode_error " << e.what() << std::endl;
     err = true;
   }
   return err;
@@ -114,10 +114,10 @@ int main()
 
   { // Missing nested field
     const std::string s = "age=42";
+    std::cout << "nested" << std::endl;
     typedef decltype(make_metamap(s::test2 = std::string())) elt_type;
 
-    auto obj = make_metamap(s::name = elt_type(),
-                 s::age = int());
+    auto obj = make_metamap(s::name = elt_type(), s::age = int());
 
     assert(is_error(s, obj));
   }

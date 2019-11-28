@@ -103,7 +103,7 @@ namespace iod {
   template <typename K, typename M, typename O>
   constexpr auto get_or(M&& map, K k, O default_)
   {
-    if constexpr(has_key<K>(k)) {
+    if constexpr(has_key<M>(k)) {
         return map[k];
       }
     else

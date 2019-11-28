@@ -40,7 +40,7 @@ int main() {
   auto c = http_client("http://127.0.0.1:12345");
 
   // // // Insert.
-  auto to_insert = make_metamap(s::name = "matt", s::age = 12, s::address = "USA");
+  auto to_insert = make_metamap(s::name = "matt", s::age = 12, s::address = "USA", s::city = "Paris");
   auto insert_r = c.post("/user/create", s::post_parameters = to_insert);
   insert_r = c.post("/user/create", s::post_parameters = to_insert);
 

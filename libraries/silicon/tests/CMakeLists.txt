@@ -31,7 +31,7 @@ add_test(url_parameter url_parameter)
 
 
 add_executable(url_decode url_decode.cc)
-target_link_libraries(url_decode ${MHD_LIBS} curl)
+target_link_libraries(url_decode ${LIBS} curl)
 add_test(url_decode url_decode)
 
 add_executable(sql_orm sql_orm.cc)

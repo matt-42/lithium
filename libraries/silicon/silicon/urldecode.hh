@@ -170,6 +170,7 @@ namespace iod
     std::string missing;
     map(obj, [&] (auto k, auto& v)
     {
+      if (missing.size()) return;
       missing = urldecode_check_missing_fields(found, v);
       if (missing.size())
         missing = (root ? "" : ".") + std::string(iod::symbol_string(k)) + missing;
@@ -183,6 +184,7 @@ namespace iod
     std::string missing;
     map(S(), [&] (auto k, auto)
     {
+      if (missing.size()) return;
       auto& v = obj[k];
       missing = urldecode_check_missing_fields(found, v);
       if (missing.size())
