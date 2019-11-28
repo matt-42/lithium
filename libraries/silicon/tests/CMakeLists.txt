@@ -49,3 +49,7 @@ add_test(crud crud)
 add_executable(request_parameters request_parameters.cc)
 target_link_libraries(request_parameters ${LIBS} curl sqlite3)
 add_test(request_parameters request_parameters)
+
+#add_executable(sqlite_authentication sqlite_authentication.cc)
+#target_link_libraries(sqlite_authentication ${LIBS} curl sqlite3)
+#add_test(sqlite_authentication sqlite_authentication)

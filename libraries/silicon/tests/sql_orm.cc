@@ -25,11 +25,10 @@ int main() {
   c("DROP TABLE IF EXISTS users;")();
   orm.create_table_if_not_exists();
 
-
   // Insert.
   int john_id = orm.insert(s::name = "John", s::age = 42, s::login = "lol");
   assert(orm.count() == 1);
-  auto u = orm.find_by_id(john_id);
+  auto u = orm.find_one(s::id = john_id);
   assert(u.id = john_id and u.name == "John" and u.age == 42 and u.login == "lol");
 
   // Update.
@@ -38,7 +37,7 @@ int main() {
   u.login = "foo";
   orm.update(u);
   assert(orm.count() == 1);
-  auto u2 = orm.find_by_id(john_id);
+  auto u2 = orm.find_one(s::id = john_id);
   // age field is read only. It should not have been affected by the update.
   assert(u2.name == "John2" and u2.age == 42 and u2.login == "foo");
 

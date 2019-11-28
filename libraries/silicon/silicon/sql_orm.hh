@@ -78,32 +78,11 @@ template <typename SCHEMA, typename C> struct sql_orm {
     }
   }
 
-  auto find_by_id(int id, bool* found = nullptr) {
-    O o;
-    std::stringstream field_ss;
-    bool first = true;
-    iod::map(o, [&](auto k, auto v) {
-      if (!first)
-        field_ss << ",";
-      first = false;
-      field_ss << iod::symbol_string(k);
-    });
-
-    int res =
-        con_("SELECT " + field_ss.str() + " from " + schema_.table_name() + " where id = ?")(id) >>
-        o;
-    if (found) *found = res;
-
-    call_callback(s::read_access, o);
-    return o;
-  }
-
   template <typename... W>
-  auto select_one_where(W... where_conditions) {
-    auto where = make_metamap(where_conditions...);
+  auto find_one(bool& found, metamap<W...> where) {
     std::stringstream ss;
     O o;
-    ss << "SELECT";
+    ss << "SELECT ";
     bool first = true;
     iod::map(o, [&](auto k, auto v) {
       if (!first)
@@ -112,7 +91,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
       ss << iod::symbol_string(k);
     });
 
-    ss << "WHERE";
+    ss << " FROM " << schema_.table_name() << " WHERE ";
 
     first = true;
     map(where, [&](auto k, auto v) {
@@ -124,11 +103,22 @@ template <typename SCHEMA, typename C> struct sql_orm {
     ss << "LIMIT 1";
     auto stmt = con_(ss.str());
 
-    iod::reduce(where, stmt) >> o;
+    found = iod::reduce(where, stmt) >> o;
     call_callback(s::read_access, o);
     return o;
   }
-
+  template <typename A, typename B, typename... W>
+  auto find_one(bool& found, assign_exp<A, B> w1, W... ws) {
+    return find_one(found, make_metamap(w1, ws...));
+  }
+  template <typename... W>
+  auto find_one(W... ws) {
+    bool f = false;
+    auto obj = find_one(f, ws...);
+    if (!f)
+      throw std::runtime_error(schema_.table_name() + " not found with the given criteria.");
+    return obj;
+  }
   // Save all fields except auto increment.
   // The db will automatically fill auto increment keys.
   template <typename N> int insert(N& o) {
