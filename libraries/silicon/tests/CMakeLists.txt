@@ -21,20 +21,24 @@ endif (OPENSSL_FOUND)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -g -O0")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --coverage") # enabling coverage
 
-set(MHD_LIBS gnutls gcrypt pthread microhttpd)
+set(LIBS gnutls gcrypt pthread microhttpd curl sqlite3)
 
 add_executable(url_parameter url_parameter.cc)
-target_link_libraries(url_parameter ${MHD_LIBS} curl)
+target_link_libraries(url_parameter ${LIBS} curl)
 add_test(url_parameter url_parameter)
 
 add_executable(sql_orm sql_orm.cc)
-target_link_libraries(sql_orm ${MHD_LIBS} curl sqlite3)
+target_link_libraries(sql_orm ${LIBS} curl sqlite3)
 add_test(sql_orm sql_orm)
 
 add_executable(hello_world hello_world.cc)
-target_link_libraries(hello_world ${MHD_LIBS} curl sqlite3)
+target_link_libraries(hello_world ${LIBS} curl sqlite3)
 add_test(hello_world hello_world)
 
 add_executable(crud crud.cc)
-target_link_libraries(crud ${MHD_LIBS} curl sqlite3)
+target_link_libraries(crud ${LIBS} curl sqlite3)
 add_test(crud crud)
+
+add_executable(request_parameters request_parameters.cc)
+target_link_libraries(request_parameters ${LIBS} curl sqlite3)
+add_test(request_parameters request_parameters)

@@ -51,7 +51,7 @@ int main() {
   assert(json_decode(insert_r.body, pid).good());
   int id = pid.id;
   // Get by id.
-  auto get_r = c.post("/user/find_by_id", s::post_parameters = make_metamap(s::id = id+1));
+  auto get_r = c.post("/user/find_by_id", s::post_parameters = make_metamap(s::id = id));
   std::cout << get_r.body << std::endl;
 
   // ;
