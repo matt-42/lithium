@@ -1,7 +1,7 @@
 #pragma once
 
 #include <iod/metamap/metamap.hh>
-
+#include <iod/metamap/algorithms/tuple_utils.hh>
 
 namespace iod {
 

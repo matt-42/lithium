@@ -82,6 +82,30 @@ struct sqlite_statement {
     ::iod::tuple_map(o, read_elt);
   }
 
+
+  // Bind arguments to the request unknowns (marked with ?)
+  template <typename... T> auto& operator()(T&&... args) {
+    ready_for_reading_ = true;
+    sqlite3_reset(stmt_);
+    sqlite3_clear_bindings(stmt_);
+    int i = 1;
+    iod::tuple_map(std::forward_as_tuple(args...),
+        [&](auto& m) {
+          int err;
+          if ((err = this->bind(stmt_, i, m)) != SQLITE_OK)
+            throw std::runtime_error(
+                std::string("Sqlite error during binding: ") +
+                sqlite3_errmsg(db_));
+          i++;
+        });
+
+    last_step_ret_ = sqlite3_step(stmt_);
+    if (last_step_ret_ != SQLITE_ROW and last_step_ret_ != SQLITE_DONE)
+      throw std::runtime_error(sqlite3_errstr(last_step_ret_));
+
+    return *this;
+  }
+
   // Fill a metamap with the current result row.
   template <typename... A> int operator>>(metamap<A...>& o) {
 
@@ -109,29 +133,6 @@ struct sqlite_statement {
   int last_insert_id() { return sqlite3_last_insert_rowid(db_); }
 
   int empty() { return last_step_ret_ != SQLITE_ROW; }
-
-  // Bind arguments to the request unknowns (marked with ?)
-  template <typename... T> auto& operator()(T&&... args) {
-    ready_for_reading_ = true;
-    sqlite3_reset(stmt_);
-    sqlite3_clear_bindings(stmt_);
-    int i = 1;
-    iod::tuple_map(std::forward_as_tuple(args...),
-        [&](auto& m) {
-          int err;
-          if ((err = this->bind(stmt_, i, m)) != SQLITE_OK)
-            throw std::runtime_error(
-                std::string("Sqlite error during binding: ") +
-                sqlite3_errmsg(db_));
-          i++;
-        });
-
-    last_step_ret_ = sqlite3_step(stmt_);
-    if (last_step_ret_ != SQLITE_ROW and last_step_ret_ != SQLITE_DONE)
-      throw std::runtime_error(sqlite3_errstr(last_step_ret_));
-
-    return *this;
-  }
 
   // Apply a function to all result rows.
   template <typename F> void operator|(F f) {

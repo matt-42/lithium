@@ -2,11 +2,12 @@ cmake_minimum_required(VERSION 2.8)
 
 project(iod)
 
+find_package(Boost)
 add_definitions(-std=c++17)
 
 enable_testing()
 
-include_directories(${CMAKE_BINARY_DIR}/include)
+include_directories(${CMAKE_BINARY_DIR}/include ${Boost_INCLUDE_DIRS})
 
 add_custom_target(prepare_include_dir ALL
     COMMAND sh ${CMAKE_SOURCE_DIR}/tools/prepare_include_directory.sh ${CMAKE_SOURCE_DIR} ${CMAKE_BINARY_DIR}/include)

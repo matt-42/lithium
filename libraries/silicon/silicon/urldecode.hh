@@ -3,15 +3,16 @@
 #include <string>
 #include <vector>
 #include <string_view>
+
+#include <boost/lexical_cast.hpp>
 #include <microhttpd.h>
 #include <iod/silicon/error.hh>
 #include <iod/silicon/optional.hh>
 #include <iod/silicon/symbols.hh>
+#include <iod/metamap/metamap.hh>
 
 namespace iod
 {
-  using namespace iod;
-
   // Decode a plain value.
   template <typename O>
   std::string_view urldecode2(std::set<void*>& found, std::string_view str, O& obj)

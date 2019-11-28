@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cassert>
-#include <experimental/string_view>
+#include <string_view>
 
 #include <iod/metamap/metamap.hh>
 #include <iod/metajson/decode_stringstream.hh>
