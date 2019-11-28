@@ -102,11 +102,13 @@ struct http_client {
     }
 
     if (http_method == PUT or http_method == POST)
+    {
       if (is_urlencoded)
         headers_list =
             curl_slist_append(headers_list, "Content-Type: application/x-www-form-urlencoded");
       else
         headers_list = curl_slist_append(headers_list, "Content-Type: application/json");
+    }
 
     // HTTP DELETE
     if (http_method == DELETE)

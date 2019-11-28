@@ -1,9 +1,11 @@
 #pragma once
 
+#include <optional>
+
 #include <iod/metamap/metamap.hh>
 #include <iod/metajson/symbols.hh>
 #include <iod/symbol/ast.hh>
-#include <experimental/tuple>
+#include <tuple>
 
 namespace iod {
 
@@ -86,8 +88,8 @@ namespace iod {
           return std::make_tuple((elt.name = elt.type)...);
         };
 
-      auto kvs = std::experimental::apply(make_kvs, s.entities);
-      return std::experimental::apply(make_metamap, kvs);
+      auto kvs = std::apply(make_kvs, s.entities);
+      return std::apply(make_metamap, kvs);
     }
 
     template <typename S, typename... A>

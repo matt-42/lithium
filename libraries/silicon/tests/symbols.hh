@@ -80,11 +80,6 @@
     IOD_SYMBOL(post_parameters)
 #endif
 
-#ifndef IOD_SYMBOL_post_url_encoded
-#define IOD_SYMBOL_post_url_encoded
-    IOD_SYMBOL(post_url_encoded)
-#endif
-
 #ifndef IOD_SYMBOL_primary_key
 #define IOD_SYMBOL_primary_key
     IOD_SYMBOL(primary_key)
@@ -98,5 +93,15 @@
 #ifndef IOD_SYMBOL_synchronous
 #define IOD_SYMBOL_synchronous
     IOD_SYMBOL(synchronous)
+#endif
+
+#ifndef IOD_SYMBOL_test1
+#define IOD_SYMBOL_test1
+    IOD_SYMBOL(test1)
+#endif
+
+#ifndef IOD_SYMBOL_test2
+#define IOD_SYMBOL_test2
+    IOD_SYMBOL(test2)
 #endif
 

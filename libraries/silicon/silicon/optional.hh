@@ -7,7 +7,7 @@ template <typename T> struct optional {
   optional(T v) : v_(v), is_set_(true) {}
   optional<T>& operator=(const T& new_v) {
     v_ = new_v;
-    is_set = true;
+    is_set_ = true;
     return *this;
   }
   auto get() { return v_; }

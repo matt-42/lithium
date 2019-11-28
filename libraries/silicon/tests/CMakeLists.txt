@@ -22,10 +22,17 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -g -O0")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --coverage") # enabling coverage
 
 set(LIBS gnutls gcrypt pthread microhttpd curl sqlite3)
+#link_directories(/usr/local/Cellar/libmicrohttpd/0.9.63/lib)
+
 
 add_executable(url_parameter url_parameter.cc)
 target_link_libraries(url_parameter ${LIBS} curl)
 add_test(url_parameter url_parameter)
+
+
+add_executable(url_decode url_decode.cc)
+target_link_libraries(url_decode ${MHD_LIBS} curl)
+add_test(url_decode url_decode)
 
 add_executable(sql_orm sql_orm.cc)
 target_link_libraries(sql_orm ${LIBS} curl sqlite3)
