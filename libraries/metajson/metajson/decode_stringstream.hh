@@ -39,12 +39,12 @@ namespace iod {
       }
       parse_uint(val, str, end);
       if (neg)
-        *val = -*val;
+        *val = -(*val);
     }
 
-    inline unsigned long pow10(unsigned int e)
+    inline unsigned long long pow10(unsigned int e)
     {
-      unsigned long pows[] = {
+      unsigned long long pows[] = {
         1,
         10,
         100,
@@ -130,7 +130,7 @@ namespace iod {
         buffer(buffer_) {}
     
     inline bool eof() const { return cur >= &buffer.back(); }
-    inline auto& peek() const { return *cur; }
+    inline const char peek() const { return *cur; }
     inline int get()        { return *(cur++); }
     inline int bad() const  { return bad_; }
 

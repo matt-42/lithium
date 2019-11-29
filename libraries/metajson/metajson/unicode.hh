@@ -1,5 +1,7 @@
 #pragma once
 
+#include <ciso646>
+
 #include <cassert>
 #include <string_view>
 
