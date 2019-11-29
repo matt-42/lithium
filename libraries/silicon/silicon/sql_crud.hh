@@ -11,7 +11,7 @@ template <typename DB, typename A, typename B> auto sql_crud(DB& db, sql_orm_sch
 
   api<http_request, http_response> api;
 
-  api.post("/find_by_id") = [&](http_request& request, http_response& response) {
+  api(POST, "/find_by_id") = [&](http_request& request, http_response& response) {
     auto params = request.post_parameters(s::id = int());
     bool found;
     auto obj = orm_schema.connect(db).find_one(found, s::id = params.id);
@@ -19,19 +19,19 @@ template <typename DB, typename A, typename B> auto sql_crud(DB& db, sql_orm_sch
     response.write(json_encode(obj));
   };
 
-  api.post("/create") = [&](http_request& request, http_response& response) {
+  api(POST, "/create") = [&](http_request& request, http_response& response) {
     auto insert_fields = substract(orm_schema.all_fields(), orm_schema.autoset());
     auto obj = request.post_parameters(insert_fields);
     int id = orm_schema.connect(db).insert(obj);
     response.write(json_encode(s::id = id));
   };
 
-  api.post("/update") = [&](http_request& request, http_response& response) {
+  api(POST, "/update") = [&](http_request& request, http_response& response) {
     auto obj = request.post_parameters(orm_schema.all_fields());
     orm_schema.connect(db).update(obj);
   };
 
-  api.post("/remove") = [&](http_request& request, http_response& response) {
+  api(POST, "/remove") = [&](http_request& request, http_response& response) {
     auto obj = request.post_parameters(orm_schema.primary_key());
     orm_schema.connect(db).remove(obj);
   };

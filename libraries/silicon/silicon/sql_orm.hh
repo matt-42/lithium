@@ -42,8 +42,8 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
       bool autoset = SCHEMA::template is_autoset<F>::value;
       bool primary_key = SCHEMA::template is_primary_key<F>::value;
-      K k;
-      V v;
+      K k{};
+      V v{};
 
       if (!first)
         ss << ", ";
@@ -104,7 +104,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     ss << "LIMIT 1";
     auto stmt = con_(ss.str());
 
-    found = iod::reduce(where, stmt) >> o;
+    found = iod::tuple_reduce(metamap_values(where), stmt) >> o;
     call_callback(s::read_access, o);
     return o;
   }
@@ -120,9 +120,9 @@ template <typename SCHEMA, typename C> struct sql_orm {
       throw std::runtime_error(schema_.table_name() + " not found with the given criteria.");
     return obj;
   }
-  // Save all fields except auto increment.
+  // Save a ll fields except auto increment.
   // The db will automatically fill auto increment keys.
-  template <typename N> int insert(N& o) {
+  template <typename N> long long int insert(N& o) {
     std::stringstream ss;
     std::stringstream vs;
 
@@ -155,7 +155,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     return req.last_insert_id();
   };
   template <typename S, typename V, typename... A>
-  int insert(const assign_exp<S, V>& a, A&&... tail) {
+  long long int insert(const assign_exp<S, V>& a, A&&... tail) {
     auto m = make_metamap(a, tail...);
     return insert(m);
   }
@@ -226,7 +226,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     call_callback(s::before_destroy, o);
 
     std::stringstream ss;
-    ss << "HTTP_DELETE from " << schema_.table_name() << " WHERE ";
+    ss << "DELETE from " << schema_.table_name() << " WHERE ";
 
     bool first = true;
     map(schema_.primary_key(), [&](auto k, auto v) {

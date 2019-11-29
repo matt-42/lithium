@@ -116,7 +116,7 @@ auto parse_url_parameters(const url_parser_info& fmt,
 
       int param_start = slashes[param_slash] + 1;
       int param_end = param_start;
-      while (url[param_end] and url[param_end] != '/')
+      while (url.size() > (param_end) and url[param_end] != '/')
         param_end++;
 
       std::string content(url.data() + param_start, param_end - param_start);
@@ -206,7 +206,7 @@ void decode_post_parameters_urlencoded(O& res, http_request& r) {
 //           r->connection, MHD_HEADER_KIND, "Content-Type");
 //       if (!encoding)
 //         throw http_error::bad_request(std::string(
-//             "Content-Type is required to decode the HTTP_POST parameters"));
+//             "Content-Type is required to decode the POST parameters"));
 
 //       if (encoding == std::string("application/x-www-form-urlencoded"))
 //         decode_post_parameters_urlencoded<post_t>(res, r);
@@ -265,14 +265,14 @@ void decode_post_parameters_urlencoded(O& res, http_request& r) {
       urldecode2(found, std::string(k) + "=" + v, res, true);
     };
 
-    MHD_get_connection_values(mhd_connection, MHD_HTTP_GET_ARGUMENT_KIND,
+    MHD_get_connection_values(mhd_connection, MHD_GET_ARGUMENT_KIND,
                               &mhd_keyvalue_iterator<decltype(add)>, &add);
 
     // Check for missing fields.
     std::string missing =
         urldecode_check_missing_fields(found, res, true);
     if (missing.size())
-      throw http_error::bad_request("Error while decoding the HTTP_GET parameter: ",
+      throw http_error::bad_request("Error while decoding the GET parameter: ",
                               missing);
     return res;
   }

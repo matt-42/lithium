@@ -7,7 +7,7 @@
 
 namespace iod {
 
-enum { ANY, HTTP_GET, HTTP_POST, HTTP_PUT, HTTP_DELETE };
+enum { ANY, GET, POST, PUT, HTTP_DELETE };
 
 template <typename T, typename F> struct delayed_assignator {
   delayed_assignator(T& t, F f = [](T& t, auto u) { t = u; })
@@ -44,12 +44,16 @@ template <typename Req, typename Resp> struct api {
     vh.url_spec = r;
     return vh.handler;
   }
+  H& get(std::string_view r) { return this->operator()(GET, r); }
+  H& post(std::string_view r) { return this->operator()(POST, r); }
+  H& put(std::string_view r) { return this->operator()(PUT, r); }
+  H& delete_(std::string_view r) { return this->operator()(HTTP_DELETE , r); }
 
   int parse_verb(std::string_view method)
   {
-    if (method == "HTTP_GET") return HTTP_GET;
-    if (method == "HTTP_PUT") return HTTP_PUT;
-    if (method == "HTTP_POST") return HTTP_POST;
+    if (method == "GET") return GET;
+    if (method == "PUT") return PUT;
+    if (method == "POST") return POST;
     if (method == "HTTP_DELETE") return HTTP_DELETE;
     return ANY;
   }
@@ -57,7 +61,10 @@ template <typename Req, typename Resp> struct api {
   void add_subapi(std::string prefix, const self& subapi)
   {
     subapi.routes_map_.for_all_routes([this, prefix] (auto r, auto h) {
-      this->routes_map_[prefix + r] = h;
+      if (r.back() == '/')
+        this->routes_map_[prefix + r] = h;
+      else
+        this->routes_map_[prefix + "/" + r] = h;
     });
 
   }

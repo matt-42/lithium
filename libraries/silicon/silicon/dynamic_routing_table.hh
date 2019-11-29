@@ -49,7 +49,7 @@ namespace iod {
           f(prefix, v);
         else
         {
-          if (prefix.size() > 0 and prefix.back() != '/')
+          if (prefix.size() && prefix.back() != '/')
             prefix += '/';
           for (auto it : childs)
             it.second.for_all_routes(f, prefix + std::string(it.first));

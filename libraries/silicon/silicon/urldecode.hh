@@ -4,6 +4,10 @@
 #include <vector>
 #include <string_view>
 
+#if defined(_MSC_VER)
+#include <ciso646>
+#endif
+
 #include <boost/lexical_cast.hpp>
 #include <microhttpd.h>
 #include <iod/silicon/error.hh>
@@ -18,7 +22,7 @@ namespace iod
   std::string_view urldecode2(std::set<void*>& found, std::string_view str, O& obj)
   {
     if (str.size() == 0)
-      throw std::runtime_error(format_error("Urldecode error: expected key end", str[0]));
+      throw std::runtime_error(format_error("Urldecode error: expected key end"));
 
     if (str[0] != '=')
       throw std::runtime_error(format_error("Urldecode error: expected =, got ", str[0]));
@@ -26,7 +30,7 @@ namespace iod
     int start = 1;
     int end = 1;
     
-    while (str.size() != end and str[end] != '&') end++;
+    while (str.size() != end && str[end] != '&') end++;
 
     if (start != end)
     {
@@ -78,7 +82,7 @@ namespace iod
       int idx = std::strtol(str.data() + index_start, nullptr, 10);
       if (idx >= 0 and idx <= 9999)
       {
-        if (obj.size() <= idx)
+        if (int(obj.size()) <= idx)
           obj.resize(idx + 1);
         return urldecode2(found, next_str, obj[idx]);
       }
@@ -100,13 +104,13 @@ namespace iod
 
     int next = 0;
 
-    if (not root)
+    if (!root)
     {
       if (str[0] != '[')
         throw std::runtime_error(format_error("Urldecode error: expected [, got ", str[0]));
         
       key_start = 1;
-      while (key_end != str.size() and str[key_end] != ']' and str[key_end] != '=') key_end++;
+      while (key_end != str.size() && str[key_end] != ']' && str[key_end] != '=') key_end++;
 
       if (key_end == str.size())
         throw std::runtime_error("Urldecode error: unexpected end.");
@@ -114,7 +118,7 @@ namespace iod
     }
     else
     {
-      while (key_end != str.size() and str[key_end] != '[' and str[key_end] != '=') key_end++;
+      while (key_end != str.size() && str[key_end] != '[' && str[key_end] != '=') key_end++;
       next = key_end;
     }
 
