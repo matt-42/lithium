@@ -1,5 +1,9 @@
 #pragma once
 
+#if defined(_MSC_VER)
+#include <ciso646>
+#endif
+
 #include <cstring>
 #include <iostream>
 #include <memory>
@@ -130,7 +134,7 @@ struct sqlite_statement {
     return true;
   }
 
-  int last_insert_id() { return sqlite3_last_insert_rowid(db_); }
+  long long int last_insert_id() { return sqlite3_last_insert_rowid(db_); }
 
   int empty() { return last_step_ret_ != SQLITE_ROW; }
 
@@ -186,7 +190,9 @@ struct sqlite_statement {
   int bind(sqlite3_stmt* stmt, int pos, double d) const {
     return sqlite3_bind_double(stmt, pos, d);
   }
+
   int bind(sqlite3_stmt* stmt, int pos, int d) const {
+    std::cout <<"bind " << d << " at pos " << pos << std::endl;
     return sqlite3_bind_int(stmt, pos, d);
   }
   void bind(sqlite3_stmt* stmt, int pos, null_t) {
@@ -242,7 +248,7 @@ struct sqlite_connection {
   }
 
   sqlite_statement operator()(const std::string& req) {
-    //std::cout << req << std::endl;
+    std::cout << req << std::endl;
     auto it = stm_cache_->find(req);
     if (it != stm_cache_->end())
       return it->second;
