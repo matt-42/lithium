@@ -10,6 +10,7 @@ bool is_error(std::string s, O& obj)
   bool err = false;
   try
   {
+    std::cout << "Test " << s << std::endl;
     urldecode(s, obj);
   }
   catch (http_error e)

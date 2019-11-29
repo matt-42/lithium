@@ -5,6 +5,7 @@
 #include <iod/silicon/silicon.hh>
 #include <iod/sqlite/sqlite.hh>
 
+#include "test.hh"
 #include "symbols.hh"
 
 using namespace iod;
@@ -13,7 +14,7 @@ int main() {
 
   api<http_request, http_response> api;
 
-  auto db = sqlite_database("/tmp/sl_test_crud.sqlite", s::synchronous = 1); // sqlite middleware.
+  auto db = sqlite_database("./sl_test_crud.sqlite", s::synchronous = 1); // sqlite middleware.
 
   auto user_schema = sql_orm_schema("users")
                       .fields(s::id(s::autoset, s::primary_key) = int(), 
@@ -31,13 +32,14 @@ int main() {
   // Crud for the User object.
   api.add_subapi("/user", sql_crud(db, user_schema));
 
+  api.print_routes(); 
   // std::cout << api_description(api) << std::endl;
 
   // Start server.
-  auto server = http_serve(api, 12345, s::non_blocking);
+  auto server = http_serve(api, 12356, s::non_blocking);
 
   // // // Test.
-  auto c = http_client("http://127.0.0.1:12345");
+  auto c = http_client("http://127.0.0.1:12356");
 
   // // // Insert.
   auto to_insert = make_metamap(s::name = "matt", s::age = 12, s::address = "USA", s::city = "Paris");
@@ -54,39 +56,42 @@ int main() {
   auto get_r = c.post("/user/find_by_id", s::post_parameters = make_metamap(s::id = id));
   std::cout << get_r.body << std::endl;
 
-  // ;
-  // assert(get_r.status == 200);
-  // auto matt = json_decode<User>(get_r.body);
-  // assert(matt.name == "matt");
-  // assert(matt.age == 12);
-  // assert(matt.city == "Paris");
-  // assert(matt.address == "USA");
+  assert(get_r.status == 200);
+  auto matt = user_schema.all_fields();
+  json_decode(get_r.body, matt);
+  assert(matt.name == "matt");
+  assert(matt.age == 12);
+  assert(matt.city == "Paris");
+  assert(matt.address == "USA");
 
-  // auto get_r2 = c.get("/user/get_by_id", s::get_parameters = make_metamap(s::id = 42));
-  // std::cout << get_r2.body << std::endl;
-  // ;
-  // assert(get_r2.status == 404);
+  auto get_r2 = c.post("/user/find_by_id", s::post_parameters = make_metamap(s::id = 42));
+  std::cout << get_r2.body << std::endl;
+  ;
+  assert(get_r2.status == 404);
 
   // // Update
-  // auto update_r =
-  //     c(POST, "/user/update",
-  //       s::post_parameters = make_metamap(s::id = id, s::name = "john", s::age = 42, s::address = "Canad a"));
-  // auto get_r3 = c(GET, "/user/get_by_id", s::get_parameters = make_metamap(s::id = id));
-  // assert(get_r3.status == 200);
-  // auto john = json_decode<User>(get_r.body);
-  // assert(john.id == id);
-  // assert(john.name == "john");
-  // assert(john.age == 42);
-  // assert(john.address == "Canad a");
+  auto update_r =
+      c.post("/user/update",
+        s::post_parameters = make_metamap(s::id = id, s::name = "john", s::age = 42, s::address = "Canad a", s::city = "xxx"));
+  auto get_r3 = c.post("/user/find_by_id", s::post_parameters = make_metamap(s::id = id));
+  std::cout << json_encode(get_r3) << std::endl;
+  assert(get_r3.status == 200);
+  auto john = user_schema.all_fields();
+  json_decode(get_r3.body, john);
+  assert(john.id == id);
+  assert(john.age == 42);
+  assert(john.address == "Canad a");
+  assert(john.city == "xxx");
+  CHECK_EQUAL("update name", john.name, "john");
 
-  // std::cout << json_encode(get_r3.body) << std::endl;
-  // ;
+  std::cout << json_encode(get_r3.body) << std::endl;
+  ;
 
   // // Destroy.
-  // auto destroy_r = c(POST, "/user/destroy", s::post = make_metamap(s::id = id));
+  // auto destroy_r = c(HTTP_POST, "/user/destroy", s::post = make_metamap(s::id = id));
   // assert(destroy_r.status == 200);
 
-  // auto get_r4 = c(GET, "/user/get_by_id", s::get = make_metamap(s::id = id));
+  // auto get_r4 = c(HTTP_GET, "/user/get_by_id", s::get = make_metamap(s::id = id));
   // assert(get_r4.status == 404);
 
   // exit(0);

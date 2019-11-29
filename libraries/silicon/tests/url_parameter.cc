@@ -23,11 +23,9 @@ int main() {
   CHECK_THROW("spellerror", (url_decode_test("/{{idd}}", "/42", s::id = int())));
   CHECK_EQUAL("param2", (url_decode_test("/x/sss/xxx/xx/{{id}}/xxx/ss/s", "/x/sss/xxx/xx/42/xxx/ss/s", s::id = int()).id), 42);
 
-  CHECK("pair", ({
-    auto p = url_decode_test("/hw/{{id}}/xxx/{{id2}}", "/hw/42/xxx/43", s::id = int(),
-                          s::id2 = int());
-    assert(p.id == 42);
-    assert(p.id2 == 43);
-  }));
+  auto p = url_decode_test("/hw/{{id}}/xxx/{{id2}}", "/hw/42/xxx/43", s::id = int(),
+                        s::id2 = int());
+  assert(p.id == 42);
+  assert(p.id2 == 43);
 
 }

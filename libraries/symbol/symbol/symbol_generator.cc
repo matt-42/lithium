@@ -1,3 +1,8 @@
+
+#if defined(_MSC_VER)
+#include <ciso646>
+#endif
+
 #include <set>
 #include <iostream>
 #include <fstream>

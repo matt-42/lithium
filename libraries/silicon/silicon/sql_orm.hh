@@ -226,7 +226,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     call_callback(s::before_destroy, o);
 
     std::stringstream ss;
-    ss << "DELETE from " << schema_.table_name() << " WHERE ";
+    ss << "HTTP_DELETE from " << schema_.table_name() << " WHERE ";
 
     bool first = true;
     map(schema_.primary_key(), [&](auto k, auto v) {

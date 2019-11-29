@@ -18,7 +18,7 @@ int main() {
   // Session.
   sql_http_session session("user_sessions", s::user_id = int());
 
-  my_api(GET, "/who_am_i") = [&](http_request& request, http_response& response) {
+  my_api(HTTP_GET, "/who_am_i") = [&](http_request& request, http_response& response) {
     auto sess = session.connect(db, request, response);
     if (sess.logged_in())
       response.write(json_encode(user_orm.connect(db).find_one(s::id = sess.values().id)));
@@ -26,7 +26,7 @@ int main() {
       throw http_error::unauthorized("Please login.");   
   };
 
-  my_api(POST, "/login") = [&](http_request& request, http_response& response) {
+  my_api(HTTP_POST, "/login") = [&](http_request& request, http_response& response) {
     auto lp = request.post_parameters(s::login = std::string(), s::password = std::string());
     bool exists = false;
     auto user = user_orm.connect(db).find_one(exists, lp);
@@ -38,7 +38,7 @@ int main() {
     else throw http_error::unauthorized("Bad login or password.");
   };
 
-  my_api(POST, "/register") = [&](http_request& request, http_response& response) {
+  my_api(HTTP_POST, "/register") = [&](http_request& request, http_response& response) {
     auto new_user = request.post_parameters(s::login = std::string(), s::password = std::string());
     bool exists = false;
     auto user_db = user_orm.connect(db)
@@ -48,7 +48,7 @@ int main() {
     else throw http_error::bad_request("User already exists.");
   };
 
-  my_api(GET, "/logout") = [&](http_request& request, http_response& response) {
+  my_api(HTTP_GET, "/logout") = [&](http_request& request, http_response& response) {
       session.connect(db, request, response).logout();
   };
 

@@ -28,7 +28,10 @@ int main() {
   // Insert.
   int john_id = orm.insert(s::name = "John", s::age = 42, s::login = "lol");
   assert(orm.count() == 1);
-  auto u = orm.find_one(s::id = john_id);
+  std::cout << john_id << std::endl;
+  bool found;
+  auto u = orm.find_one(found, s::id = john_id);
+  assert(found);
   assert(u.id = john_id and u.name == "John" and u.age == 42 and u.login == "lol");
 
   // Update.

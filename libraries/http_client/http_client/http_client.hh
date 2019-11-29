@@ -18,7 +18,7 @@ inline size_t curl_read_callback(void* ptr, size_t size, size_t nmemb, void* str
 struct http_client {
 
 
-  enum { GET, POST, PUT, DELETE };
+  enum { HTTP_GET, HTTP_POST, HTTP_PUT, HTTP_DELETE };
 
   inline http_client(const std::string& prefix = "") : url_prefix_(prefix) {
     curl_global_init(CURL_GLOBAL_ALL);
@@ -58,7 +58,7 @@ struct http_client {
     // Pass the url to libcurl.
     curl_easy_setopt(curl_, CURLOPT_URL, url_ss.str().c_str());
 
-    // POST parameters.
+    // HTTP_POST parameters.
     bool is_urlencoded = not iod::has_key(arguments, s::jsonencoded);
     std::stringstream post_stream;
     std::string rq_body;
@@ -84,24 +84,24 @@ struct http_client {
     } else // Json encoded
       rq_body = iod::json_encode(iod::get_or(arguments, s::post_parameters, make_metamap()));
 
-    // HTTP POST
-    if (http_method == POST) {
-      curl_easy_setopt(curl_, CURLOPT_POST, 1);
-      curl_easy_setopt(curl_, CURLOPT_POSTFIELDS, rq_body.c_str());
+    // HTTP HTTP_POST
+    if (http_method == HTTP_POST) {
+      curl_easy_setopt(curl_, CURLOPT_HTTP_POST, 1);
+      curl_easy_setopt(curl_, CURLOPT_HTTP_POSTFIELDS, rq_body.c_str());
     }
 
-    // HTTP GET
-    if (http_method == GET)
-      curl_easy_setopt(curl_, CURLOPT_HTTPGET, 1);
+    // HTTP HTTP_GET
+    if (http_method == HTTP_GET)
+      curl_easy_setopt(curl_, CURLOPT_HTTPHTTP_GET, 1);
 
-    // HTTP PUT
-    if (http_method == PUT) {
+    // HTTP HTTP_PUT
+    if (http_method == HTTP_PUT) {
       curl_easy_setopt(curl_, CURLOPT_UPLOAD, 1L);
       curl_easy_setopt(curl_, CURLOPT_READFUNCTION, curl_read_callback);
       curl_easy_setopt(curl_, CURLOPT_READDATA, this);
     }
 
-    if (http_method == PUT or http_method == POST)
+    if (http_method == HTTP_PUT or http_method == HTTP_POST)
     {
       if (is_urlencoded)
         headers_list =
@@ -110,9 +110,9 @@ struct http_client {
         headers_list = curl_slist_append(headers_list, "Content-Type: application/json");
     }
 
-    // HTTP DELETE
-    if (http_method == DELETE)
-      curl_easy_setopt(curl_, CURLOPT_CUSTOMREQUEST, "DELETE");
+    // HTTP HTTP_DELETE
+    if (http_method == HTTP_DELETE)
+      curl_easy_setopt(curl_, CURLOPT_CUSTOMREQUEST, "HTTP_DELETE");
 
     // Cookies
     curl_easy_setopt(curl_, CURLOPT_COOKIEJAR,
@@ -142,13 +142,13 @@ struct http_client {
   }
 
   template <typename... P>
-  auto get(const std::string& url, P... params) { return this->operator()(GET, url, params...); }
+  auto get(const std::string& url, P... params) { return this->operator()(HTTP_GET, url, params...); }
   template <typename... P>
-  auto put(const std::string& url, P... params) { return this->operator()(PUT, url, params...); }
+  auto put(const std::string& url, P... params) { return this->operator()(HTTP_PUT, url, params...); }
   template <typename... P>
-  auto post(const std::string& url, P... params) { return this->operator()(POST, url, params...); }
+  auto post(const std::string& url, P... params) { return this->operator()(HTTP_POST, url, params...); }
   template <typename... P>
-  auto delete_(const std::string& url, P... params) { return this->operator()(DELETE, url, params...); }
+  auto delete_(const std::string& url, P... params) { return this->operator()(HTTP_DELETE, url, params...); }
 
   inline void read(char* ptr, int size) { body_buffer_.append(ptr, size); }
 
