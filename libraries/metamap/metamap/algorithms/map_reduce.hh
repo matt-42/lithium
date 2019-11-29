@@ -84,12 +84,7 @@ namespace iod {
   template <typename... M, typename R>
   decltype(auto) reduce(const metamap<M...>& m, R reduce)
   {
-    auto apply = [&] (auto key) -> decltype(auto)
-      {
-        return m[key];
-      };
-
-    return reduce(apply(typename M::_iod_symbol_type{})...);
+    return reduce(m[typename M::_iod_symbol_type{}]...);
   }
 
 }

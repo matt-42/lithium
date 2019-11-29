@@ -11,7 +11,7 @@ namespace iod {
                            const metamap<U...>& b)
   {
     return map_reduce(a, [&] (auto k, auto&& v) -> decltype(auto) {
-        if constexpr(has_key<metamap<U...>>(k)) {
+        if constexpr(has_key<metamap<U...>, decltype(k)>()) {
             return k = std::forward<decltype(v)>(v);
           }
         else return skip{}; }, make_metamap_skip);

@@ -26,22 +26,55 @@ namespace iod {
   
   template <typename F, typename... M>
   decltype(auto) find_first(metamap<M...>&& map, F fun);
-  
+
   template <typename ...Ms>
-  struct metamap : public Ms...
+  struct metamap;
+
+  template <typename M1, typename ...Ms>
+  struct metamap<M1, Ms...> : public M1, public Ms...
   {
-    typedef metamap<Ms...> self;
+    typedef metamap<M1, Ms...> self;
     // Constructors.
     inline metamap() = default;
-    inline metamap(self&&) = default;
+    //inline metamap(self&&) = default;
     inline metamap(const self&) = default;
     self& operator=(const self&) = default;
 
-    metamap(self& other)
-      : metamap(const_cast<const self&>(other)) {}
+    //metamap(self& other)
+    //  : metamap(const_cast<const self&>(other)) {}
 
-    template <typename... M>
-    inline metamap(M&&... members) : Ms(std::forward<M>(members))... {}
+    inline metamap(M1&& m1, Ms&&... members) : M1(m1), Ms(std::forward<Ms>(members))... {}
+    inline metamap(const M1& m1, const Ms&... members) : M1(m1), Ms((members))... {}
+
+    // Assignemnt ?
+
+    // Retrive a value.
+    template <typename K>
+    decltype(auto) operator[](K k)
+    {
+      return symbol_member_access(*this, k);
+    }
+
+    template <typename K>
+    decltype(auto) operator[](K k) const
+    {
+      return symbol_member_access(*this, k);
+    }
+
+  };
+
+  template <>
+  struct metamap<>
+  {
+    typedef metamap<> self;
+    // Constructors.
+    inline metamap() = default;
+    //inline metamap(self&&) = default;
+    inline metamap(const self&) = default;
+    //self& operator=(const self&) = default;
+
+    //metamap(self& other)
+    //  : metamap(const_cast<const self&>(other)) {}
 
     // Assignemnt ?
 
@@ -81,7 +114,6 @@ namespace iod {
     return metamap_size_t<std::decay_t<M>>::value;
   }
 
-
   template <typename... Ks>
   decltype(auto) metamap_values(const metamap<Ks...>& map)
   {
@@ -97,13 +129,19 @@ namespace iod {
   template <typename M, typename K>
   constexpr auto has_key(K k)
   {
-    return decltype(has_member(std::declval<M>(), k)){};
+    return decltype(has_member(std::declval<M>(), std::declval<K>())){};
+  }
+
+  template <typename M, typename K>
+  constexpr auto has_key()
+  {
+    return decltype(has_member(std::declval<M>(), std::declval<K>())){};
   }
 
   template <typename K, typename M, typename O>
   constexpr auto get_or(M&& map, K k, O default_)
   {
-    if constexpr(has_key<M>(k)) {
+    if constexpr(has_key<M, decltype(k)>()) {
         return map[k];
       }
     else
