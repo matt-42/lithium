@@ -1,5 +1,6 @@
 #pragma once
 
+
 #include <utility>
 #include <vector>
 
@@ -135,7 +136,7 @@ namespace iod {
   };                                                                    \
   template <typename A, typename B>                                     \
   inline                                                                \
-  std::enable_if_t<std::is_base_of<Exp<A>, A>::value or \
+  std::enable_if_t<std::is_base_of<Exp<A>, A>::value || \
                    std::is_base_of<Exp<B>, B>::value,\
                    NAME##_exp<A, B >>                                                    \
   operator OP (const A& b, const B& a)                                \
