@@ -1,6 +1,12 @@
 #pragma once
+#define CURL_STATICLIB
+#pragma comment(lib, "crypt32")
+#pragma comment(lib, "ws2_32.lib")
+#pragma comment(lib, "Wldap32.lib")
+#pragma comment(lib, "Normaliz.lib")
 
 #include <curl/curl.h>
+
 #include <iostream>
 #include <map>
 #include <memory>
@@ -13,12 +19,12 @@ namespace iod {
 
 inline size_t curl_write_callback(char* ptr, size_t size, size_t nmemb, void* userdata);
 
-inline size_t curl_read_callback(void* ptr, size_t size, size_t nmemb, void* stream);
+inline std::streamsize curl_read_callback(void* ptr, size_t size, size_t nmemb, void* stream);
 
 struct http_client {
 
 
-  enum { HTTP_GET, HTTP_POST, HTTP_PUT, HTTP_DELETE };
+  enum metthod_verb { HTTP_GET, HTTP_POST, HTTP_PUT, HTTP_DELETE };
 
   inline http_client(const std::string& prefix = "") : url_prefix_(prefix) {
     curl_global_init(CURL_GLOBAL_ALL);
@@ -86,13 +92,13 @@ struct http_client {
 
     // HTTP HTTP_POST
     if (http_method == HTTP_POST) {
-      curl_easy_setopt(curl_, CURLOPT_HTTP_POST, 1);
-      curl_easy_setopt(curl_, CURLOPT_HTTP_POSTFIELDS, rq_body.c_str());
+      curl_easy_setopt(curl_, CURLOPT_POST, 1);
+      curl_easy_setopt(curl_, CURLOPT_POSTFIELDS, rq_body.c_str());
     }
 
     // HTTP HTTP_GET
     if (http_method == HTTP_GET)
-      curl_easy_setopt(curl_, CURLOPT_HTTPHTTP_GET, 1);
+      curl_easy_setopt(curl_, CURLOPT_HTTPGET, 1);
 
     // HTTP HTTP_PUT
     if (http_method == HTTP_PUT) {
@@ -152,8 +158,8 @@ struct http_client {
 
   inline void read(char* ptr, int size) { body_buffer_.append(ptr, size); }
 
-  inline size_t write(char* ptr, int size) {
-    size_t ret = req_body_buffer_.sgetn(ptr, size);
+  inline std::streamsize write(char* ptr, int size) {
+    std::streamsize ret = req_body_buffer_.sgetn(ptr, size);
     return ret;
   }
 
@@ -164,7 +170,7 @@ struct http_client {
   std::string url_prefix_;
 };
 
-inline size_t curl_read_callback(void* ptr, size_t size, size_t nmemb, void* userdata) {
+inline std::streamsize curl_read_callback(void* ptr, size_t size, size_t nmemb, void* userdata) {
   http_client* client = (http_client*)userdata;
   return client->write((char*)ptr, size * nmemb);
 }
