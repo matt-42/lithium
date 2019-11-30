@@ -13,20 +13,24 @@ int main() {
   // Database
   sqlite_database db("./test_sqlite_authentication.sqlite");
   // Users table
-  auto user_orm = sql_orm_schema("users").fields(s::id(s::autoset) = int(), s::login = std::string(),
+  auto user_orm = sql_orm_schema("users").fields(s::id(s::autoset, s::primary_key) = int(), s::login = std::string(),
                             s::password = std::string());
   // Session.
-  sql_http_session session("user_sessions", s::user_id = int());
+  sql_http_session session("user_sessions", s::user_id = -1);
 
-  my_api(HTTP_GET, "/who_am_i") = [&](http_request& request, http_response& response) {
+  my_api.get("/who_am_i") = [&](http_request& request, http_response& response) {
     auto sess = session.connect(db, request, response);
-    if (sess.logged_in())
-      response.write(json_encode(user_orm.connect(db).find_one(s::id = sess.values().id)));
+    if (sess.values().user_id != -1)
+    {
+      bool found;
+      auto u = user_orm.connect(db).find_one(found, s::id = sess.values().user_id);
+      response.write(json_encode(u));
+    }
     else
       throw http_error::unauthorized("Please login.");   
   };
 
-  my_api(HTTP_POST, "/login") = [&](http_request& request, http_response& response) {
+  my_api.post("/login") = [&](http_request& request, http_response& response) {
     auto lp = request.post_parameters(s::login = std::string(), s::password = std::string());
     bool exists = false;
     auto user = user_orm.connect(db).find_one(exists, lp);
@@ -38,17 +42,17 @@ int main() {
     else throw http_error::unauthorized("Bad login or password.");
   };
 
-  my_api(HTTP_POST, "/register") = [&](http_request& request, http_response& response) {
+  my_api.post("/register") = [&](http_request& request, http_response& response) {
     auto new_user = request.post_parameters(s::login = std::string(), s::password = std::string());
     bool exists = false;
-    auto user_db = user_orm.connect(db)
-    auto user = user_db.find_one(exists, s::login == new_user.login);
+    auto user_db = user_orm.connect(db);
+    auto user = user_db.find_one(exists, s::login = new_user.login);
     if (not exists)
       user_db.insert(new_user);
     else throw http_error::bad_request("User already exists.");
   };
 
-  my_api(HTTP_GET, "/logout") = [&](http_request& request, http_response& response) {
+  my_api.get("/logout") = [&](http_request& request, http_response& response) {
       session.connect(db, request, response).logout();
   };
 

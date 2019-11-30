@@ -118,7 +118,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     auto obj = find_one(f, ws...);
     if (!f)
       throw std::runtime_error(schema_.table_name() + " not found with the given criteria.");
-    return obj;
+    return obj;b
   }
   // Save a ll fields except auto increment.
   // The db will automatically fill auto increment keys.
@@ -212,6 +212,12 @@ template <typename SCHEMA, typename C> struct sql_orm {
     call_callback(s::after_update, o);
 
     return stmt.last_insert_id();
+  }
+
+  template <typename S, typename V, typename... A>
+  long long int update(const assign_exp<S, V>& a, A&&... tail) {
+    auto m = make_metamap(a, tail...);
+    return update(m);
   }
 
   inline int count () {

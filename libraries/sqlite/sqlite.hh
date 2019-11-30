@@ -204,6 +204,9 @@ struct sqlite_statement {
   int bind(sqlite3_stmt* stmt, int pos, const std::string& s) const {
     return sqlite3_bind_text(stmt, pos, s.data(), s.size(), nullptr);
   }
+  int bind(sqlite3_stmt* stmt, int pos, const std::string_view& s) const {
+    return sqlite3_bind_text(stmt, pos, s.data(), s.size(), nullptr);
+  }
   int bind(sqlite3_stmt* stmt, int pos, const blob& b) const {
     return sqlite3_bind_blob(stmt, pos, b.data(), b.size(), nullptr);
   }

@@ -12,12 +12,12 @@ template <typename ORM> struct connected_sql_http_session {
   // Retrive the cookie
   // Retrieve it from the database.
   // Insert it if it does not exists.
-  connected_sql_http_session(ORM orm, const std::string& session_id)
-      : loaded_(false), session_id_(session_id), orm_(orm) {}
+  connected_sql_http_session(typename ORM::object_type& defaults, ORM orm, const std::string& session_id)
+      : loaded_(false), session_id_(session_id), orm_(orm), values_(defaults) {}
 
   // Store fiels into the session
   template <typename... F> auto store(F... fields) {
-    map(make_metamap(fields...), [](auto k, auto v) { values[k] = v; });
+    map(make_metamap(fields...), [this](auto k, auto v) { values_[k] = v; });
     bool found;
     values_ = orm_.find_one(found, s::session_id = session_id_);
     if (!found)
@@ -54,13 +54,13 @@ template <typename... F>
 decltype(auto) create_session_orm(std::string table_name, F... fields)
 {
   return sql_orm_schema(table_name)
-                           .fields(s::session_id(s::read_only) = std::string(), fields...);
+                           .fields(s::session_id(s::read_only, s::primary_key) = std::string(), fields...);
 }
 
 template <typename... F> struct sql_http_session {
 
   sql_http_session(std::string table_name, F... fields)
-      : session_table_(create_session_orm(table_name, fields...)) {}
+      : default_values_(make_metamap(s::session_id = std::string(), fields...)), session_table_(create_session_orm(table_name, fields...)) {}
 
   template <typename DB> void create_table_if_needed(DB& db) {
     session_table_.connect(db).create_table_if_needed();
@@ -68,10 +68,11 @@ template <typename... F> struct sql_http_session {
 
   template <typename DB>
   auto connect(DB& database, http_request& request, http_response& response) {
-    return connected_sql_http_session(session_table_.connect(database),
+    return connected_sql_http_session(default_values_, session_table_.connect(database),
                                       session_cookie(request, response));
   }
 
+  decltype(make_metamap(s::session_id = std::string(), std::declval<F>()...)) default_values_;
   std::decay_t<decltype(create_session_orm(std::string(), std::declval<F>()...))> session_table_;
 };
 
