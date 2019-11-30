@@ -8,18 +8,39 @@ set(CMAKE_CXX_STANDARD 17)
 
 enable_testing()
 
+# Create the include dir in the build directory.
+file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/include/iod)
+
+function (link_build_include lib_name target_dir)
+IF (WIN32)
+    STRING(REGEX REPLACE "/" "\\\\"  CMAKE_SOURCE_DIR_BACKSLASH ${CMAKE_SOURCE_DIR}) 
+    STRING(REGEX REPLACE "/" "\\\\"  TARGET_BS ${target_dir}) 
+    execute_process(COMMAND cmd.exe /c mklink /J ${lib_name}
+    "${CMAKE_SOURCE_DIR_BACKSLASH}${TARGET_BS}"
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/include/iod/)
+ELSE()
+execute_process(COMMAND ln -s ${lib_name}
+                "${CMAKE_SOURCE_DIR}${target_dir}"
+                WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/include/iod/)
+ENDIF()
+endfunction()
+
+link_build_include("metamap" "/libraries/metamap/metamap")
+link_build_include("metajson" "/libraries/metajson/metajson")
+link_build_include("di" "/libraries/di")
+link_build_include("sqlite" "/libraries/sqlite")
+link_build_include("callable_traits" "/libraries/callable_traits")
+link_build_include("silicon" "/libraries/silicon/silicon")
+link_build_include("http_client" "/libraries/http_client/http_client")
+link_build_include("symbol" "/libraries/symbol/symbol")
+                                
+
 include_directories(${CMAKE_BINARY_DIR}/include)
 
-IF (WIN32)
-    set(bash_path  "C:/Program Files/Git/bin/bash")
-ELSE()
-    set(bash_path sh)
-ENDIF()
+#add_custom_target(prepare_include_dir ALL
+#    COMMAND ${bash_path} ${CMAKE_SOURCE_DIR}/tools/prepare_include_directory.sh ${CMAKE_SOURCE_DIR} ${CMAKE_BINARY_DIR}/include)
 
-add_custom_target(prepare_include_dir ALL
-    COMMAND ${bash_path} ${CMAKE_SOURCE_DIR}/tools/prepare_include_directory.sh ${CMAKE_SOURCE_DIR} ${CMAKE_BINARY_DIR}/include)
 
-  
 add_subdirectory(libraries/metamap)
 add_subdirectory(libraries/metajson)
 add_subdirectory(libraries/symbol)
