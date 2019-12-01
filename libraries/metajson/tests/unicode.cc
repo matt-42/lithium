@@ -31,14 +31,14 @@ void test_ascii(uint16_t c)
   case '\b': ref.append('\\'); ref.append('b'); break;
   case '\f': ref.append('\\'); ref.append('f'); break;
   default:
-    ref.append(c);
+    ref.append(char(c));
   }
   ref.append('"');
 
   {
     std::string out;
     std::stringstream stream;
-    stream << std::string(1, c);
+    stream << std::string(1, char(c));
 
     // c should convert to "c"
     auto err = utf8_to_json(stream, out);

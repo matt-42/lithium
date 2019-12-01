@@ -130,7 +130,14 @@ namespace iod
     {
       if (iod::symbol_string(k) == key)
       {
+      try{
         ret = urldecode2(found, next_str, v);
+      }
+      catch(std::exception e)
+      {
+        throw std::runtime_error(format_error("Urldecode error: cannot decode parameter ", 
+                                  iod::symbol_string(k)));
+      }
       }
     });
     return ret;

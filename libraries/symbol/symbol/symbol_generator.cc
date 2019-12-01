@@ -47,7 +47,7 @@ int main(int argc, char* argv[])
 
       std::vector<int> dbl_quotes_pos;
       bool escaped = false;
-      for (int i = 0; i < line.size(); i++)
+      for (int i = 0; i < int(line.size()); i++)
       {
         if (line[i] == '"' and !escaped) dbl_quotes_pos.push_back(i);
         else if (line[i] == '\\') escaped = !escaped;
@@ -56,7 +56,7 @@ int main(int argc, char* argv[])
 
       auto is_in_string = [&] (int p) {
         int i = 0;
-        while (i < dbl_quotes_pos.size() and dbl_quotes_pos[i] <= p) i++;
+        while (i < int(dbl_quotes_pos.size()) and dbl_quotes_pos[i] <= p) i++;
         return i % 2;
       };
 
@@ -111,7 +111,7 @@ std::string symbol_definition(std::string s)
 #endif
 )cpp";
     // Check the string is actually a number.
-    for (int i = 0; i < s.size(); i++)
+    for (int i = 0; i < int(s.size()); i++)
       if (!std::isdigit(s[i])) return "";
   }
   else

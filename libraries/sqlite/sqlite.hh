@@ -168,7 +168,7 @@ struct sqlite_statement {
   }
 
   void read_column(int pos, int& v) { v = sqlite3_column_int(stmt_, pos); }
-  void read_column(int pos, float& v) { v = sqlite3_column_double(stmt_, pos); }
+  void read_column(int pos, float& v) { v = float(sqlite3_column_double(stmt_, pos)); }
   void read_column(int pos, double& v) {
     v = sqlite3_column_double(stmt_, pos);
   }
@@ -192,8 +192,13 @@ struct sqlite_statement {
   }
 
   int bind(sqlite3_stmt* stmt, int pos, int d) const {
-    std::cout <<"bind " << d << " at pos " << pos << std::endl;
     return sqlite3_bind_int(stmt, pos, d);
+  }
+  int bind(sqlite3_stmt* stmt, int pos, long int d) const {
+    return sqlite3_bind_int64(stmt, pos, d);
+  }
+  int bind(sqlite3_stmt* stmt, int pos, long long int d) const {
+    return sqlite3_bind_int64(stmt, pos, d);
   }
   void bind(sqlite3_stmt* stmt, int pos, null_t) {
     sqlite3_bind_null(stmt, pos);

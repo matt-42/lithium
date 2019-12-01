@@ -118,7 +118,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     auto obj = find_one(f, ws...);
     if (!f)
       throw std::runtime_error(schema_.table_name() + " not found with the given criteria.");
-    return obj;b
+    return obj;
   }
   // Save a ll fields except auto increment.
   // The db will automatically fill auto increment keys.
@@ -169,7 +169,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
   // Update N's members except auto increment members.
   // N must have at least one primary key.
-  template <typename N> int update(const N& o) {
+  template <typename N> void update(const N& o) {
     // check if N has at least one member of PKS.
 
     call_callback(s::validate, o);
@@ -211,7 +211,6 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
     call_callback(s::after_update, o);
 
-    return stmt.last_insert_id();
   }
 
   template <typename S, typename V, typename... A>

@@ -38,8 +38,11 @@ namespace iod {
         str++;
       }
       parse_uint(val, str, end);
-      if (neg)
-        *val = -(*val);
+      if constexpr (!std::is_same<I, bool>::value)
+      {
+        if (neg)
+          *val = -(*val);
+      }
     }
 
     inline unsigned long long pow10(unsigned int e)

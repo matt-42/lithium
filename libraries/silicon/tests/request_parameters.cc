@@ -21,7 +21,26 @@ int main() {
   auto ctx = http_serve(my_api, 12347, s::non_blocking);
   auto ref = json_encode(make_metamap(s::id = 42));
 
-  CHECK_EQUAL("get", http_get("http://localhost:12347/get", s::get_parameters = make_metamap(s::id = 42)).body, ref);
-  CHECK_EQUAL("post", http_post("http://localhost:12347/post", s::post_parameters = make_metamap(s::id = 42)).body, ref);
+  // valid get.
+  auto r1 = http_get("http://localhost:12347/get", s::get_parameters = make_metamap(s::id = 42));
+  CHECK_EQUAL("get status", r1.status, 200);
+  CHECK_EQUAL("get body", r1.body, ref);
+
+  // missing get param.
+  auto r2 = http_get("http://localhost:12347/get");
+  CHECK_EQUAL("get missing status", r2.status, 400);
+
+  // valid post
+  auto r3 = http_post("http://localhost:12347/post", s::post_parameters = make_metamap(s::id = 42));
+  CHECK_EQUAL("post", r3.status, 200);
+  CHECK_EQUAL("post", r3.body, ref);
+  // badly typed post
+  auto r32 = http_post("http://localhost:12347/post", s::post_parameters = make_metamap(s::id = "id"));
+  CHECK_EQUAL("post bad type", r32.status, 400);
+  // missing post
+  auto r4 = http_post("http://localhost:12347/post");
+  CHECK_EQUAL("post missing", r4.status, 400);
+
   CHECK_EQUAL("url", http_get("http://localhost:12347/url/42").body, ref);
+  CHECK_EQUAL("url invalid type", http_get("http://localhost:12347/url/xxx").status, 400);
 }

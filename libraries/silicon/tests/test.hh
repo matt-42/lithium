@@ -4,6 +4,7 @@ try {\
 auto res = exp;\
 if (res != (ref)) {\
   std::cout << "Test " << name <<  " failed " << (res) << " != " << ref << std::endl;\
+  throw std::runtime_error("test failed"); \
 }\
 else\
   std::cout << "Test " << name <<  " \tOK" << std::endl;\

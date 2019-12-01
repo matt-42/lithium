@@ -42,7 +42,7 @@ int main() {
     else throw http_error::unauthorized("Bad login or password.");
   };
 
-  my_api.post("/register") = [&](http_request& request, http_response& response) {
+  my_api.post("/signup") = [&](http_request& request, http_response& response) {
     auto new_user = request.post_parameters(s::login = std::string(), s::password = std::string());
     bool exists = false;
     auto user_db = user_orm.connect(db);
@@ -57,7 +57,19 @@ int main() {
   };
 
 
-  auto ctx = http_serve(my_api, 12345, s::non_blocking);
+ 
+  auto ctx = http_serve(my_api, 12350, s::non_blocking);
+  auto c = http_client("http://localhost:12350");
 
-  assert(http_get("http://localhost:12345/hello_world").body == "hello world.");
+  // bad user -> unauthorized.
+  auto r1 = c.post("/login", s::post_parameters = make_metamap(s::login = "x", s::password = "x"));
+  assert(r1.status == 401);
+  assert(r1.body == "Bad login or password.");
+
+  // bad request.
+  auto r2 = c.post("/signup", s::post_parameters = make_metamap(s::login = "x"));
+  assert(r1.status == 401);
+  assert(r1.body == "Bad login or password.");
+
+  //assert(http_get("http://localhost:12345/hello_world").body == "hello world.");
 }

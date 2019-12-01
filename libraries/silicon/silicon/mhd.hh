@@ -224,7 +224,11 @@ namespace iod {
       if (!in.good())
       {
         std::stringstream err_ss;
+#if defined (_MSC_VER)
+        err_ss << "Cannot read " << path;
+#else
         err_ss << "Cannot read " << path << " " << strerror(errno);
+#endif
         throw std::runtime_error(err_ss.str());
       }
       std::ostringstream ss{};
@@ -251,8 +255,14 @@ namespace iod {
       
     }
 
+#if defined (_MSC_VER)
+  #define strdup _strdup
+#endif
     char* https_cert_buffer = https_cert.size() ? strdup(https_cert.c_str()) : 0;
     char* https_key_buffer = https_key.size() ? strdup(https_key.c_str()) : 0;
+#if defined (_MSC_VER)
+  #undef strdup
+#endif
   
     int thread_pool_size = get_or(options, s::nthreads, std::thread::hardware_concurrency());
     
@@ -319,7 +329,7 @@ namespace iod {
 
     if (!has_key(options, s::non_blocking))
     {
-      while (true) usleep(1e6);
+      while (true) usleep(1000000);
     }
 
     return silicon_mhd_ctx(d, https_cert_buffer, https_key_buffer);

@@ -26,7 +26,7 @@ int main() {
   orm.create_table_if_not_exists();
 
   // Insert.
-  int john_id = orm.insert(s::name = "John", s::age = 42, s::login = "lol");
+  long long int john_id = orm.insert(s::name = "John", s::age = 42, s::login = "lol");
   assert(orm.count() == 1);
   std::cout << john_id << std::endl;
   bool found;
