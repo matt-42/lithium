@@ -13,7 +13,8 @@ template <typename ORM> struct connected_sql_http_session {
   // Retrieve it from the database.
   // Insert it if it does not exists.
   connected_sql_http_session(typename ORM::object_type& defaults, ORM orm, const std::string& session_id)
-      : loaded_(false), session_id_(session_id), orm_(orm), values_(defaults) {}
+      : loaded_(false), session_id_(session_id), orm_(orm), values_(defaults) {
+      }
 
   // Store fiels into the session
   template <typename... F> auto store(F... fields) {
@@ -40,7 +41,9 @@ private:
     if (loaded_)
       return;
     bool found;
-    values_ = orm_.find_one(found, s::session_id = session_id_);
+    auto new_values_ = orm_.find_one(found, s::session_id = session_id_);
+    if (found)
+      values_ = new_values_;
     loaded_ = true;
   }
 
@@ -60,10 +63,12 @@ decltype(auto) create_session_orm(std::string table_name, F... fields)
 template <typename... F> struct sql_http_session {
 
   sql_http_session(std::string table_name, F... fields)
-      : default_values_(make_metamap(s::session_id = std::string(), fields...)), session_table_(create_session_orm(table_name, fields...)) {}
+      : default_values_(make_metamap(s::session_id = std::string(), fields...)), session_table_(create_session_orm(table_name, fields...)) 
+      {
+      }
 
-  template <typename DB> void create_table_if_needed(DB& db) {
-    session_table_.connect(db).create_table_if_needed();
+  template <typename DB> void create_table_if_not_exists(DB& db) {
+    session_table_.connect(db).create_table_if_not_exists();
   }
 
   template <typename DB>
@@ -72,7 +77,7 @@ template <typename... F> struct sql_http_session {
                                       session_cookie(request, response));
   }
 
-  decltype(make_metamap(s::session_id = std::string(), std::declval<F>()...)) default_values_;
+  std::decay_t<decltype(make_metamap(s::session_id = std::string(), std::declval<F>()...))> default_values_;
   std::decay_t<decltype(create_session_orm(std::string(), std::declval<F>()...))> session_table_;
 };
 

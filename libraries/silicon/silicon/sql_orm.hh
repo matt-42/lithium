@@ -25,11 +25,12 @@ template <typename SCHEMA, typename C> struct sql_orm {
     get_or(schema_.get_callbacks(), s, [](auto p) {})(o);
   }
 
-  inline void drop_table_if_exists() {
-    con_(std::string("DROP TABLE IF EXISTS ") + schema_.table_name());
+  inline auto drop_table_if_exists() {
+    con_(std::string("DROP TABLE IF EXISTS ") + schema_.table_name())();
+    return *this;
   } 
   
-  inline void create_table_if_not_exists() {
+  inline auto create_table_if_not_exists() {
     std::stringstream ss;
     ss << "CREATE TABLE if not exists " << schema_.table_name() << " (";
 
@@ -77,6 +78,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
                 << "You can ignore this message if the table already exists."
                 << "The sql error is: " << e.what() << std::endl;
     }
+    return *this;
   }
 
   template <typename... W>
@@ -104,7 +106,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     ss << "LIMIT 1";
     auto stmt = con_(ss.str());
 
-    found = iod::tuple_reduce(metamap_values(where), stmt) >> o;
+    found = (iod::tuple_reduce(metamap_values(where), stmt) >> o);
     call_callback(s::read_access, o);
     return o;
   }
@@ -214,7 +216,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
   }
 
   template <typename S, typename V, typename... A>
-  long long int update(const assign_exp<S, V>& a, A&&... tail) {
+  void update(const assign_exp<S, V>& a, A&&... tail) {
     auto m = make_metamap(a, tail...);
     return update(m);
   }

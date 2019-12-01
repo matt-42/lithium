@@ -3,6 +3,7 @@
 #include <iod/silicon/sql_http_session.hh>
 
 #include "symbols.hh"
+#include "test.hh"
 
 using namespace iod;
 
@@ -15,16 +16,20 @@ int main() {
   // Users table
   auto user_orm = sql_orm_schema("users").fields(s::id(s::autoset, s::primary_key) = int(), s::login = std::string(),
                             s::password = std::string());
+  user_orm.connect(db).drop_table_if_exists().create_table_if_not_exists();
+
   // Session.
   sql_http_session session("user_sessions", s::user_id = -1);
+  session.create_table_if_not_exists(db);
 
   my_api.get("/who_am_i") = [&](http_request& request, http_response& response) {
     auto sess = session.connect(db, request, response);
+    std::cout << sess.values().user_id << std::endl;
     if (sess.values().user_id != -1)
     {
       bool found;
       auto u = user_orm.connect(db).find_one(found, s::id = sess.values().user_id);
-      response.write(json_encode(u));
+      response.write(u.login);
     }
     else
       throw http_error::unauthorized("Please login.");   
@@ -47,7 +52,8 @@ int main() {
     bool exists = false;
     auto user_db = user_orm.connect(db);
     auto user = user_db.find_one(exists, s::login = new_user.login);
-    if (not exists)
+    std::cout << user_db.count() << std::endl;
+    if (! exists)
       user_db.insert(new_user);
     else throw http_error::bad_request("User already exists.");
   };
@@ -63,13 +69,37 @@ int main() {
 
   // bad user -> unauthorized.
   auto r1 = c.post("/login", s::post_parameters = make_metamap(s::login = "x", s::password = "x"));
-  assert(r1.status == 401);
+  std::cout << json_encode(r1) << std::endl;
+  CHECK_EQUAL("unknown user", r1.status, 401);
   assert(r1.body == "Bad login or password.");
 
-  // bad request.
-  auto r2 = c.post("/signup", s::post_parameters = make_metamap(s::login = "x"));
-  assert(r1.status == 401);
+  // valid signup.
+  auto r2 = c.post("/signup", s::post_parameters = make_metamap(s::login = "john", s::password = "abcd"));
+  std::cout << json_encode(r2) << std::endl;
+  CHECK_EQUAL("signup", r2.status, 200);
+
+  // Bad password
+  auto r3 = c.post("/login", s::post_parameters = make_metamap(s::login = "john", s::password = "abcd2"));
+  std::cout << json_encode(r3) << std::endl;
+  CHECK_EQUAL("bad password", r3.status, 401);
   assert(r1.body == "Bad login or password.");
 
-  //assert(http_get("http://localhost:12345/hello_world").body == "hello world.");
+  // Valid login
+  auto r4 = c.post("/login", s::post_parameters = make_metamap(s::login = "john", s::password = "abcd"));
+  std::cout << json_encode(r4) << std::endl;
+  CHECK_EQUAL("valid login", r4.status, 200);
+ 
+  // Check session.
+  auto r5 = c.get("/who_am_i");
+  std::cout << json_encode(r5) << std::endl;
+  CHECK_EQUAL("read session", r5.body, "john");
+  CHECK_EQUAL("read session", r5.status, 200);
+ 
+  // Logout
+  c.get("/logout");
+  auto r6 = c.get("/who_am_i");
+  std::cout << json_encode(r6) << std::endl;
+  CHECK_EQUAL("read session", r6.status, 401);
+
+   //assert(http_get("http://localhost:12345/hello_world").body == "hello world.");
 }

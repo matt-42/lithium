@@ -1,6 +1,5 @@
 #pragma once
 
-
 #include <utility>
 #include <vector>
 
@@ -59,11 +58,9 @@ namespace iod {
     typedef L left_t;
     typedef R right_t;
 
-    template <typename U, typename V>
-    assign_exp(U&& l, V&& r) : left(std::forward<U>(l)), right(std::forward<V>(r)) {}
-    //assign_exp(U&& l, V&& r) : left(l), right(r) {}
-    // assign_exp(const L& l, R&& r) : left(l), right(std::forward<R>(r)) {}
-
+    template <typename V>
+    inline assign_exp(L l, V&& r) : left(l), right(std::forward<V>(r)) {}
+ 
     L left;
     R right;
   };

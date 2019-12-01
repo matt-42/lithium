@@ -22,14 +22,18 @@ int main() {
   auto orm = schema.connect(db);
   auto c = db.get_connection();
 
-  c("DROP TABLE IF EXISTS users;")();
+  orm.drop_table_if_exists();
   orm.create_table_if_not_exists();
+
+  // find one.
+  bool found = true;
+  orm.find_one(found, s::id = 1);
+  assert(!found);
 
   // Insert.
   long long int john_id = orm.insert(s::name = "John", s::age = 42, s::login = "lol");
   assert(orm.count() == 1);
   std::cout << john_id << std::endl;
-  bool found;
   auto u = orm.find_one(found, s::id = john_id);
   assert(found);
   assert(u.id = john_id and u.name == "John" and u.age == 42 and u.login == "lol");
