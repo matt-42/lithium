@@ -20,7 +20,7 @@ int main() {
 
   // Session.
   sql_http_session session("user_sessions", s::user_id = -1);
-  session.create_table_if_not_exists(db);
+  session.orm().connect(db).drop_table_if_exists().create_table_if_not_exists();
 
   my_api.get("/who_am_i") = [&](http_request& request, http_response& response) {
     auto sess = session.connect(db, request, response);
@@ -42,7 +42,7 @@ int main() {
     if (exists)
     {
       session.connect(db, request, response).store(s::user_id = user.id);
-      return true;
+      response.write("login success");
     }
     else throw http_error::unauthorized("Bad login or password.");
   };
@@ -88,7 +88,10 @@ int main() {
   auto r4 = c.post("/login", s::post_parameters = make_metamap(s::login = "john", s::password = "abcd"));
   std::cout << json_encode(r4) << std::endl;
   CHECK_EQUAL("valid login", r4.status, 200);
- 
+  CHECK_EQUAL("valid login", r4.body, "login success");
+
+  CHECK_EQUAL("valid login", session.orm().connect(db).count(), 1);
+
   // Check session.
   auto r5 = c.get("/who_am_i");
   std::cout << json_encode(r5) << std::endl;
@@ -100,6 +103,6 @@ int main() {
   auto r6 = c.get("/who_am_i");
   std::cout << json_encode(r6) << std::endl;
   CHECK_EQUAL("read session", r6.status, 401);
-
+  CHECK_EQUAL("read session", r6.body, "Please login.");
    //assert(http_get("http://localhost:12345/hello_world").body == "hello world.");
 }

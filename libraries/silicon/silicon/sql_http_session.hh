@@ -14,6 +14,7 @@ template <typename ORM> struct connected_sql_http_session {
   // Insert it if it does not exists.
   connected_sql_http_session(typename ORM::object_type& defaults, ORM orm, const std::string& session_id)
       : loaded_(false), session_id_(session_id), orm_(orm), values_(defaults) {
+
       }
 
   // Store fiels into the session
@@ -48,7 +49,7 @@ private:
   }
 
   bool loaded_;
-  std::string_view session_id_;
+  std::string session_id_;
   ORM orm_;
   typename ORM::object_type values_;
 };
@@ -67,15 +68,13 @@ template <typename... F> struct sql_http_session {
       {
       }
 
-  template <typename DB> void create_table_if_not_exists(DB& db) {
-    session_table_.connect(db).create_table_if_not_exists();
-  }
-
   template <typename DB>
   auto connect(DB& database, http_request& request, http_response& response) {
     return connected_sql_http_session(default_values_, session_table_.connect(database),
                                       session_cookie(request, response));
   }
+
+  auto orm() { return session_table_; }
 
   std::decay_t<decltype(make_metamap(s::session_id = std::string(), std::declval<F>()...))> default_values_;
   std::decay_t<decltype(create_session_orm(std::string(), std::declval<F>()...))> session_table_;
