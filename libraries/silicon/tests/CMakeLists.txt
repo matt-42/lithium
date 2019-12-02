@@ -4,6 +4,7 @@ SET(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH}
 
 enable_testing()
 
+find_package(MYSQL REQUIRED)
 find_package(SQLite3 REQUIRED)
 find_package(CURL REQUIRED)
 find_package(microhttpd REQUIRED)

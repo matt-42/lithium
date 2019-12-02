@@ -11,8 +11,8 @@ int main() {
     "name VARCHAR, age INTEGER);")();
   c("INSERT into person(name, age) VALUES (?, ?)")("John", 42)("Ella", 21);
 
-  c("SELECT id, name, age from person") |
+  c("SELECT id, name, age from person").map(
       [](int id, std::string name, int age) {
         std::cout << id << ", " << name << ", " << age << std::endl;
-      };
+      });
 }

@@ -59,7 +59,7 @@ struct sqlite_statement {
       const char* cname = sqlite3_column_name(stmt_, i);
       bool found = false;
       int j = 0;
-      map(o, [&](auto k, auto& v) {
+      iod::map(o, [&](auto k, auto& v) {
         if (!found and !filled[j] and !strcmp(cname, symbol_string(k))) {
           this->read_column(i, v);
           filled[j] = 1;
@@ -139,7 +139,7 @@ struct sqlite_statement {
   int empty() { return last_step_ret_ != SQLITE_ROW; }
 
   // Apply a function to all result rows.
-  template <typename F> void operator|(F f) {
+  template <typename F> void map(F f) {
     if (not ready_for_reading_)
       this->operator()();
 

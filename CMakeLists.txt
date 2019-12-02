@@ -19,9 +19,11 @@ IF (WIN32)
     "${CMAKE_SOURCE_DIR_BACKSLASH}${TARGET_BS}"
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/include/iod/)
 ELSE()
-execute_process(COMMAND ln -s
-                "${CMAKE_SOURCE_DIR}${target_dir}" ${lib_name}
-                WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/include/iod/)
+    if(NOT EXISTS "${CMAKE_BINARY_DIR}/include/iod/${lib_name}")
+        execute_process(COMMAND ln -s
+                        "${CMAKE_SOURCE_DIR}${target_dir}" ${lib_name}
+                        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/include/iod/)
+    ENDIF()
 ENDIF()
 endfunction()
 
@@ -33,13 +35,9 @@ link_build_include("callable_traits" "/libraries/callable_traits")
 link_build_include("silicon" "/libraries/silicon/silicon")
 link_build_include("http_client" "/libraries/http_client/http_client")
 link_build_include("symbol" "/libraries/symbol/symbol")
-                                
+link_build_include("mysql" "/libraries/mysql")                               
 
 include_directories(${CMAKE_BINARY_DIR}/include)
-
-#add_custom_target(prepare_include_dir ALL
-#    COMMAND ${bash_path} ${CMAKE_SOURCE_DIR}/tools/prepare_include_directory.sh ${CMAKE_SOURCE_DIR} ${CMAKE_BINARY_DIR}/include)
-
 
 add_subdirectory(libraries/metamap)
 add_subdirectory(libraries/metajson)
@@ -47,3 +45,4 @@ add_subdirectory(libraries/symbol)
 add_subdirectory(libraries/silicon)
 add_subdirectory(libraries/http_client)
 add_subdirectory(libraries/sqlite)
+add_subdirectory(libraries/mysql)
