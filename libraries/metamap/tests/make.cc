@@ -13,7 +13,7 @@ int main()
 {
 
   // Simple map.
-  auto m = make_metamap(s::test1 = 12, s::test2 = 13);
+  auto m = mmm(s::test1 = 12, s::test2 = 13);
 
   assert(m.test1 == 12);
   assert(m[s::test1] == 12);
@@ -33,7 +33,7 @@ int main()
   x++;
   assert(m2[s::test1] == 42);
 
-  auto m3 = make_metamap(s::test1 = std::string("test"));
+  auto m3 = mmm(s::test1 = std::string("test"));
   assert(m3.test1 == "test");
 
   // Copy.

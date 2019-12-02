@@ -112,7 +112,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
   }
   template <typename A, typename B, typename... W>
   auto find_one(bool& found, assign_exp<A, B> w1, W... ws) {
-    return find_one(found, make_metamap(w1, ws...));
+    return find_one(found, mmm(w1, ws...));
   }
   template <typename... W>
   auto find_one(W... ws) {
@@ -158,7 +158,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
   };
   template <typename S, typename V, typename... A>
   long long int insert(const assign_exp<S, V>& a, A&&... tail) {
-    auto m = make_metamap(a, tail...);
+    auto m = mmm(a, tail...);
     return insert(m);
   }
 
@@ -217,7 +217,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
   template <typename S, typename V, typename... A>
   void update(const assign_exp<S, V>& a, A&&... tail) {
-    auto m = make_metamap(a, tail...);
+    auto m = mmm(a, tail...);
     return update(m);
   }
 
@@ -249,7 +249,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     call_callback(s::after_destroy, o);
   }
   template <typename A, typename B, typename... T> void remove(const assign_exp<A, B>& o, T... tail) {
-    return remove(make_metamap(o, tail...));
+    return remove(mmm(o, tail...));
   }
 
   SCHEMA schema_;
@@ -307,7 +307,7 @@ template <typename... F> struct orm_fields {
                               typedef std::remove_reference_t<decltype(e)> E;
                               return get_field<E>::ctor();
                             },
-                            [](auto... e) { return make_metamap(e...); });
+                            [](auto... e) { return mmm(e...); });
   }
 
   auto without_autoset() { return substract(all_fields(), autoset()); }
@@ -315,7 +315,7 @@ template <typename... F> struct orm_fields {
   std::tuple<F...> fields_;
 };
 
-template <typename MD = orm_fields<>, typename CB = decltype(make_metamap())>
+template <typename MD = orm_fields<>, typename CB = decltype(mmm())>
 struct sql_orm_schema : public MD {
 
   sql_orm_schema(const std::string& table_name, CB cb = CB(), MD md = MD())
@@ -327,7 +327,7 @@ struct sql_orm_schema : public MD {
   auto get_callbacks() const { return callbacks_; }
 
   template <typename... P> auto callbacks(P... params_list) {
-    auto cbs = make_metamap(params_list...);
+    auto cbs = mmm(params_list...);
     return sql_orm_schema<MD, decltype(cbs)>(table_name_, cbs, *static_cast<MD*>(this));
   }
 

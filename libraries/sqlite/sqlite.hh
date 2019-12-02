@@ -302,7 +302,7 @@ struct sqlite_database {
 
   template <typename... O>
   sqlite_database(const std::string& path, O... options_) {
-    auto options = make_metamap(options_...);
+    auto options = mmm(options_...);
 
     path_ = path;
     con_.connect(path, SQLITE_OPEN_FULLMUTEX | SQLITE_OPEN_READWRITE |

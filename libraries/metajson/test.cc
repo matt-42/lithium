@@ -51,8 +51,8 @@ int main ()
 
 
   // Metamap
-  using iod::make_metamap;
-  auto map = make_metamap(s::age = 12, s::name = std::string("John"));
+  using iod::mmm;
+  auto map = mmm(s::age = 12, s::name = std::string("John"));
   json_str = json_encode(map);
   
   std::cout << json_str << std::endl;

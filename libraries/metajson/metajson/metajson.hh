@@ -108,7 +108,7 @@ template <typename M> auto json_encode(const M& obj) {
 }
 
 template <typename A, typename B, typename... C> auto json_encode(const assign_exp<A, B>& exp, C... c) {
-  auto obj = make_metamap(exp, c...);
+  auto obj = mmm(exp, c...);
   return impl::to_json_schema(obj).encode(obj);
 }
 

@@ -227,17 +227,17 @@ template <typename O> void decode_post_parameters_urlencoded(O& res, http_reques
 
 template <typename S, typename V, typename... T>
 auto http_request::url_parameters(assign_exp<S, V> e, T... tail) {
-  return url_parameters(make_metamap(e, tail...));
+  return url_parameters(mmm(e, tail...));
 }
 
 template <typename S, typename V, typename... T>
 auto http_request::get_parameters(assign_exp<S, V> e, T... tail) {
-  return get_parameters(make_metamap(e, tail...));
+  return get_parameters(mmm(e, tail...));
 }
 
 template <typename S, typename V, typename... T>
 auto http_request::post_parameters(assign_exp<S, V> e, T... tail) {
-  auto o = make_metamap(e, tail...);
+  auto o = mmm(e, tail...);
   return post_parameters(o);
 }
 

@@ -15,7 +15,7 @@ int main()
   {
     std::string input = R"json({"test1":12,"test2":"John"})json";
 
-    auto obj = make_metamap(s::test1 = 12,
+    auto obj = mmm(s::test1 = 12,
                                  s::test2 = std::string_view("John"));
   
     auto enc = json_encode(obj);
@@ -49,7 +49,7 @@ int main()
     // json_key
     std::string input = R"json({"test1":12,"name":"John"})json";
 
-    auto obj = iod::make_metamap(s::test1 = 12,
+    auto obj = iod::mmm(s::test1 = 12,
                                  s::test2 = std::string_view("John"));
   
     assert(input == iod::json_object(s::test1, s::test2(iod::json_key("name"))).encode(obj));
@@ -60,9 +60,9 @@ int main()
     std::string input = R"json([{"test1":["test1":12]}])json";
 
     using s::test1;
-    typedef decltype(iod::make_metamap(s::test1 = std::vector<decltype(iod::make_metamap(s::test1 = int()))>())) elt;
+    typedef decltype(iod::mmm(s::test1 = std::vector<decltype(iod::mmm(s::test1 = int()))>())) elt;
     auto obj = std::vector<elt>();
-    obj.push_back(iod::make_metamap(s::test1 = { iod::make_metamap(s::test1 = 12) }));
+    obj.push_back(iod::mmm(s::test1 = { iod::mmm(s::test1 = 12) }));
   }
 
   {

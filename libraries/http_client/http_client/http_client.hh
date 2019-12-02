@@ -39,13 +39,13 @@ struct http_client {
 
     struct curl_slist* headers_list = NULL;
 
-    auto arguments = make_metamap(args...);
+    auto arguments = mmm(args...);
     // Generate url.
     std::stringstream url_ss;
     url_ss << url_prefix_ << url;
 
     // Get params
-    auto get_params = iod::get_or(arguments, s::get_parameters, make_metamap());
+    auto get_params = iod::get_or(arguments, s::get_parameters, mmm());
     bool first = true;
     iod::map(get_params, [&](auto k, auto v) {
       if (first)
@@ -71,7 +71,7 @@ struct http_client {
     if (is_urlencoded) { // urlencoded
       req_body_buffer_.str("");
 
-      auto post_params = iod::get_or(arguments, s::post_parameters, make_metamap());
+      auto post_params = iod::get_or(arguments, s::post_parameters, mmm());
       first = true;
       iod::map(post_params, [&](auto k, auto v) {
         if (!first)
@@ -88,7 +88,7 @@ struct http_client {
       req_body_buffer_.str(rq_body);
 
     } else // Json encoded
-      rq_body = iod::json_encode(iod::get_or(arguments, s::post_parameters, make_metamap()));
+      rq_body = iod::json_encode(iod::get_or(arguments, s::post_parameters, mmm()));
 
     // HTTP HTTP_POST
     if (http_method == HTTP_POST) {
@@ -144,7 +144,7 @@ struct http_client {
     curl_easy_getinfo(curl_, CURLINFO_RESPONSE_CODE, &response_code);
 
     // Decode result.
-    return make_metamap(s::status = response_code, s::body = body_buffer_);
+    return mmm(s::status = response_code, s::body = body_buffer_);
   }
 
   template <typename... P>

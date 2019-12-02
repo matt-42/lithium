@@ -205,7 +205,7 @@ namespace iod {
   {
 
     int flags = MHD_USE_SELECT_INTERNALLY;
-    auto options = make_metamap(opts...);
+    auto options = mmm(opts...);
     if (has_key(options, s::one_thread_per_connection))
       flags = MHD_USE_THREAD_PER_CONNECTION;
     else if (has_key(options, s::select))

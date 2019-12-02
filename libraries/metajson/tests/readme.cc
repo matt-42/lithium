@@ -69,7 +69,7 @@ int main ()
   // {"id":1,"entry":{"age":12,"name":"John"}}
 
   // Metamap
-  auto map = make_metamap(s::age = 12, s::name = std::string("John"));
+  auto map = mmm(s::age = 12, s::name = std::string("John"));
   json_str = json_encode(map);
   
   std::cout << json_str << std::endl;

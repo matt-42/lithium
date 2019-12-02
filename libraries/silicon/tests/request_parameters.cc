@@ -19,10 +19,10 @@ int main() {
   };
 
   auto ctx = http_serve(my_api, 12347, s::non_blocking);
-  auto ref = json_encode(make_metamap(s::id = 42));
+  auto ref = json_encode(mmm(s::id = 42));
 
   // valid get.
-  auto r1 = http_get("http://localhost:12347/get", s::get_parameters = make_metamap(s::id = 42));
+  auto r1 = http_get("http://localhost:12347/get", s::get_parameters = mmm(s::id = 42));
   CHECK_EQUAL("get status", r1.status, 200);
   CHECK_EQUAL("get body", r1.body, ref);
 
@@ -31,11 +31,11 @@ int main() {
   CHECK_EQUAL("get missing status", r2.status, 400);
 
   // valid post
-  auto r3 = http_post("http://localhost:12347/post", s::post_parameters = make_metamap(s::id = 42));
+  auto r3 = http_post("http://localhost:12347/post", s::post_parameters = mmm(s::id = 42));
   CHECK_EQUAL("post", r3.status, 200);
   CHECK_EQUAL("post", r3.body, ref);
   // badly typed post
-  auto r32 = http_post("http://localhost:12347/post", s::post_parameters = make_metamap(s::id = "id"));
+  auto r32 = http_post("http://localhost:12347/post", s::post_parameters = mmm(s::id = "id"));
   CHECK_EQUAL("post bad type", r32.status, 400);
   // missing post
   auto r4 = http_post("http://localhost:12347/post");

@@ -42,18 +42,18 @@ int main() {
   auto c = http_client("http://127.0.0.1:12356");
 
   // // // Insert.
-  auto to_insert = make_metamap(s::name = "matt", s::age = 12, s::address = "USA", s::city = "Paris");
+  auto to_insert = mmm(s::name = "matt", s::age = 12, s::address = "USA", s::city = "Paris");
   auto insert_r = c.post("/user/create", s::post_parameters = to_insert);
   insert_r = c.post("/user/create", s::post_parameters = to_insert);
 
   std::cout << insert_r.body << std::endl;
 
   //  assert(insert_r.status == 200);
-  auto pid = make_metamap(s::id = int());
+  auto pid = mmm(s::id = int());
   assert(json_decode(insert_r.body, pid).good());
   int id = pid.id;
   // Get by id.
-  auto get_r = c.post("/user/find_by_id", s::post_parameters = make_metamap(s::id = id));
+  auto get_r = c.post("/user/find_by_id", s::post_parameters = mmm(s::id = id));
   std::cout << get_r.body << std::endl;
 
   assert(get_r.status == 200);
@@ -64,7 +64,7 @@ int main() {
   assert(matt.city == "Paris");
   assert(matt.address == "USA");
 
-  auto get_r2 = c.post("/user/find_by_id", s::post_parameters = make_metamap(s::id = 42));
+  auto get_r2 = c.post("/user/find_by_id", s::post_parameters = mmm(s::id = 42));
   std::cout << get_r2.body << std::endl;
   ;
   assert(get_r2.status == 404);
@@ -72,8 +72,8 @@ int main() {
   // // Update
   auto update_r =
       c.post("/user/update",
-        s::post_parameters = make_metamap(s::id = id, s::name = "john", s::age = 42, s::address = "Canad a", s::city = "xxx"));
-  auto get_r3 = c.post("/user/find_by_id", s::post_parameters = make_metamap(s::id = id));
+        s::post_parameters = mmm(s::id = id, s::name = "john", s::age = 42, s::address = "Canad a", s::city = "xxx"));
+  auto get_r3 = c.post("/user/find_by_id", s::post_parameters = mmm(s::id = id));
   std::cout << json_encode(get_r3) << std::endl;
   assert(get_r3.status == 200);
   auto john = user_schema.all_fields();
@@ -88,10 +88,10 @@ int main() {
   ;
 
   // // Destroy.
-  // auto destroy_r = c(HTTP_POST, "/user/destroy", s::post = make_metamap(s::id = id));
+  // auto destroy_r = c(HTTP_POST, "/user/destroy", s::post = mmm(s::id = id));
   // assert(destroy_r.status == 200);
 
-  // auto get_r4 = c(HTTP_GET, "/user/get_by_id", s::get = make_metamap(s::id = id));
+  // auto get_r4 = c(HTTP_GET, "/user/get_by_id", s::get = mmm(s::id = id));
   // assert(get_r4.status == 404);
 
   // exit(0);

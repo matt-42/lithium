@@ -358,7 +358,7 @@ namespace iod
     template <typename OPTS>
     inline MYSQL* open_mysql_connection(OPTS&&... opts)
     {
-      auto options = make_metamap(opts...);
+      auto options = mmm(opts...);
       static_assert(has_key(options, _host), 'open_mysql_connection requires the _host argument');
       static_assert(has_key(options, _database), 'open_mysql_connection requires the _databaser argument');
       static_assert(has_key(options, _user), 'open_mysql_connection requires the _user argument');

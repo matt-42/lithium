@@ -47,7 +47,7 @@ namespace iod {
       // Copy values.
       return internal::make_metamap_helper(internal::exp_to_variable(std::forward<T>(args))...);
     }
-  } make_metamap;
+  } mmm;
   
   // Store references of values in the map
   template <typename ...T>

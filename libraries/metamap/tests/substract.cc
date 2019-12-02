@@ -12,8 +12,8 @@ using namespace iod;
 int main()
 {
 
-  auto a = make_metamap(s::test1 = 12, s::test2 = 13, s::test3 = 13, s::test4 = 14);
-  auto b = make_metamap(s::test2 = 12, s::test3 = 14);
+  auto a = mmm(s::test1 = 12, s::test2 = 13, s::test3 = 13, s::test4 = 14);
+  auto b = mmm(s::test2 = 12, s::test3 = 14);
 
   auto c = substract(a, b);
 

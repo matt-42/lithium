@@ -68,24 +68,24 @@ int main() {
   auto c = http_client("http://localhost:12350");
 
   // bad user -> unauthorized.
-  auto r1 = c.post("/login", s::post_parameters = make_metamap(s::login = "x", s::password = "x"));
+  auto r1 = c.post("/login", s::post_parameters = mmm(s::login = "x", s::password = "x"));
   std::cout << json_encode(r1) << std::endl;
   CHECK_EQUAL("unknown user", r1.status, 401);
   assert(r1.body == "Bad login or password.");
 
   // valid signup.
-  auto r2 = c.post("/signup", s::post_parameters = make_metamap(s::login = "john", s::password = "abcd"));
+  auto r2 = c.post("/signup", s::post_parameters = mmm(s::login = "john", s::password = "abcd"));
   std::cout << json_encode(r2) << std::endl;
   CHECK_EQUAL("signup", r2.status, 200);
 
   // Bad password
-  auto r3 = c.post("/login", s::post_parameters = make_metamap(s::login = "john", s::password = "abcd2"));
+  auto r3 = c.post("/login", s::post_parameters = mmm(s::login = "john", s::password = "abcd2"));
   std::cout << json_encode(r3) << std::endl;
   CHECK_EQUAL("bad password", r3.status, 401);
   assert(r1.body == "Bad login or password.");
 
   // Valid login
-  auto r4 = c.post("/login", s::post_parameters = make_metamap(s::login = "john", s::password = "abcd"));
+  auto r4 = c.post("/login", s::post_parameters = mmm(s::login = "john", s::password = "abcd"));
   std::cout << json_encode(r4) << std::endl;
   CHECK_EQUAL("valid login", r4.status, 200);
   CHECK_EQUAL("valid login", r4.body, "login success");

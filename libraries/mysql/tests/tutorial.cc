@@ -53,7 +53,7 @@ int main()
     c("INSERT into users(id, name, age) values", users)
 
     
-    typedef decltype(make_metamap(_id = int(), _age = uint32_t(),  _name = std::string())) User;
+    typedef decltype(mmm(_id = int(), _age = uint32_t(),  _name = std::string())) User;
 
     auto print = [] (User res) {
       std::cout << res.id << " - " << res.name << " - " << res.age << std::endl;

@@ -13,7 +13,7 @@ int main()
   { // Simple deserializer.
     std::string input = R"json({"test1":12,"test2":"John"})json";
 
-    auto obj = make_metamap(s::test1 = int(),
+    auto obj = mmm(s::test1 = int(),
                                  s::test2 = std::string());
 
     json_decode(input, obj);
@@ -40,7 +40,7 @@ int main()
   { // json key.
     std::string input = R"json({"test1":12,"name":"John"})json";
 
-    auto obj = make_metamap(s::test1 = int(),
+    auto obj = mmm(s::test1 = int(),
                                  s::test2 = std::string());
 
     json_object(s::test1, s::test2(json_key("name"))).decode(input, obj);
@@ -91,7 +91,7 @@ int main()
 
   {
     // optional.
-    auto obj = make_metamap(s::test1 = std::optional<std::string>());
+    auto obj = mmm(s::test1 = std::optional<std::string>());
     auto err = json_decode("{}", obj);
     assert(err.good());
     assert(!obj.test1.has_value());
@@ -104,7 +104,7 @@ int main()
 
   {
     // Variant.
-    auto obj = make_metamap(s::test1 = std::variant<int, std::string>("abc"));
+    auto obj = mmm(s::test1 = std::variant<int, std::string>("abc"));
 
     assert(json_decode(R"json({"test1":{"idx":1,"value":"abc"}})json", obj).good());
     assert(std::get<std::string>(obj.test1) == "abc");

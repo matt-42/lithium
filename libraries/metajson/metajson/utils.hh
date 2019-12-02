@@ -35,13 +35,13 @@ namespace iod {
     auto make_json_object_member(const assign_exp<S, T>& e)
     {
       return cat(make_json_object_member(e.left),
-                 make_metamap(s::type = e.right));
+                 mmm(s::type = e.right));
     }
 
     template <typename S>
     auto make_json_object_member(const iod::symbol<S>&)
     {
-      return make_metamap(s::name = S{});
+      return mmm(s::name = S{});
     }
 
     template <typename V>
@@ -72,7 +72,7 @@ namespace iod {
       auto tuple_maker = [] (auto&&... t) { return std::make_tuple(std::forward<decltype(t)>(t)...); };
 
       auto entities = map_reduce(m, [] (auto k, auto v) {
-          return make_metamap(s::name = k, s::type = to_json_schema(v));
+          return mmm(s::name = k, s::type = to_json_schema(v));
         }, tuple_maker);
 
 
@@ -89,13 +89,13 @@ namespace iod {
         };
 
       auto kvs = std::apply(make_kvs, s.entities);
-      return std::apply(make_metamap, kvs);
+      return std::apply(mmm, kvs);
     }
 
     template <typename S, typename... A>
     auto make_json_object_member(const function_call_exp<S, A...>& e)
     {
-      auto res = make_metamap(s::name = e.method, s::json_key = symbol_string(e.method));
+      auto res = mmm(s::name = e.method, s::json_key = symbol_string(e.method));
 
       auto parse = [&] (auto a)
         {

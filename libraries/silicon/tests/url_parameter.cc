@@ -10,7 +10,7 @@ template <typename... O>
 auto url_decode_test(const char* spec, const char* url, O... param) {
 
     auto info = make_url_parser_info(spec);
-    auto obj = make_metamap(param...);
+    auto obj = mmm(param...);
     auto p = parse_url_parameters(info, url, obj);
     return p;
 }

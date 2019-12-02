@@ -31,7 +31,7 @@ int main()
   { // Simple object
     const std::string s = "name=John&age=42";
 
-    auto obj = make_metamap(s::name = std::string(),
+    auto obj = mmm(s::name = std::string(),
                  s::age = int());
 
     urldecode(std::string_view(s), obj);
@@ -41,7 +41,7 @@ int main()
 
   { // Simple object with url escaped chars
     const std::string s = "name=Jo%20hn";
-    auto obj = make_metamap(s::name = std::string());
+    auto obj = mmm(s::name = std::string());
     urldecode(std::string_view(s), obj);
     assert(obj.name == "Jo hn");
   }
@@ -49,7 +49,7 @@ int main()
   { // Simple Array.
     const std::string s = "age[0]=42&age[1]=22";
 
-    auto obj = make_metamap(s::age = std::vector<int>());
+    auto obj = mmm(s::age = std::vector<int>());
 
     urldecode(std::string_view(s), obj);
 
@@ -61,7 +61,7 @@ int main()
   { // Simple Array 2.
     const std::string s = "age[]=42&age[]=22";
 
-    auto obj = make_metamap(s::age = std::vector<int>());
+    auto obj = mmm(s::age = std::vector<int>());
 
     urldecode(std::string_view(s), obj);
 
@@ -73,9 +73,9 @@ int main()
   { // Nested objects
     const std::string s = "test1[name]=John&test1[age]=42&test2[name]=Bob&test2[age]=12";
 
-    auto obj = make_metamap(s::test1 = make_metamap(s::name = std::string(),
+    auto obj = mmm(s::test1 = mmm(s::name = std::string(),
                                s::age = int()),
-                 s::test2 = make_metamap(s::name = std::string(),
+                 s::test2 = mmm(s::name = std::string(),
                                s::age = int()));
 
     urldecode(std::string_view(s), obj);
@@ -88,7 +88,7 @@ int main()
 
   { // Nested array.
     const std::string s = "test1[0][0]=42";
-    auto obj = make_metamap(s::test1 = std::vector<std::vector<int>>());
+    auto obj = mmm(s::test1 = std::vector<std::vector<int>>());
 
     urldecode(std::string_view(s), obj);
     assert(obj.test1[0][0] == 42);
@@ -96,9 +96,9 @@ int main()
 
   { // Nested array.
     const std::string s = "test1[0][test2]=John";
-    typedef decltype(make_metamap(s::test2 = std::string())) elt_type;
+    typedef decltype(mmm(s::test2 = std::string())) elt_type;
 
-    auto obj = make_metamap(s::test1 = std::vector<elt_type>());
+    auto obj = mmm(s::test1 = std::vector<elt_type>());
 
     urldecode(std::string_view(s), obj);
     assert(obj.test1[0].test2 == "John");
@@ -107,7 +107,7 @@ int main()
   { // Missing field
     const std::string s = "name=John";
 
-    auto obj = make_metamap(s::name = std::string(),
+    auto obj = mmm(s::name = std::string(),
                  s::age = int());
 
     assert(is_error(s, obj));
@@ -116,31 +116,31 @@ int main()
   { // Missing nested field
     const std::string s = "age=42";
     std::cout << "nested" << std::endl;
-    typedef decltype(make_metamap(s::test2 = std::string())) elt_type;
+    typedef decltype(mmm(s::test2 = std::string())) elt_type;
 
-    auto obj = make_metamap(s::name = elt_type(), s::age = int());
+    auto obj = mmm(s::name = elt_type(), s::age = int());
 
     assert(is_error(s, obj));
   }
 
   { // Bad interger formating
     const std::string s = "age=42s";
-    typedef decltype(make_metamap(s::test2 = std::string())) elt_type;
+    typedef decltype(mmm(s::test2 = std::string())) elt_type;
 
-    auto obj = make_metamap(s::age = int());
+    auto obj = mmm(s::age = int());
 
     assert(is_error(s, obj));
   }
 
   { // Missing field.
     const std::string s = "age=";
-    auto obj = make_metamap(s::age = int());
+    auto obj = mmm(s::age = int());
     assert(is_error(s, obj));
   }
 
 
   { // Missing =
-    auto obj = make_metamap(s::age = int());
+    auto obj = mmm(s::age = int());
     assert(is_error("age", obj));
     assert(is_error("age&&", obj));
     assert(is_error("", obj));
