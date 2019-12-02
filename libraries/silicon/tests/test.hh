@@ -4,12 +4,12 @@ try {\
 auto res = exp;\
 if (res != (ref)) {\
   std::cout << "Test " << name <<  " failed " << (res) << " != " << ref << std::endl;\
-  throw std::runtime_error("test failed"); \
+  assert(0); \
 }\
 else\
   std::cout << "Test " << name <<  " \tOK" << std::endl;\
-} catch (std::exception e) { std::cout << "Test " << name <<  " \tKO" << e.what() << std::endl; throw e;} \
-catch (iod::http_error e) { std::cout << "Test " << name <<  " \tKO: " << e.what() << std::endl; throw e; }
+} catch (std::exception e) { std::cout << "Test " << name <<  " \tKO" << e.what() << std::endl; assert(0);} \
+catch (iod::http_error e) { std::cout << "Test " << name <<  " \tKO: " << e.what() << std::endl; assert(0); }
 
 #define CHECK_THROW(name, exp) \
 try {\
@@ -23,6 +23,6 @@ catch (iod::http_error e) { std::cout << "Test " << name <<  " \tOK: " << e.what
 try {\
 exp;\
 std::cout << "Test " << name <<  " \t\tOK" << std::endl; \
-} catch (std::runtime_error e) { std::cout << "Test " << name <<  " \tKO: " << e.what() << std::endl; throw e; } \
-catch (iod::http_error e) { std::cout << "Test " << name <<  " \tKO: " << e.what() << std::endl; throw e; }
+} catch (std::runtime_error e) { std::cout << "Test " << name <<  " \tKO: " << e.what() << std::endl; assert(0); } \
+catch (iod::http_error e) { std::cout << "Test " << name <<  " \tKO: " << e.what() << std::endl; assert(0); }
 

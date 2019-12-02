@@ -11,7 +11,7 @@
 
 #include <iod/metamap/metamap.hh>
 #include <iod/silicon/error.hh>
-#include <iod/silicon/urldecode.hh>
+#include <iod/silicon/url_decode.hh>
 
 namespace iod {
 
@@ -128,50 +128,6 @@ inline const char* http_request::header(const char* k) const {
   return MHD_lookup_connection_value(mhd_connection, MHD_HEADER_KIND, k);
 }
 
-// template <typename P, typename O, typename C>
-// void decode_url_arguments(O& res, const C& url) {
-//   if (!url[0])
-//     throw std::runtime_error("Cannot parse url arguments, empty url");
-
-//   int c = 0;
-
-//   P path;
-
-//   map(P(), [] (auto k, auto v) {
-
-//   });
-//   foreach (P())
-//     | [&](auto m) {
-//       c++;
-//       iod::static_if<is_symbol<decltype(m)>::value>(
-//           [&](auto m2) {
-//             while (url[c] and url[c] != '/')
-//               c++;
-//           }, // skip.
-//           [&](auto m2) {
-//             int s = c;
-//             while (url[c] and url[c] != '/')
-//               c++;
-//             if (s == c)
-//               throw std::runtime_error(std::string("Missing url parameter ")
-//               +
-//                                        m2.symbol_name());
-
-//             try {
-//               res[m2.symbol()] =
-//                   boost::lexical_cast<std::decay_t<decltype(m2.value())>>(
-//                       std::string(&url[s], c - s));
-//             } catch (const std::exception& e) {
-//               throw http_error::bad_request(
-//                   std::string("Error while decoding the url parameter ") +
-//                   m2.symbol().name() + " with value " +
-//                   std::string(&url[s], c - s) + ": " + e.what());
-//             }
-//           },
-//           m);
-//     };
-// }
-
 // template <typename P, typename O>
 // void decode_post_parameters_json(O& res, mhd_request* r) const {
 //   try {
@@ -184,16 +140,6 @@ inline const char* http_request::header(const char* k) const {
 //                              e.what());
 //   }
 // }
-
-template <typename O> void decode_post_parameters_urlencoded(O& res, http_request& r) {
-  try {
-    urldecode(r.body, res);
-  } catch (std::exception e) {
-    throw http_error::bad_request("Error while decoding the POST parameters", e.what());
-  } catch (...) {
-    throw http_error::bad_request("Error while decoding the POST parameters");
-  }
-}
 
 // template <typename P, typename T>
 // auto decode_parameters(http_request* r, P procedure, T& res) const {
@@ -263,14 +209,14 @@ template <typename O> auto http_request::url_parameters(O& res) {
 template <typename O> auto http_request::get_parameters(O& res) {
   std::set<void*> found;
   auto add = [&](const char* k, const char* v) {
-    urldecode2(found, std::string(k) + "=" + v, res, true);
+    url_decode2(found, std::string(k) + "=" + v, res, true);
   };
 
   MHD_get_connection_values(mhd_connection, MHD_GET_ARGUMENT_KIND,
                             &mhd_keyvalue_iterator<decltype(add)>, &add);
 
   // Check for missing fields.
-  std::string missing = urldecode_check_missing_fields(found, res, true);
+  std::string missing = url_decode_check_missing_fields(found, res, true);
   if (missing.size())
     throw http_error::bad_request("Error while decoding the GET parameter: ", missing);
   return res;
@@ -278,7 +224,15 @@ template <typename O> auto http_request::get_parameters(O& res) {
 
 template <typename O> auto http_request::post_parameters(O& res) {
   try {
-    urldecode(body, res);
+    const char* encoding = this->header("Content-Type");
+    if (!encoding)
+      throw http_error::bad_request(std::string(
+          "Content-Type is required to decode the POST parameters"));
+
+    if (encoding == std::string_view("application/x-www-form-urlencoded"))
+      url_decode(body, res);
+    else if (encoding == std::string_view("application/json"))
+      json_decode(body, res);
   } catch (std::exception e) {
     throw http_error::bad_request("Error while decoding the POST parameters: ", e.what());
   }

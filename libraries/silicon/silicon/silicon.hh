@@ -9,4 +9,6 @@
 #include <iod/silicon/sql_crud.hh>
 #include <iod/silicon/mhd.hh>
 #include <iod/silicon/symbols.hh>
+#include <iod/silicon/sql_http_session.hh>
+#include <iod/silicon/hashmap_http_session.hh>
 

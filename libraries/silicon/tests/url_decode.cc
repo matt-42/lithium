@@ -1,5 +1,5 @@
 #include <iostream>
-#include <iod/silicon/urldecode.hh>
+#include <iod/silicon/url_decode.hh>
 #include "symbols.hh"
 
 using namespace iod;
@@ -11,16 +11,16 @@ bool is_error(std::string s, O& obj)
   try
   {
     std::cout << "Test " << s << std::endl;
-    urldecode(s, obj);
+    url_decode(s, obj);
   }
   catch (http_error e)
   {
-    std::cout << "urldecode_error "  << e.what() << std::endl;
+    std::cout << "url_decode_error "  << e.what() << std::endl;
     err = true;
   }
   catch (std::exception& e)
   {
-    std::cout << "urldecode_error " << e.what() << std::endl;
+    std::cout << "url_decode_error " << e.what() << std::endl;
     err = true;
   }
   return err;
@@ -34,7 +34,7 @@ int main()
     auto obj = mmm(s::name = std::string(),
                  s::age = int());
 
-    urldecode(std::string_view(s), obj);
+    url_decode(std::string_view(s), obj);
     assert(obj.name == "John");
     assert(obj.age == 42);
   }
@@ -42,7 +42,7 @@ int main()
   { // Simple object with url escaped chars
     const std::string s = "name=Jo%20hn";
     auto obj = mmm(s::name = std::string());
-    urldecode(std::string_view(s), obj);
+    url_decode(std::string_view(s), obj);
     assert(obj.name == "Jo hn");
   }
   
@@ -51,7 +51,7 @@ int main()
 
     auto obj = mmm(s::age = std::vector<int>());
 
-    urldecode(std::string_view(s), obj);
+    url_decode(std::string_view(s), obj);
 
     assert(obj.age.size() == 2);
     assert(obj.age[0] == 42);
@@ -63,7 +63,7 @@ int main()
 
     auto obj = mmm(s::age = std::vector<int>());
 
-    urldecode(std::string_view(s), obj);
+    url_decode(std::string_view(s), obj);
 
     assert(obj.age.size() == 2);
     assert(obj.age[0] == 42);
@@ -78,7 +78,7 @@ int main()
                  s::test2 = mmm(s::name = std::string(),
                                s::age = int()));
 
-    urldecode(std::string_view(s), obj);
+    url_decode(std::string_view(s), obj);
 
     assert(obj.test1.name == "John");
     assert(obj.test1.age == 42);
@@ -90,7 +90,7 @@ int main()
     const std::string s = "test1[0][0]=42";
     auto obj = mmm(s::test1 = std::vector<std::vector<int>>());
 
-    urldecode(std::string_view(s), obj);
+    url_decode(std::string_view(s), obj);
     assert(obj.test1[0][0] == 42);
   }
 
@@ -100,7 +100,7 @@ int main()
 
     auto obj = mmm(s::test1 = std::vector<elt_type>());
 
-    urldecode(std::string_view(s), obj);
+    url_decode(std::string_view(s), obj);
     assert(obj.test1[0].test2 == "John");
   }
   

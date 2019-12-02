@@ -56,3 +56,7 @@ add_test(request_parameters request_parameters)
 add_executable(sqlite_authentication sqlite_authentication.cc)
 target_link_libraries(sqlite_authentication ${LIBS})
 add_test(sqlite_authentication sqlite_authentication)
+
+add_executable(hashmap_http_session hashmap_http_session.cc)
+target_link_libraries(hashmap_http_session ${LIBS})
+add_test(hashmap_http_session hashmap_http_session)

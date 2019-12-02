@@ -34,6 +34,14 @@ int main() {
   auto r3 = http_post("http://localhost:12347/post", s::post_parameters = mmm(s::id = 42));
   CHECK_EQUAL("post", r3.status, 200);
   CHECK_EQUAL("post", r3.body, ref);
+
+  // valid post JSON
+  auto r31 = http_post("http://localhost:12347/post", s::post_parameters = mmm(s::id = 42),
+  s::jsonencoded);
+  CHECK_EQUAL("post", r31.status, 200);
+  CHECK_EQUAL("post", r31.body, ref);
+
+
   // badly typed post
   auto r32 = http_post("http://localhost:12347/post", s::post_parameters = mmm(s::id = "id"));
   CHECK_EQUAL("post bad type", r32.status, 400);
