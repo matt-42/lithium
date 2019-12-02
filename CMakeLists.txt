@@ -19,8 +19,8 @@ IF (WIN32)
     "${CMAKE_SOURCE_DIR_BACKSLASH}${TARGET_BS}"
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/include/iod/)
 ELSE()
-execute_process(COMMAND ln -s ${lib_name}
-                "${CMAKE_SOURCE_DIR}${target_dir}"
+execute_process(COMMAND ln -s
+                "${CMAKE_SOURCE_DIR}${target_dir}" ${lib_name}
                 WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/include/iod/)
 ENDIF()
 endfunction()
