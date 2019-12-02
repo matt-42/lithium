@@ -4,6 +4,7 @@ project(mysql)
 
 find_package(MYSQL REQUIRED)
 
+message(${MYSQL_INCLUDE_DIR})
 include_directories(${MYSQL_INCLUDE_DIR})
 enable_testing()
 

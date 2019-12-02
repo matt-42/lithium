@@ -11,8 +11,8 @@
 
 #include <iod/callable_traits/callable_traits.hh>
 #include <iod/metamap/metamap.hh>
-#include <mysql/mysql.h>
 #include <iod/mysql/symbols.hh>
+#include <mysql.h>
 
 namespace iod {
 
@@ -310,12 +310,12 @@ const char* get_c_str(const char* s) { return s; }
 
 template <typename... OPTS> inline MYSQL* open_mysql_connection(OPTS&&... opts) {
   auto options = mmm(opts...);
-  static_assert(has_key(options, s::host), "open_mysql_connection requires the _host argument");
+  static_assert(has_key(options, s::host), "open_mysql_connection requires the s::host argument");
   static_assert(has_key(options, s::database),
-                "open_mysql_connection requires the _databaser argument");
-  static_assert(has_key(options, s::user), "open_mysql_connection requires the _user argument");
+                "open_mysql_connection requires the s::databaser argument");
+  static_assert(has_key(options, s::user), "open_mysql_connection requires the s::user argument");
   static_assert(has_key(options, s::password),
-                "open_mysql_connection requires the _password argument");
+                "open_mysql_connection requires the s::password argument");
 
   MYSQL* con;
   con = mysql_init(con);
@@ -334,7 +334,8 @@ template <typename... OPTS> inline MYSQL* open_mysql_connection(OPTS&&... opts) 
 struct mysql_connection {
   mysql_connection(MYSQL* con) : con_(con) {}
 
-  template <typename... OPTS> inline mysql_connection(OPTS&&... opts) : con_(impl::open_mysql_connection(opts...)) {}
+  // template <typename... OPTS> inline mysql_connection(OPTS&&... opts) :
+  // con_(impl::open_mysql_connection(opts...)) {}
 
   inline mysql_connection(MYSQL* con, std::shared_ptr<mysql_connection_pool> pool);
 
@@ -392,9 +393,23 @@ struct mysql_connection {
 
 struct mysql_connection_pool : std::enable_shared_from_this<mysql_connection_pool> {
 
-  inline mysql_connection_pool(const std::string& host, const std::string& user,
-                               const std::string& passwd, const std::string& database)
-      : host_(host), user_(user), passwd_(passwd), database_(database) {
+  template <typename... O> inline mysql_connection_pool(O... opts) {
+
+    auto options = mmm(opts...);
+    static_assert(has_key(options, s::host), "open_mysql_connection requires the s::host argument");
+    static_assert(has_key(options, s::database),
+                  "open_mysql_connection requires the s::databaser argument");
+    static_assert(has_key(options, s::user), "open_mysql_connection requires the s::user argument");
+    static_assert(has_key(options, s::password),
+                  "open_mysql_connection requires the s::password argument");
+
+    host_ = options.host;
+    database_ = options.database;
+    user_ = options.user;
+    passwd_ = options.password;
+
+    character_set_ = get_or(options, s::charset, "utf8");
+
     if (mysql_library_init(0, NULL, NULL))
       throw std::runtime_error("Could not initialize MySQL library.");
     if (!mysql_thread_safe())
@@ -421,9 +436,9 @@ struct mysql_connection_pool : std::enable_shared_from_this<mysql_connection_poo
       con_ = mysql_real_connect(con_, host_.c_str(), user_.c_str(), passwd_.c_str(),
                                 database_.c_str(), 0, NULL, 0);
       if (!con_)
-        throw http_error::internal_server_error("Cannot connect to the database");
+        throw std::runtime_error("Cannot connect to the database");
 
-      mysql_set_character_set(con_, "utf8");
+      mysql_set_character_set(con_, character_set_.c_str());
     }
 
     assert(con_);
@@ -433,12 +448,12 @@ struct mysql_connection_pool : std::enable_shared_from_this<mysql_connection_poo
   std::mutex mutex_;
   std::string host_, user_, passwd_, database_;
   std::deque<MYSQL*> pool_;
+  std::string character_set_;
 };
 
 mysql_connection::mysql_connection(MYSQL* con, std::shared_ptr<mysql_connection_pool> pool)
     : con_(con), pool_(pool) {
   sptr_ = std::shared_ptr<int>((int*)42, [pool, con](int* p) { pool->free_connection(con); });
 }
-}; // namespace iod
 
 } // namespace iod
