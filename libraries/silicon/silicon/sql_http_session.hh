@@ -58,13 +58,13 @@ template <typename... F>
 decltype(auto) create_session_orm(std::string table_name, F... fields)
 {
   return sql_orm_schema(table_name)
-                           .fields(s::session_id(s::read_only, s::primary_key) = std::string(), fields...);
+                           .fields(s::session_id(s::read_only, s::primary_key) = sql_varchar<32>(), fields...);
 }
 
 template <typename... F> struct sql_http_session {
 
   sql_http_session(std::string table_name, F... fields)
-      : default_values_(mmm(s::session_id = std::string(), fields...)), session_table_(create_session_orm(table_name, fields...)) 
+      : default_values_(mmm(s::session_id = sql_varchar<32>(), fields...)), session_table_(create_session_orm(table_name, fields...)) 
       {
       }
 
@@ -76,7 +76,7 @@ template <typename... F> struct sql_http_session {
 
   auto orm() { return session_table_; }
 
-  std::decay_t<decltype(mmm(s::session_id = std::string(), std::declval<F>()...))> default_values_;
+  std::decay_t<decltype(mmm(s::session_id = sql_varchar<32>(), std::declval<F>()...))> default_values_;
   std::decay_t<decltype(create_session_orm(std::string(), std::declval<F>()...))> session_table_;
 };
 

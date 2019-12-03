@@ -1,4 +1,5 @@
 #include <iod/sqlite/sqlite.hh>
+#include <iod/mysql/mysql.hh>
 #include <iod/metajson/metajson.hh>
 
 

@@ -123,6 +123,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
   // Save a ll fields except auto increment.
   // The db will automatically fill auto increment keys.
   template <typename N> long long int insert(N& o) {
+    std::cout << json_encode(o)<< std::endl;
     std::stringstream ss;
     std::stringstream vs;
 
