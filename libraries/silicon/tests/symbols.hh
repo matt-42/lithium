@@ -20,9 +20,9 @@
     IOD_SYMBOL(age)
 #endif
 
-#ifndef IOD_SYMBOL_autoset
-#define IOD_SYMBOL_autoset
-    IOD_SYMBOL(autoset)
+#ifndef IOD_SYMBOL_auto_increment
+#define IOD_SYMBOL_auto_increment
+    IOD_SYMBOL(auto_increment)
 #endif
 
 #ifndef IOD_SYMBOL_before_insert

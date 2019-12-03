@@ -18,15 +18,15 @@
 
 namespace iod {
 
-struct blob : public std::string {
+struct sqlite_blob : public std::string {
   using std::string::string;
   using std::string::operator=;
 
-  blob() : std::string() {}
+  sqlite_blob() : std::string() {}
 };
 
-struct null_t {};
-static null_t null;
+struct sqlite_null_t {};
+static sqlite_null_t sqlite_null;
 
 template <typename T> struct tuple_remove_references_and_const;
 template <typename... T>
@@ -200,7 +200,7 @@ struct sqlite_statement {
   int bind(sqlite3_stmt* stmt, int pos, long long int d) const {
     return sqlite3_bind_int64(stmt, pos, d);
   }
-  void bind(sqlite3_stmt* stmt, int pos, null_t) {
+  void bind(sqlite3_stmt* stmt, int pos, sqlite_null_t) {
     sqlite3_bind_null(stmt, pos);
   }
   int bind(sqlite3_stmt* stmt, int pos, const char* s) const {
@@ -212,7 +212,7 @@ struct sqlite_statement {
   int bind(sqlite3_stmt* stmt, int pos, const std::string_view& s) const {
     return sqlite3_bind_text(stmt, pos, s.data(), s.size(), nullptr);
   }
-  int bind(sqlite3_stmt* stmt, int pos, const blob& b) const {
+  int bind(sqlite3_stmt* stmt, int pos, const sqlite_blob& b) const {
     return sqlite3_bind_blob(stmt, pos, b.data(), b.size(), nullptr);
   }
 
@@ -290,7 +290,7 @@ struct sqlite_connection {
     return "REAL";
   }
   inline std::string type_to_string(const std::string&) { return "TEXT"; }
-  inline std::string type_to_string(const blob&) { return "BLOB"; }
+  inline std::string type_to_string(const sqlite_blob&) { return "BLOB"; }
 
   mutex_ptr cache_mutex_;
   sqlite3* db_;

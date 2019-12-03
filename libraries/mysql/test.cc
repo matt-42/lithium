@@ -1,7 +1,7 @@
 
 #include <iostream>
 #include <cassert>
-#include <iod/mysql/mysql_connection.hh>
+#include <iod/mysql/mysql.hh>
 #include "symbols.hh"
 
 using namespace s;
@@ -40,18 +40,18 @@ int main()
 
     auto c = m.get_connection();
 
-    c("DROP table if exists users;");
-    c("CREATE TABLE users (id int,name varchar(255),age int);");
+    c("DROP table if exists users_test_mysql;");
+    c("CREATE TABLE users_test_mysql (id int,name varchar(255),age int);");
 
     // Prepared statement.
-    auto insert_user = c.prepare("INSERT into users(id, name, age) values (?,?,?);");
+    auto insert_user = c.prepare("INSERT into users_test_mysql(id, name, age) values (?,?,?);");
 
     insert_user
       (1, "John", 42)
       (2, "Bob", 24); // Send two queries.
 
     int count = 0;
-    c("SELECT count(*) from users") >> count;
+    c("SELECT count(*) from users_test_mysql") >> count;
     std::cout << count << std::endl;
     assert(count == 2);
     // // multiple inserts.

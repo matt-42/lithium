@@ -9,7 +9,7 @@ find_package(SQLite3 REQUIRED)
 find_package(CURL REQUIRED)
 find_package(microhttpd REQUIRED)
 
-include_directories(${SQLite3_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS} ${MICROHTTPD_INCLUDE_DIRS})
+include_directories(${SQLite3_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS} ${MICROHTTPD_INCLUDE_DIRS} ${MYSQL_INCLUDE_DIR})
 #find_package( OpenSSL )
 #find_package( Threads )
 #find_package( Boost COMPONENTS system thread date_time program_options filesystem chrono)
@@ -27,7 +27,7 @@ endif (OPENSSL_FOUND)
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -g -O0")
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --coverage") # enabling coverage
 
-set(LIBS ${MICROHTTPD_LIBRARIES} ${SQLite3_LIBRARIES} ${CURL_LIBRARIES})
+set(LIBS ${MICROHTTPD_LIBRARIES} ${SQLite3_LIBRARIES} ${CURL_LIBRARIES} ${MYSQL_LIBRARY})
 
 add_executable(url_parameter url_parameter.cc)
 target_link_libraries(url_parameter ${LIBS})

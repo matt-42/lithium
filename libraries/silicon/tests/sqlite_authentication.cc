@@ -14,7 +14,7 @@ int main() {
   // Database
   sqlite_database db("./test_sqlite_authentication.sqlite");
   // Users table
-  auto user_orm = sql_orm_schema("users").fields(s::id(s::autoset, s::primary_key) = int(), s::login = std::string(),
+  auto user_orm = sql_orm_schema("users").fields(s::id(s::auto_increment, s::primary_key) = int(), s::login = std::string(),
                             s::password = std::string());
   user_orm.connect(db).drop_table_if_exists().create_table_if_not_exists();
 

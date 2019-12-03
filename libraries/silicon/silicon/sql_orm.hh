@@ -10,7 +10,7 @@ namespace iod {
 struct sqlite_connection;
 struct mysql_connection;
 
-using s::autoset;
+using s::auto_increment;
 using s::primary_key;
 using s::read_only;
 
@@ -18,8 +18,8 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
   typedef decltype(std::declval<SCHEMA>().all_fields()) O;
   typedef O object_type;
-  
-  sql_orm(SCHEMA& schema, C& con) : schema_(schema), con_(con) {}
+
+  sql_orm(SCHEMA& schema, C con) : schema_(schema), con_(con) {}
 
   template <typename S, typename O> void call_callback(S s, O& o) {
     get_or(schema_.get_callbacks(), s, [](auto p) {})(o);
@@ -28,8 +28,8 @@ template <typename SCHEMA, typename C> struct sql_orm {
   inline auto drop_table_if_exists() {
     con_(std::string("DROP TABLE IF EXISTS ") + schema_.table_name());
     return *this;
-  } 
-  
+  }
+
   inline auto create_table_if_not_exists() {
     std::stringstream ss;
     ss << "CREATE TABLE if not exists " << schema_.table_name() << " (";
@@ -41,7 +41,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
       typedef typename A::left_t K;
       typedef typename A::right_t V;
 
-      bool autoset = SCHEMA::template is_autoset<F>::value;
+      bool auto_increment = SCHEMA::template is_auto_increment<F>::value;
       bool primary_key = SCHEMA::template is_primary_key<F>::value;
       K k{};
       V v{};
@@ -51,20 +51,20 @@ template <typename SCHEMA, typename C> struct sql_orm {
       ss << iod::symbol_string(k) << " " << con_.type_to_string(v);
 
       if (std::is_same<C, sqlite_connection>::value) {
-        if (autoset or primary_key)
+        if (auto_increment or primary_key)
           ss << " PRIMARY KEY ";
       }
 
       if (std::is_same<C, mysql_connection>::value) {
-        if (autoset)
-          ss << " autoset NOT NULL";
+        if (auto_increment)
+          ss << " AUTO_INCREMENT NOT NULL";
         if (primary_key)
           ss << " PRIMARY KEY ";
       }
 
       // To activate when pgsql_connection is implemented.
       // if (std::is_same<C, pgsql_connection>::value and
-      //     m.attributes().has(s::autoset))
+      //     m.attributes().has(s::auto_increment))
       //   ss << " SERIAL ";
 
       first = false;
@@ -81,8 +81,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     return *this;
   }
 
-  template <typename... W>
-  auto find_one(bool& found, metamap<W...> where) {
+  template <typename... W> auto find_one(bool& found, metamap<W...> where) {
     std::stringstream ss;
     O o;
     ss << "SELECT ";
@@ -114,8 +113,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
   auto find_one(bool& found, assign_exp<A, B> w1, W... ws) {
     return find_one(found, mmm(w1, ws...));
   }
-  template <typename... W>
-  auto find_one(W... ws) {
+  template <typename... W> auto find_one(W... ws) {
     bool f = false;
     auto obj = find_one(f, ws...);
     if (!f)
@@ -134,7 +132,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     ss << "INSERT into " << schema_.table_name() << "(";
 
     bool first = true;
-    iod::map(schema_.without_autoset(), [&](auto k, auto v) {
+    iod::map(schema_.without_auto_increment(), [&](auto k, auto v) {
       if (!first) {
         ss << ",";
         vs << ",";
@@ -144,9 +142,9 @@ template <typename SCHEMA, typename C> struct sql_orm {
       vs << "?";
     });
 
-    auto values = intersection(schema_.without_autoset(), o);
+    auto values = intersection(schema_.without_auto_increment(), o);
     map(values, [&](auto k, auto& v) { v = o[k]; });
-    // auto values = intersection(o, schema_.without_autoset());
+    // auto values = intersection(o, schema_.without_auto_increment());
 
     ss << ") VALUES (" << vs.str() << ")";
     auto req = con_.prepare(ss.str());
@@ -178,7 +176,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     call_callback(s::write_access, o);
     call_callback(s::before_update, o);
 
-    //static_assert(metamap_size<decltype(intersect(o, schema_.read_only()))>(),
+    // static_assert(metamap_size<decltype(intersect(o, schema_.read_only()))>(),
     //"You cannot give read only fields to the orm update method.");
 
     auto pk = intersection(o, schema_.primary_key());
@@ -212,7 +210,6 @@ template <typename SCHEMA, typename C> struct sql_orm {
     iod::tuple_reduce(std::tuple_cat(metamap_values(to_update), metamap_values(pk)), stmt);
 
     call_callback(s::after_update, o);
-
   }
 
   template <typename S, typename V, typename... A>
@@ -221,7 +218,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     return update(m);
   }
 
-  inline int count () {
+  inline int count() {
     int c;
     con_(std::string("SELECT count(*) from ") + schema_.table_name()) >> c;
     return c;
@@ -248,7 +245,8 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
     call_callback(s::after_destroy, o);
   }
-  template <typename A, typename B, typename... T> void remove(const assign_exp<A, B>& o, T... tail) {
+  template <typename A, typename B, typename... T>
+  void remove(const assign_exp<A, B>& o, T... tail) {
     return remove(mmm(o, tail...));
   }
 
@@ -259,8 +257,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
 template <typename... F> struct orm_fields {
 
   orm_fields(F... fields) : fields_(fields...) {
-    static_assert(sizeof...(F) == 0 or
-                      metamap_size<decltype(this->primary_key())>() != 0,
+    static_assert(sizeof...(F) == 0 or metamap_size<decltype(this->primary_key())>() != 0,
                   "You must give at least one primary key to the ORM. Use "
                   "s::your_field_name(s::primary_key) to add a primary_key");
   }
@@ -296,7 +293,7 @@ template <typename... F> struct orm_fields {
 
   CHECK_FIELD_ATTR(primary_key);
   CHECK_FIELD_ATTR(read_only);
-  CHECK_FIELD_ATTR(autoset);
+  CHECK_FIELD_ATTR(auto_increment);
 
   auto all_info() { return fields_; }
 
@@ -310,7 +307,7 @@ template <typename... F> struct orm_fields {
                             [](auto... e) { return mmm(e...); });
   }
 
-  auto without_autoset() { return substract(all_fields(), autoset()); }
+  auto without_auto_increment() { return substract(all_fields(), auto_increment()); }
 
   std::tuple<F...> fields_;
 };

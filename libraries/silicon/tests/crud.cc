@@ -17,7 +17,7 @@ int main() {
   auto db = sqlite_database("./sl_test_crud.sqlite", s::synchronous = 1); // sqlite middleware.
 
   auto user_schema = sql_orm_schema("users")
-                      .fields(s::id(s::autoset, s::primary_key) = int(), 
+                      .fields(s::id(s::auto_increment, s::primary_key) = int(), 
                               s::name = std::string(),
                               s::age = int(),
                               s::address = std::string(),
