@@ -1,12 +1,12 @@
-#include <iod/metamap/make.hh>
-#include <iod/metamap/algorithms/cat.hh>
+#include <li/metamap/make.hh>
+#include <li/metamap/algorithms/cat.hh>
 #include <cassert>
 
-IOD_SYMBOL(test1)
-IOD_SYMBOL(test2)
-IOD_SYMBOL(test3)
+LI_SYMBOL(test1)
+LI_SYMBOL(test2)
+LI_SYMBOL(test3)
 
-using namespace iod;
+using namespace li;
 
 int main()
 {

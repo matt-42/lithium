@@ -4,11 +4,11 @@ project(iod_symbol)
 
 enable_testing()
 
-add_executable(iod_symbol_generator symbol/symbol_generator.cc)
+add_executable(li_symbol_generator symbol/symbol_generator.cc)
 add_executable(test_symbol test.cc)
 add_test(test_symbol test_symbol)
 
-install(DIRECTORY symbol DESTINATION include/iod
+install(DIRECTORY symbol DESTINATION include/li
   FILES_MATCHING PATTERN "*.hh")
-install(DIRECTORY symbol DESTINATION include/iod
+install(DIRECTORY symbol DESTINATION include/li
   FILES_MATCHING PATTERN "*.hpp")

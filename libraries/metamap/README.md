@@ -1,7 +1,7 @@
-iod::metamap
+li::metamap
 ===============================
 
-```iod::metamap``` is an immutable zero-cost key value map. All
+```li::metamap``` is an immutable zero-cost key value map. All
 operations on metamaps are run by the compiler and have a O(1)
 runtime cost. This greatly helps to build high performance
 applications while keeping the flexibility of maps.
@@ -14,7 +14,7 @@ Note: This is a work in progress.
 Dependencies
 ==============
 
-[iod::symbol](https://github.com/iodcpp/symbol)
+[li::symbol](https://github.com/iodcpp/symbol)
 
 
 Tutorial
@@ -24,15 +24,15 @@ Let's first define some [symbols](https://github.com/iodcpp/symbol). They will b
 used as map keys.
 
 ```c++
-IOD_SYMBOL(a)
-IOD_SYMBOL(b)
+LI_SYMBOL(a)
+LI_SYMBOL(b)
 ```
 
 A map is a set of key value pairs:
 
 ```c++
 // Create a map
-auto m = iod::metamap(s::a = 1, s::b = 2);
+auto m = li::metamap(s::a = 1, s::b = 2);
 
 // Retrieve map values via direct member access.
 // Zero cost neither at runtime nor compile time.
@@ -44,23 +44,23 @@ assert(m[s::a] == 1);
 Concatenation of two maps. Values of m1 are given the priority in case of dupplicate keys.
 
 ```c++
-auto m3 = iod::cat(m1, m2);
+auto m3 = li::cat(m1, m2);
 ```
 
 Build the map containing keys present in m1 and m2, taking values from m1.
 
 ```c++
-auto m4 = iod::intersection(m1, m2);
+auto m4 = li::intersection(m1, m2);
 ```
 
 Build the map containing keys present in m1 but not in m2, taking values from m1.
 
 ```c++
-auto m5 = iod::substract(m1, m2);
+auto m5 = li::substract(m1, m2);
 ```
 
 Map a function on all key value pairs:
 
 ```c++
-iod::map(m1, [] (auto k, auto v) { std::cout << iod::symbol_string(k) << "=" << v << std::endl; });
+li::map(m1, [] (auto k, auto v) { std::cout << li::symbol_string(k) << "=" << v << std::endl; });
 ```

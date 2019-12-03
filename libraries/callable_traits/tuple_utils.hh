@@ -1,10 +1,10 @@
 #pragma once
 
 #include <tuple>
-#include <iod/tags.hh>
+#include <li/tags.hh>
 #include "utils.hh"
 
-namespace iod
+namespace li
 {
 
   constexpr int count_first_falses() { return 0; }

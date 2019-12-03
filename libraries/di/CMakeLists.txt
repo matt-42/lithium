@@ -9,7 +9,7 @@ enable_testing()
 add_executable(di tests/di.cc)
 add_test(di di)
 
-install(DIRECTORY metajson DESTINATION include/iod
+install(DIRECTORY json DESTINATION include/li
   FILES_MATCHING PATTERN "*.hh")
-install(DIRECTORY metajson DESTINATION include/iod
+install(DIRECTORY json DESTINATION include/li
   FILES_MATCHING PATTERN "*.hpp")

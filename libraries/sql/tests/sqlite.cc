@@ -1,8 +1,8 @@
 
-#include <iod/sql/sqlite.hh>
+#include <li/sql/sqlite.hh>
 
 int main() {
-  auto db = iod::sqlite_database("iod_sqlite_test.db");
+  auto db = li::sqlite_database("iod_sqlite_test.db");
 
   auto c = db.get_connection();
 

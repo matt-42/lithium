@@ -1,10 +1,10 @@
 #pragma once
 
-#include <iod/metamap/metamap.hh>
-#include <iod/metamap/algorithms/map_reduce.hh>
-#include <iod/metamap/algorithms/make_metamap_skip.hh>
+#include <li/metamap/metamap.hh>
+#include <li/metamap/algorithms/map_reduce.hh>
+#include <li/metamap/algorithms/make_metamap_skip.hh>
 
-namespace iod {
+namespace li {
 
   template <typename ...T, typename ...U>
   inline auto substract(const metamap<T...>& a,

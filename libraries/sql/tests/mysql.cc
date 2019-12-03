@@ -1,7 +1,7 @@
 
 #include <iostream>
 #include <cassert>
-#include <iod/sql/mysql.hh>
+#include <li/sql/mysql.hh>
 #include "symbols.hh"
 
 using namespace s;
@@ -27,7 +27,7 @@ inline double get_time_in_seconds()
 
 int main()
 {
-  using namespace iod;
+  using namespace li;
 
   //try
   {

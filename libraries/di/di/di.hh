@@ -1,9 +1,9 @@
 #pragma once
 
-#include <iod/metamap/metamap.hh>
-#include <iod/di/callable_traits.hh>
+#include <li/metamap/metamap.hh>
+#include <li/di/callable_traits.hh>
 
-namespace iod
+namespace li
 {
 
   namespace impl
@@ -12,19 +12,19 @@ namespace iod
     struct smap
     {};
       
-#define IOD_SMAP_ELT(I)                                                 \
-    namespace smap_symbols { IOD_SYMBOL_BODY(s##I) }                   \
+#define LI_SMAP_ELT(I)                                                 \
+    namespace smap_symbols { LI_SYMBOL_BODY(s##I) }                   \
     template <typename T>                                               \
     struct smap<T, I>                                                   \
     {                                                                   \
       auto get_symbol2(std::remove_reference_t<T>) const { return smap_symbols::s##I; }; \
     };
 
-    IOD_SMAP_ELT(0) IOD_SMAP_ELT(1) IOD_SMAP_ELT(2) IOD_SMAP_ELT(3) IOD_SMAP_ELT(4)
-    IOD_SMAP_ELT(5) IOD_SMAP_ELT(6) IOD_SMAP_ELT(7) IOD_SMAP_ELT(8) IOD_SMAP_ELT(9)
-    IOD_SMAP_ELT(10) IOD_SMAP_ELT(11) IOD_SMAP_ELT(12) IOD_SMAP_ELT(13) IOD_SMAP_ELT(14)
-    IOD_SMAP_ELT(15) IOD_SMAP_ELT(16) IOD_SMAP_ELT(17) IOD_SMAP_ELT(18) IOD_SMAP_ELT(19)
-    IOD_SMAP_ELT(20) IOD_SMAP_ELT(21) IOD_SMAP_ELT(22) IOD_SMAP_ELT(23) IOD_SMAP_ELT(24)
+    LI_SMAP_ELT(0) LI_SMAP_ELT(1) LI_SMAP_ELT(2) LI_SMAP_ELT(3) LI_SMAP_ELT(4)
+    LI_SMAP_ELT(5) LI_SMAP_ELT(6) LI_SMAP_ELT(7) LI_SMAP_ELT(8) LI_SMAP_ELT(9)
+    LI_SMAP_ELT(10) LI_SMAP_ELT(11) LI_SMAP_ELT(12) LI_SMAP_ELT(13) LI_SMAP_ELT(14)
+    LI_SMAP_ELT(15) LI_SMAP_ELT(16) LI_SMAP_ELT(17) LI_SMAP_ELT(18) LI_SMAP_ELT(19)
+    LI_SMAP_ELT(20) LI_SMAP_ELT(21) LI_SMAP_ELT(22) LI_SMAP_ELT(23) LI_SMAP_ELT(24)
 
     template <typename... T>
     struct type_to_symbol;

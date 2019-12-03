@@ -1,9 +1,9 @@
 #pragma once
 
 #include <utility>
-#include <iod/symbol/ast.hh>
+#include <li/symbol/ast.hh>
 
-namespace iod {
+namespace li {
 
   template <typename S>
   class symbol : public assignable<S>,
@@ -13,9 +13,9 @@ namespace iod {
   {};
 }
 
-#define IOD_SYMBOL(NAME)                                                \
+#define LI_SYMBOL(NAME)                                                \
 namespace s {                                                           \
-struct NAME##_t : iod::symbol<NAME##_t> {                         \
+struct NAME##_t : li::symbol<NAME##_t> {                         \
                                                                         \
 using assignable<NAME##_t>::operator=;                               \
                                                                         \
@@ -53,7 +53,7 @@ static constexpr  NAME##_t NAME;                                    \
 }
 
 
-namespace iod {
+namespace li {
 
   template <typename S>
   inline decltype(auto) make_variable(S s, char const v[])

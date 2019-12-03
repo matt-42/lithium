@@ -3,7 +3,7 @@
 #include <utility>
 #include <tuple>
 
-namespace iod {
+namespace li {
 
   namespace internal
   {
@@ -155,9 +155,9 @@ namespace iod {
   
 }
 
-#include <iod/metamap/make.hh>
-#include <iod/metamap/algorithms/map_reduce.hh>
-#include <iod/metamap/algorithms/intersection.hh>
-#include <iod/metamap/algorithms/substract.hh>
-#include <iod/metamap/algorithms/cat.hh>
-#include <iod/metamap/algorithms/tuple_utils.hh>
+#include <li/metamap/make.hh>
+#include <li/metamap/algorithms/map_reduce.hh>
+#include <li/metamap/algorithms/intersection.hh>
+#include <li/metamap/algorithms/substract.hh>
+#include <li/metamap/algorithms/cat.hh>
+#include <li/metamap/algorithms/tuple_utils.hh>

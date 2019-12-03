@@ -3,7 +3,7 @@
 #include <utility>
 #include <vector>
 
-namespace iod {
+namespace li {
 
   template <typename E>
   struct Exp {};

@@ -1,9 +1,9 @@
 #pragma once
 
-#include <iod/metamap/metamap.hh>
-#include <iod/metamap/algorithms/tuple_utils.hh>
+#include <li/metamap/metamap.hh>
+#include <li/metamap/algorithms/tuple_utils.hh>
 
-namespace iod {
+namespace li {
 
   // Map a function(key, value) on all kv pair
   template <typename... M, typename F>

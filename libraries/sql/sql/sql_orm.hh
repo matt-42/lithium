@@ -1,11 +1,11 @@
 #pragma once
 
-#include <iod/metamap/metamap.hh>
-#include <iod/silicon/symbols.hh>
+#include <li/metamap/metamap.hh>
+#include <li/http_backend/symbols.hh>
 #include <iostream>
 #include <sstream>
 
-namespace iod {
+namespace li {
 
 struct sqlite_connection;
 struct mysql_connection;
@@ -35,7 +35,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     ss << "CREATE TABLE if not exists " << schema_.table_name() << " (";
 
     bool first = true;
-    iod::tuple_map(schema_.all_info(), [&](auto f) {
+    li::tuple_map(schema_.all_info(), [&](auto f) {
       typedef decltype(f) F;
       typedef typename SCHEMA::template get_field<F>::ret A;
       typedef typename A::left_t K;
@@ -48,7 +48,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
       if (!first)
         ss << ", ";
-      ss << iod::symbol_string(k) << " " << con_.type_to_string(v);
+      ss << li::symbol_string(k) << " " << con_.type_to_string(v);
 
       if (std::is_same<C, sqlite_connection>::value) {
         if (auto_increment or primary_key)
@@ -90,7 +90,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
       if (!first)
         ss << " and ";
       first = false;
-      ss << iod::symbol_string(k) << " = ? ";
+      ss << li::symbol_string(k) << " = ? ";
     });
     ss << " ";
   }
@@ -100,11 +100,11 @@ template <typename SCHEMA, typename C> struct sql_orm {
     O o;
     ss << "SELECT ";
     bool first = true;
-    iod::map(o, [&](auto k, auto v) {
+    li::map(o, [&](auto k, auto v) {
       if (!first)
         ss << ",";
       first = false;
-      ss << iod::symbol_string(k);
+      ss << li::symbol_string(k);
     });
 
     ss << " FROM " << schema_.table_name();
@@ -112,7 +112,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     ss << "LIMIT 1";
     auto stmt = con_.prepare(ss.str());
 
-    if (!(iod::tuple_reduce(metamap_values(where), stmt) >> o))
+    if (!(li::tuple_reduce(metamap_values(where), stmt) >> o))
       return std::optional<O>();    
     call_callback(s::read_access, o);
     return std::make_optional(o);
@@ -134,7 +134,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     auto stmt = con_.prepare(ss.str());
 
     int count = 0;
-    if (!(iod::tuple_reduce(metamap_values(cond), stmt) >> count))
+    if (!(li::tuple_reduce(metamap_values(cond), stmt) >> count))
       throw std::runtime_error("count request did not return.");
     else
       return count;
@@ -156,13 +156,13 @@ template <typename SCHEMA, typename C> struct sql_orm {
     ss << "INSERT into " << schema_.table_name() << "(";
 
     bool first = true;
-    iod::map(schema_.without_auto_increment(), [&](auto k, auto v) {
+    li::map(schema_.without_auto_increment(), [&](auto k, auto v) {
       if (!first) {
         ss << ",";
         vs << ",";
       }
       first = false;
-      ss << iod::symbol_string(k);
+      ss << li::symbol_string(k);
       vs << "?";
     });
 
@@ -172,7 +172,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
     ss << ") VALUES (" << vs.str() << ")";
     auto req = con_.prepare(ss.str());
-    iod::reduce(values, req);
+    li::reduce(values, req);
 
     call_callback(s::after_insert, o);
 
@@ -216,13 +216,13 @@ template <typename SCHEMA, typename C> struct sql_orm {
       if (!first)
         ss << ",";
       first = false;
-      ss << iod::symbol_string(k) << " = ?";
+      ss << li::symbol_string(k) << " = ?";
     });
 
     where_clause(pk, ss);
 
     auto stmt = con_.prepare(ss.str());
-    iod::tuple_reduce(std::tuple_cat(metamap_values(to_update), metamap_values(pk)), stmt);
+    li::tuple_reduce(std::tuple_cat(metamap_values(to_update), metamap_values(pk)), stmt);
 
     call_callback(s::after_update, o);
   }
@@ -252,11 +252,11 @@ template <typename SCHEMA, typename C> struct sql_orm {
       if (!first)
         ss << " and ";
       first = false;
-      ss << iod::symbol_string(k) << " = ? ";
+      ss << li::symbol_string(k) << " = ? ";
     });
 
     auto pks = intersection(o, schema_.primary_key());
-    iod::reduce(pks, con_.prepare(ss.str()));
+    li::reduce(pks, con_.prepare(ss.str()));
 
     call_callback(s::after_destroy, o);
   }
@@ -351,4 +351,4 @@ struct sql_orm_schema : public MD {
   CB callbacks_;
 };
 
-}; // namespace iod
+}; // namespace li

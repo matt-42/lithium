@@ -12,10 +12,10 @@
 #include <memory>
 #include <sstream>
 
-#include <iod/http_client/symbols.hh>
-#include <iod/metajson/metajson.hh>
+#include <li/http_client/symbols.hh>
+#include <li/json/json.hh>
 
-namespace iod {
+namespace li {
 
 inline size_t curl_write_callback(char* ptr, size_t size, size_t nmemb, void* userdata);
 
@@ -45,9 +45,9 @@ struct http_client {
     url_ss << url_prefix_ << url;
 
     // Get params
-    auto get_params = iod::get_or(arguments, s::get_parameters, mmm());
+    auto get_params = li::get_or(arguments, s::get_parameters, mmm());
     bool first = true;
-    iod::map(get_params, [&](auto k, auto v) {
+    li::map(get_params, [&](auto k, auto v) {
       if (first)
         url_ss << '?';
       else
@@ -55,7 +55,7 @@ struct http_client {
       std::stringstream value_ss;
       value_ss << v;
       char* escaped = curl_easy_escape(curl_, value_ss.str().c_str(), value_ss.str().size());
-      url_ss << iod::symbol_string(k) << '=' << escaped;
+      url_ss << li::symbol_string(k) << '=' << escaped;
       first = false;
       curl_free(escaped);
     });
@@ -65,18 +65,18 @@ struct http_client {
     curl_easy_setopt(curl_, CURLOPT_URL, url_ss.str().c_str());
 
     // HTTP_POST parameters.
-    bool is_urlencoded = not iod::has_key(arguments, s::jsonencoded);
+    bool is_urlencoded = not li::has_key(arguments, s::jsonencoded);
     std::stringstream post_stream;
     std::string rq_body;
     if (is_urlencoded) { // urlencoded
       req_body_buffer_.str("");
 
-      auto post_params = iod::get_or(arguments, s::post_parameters, mmm());
+      auto post_params = li::get_or(arguments, s::post_parameters, mmm());
       first = true;
-      iod::map(post_params, [&](auto k, auto v) {
+      li::map(post_params, [&](auto k, auto v) {
         if (!first)
           post_stream << "&";
-        post_stream << iod::symbol_string(k) << "=";
+        post_stream << li::symbol_string(k) << "=";
         std::stringstream value_str;
         value_str << v;
         char* escaped = curl_easy_escape(curl_, value_str.str().c_str(), value_str.str().size());
@@ -88,7 +88,7 @@ struct http_client {
       req_body_buffer_.str(rq_body);
 
     } else // Json encoded
-      rq_body = iod::json_encode(iod::get_or(arguments, s::post_parameters, mmm()));
+      rq_body = li::json_encode(li::get_or(arguments, s::post_parameters, mmm()));
 
     // HTTP HTTP_POST
     if (http_method == HTTP_POST) {
@@ -194,4 +194,4 @@ template <typename... P> auto http_delete(const std::string& url, P... params) {
   return http_client{}.delete_(url, params...);
 }
 
-} // namespace iod
+} // namespace li

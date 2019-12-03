@@ -11,13 +11,13 @@
 #include <sstream>
 #include <unordered_map>
 
-#include <iod/callable_traits/callable_traits.hh>
-#include <iod/metamap/metamap.hh>
-#include <iod/sql/symbols.hh>
-#include <iod/sql/sql_common.hh>
+#include <li/callable_traits/callable_traits.hh>
+#include <li/metamap/metamap.hh>
+#include <li/sql/symbols.hh>
+#include <li/sql/sql_common.hh>
 #include <sqlite3.h>
 
-namespace iod {
+namespace li {
 
 template <typename T> struct tuple_remove_references_and_const;
 template <typename... T>
@@ -50,7 +50,7 @@ struct sqlite_statement {
       const char* cname = sqlite3_column_name(stmt_, i);
       bool found = false;
       int j = 0;
-      iod::map(o, [&](auto k, auto& v) {
+      li::map(o, [&](auto k, auto& v) {
         if (!found and !filled[j] and !strcmp(cname, symbol_string(k))) {
           this->read_column(i, v);
           filled[j] = 1;
@@ -74,7 +74,7 @@ struct sqlite_statement {
       this->read_column(i, v);
       i++;
     };
-    ::iod::tuple_map(o, read_elt);
+    ::li::tuple_map(o, read_elt);
   }
 
 
@@ -84,7 +84,7 @@ struct sqlite_statement {
     sqlite3_reset(stmt_);
     sqlite3_clear_bindings(stmt_);
     int i = 1;
-    iod::tuple_map(std::forward_as_tuple(args...),
+    li::tuple_map(std::forward_as_tuple(args...),
         [&](auto& m) {
           int err;
           if ((err = this->bind(stmt_, i, m)) != SQLITE_OK)
@@ -137,7 +137,7 @@ struct sqlite_statement {
     while (last_step_ret_ == SQLITE_ROW) {
       typedef callable_arguments_tuple_t<F> tp;
       typedef std::remove_reference_t<std::tuple_element_t<0, tp>> T;
-      if constexpr (iod::is_metamap<T>::ret) {
+      if constexpr (li::is_metamap<T>::ret) {
         T o;
         row_to_metamap(o);
         f(o);
@@ -307,7 +307,7 @@ struct sqlite_database {
                            SQLITE_OPEN_CREATE);
     if (has_key(options, s::synchronous)) {
       std::stringstream ss;
-      ss << "PRAGMA synchronous=" << iod::get_or(options, s::synchronous, 2);
+      ss << "PRAGMA synchronous=" << li::get_or(options, s::synchronous, 2);
       con_(ss.str())();
     }
   }
@@ -318,4 +318,4 @@ struct sqlite_database {
   std::string path_;
 };
 
-} // namespace iod
+} // namespace li

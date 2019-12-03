@@ -1,9 +1,9 @@
 #pragma once
 
-#include <iod/symbol/symbol.hh>
-#include <iod/symbol/ast.hh>
+#include <li/symbol/symbol.hh>
+#include <li/symbol/ast.hh>
 
-namespace iod {
+namespace li {
 
   
   template <typename ...Ms>

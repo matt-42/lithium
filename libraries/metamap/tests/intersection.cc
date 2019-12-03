@@ -1,15 +1,15 @@
-#include <iod/metamap/make.hh>
-#include <iod/metamap/algorithms/intersection.hh>
+#include <li/metamap/make.hh>
+#include <li/metamap/algorithms/intersection.hh>
 #include <cassert>
 #include <string>
 
-IOD_SYMBOL(test1)
-IOD_SYMBOL(test2)
-IOD_SYMBOL(test3)
-IOD_SYMBOL(test4)
-IOD_SYMBOL(test5)
+LI_SYMBOL(test1)
+LI_SYMBOL(test2)
+LI_SYMBOL(test3)
+LI_SYMBOL(test4)
+LI_SYMBOL(test5)
 
-using namespace iod;
+using namespace li;
 
 int main()
 {

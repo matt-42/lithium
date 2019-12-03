@@ -1,9 +1,9 @@
 #pragma once
 
-#include <iod/metamap/metamap.hh>
-#include <iod/metamap/algorithms/cat.hh>
+#include <li/metamap/metamap.hh>
+#include <li/metamap/algorithms/cat.hh>
 
-namespace iod {
+namespace li {
 
   
   struct skip {};

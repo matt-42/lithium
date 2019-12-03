@@ -1,14 +1,14 @@
-#include <iod/metajson/metajson.hh>
-#include <iod/sql/sql_orm.hh>
-#include <iod/sql/sqlite.hh>
-#include <iod/sql/mysql.hh>
+#include <li/json/json.hh>
+#include <li/sql/sql_orm.hh>
+#include <li/sql/sqlite.hh>
+#include <li/sql/mysql.hh>
 #include <cassert>
 
 #include "symbols.hh"
 
 int main() {
 
-  using namespace iod;
+  using namespace li;
 
   auto test_with_db = [] (auto& db) {
     auto schema = sql_orm_schema("users_orm_test")
@@ -54,7 +54,7 @@ int main() {
   };
 
 
-  auto sqlite_db = sqlite_database("iod_sqlite_test.db");
+  auto sqlite_db = sqlite_database("iod_sqlite_test_orm.db");
   test_with_db(sqlite_db);
 
   auto mysql_db = mysql_connection_pool(s::host = "127.0.0.1",

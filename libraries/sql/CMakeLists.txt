@@ -22,7 +22,7 @@ add_executable(orm_test tests/sql_orm.cc)
 target_link_libraries(orm_test ${MYSQL_LIBRARY} ${SQLite3_LIBRARIES})
 add_test(orm_test orm_test)
 
-install(DIRECTORY sqlite DESTINATION include/iod
+install(DIRECTORY sqlite DESTINATION include/li
   FILES_MATCHING PATTERN "*.hh")
-install(DIRECTORY sqlite DESTINATION include/iod
+install(DIRECTORY sqlite DESTINATION include/li
   FILES_MATCHING PATTERN "*.hpp")

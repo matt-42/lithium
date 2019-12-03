@@ -10,12 +10,12 @@
 #include <unordered_map>
 #include <mysql.h>
 
-#include <iod/callable_traits/callable_traits.hh>
-#include <iod/metamap/metamap.hh>
-#include <iod/sql/sql_common.hh>
-#include <iod/sql/symbols.hh>
+#include <li/callable_traits/callable_traits.hh>
+#include <li/metamap/metamap.hh>
+#include <li/sql/sql_common.hh>
+#include <li/sql/symbols.hh>
 
-namespace iod {
+namespace li {
 
 struct mysql_scoped_use_result {
   inline mysql_scoped_use_result(MYSQL* con) : res_(mysql_use_result(con)) {
@@ -175,7 +175,7 @@ struct mysql_statement {
   template <typename F> void map(F f) {
     typedef callable_arguments_tuple_t<F> tp;
     typedef std::remove_reference_t<std::tuple_element_t<0, tp>> T;
-    if constexpr (iod::is_metamap<T>::ret) {
+    if constexpr (li::is_metamap<T>::ret) {
       T o;
 
       unsigned long real_lengths[decltype(number_of_fields(T()))::value];
@@ -205,7 +205,7 @@ struct mysql_statement {
   template <typename A> void prepare_fetch(MYSQL_BIND* bind, unsigned long* real_lengths, A& o) {
     if (num_fields_ != 1)
       throw std::runtime_error("mysql_statement error: The number of column in the result set "
-                               "shoud be 1. Use std::tuple or iod::sio to fetch several columns or "
+                               "shoud be 1. Use std::tuple or li::sio to fetch several columns or "
                                "modify the request so that it returns a set of 1 column.");
 
     this->bind_output(bind[0], real_lengths, o);
@@ -219,10 +219,10 @@ struct mysql_statement {
           "mysql_statement error: Not enough columns in the result set to fill the object.");
     }
 
-    iod::map(o, [&](auto k, auto& v) {
-      // Find iod::symbol_string(k) position.
+    li::map(o, [&](auto k, auto& v) {
+      // Find li::symbol_string(k) position.
       for (int i = 0; i < num_fields_; i++)
-        if (!strcmp(fields_[i].name, iod::symbol_string(k)))
+        if (!strcmp(fields_[i].name, li::symbol_string(k)))
         // bind the column.
         {
           this->bind_output(bind[i], real_lengths + i, v);
@@ -258,9 +258,9 @@ struct mysql_statement {
 
   template <typename... A>
   void finalize_fetch(MYSQL_BIND* bind, unsigned long* real_lengths, metamap<A...>& o) {
-    iod::map(o, [&](auto k, auto& v) {
+    li::map(o, [&](auto k, auto& v) {
       for (int i = 0; i < num_fields_; i++)
-        if (!strcmp(fields_[i].name, iod::symbol_string(k)))
+        if (!strcmp(fields_[i].name, li::symbol_string(k)))
           this->fetch_column(bind, real_lengths[i], v, i);
     });
   }
@@ -295,7 +295,7 @@ struct mysql_statement {
   MYSQL_RES* metadata_;
   std::shared_ptr<MYSQL_RES> metadata_sptr_;
   MYSQL_FIELD* fields_;
-}; // namespace iod
+}; // namespace li
 
 struct mysql_connection_pool;
 
@@ -419,4 +419,4 @@ inline mysql_connection::mysql_connection(MYSQL* con, mysql_connection_pool& poo
   sptr_ = std::shared_ptr<int>((int*)42, [&pool, con](int* p) { pool.free_connection(con); });
 }
 
-} // namespace iod
+} // namespace li

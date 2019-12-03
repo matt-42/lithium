@@ -20,7 +20,7 @@ add_executable(tuple tests/tuple.cc)
 add_test(tuple tuple)
 
 
-install(DIRECTORY metamap DESTINATION include/iod
+install(DIRECTORY metamap DESTINATION include/li
   FILES_MATCHING PATTERN "*.hh")
-install(DIRECTORY metamap DESTINATION include/iod
+install(DIRECTORY metamap DESTINATION include/li
   FILES_MATCHING PATTERN "*.hpp")

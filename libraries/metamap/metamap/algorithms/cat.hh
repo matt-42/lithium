@@ -1,8 +1,8 @@
 #pragma once
 
-#include <iod/metamap/metamap.hh>
+#include <li/metamap/metamap.hh>
 
-namespace iod {
+namespace li {
 
 
   template <typename ...T, typename ...U>

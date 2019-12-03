@@ -1,10 +1,10 @@
-#include <iod/symbol/symbol.hh>
+#include <li/symbol/symbol.hh>
 #include <cassert>
 #include <cstring>
 
-IOD_SYMBOL(my_symbol)
+LI_SYMBOL(my_symbol)
 
-using namespace iod;
+using namespace li;
 
 int main()
 {

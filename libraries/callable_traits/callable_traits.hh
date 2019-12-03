@@ -1,6 +1,6 @@
 #pragma once
 
-namespace iod {
+namespace li {
 
   template <typename ...T>
   struct typelist {};

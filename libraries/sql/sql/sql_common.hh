@@ -2,7 +2,7 @@
 
 #include <string>
 
-namespace iod
+namespace li
 {
   struct sql_blob : public std::string {
     using std::string::string;

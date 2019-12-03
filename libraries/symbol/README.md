@@ -1,5 +1,5 @@
 
-iod::symbol
+li::symbol
 =================================
 
 This library implements the basics of symbol based
@@ -10,22 +10,22 @@ things that are very hard / impossible to build in classic C++.
 A symbol is defined with a macro function :
 
 ```c++
-IOD_SYMBOL(my_symbol)
-IOD_SYMBOL(my_symbol2)
+LI_SYMBOL(my_symbol)
+LI_SYMBOL(my_symbol2)
 ``` 
 
 And provides some operators :
 
 ```c++
 // Named Variable declaration.
-auto v = iod::make_variable(s::my_symbol, 42);
+auto v = li::make_variable(s::my_symbol, 42);
 assert(v.my_symbol == 42);
 
 // Symbol introspection
-assert(!strcmp(iod::symbol_string(v), "my_symbol"));
+assert(!strcmp(li::symbol_string(v), "my_symbol"));
 
 // Member access.
-assert(iod::symbol_member_access(v, s::my_symbol) == 42);  
+assert(li::symbol_member_access(v, s::my_symbol) == 42);  
 
 // Method call
 struct {
@@ -33,9 +33,9 @@ struct {
   int x;
 } obj{40};
 
-assert(iod::symbol_method_call(obj, s::my_symbol, 2) == 42);
+assert(li::symbol_method_call(obj, s::my_symbol, 2) == 42);
 
 // Introspection on objects.
-assert(iod::has_member(obj, s::my_symbol))
-assert(!iod::has_member(obj, s::my_symbol2))
+assert(li::has_member(obj, s::my_symbol))
+assert(!li::has_member(obj, s::my_symbol2))
 ```
