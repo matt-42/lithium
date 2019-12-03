@@ -2,7 +2,7 @@
 
 #include <iod/metajson/metajson.hh>
 #include <iod/silicon/error.hh>
-#include <iod/silicon/sql_orm.hh>
+#include <iod/sql/sql_orm.hh>
 
 
 namespace iod {

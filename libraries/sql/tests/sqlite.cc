@@ -1,5 +1,5 @@
 
-#include <iod/sqlite/sqlite.hh>
+#include <iod/sql/sqlite.hh>
 
 int main() {
   auto db = iod::sqlite_database("iod_sqlite_test.db");

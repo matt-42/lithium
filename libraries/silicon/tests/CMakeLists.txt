@@ -38,10 +38,6 @@ add_executable(url_decode url_decode.cc)
 target_link_libraries(url_decode ${LIBS})
 add_test(url_decode url_decode)
 
-add_executable(sql_orm sql_orm.cc)
-target_link_libraries(sql_orm ${LIBS})
-add_test(sql_orm sql_orm)
-
 add_executable(hello_world hello_world.cc)
 target_link_libraries(hello_world ${LIBS})
 add_test(hello_world hello_world)

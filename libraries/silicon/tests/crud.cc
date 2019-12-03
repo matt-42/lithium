@@ -3,7 +3,7 @@
 
 #include <iod/http_client/http_client.hh>
 #include <iod/silicon/silicon.hh>
-#include <iod/sqlite/sqlite.hh>
+#include <iod/sql/sqlite.hh>
 
 #include "test.hh"
 #include "symbols.hh"

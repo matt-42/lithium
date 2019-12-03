@@ -8,12 +8,12 @@
 #include <sstream>
 #include <thread>
 #include <unordered_map>
+#include <mysql.h>
 
 #include <iod/callable_traits/callable_traits.hh>
 #include <iod/metamap/metamap.hh>
-#include <iod/sqlite/sql_common.hh>
-#include <iod/mysql/symbols.hh>
-#include <mysql.h>
+#include <iod/sql/sql_common.hh>
+#include <iod/sql/symbols.hh>
 
 namespace iod {
 

@@ -13,8 +13,8 @@
 
 #include <iod/callable_traits/callable_traits.hh>
 #include <iod/metamap/metamap.hh>
-#include <iod/sqlite/symbols.hh>
-#include <iod/sqlite/sql_common.hh>
+#include <iod/sql/symbols.hh>
+#include <iod/sql/sql_common.hh>
 #include <sqlite3.h>
 
 namespace iod {

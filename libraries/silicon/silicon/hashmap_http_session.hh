@@ -1,7 +1,6 @@
 #pragma once
 
 #include <iod/silicon/cookie.hh>
-#include <iod/silicon/sql_orm.hh>
 
 namespace iod {
 

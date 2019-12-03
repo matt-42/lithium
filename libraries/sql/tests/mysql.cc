@@ -1,7 +1,7 @@
 
 #include <iostream>
 #include <cassert>
-#include <iod/mysql/mysql.hh>
+#include <iod/sql/mysql.hh>
 #include "symbols.hh"
 
 using namespace s;

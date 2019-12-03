@@ -1,7 +1,7 @@
 #include <iod/metajson/metajson.hh>
-#include <iod/silicon/sql_orm.hh>
-#include <iod/sqlite/sqlite.hh>
-#include <iod/mysql/mysql.hh>
+#include <iod/sql/sql_orm.hh>
+#include <iod/sql/sqlite.hh>
+#include <iod/sql/mysql.hh>
 #include <cassert>
 
 #include "symbols.hh"
