@@ -34,11 +34,17 @@ log_error                      = $TMPDIR/error.log
 EOF
 
   # Mariadb version.
-  mariadb-install-db --auth-root-authentication-method=normal --defaults-extra-file=$CONF --skip-test-db --basedir=/usr
-  mysqld --defaults-extra-file=$CONF &
+  if [ -d "/usr/share/mysql" ]; then
+    basedir="/usr"
+  elif [ -d "/usr/local/share/mysql" ]; then
+    basedir="/usr/local"
+  fi
+
+  mysql_install_db --auth-root-authentication-method=normal --defaults-file=$CONF --skip-test-db --basedir=$basedir
+  mysqld --defaults-file=$CONF &
   sleep 2 # wait for server to start 
-  mysqladmin --defaults-extra-file=$CONF -u root password 'sl_test_password' # root password
-  mysqladmin --defaults-extra-file=$CONF -u root --password=sl_test_password create silicon_test # create test database
+  mysqladmin --defaults-file=$CONF -u root password 'sl_test_password' # root password
+  mysqladmin --defaults-file=$CONF -u root --password=sl_test_password create silicon_test # create test database
 
 elif [ $1 == "stop" ]; then
   mysqladmin -P 14550 -h "127.0.0.1" -u root --password=sl_test_password shutdown

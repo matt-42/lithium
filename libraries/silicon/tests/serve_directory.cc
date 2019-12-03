@@ -13,7 +13,7 @@ int main() {
   fs::create_directories(root / "subdir");
 
   {
-    std::ofstream o(root / "subdir" / "hello.txt");
+    std::ofstream o((root / "subdir" / "hello.txt").string());
     o << "hello world.";
   }
 
