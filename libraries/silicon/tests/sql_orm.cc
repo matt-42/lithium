@@ -18,7 +18,7 @@ int main() {
                  .callbacks(
                    s::after_insert = [] (auto p) { std::cout << "inserted " << json_encode(p) << std::endl; },
                    s::after_destroy = [] (auto p) { std::cout << "removed " << json_encode(p) << std::endl;})
-                  ;                  
+                  ;
   auto orm = schema.connect(db);
   auto c = db.get_connection();
 

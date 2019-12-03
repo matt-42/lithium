@@ -45,10 +45,14 @@ int main()
     // Prepared statement.
     auto insert_user = c.prepare("INSERT into users(id, name, age) values (?,?,?);");
 
-    // insert_user
-    //   (1, "John", 42)
-    //   (2, "Bob", 24); // Send two queries.
 
+    insert_user
+      (1, "John", 42)
+      (2, "Bob", 24); // Send two queries.
+
+    int count = 0;
+    c("SELECT count(*) from users") >> count;
+    assert(count == 2);
     // // multiple inserts.
     // //c("INSERT into users(id, name, age) values", users);
     
