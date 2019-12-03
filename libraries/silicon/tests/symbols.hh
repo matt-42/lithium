@@ -30,9 +30,19 @@
     IOD_SYMBOL(before_insert)
 #endif
 
+#ifndef IOD_SYMBOL_charset
+#define IOD_SYMBOL_charset
+    IOD_SYMBOL(charset)
+#endif
+
 #ifndef IOD_SYMBOL_city
 #define IOD_SYMBOL_city
     IOD_SYMBOL(city)
+#endif
+
+#ifndef IOD_SYMBOL_database
+#define IOD_SYMBOL_database
+    IOD_SYMBOL(database)
 #endif
 
 #ifndef IOD_SYMBOL_get
@@ -45,6 +55,11 @@
     IOD_SYMBOL(get_parameters)
 #endif
 
+#ifndef IOD_SYMBOL_host
+#define IOD_SYMBOL_host
+    IOD_SYMBOL(host)
+#endif
+
 #ifndef IOD_SYMBOL_id
 #define IOD_SYMBOL_id
     IOD_SYMBOL(id)
@@ -53,6 +68,11 @@
 #ifndef IOD_SYMBOL_id2
 #define IOD_SYMBOL_id2
     IOD_SYMBOL(id2)
+#endif
+
+#ifndef IOD_SYMBOL_jsonencoded
+#define IOD_SYMBOL_jsonencoded
+    IOD_SYMBOL(jsonencoded)
 #endif
 
 #ifndef IOD_SYMBOL_login
@@ -73,6 +93,16 @@
 #ifndef IOD_SYMBOL_password
 #define IOD_SYMBOL_password
     IOD_SYMBOL(password)
+#endif
+
+#ifndef IOD_SYMBOL_path
+#define IOD_SYMBOL_path
+    IOD_SYMBOL(path)
+#endif
+
+#ifndef IOD_SYMBOL_port
+#define IOD_SYMBOL_port
+    IOD_SYMBOL(port)
 #endif
 
 #ifndef IOD_SYMBOL_post
@@ -108,6 +138,11 @@
 #ifndef IOD_SYMBOL_test2
 #define IOD_SYMBOL_test2
     IOD_SYMBOL(test2)
+#endif
+
+#ifndef IOD_SYMBOL_user
+#define IOD_SYMBOL_user
+    IOD_SYMBOL(user)
 #endif
 
 #ifndef IOD_SYMBOL_user_id

@@ -54,7 +54,8 @@ int mhd_keyvalue_iterator(void* cls, enum MHD_ValueKind kind, const char* key, c
   return MHD_YES;
 }
 
-using url_parser_info = std::unordered_map<std::string, int>;
+struct url_parser_info_node { int slash_pos; bool is_path; };
+using url_parser_info = std::unordered_map<std::string, url_parser_info_node>;
 
 auto make_url_parser_info(const std::string_view url) {
 
@@ -75,7 +76,15 @@ auto make_url_parser_info(const std::string_view url) {
         param_name_end++;
 
       if (param_name_end != param_name_start and check_pattern(param_name_end, '}')) {
-        info.emplace(std::string(param_name_start, param_name_end - param_name_start), slash_pos);
+        int size = param_name_end - param_name_start;
+        bool is_path = false;
+        if (size > 3 and param_name_end[-1] == '.' and param_name_end[-2] == '.' and param_name_end[-3] == '.')
+        {
+          is_path = true;
+          param_name_end -= 3;
+        }
+        std::string_view param_name(param_name_start, param_name_end - param_name_start);
+        info.emplace(param_name, url_parser_info_node{slash_pos, is_path});
       }
     }
   }
@@ -102,22 +111,36 @@ auto parse_url_parameters(const url_parser_info& fmt, const std::string_view url
                                url.data());
     } else {
       // Location of the parameter in the url.
-      int param_slash = it->second; // index of slash before param.
+      int param_slash = it->second.slash_pos; // index of slash before param.
       if (param_slash >= int(slashes.size()))
         throw http_error::bad_request("Missing url parameter ", symbol_str);
 
       int param_start = slashes[param_slash] + 1;
-      int param_end = param_start;
-      while (int(url.size()) > (param_end) and url[param_end] != '/')
-        param_end++;
+      if (it->second.is_path)
+      {
+        if constexpr(std::is_same<std::decay_t<decltype(obj[k])>, std::string>::value or
+                     std::is_same<std::decay_t<decltype(obj[k])>, std::string_view>::value) {
+          obj[k] = std::string_view(url.data() + param_start - 1, url.size() - param_start + 1); // -1 to include the first /.
+        }
+        else {
+          throw std::runtime_error("{{path...}} parameters only accept std::string or std::string_view types.");
+        }
 
-      std::string content(url.data() + param_start, param_end - param_start);
-      content.resize(MHD_http_unescape(&content[0]));
-      try {
-        obj[k] = boost::lexical_cast<decltype(v)>(content);
-      } catch (std::exception e) {
-        throw http_error::bad_request("Cannot decode url parameter ", iod::symbol_string(k), " : ",
-                                      e.what());
+      }
+      else
+      {
+        int param_end = param_start;
+        while (int(url.size()) > (param_end) and url[param_end] != '/')
+          param_end++;
+
+        std::string content(url.data() + param_start, param_end - param_start);
+        content.resize(MHD_http_unescape(&content[0]));
+        try {
+          obj[k] = boost::lexical_cast<decltype(v)>(content);
+        } catch (std::exception e) {
+          throw http_error::bad_request("Cannot decode url parameter ", iod::symbol_string(k), " : ",
+                                        e.what());
+        }
       }
     }
   });

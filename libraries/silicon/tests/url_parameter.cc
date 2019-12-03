@@ -22,6 +22,7 @@ int main() {
   CHECK_THROW("missing", (url_decode_test("/", "/42", s::id = int())));
   CHECK_THROW("spellerror", (url_decode_test("/{{idd}}", "/42", s::id = int())));
   CHECK_EQUAL("param2", (url_decode_test("/x/sss/xxx/xx/{{id}}/xxx/ss/s", "/x/sss/xxx/xx/42/xxx/ss/s", s::id = int()).id), 42);
+  CHECK_EQUAL("path", (url_decode_test("/x/{{path...}}", "/x/this/is/a/path", s::path = std::string()).path), "/this/is/a/path");
 
   auto p = url_decode_test("/hw/{{id}}/xxx/{{id2}}", "/hw/42/xxx/43", s::id = int(),
                         s::id2 = int());
