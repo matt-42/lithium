@@ -81,7 +81,21 @@ template <typename SCHEMA, typename C> struct sql_orm {
     return *this;
   }
 
-  template <typename... W> auto find_one(bool& found, metamap<W...> where) {
+  template <typename W>
+  void where_clause(W&& cond, std::stringstream& ss)
+  {
+    ss << " WHERE ";
+    bool first = true;
+    map(cond, [&](auto k, auto v) {
+      if (!first)
+        ss << " and ";
+      first = false;
+      ss << iod::symbol_string(k) << " = ? ";
+    });
+    ss << " ";
+  }
+
+  template <typename... W> auto find_one(metamap<W...> where) {
     std::stringstream ss;
     O o;
     ss << "SELECT ";
@@ -93,32 +107,41 @@ template <typename SCHEMA, typename C> struct sql_orm {
       ss << iod::symbol_string(k);
     });
 
-    ss << " FROM " << schema_.table_name() << " WHERE ";
-
-    first = true;
-    map(where, [&](auto k, auto v) {
-      if (!first)
-        ss << " and ";
-      first = false;
-      ss << iod::symbol_string(k) << " = ? ";
-    });
+    ss << " FROM " << schema_.table_name();
+    where_clause(where, ss);
     ss << "LIMIT 1";
     auto stmt = con_.prepare(ss.str());
 
-    found = (iod::tuple_reduce(metamap_values(where), stmt) >> o);
+    if (!(iod::tuple_reduce(metamap_values(where), stmt) >> o))
+      return std::optional<O>();    
     call_callback(s::read_access, o);
-    return o;
+    return std::make_optional(o);
   }
   template <typename A, typename B, typename... W>
-  auto find_one(bool& found, assign_exp<A, B> w1, W... ws) {
-    return find_one(found, mmm(w1, ws...));
+  auto find_one(assign_exp<A, B> w1, W... ws) {
+    return find_one(mmm(w1, ws...));
   }
-  template <typename... W> auto find_one(W... ws) {
-    bool f = false;
-    auto obj = find_one(f, ws...);
-    if (!f)
-      throw std::runtime_error(schema_.table_name() + " not found with the given criteria.");
-    return obj;
+
+  template <typename W>
+  bool exists(W&& cond)
+  {
+    std::stringstream ss;
+    O o;
+    ss << "SELECT count(*) FROM " << schema_.table_name();
+    where_clause(cond, ss);
+    ss << "LIMIT 1";
+
+    auto stmt = con_.prepare(ss.str());
+
+    int count = 0;
+    if (!(iod::tuple_reduce(metamap_values(cond), stmt) >> count))
+      throw std::runtime_error("count request did not return.");
+    else
+      return count;
+  }
+  template <typename A, typename B, typename... W>
+  auto exists(assign_exp<A, B> w1, W... ws) {
+    return exists(mmm(w1, ws...));
   }
   // Save a ll fields except auto increment.
   // The db will automatically fill auto increment keys.
@@ -196,16 +219,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
       ss << iod::symbol_string(k) << " = ?";
     });
 
-    ss << " WHERE ";
-
-    first = true;
-    map(pk, [&](auto k, auto v) {
-      if (!first)
-        ss << " and ";
-      first = false;
-      ss << iod::symbol_string(k) << " = ? ";
-      return k = v;
-    });
+    where_clause(pk, ss);
 
     auto stmt = con_.prepare(ss.str());
     iod::tuple_reduce(std::tuple_cat(metamap_values(to_update), metamap_values(pk)), stmt);

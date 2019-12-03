@@ -26,30 +26,29 @@ int main() {
     orm.create_table_if_not_exists();
 
     // find one.
-    bool found = true;
-    orm.find_one(found, s::id = 1);
-    assert(!found);
+    assert(!orm.find_one(s::id = 1));
 
     // Insert.
     long long int john_id = orm.insert(s::name = "John", s::age = 42, s::login = "lol");
     assert(orm.count() == 1);
     std::cout << john_id << std::endl;
-    auto u = orm.find_one(found, s::id = john_id);
-    assert(found);
-    assert(u.id = john_id and u.name == "John" and u.age == 42 and u.login == "lol");
+    auto u = orm.find_one(s::id = john_id);
+    assert(u);
+    assert(u->id = john_id and u->name == "John" and u->age == 42 and u->login == "lol");
 
     // Update.
-    u.name = "John2";
-    u.age = 31;
-    u.login = "foo";
-    orm.update(u);
+    u->name = "John2";
+    u->age = 31;
+    u->login = "foo";
+    orm.update(*u);
     assert(orm.count() == 1);
     auto u2 = orm.find_one(s::id = john_id);
+    assert(u2);
     // age field is read only. It should not have been affected by the update.
-    assert(u2.name == "John2" and u2.age == 42 and u2.login == "foo");
+    assert(u2->name == "John2" and u2->age == 42 and u2->login == "foo");
 
     // Remove.
-    orm.remove(u2);
+    orm.remove(*u2);
     assert(orm.count() == 0);
 
   };

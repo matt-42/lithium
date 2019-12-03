@@ -26,9 +26,10 @@ int main() {
       std::cout << sess.values().user_id << std::endl;
       if (sess.values().user_id != -1)
       {
-        bool found;
-        auto u = user_orm.connect(db).find_one(found, s::id = sess.values().user_id);
-        response.write(u.login);
+        if (auto u = user_orm.connect(db).find_one(s::id = sess.values().user_id))
+          response.write(u->login);
+        else
+          throw http_error::internal_server_error("Id in session does not match database...");   
       }
       else
         throw http_error::unauthorized("Please login.");   
@@ -36,11 +37,9 @@ int main() {
 
     my_api.post("/login") = [&](http_request& request, http_response& response) {
       auto lp = request.post_parameters(s::login = std::string(), s::password = std::string());
-      bool exists = false;
-      auto user = user_orm.connect(db).find_one(exists, lp);
-      if (exists)
+      if (auto user = user_orm.connect(db).find_one(lp))
       {
-        session.connect(db, request, response).store(s::user_id = user.id);
+        session.connect(db, request, response).store(s::user_id = user->id);
         response.write("login success");
       }
       else throw http_error::unauthorized("Bad login or password.");
@@ -50,11 +49,9 @@ int main() {
       auto new_user = request.post_parameters(s::login = std::string(), s::password = std::string());
       bool exists = false;
       auto user_db = user_orm.connect(db);
-      auto user = user_db.find_one(exists, s::login = new_user.login);
-      std::cout << user_db.count() << std::endl;
-      if (! exists)
-        user_db.insert(new_user);
-      else throw http_error::bad_request("User already exists.");
+      if (user_db.exists(s::login = new_user.login))
+        throw http_error::bad_request("User already exists.");
+      else user_db.insert(new_user);
     };
 
     my_api.get("/logout") = [&](http_request& request, http_response& response) {

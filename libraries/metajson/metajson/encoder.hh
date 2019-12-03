@@ -24,6 +24,16 @@ namespace iod {
     // Json encoder.
     // =============================================
 
+    template <typename C, typename O, typename E>
+    inline void json_encode(C& ss, O obj, const json_object_<E>& schema);
+    template <typename C, typename... E, typename... T>
+    inline void json_encode(C& ss, const std::tuple<T...>& tu, const json_tuple_<E...>& schema);
+    template <typename T, typename C, typename E>
+    inline void json_encode(C& ss, const T& value, const E& schema);
+    template <typename T, typename C, typename E>
+    inline void json_encode(C& ss, const std::vector<T>& array, const json_vector_<E>& schema);
+
+
     template <typename T, typename C>
     inline void json_encode_value(C& ss, const T& t) { ss << t; }
     
@@ -35,6 +45,9 @@ namespace iod {
     
     template <typename C>
     inline void json_encode_value(C& ss, const std::string& s) { utf8_to_json(s, ss); }
+
+    template <typename C, typename... T>
+    inline void json_encode_value(C& ss, const metamap<T...>& s) { json_encode(ss, s, to_json_schema(s)); }
 
     template <typename T, typename C>
     inline void json_encode_value(C& ss, const std::optional<T>& t) {

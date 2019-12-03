@@ -20,9 +20,7 @@ template <typename ORM> struct connected_sql_http_session {
   // Store fiels into the session
   template <typename... F> auto store(F... fields) {
     map(mmm(fields...), [this](auto k, auto v) { values_[k] = v; });
-    bool found;
-    values_ = orm_.find_one(found, s::session_id = session_id_);
-    if (!found)
+    if (!orm_.exists(s::session_id = session_id_))
       orm_.insert(s::session_id = session_id_, fields...);
     else
       orm_.update(s::session_id = session_id_, fields...);
@@ -41,10 +39,8 @@ private:
   auto load() {
     if (loaded_)
       return;
-    bool found;
-    auto new_values_ = orm_.find_one(found, s::session_id = session_id_);
-    if (found)
-      values_ = new_values_;
+    if (auto new_values_ = orm_.find_one(s::session_id = session_id_))
+      values_ = *new_values_;
     loaded_ = true;
   }
 

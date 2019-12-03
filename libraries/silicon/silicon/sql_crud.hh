@@ -13,10 +13,10 @@ template <typename DB, typename A, typename B> auto sql_crud(DB& db, sql_orm_sch
 
   api(POST, "/find_by_id") = [&](http_request& request, http_response& response) {
     auto params = request.post_parameters(s::id = int());
-    bool found;
-    auto obj = orm_schema.connect(db).find_one(found, s::id = params.id);
-    if (!found) throw http_error::not_found(orm_schema.table_name(), " with id ", params.id, " does not exist.");
-    response.write(json_encode(obj));
+    if (auto obj = orm_schema.connect(db).find_one(s::id = params.id))
+      response.write(json_encode(obj));
+    else
+      throw http_error::not_found(orm_schema.table_name(), " with id ", params.id, " does not exist.");
   };
 
   api(POST, "/create") = [&](http_request& request, http_response& response) {

@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <string_view>
+#include <optional>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -11,7 +12,6 @@
 #include <boost/lexical_cast.hpp>
 #include <microhttpd.h>
 #include <iod/silicon/error.hh>
-#include <iod/silicon/optional.hh>
 #include <iod/silicon/symbols.hh>
 #include <iod/metamap/metamap.hh>
 
@@ -144,7 +144,7 @@ namespace iod
   }
 
   template <typename O>
-  std::string url_decode_check_missing_fields(const std::set<void*>& found, optional<O>& obj)
+  std::string url_decode_check_missing_fields(const std::set<void*>& found, std::optional<O>& obj)
   {
     return std::string();
   }
