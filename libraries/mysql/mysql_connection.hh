@@ -304,57 +304,18 @@ struct mysql_statement {
 
 struct mysql_connection_pool;
 
-namespace impl {
-const char* get_c_str(std::string& s) { return s.c_str(); }
-const char* get_c_str(const char* s) { return s; }
-
-template <typename... OPTS> inline MYSQL* open_mysql_connection(OPTS&&... opts) {
-  auto options = mmm(opts...);
-  static_assert(has_key(options, s::host), "open_mysql_connection requires the s::host argument");
-  static_assert(has_key(options, s::database),
-                "open_mysql_connection requires the s::databaser argument");
-  static_assert(has_key(options, s::user), "open_mysql_connection requires the s::user argument");
-  static_assert(has_key(options, s::password),
-                "open_mysql_connection requires the s::password argument");
-
-  MYSQL* con;
-  con = mysql_init(con);
-  con = mysql_real_connect(con, get_c_str(options.host), get_c_str(options.user),
-                           get_c_str(options.password), get_c_str(options.database), 0, NULL, 0);
-
-  if (!con)
-    throw std::runtime_error("Cannot connect to the database");
-
-  if (has_key(options, s::charset))
-    mysql_set_character_set(con, get_c_str(get_or(options, s::charset, "")));
-  return con;
-}
-} // namespace impl
-
 struct mysql_connection {
-  mysql_connection(MYSQL* con) : con_(con) {}
+  //mysql_connection(MYSQL* con) : con_(con) {}
 
   // template <typename... OPTS> inline mysql_connection(OPTS&&... opts) :
   // con_(impl::open_mysql_connection(opts...)) {}
 
-  inline mysql_connection(MYSQL* con, std::shared_ptr<mysql_connection_pool> pool);
+  inline mysql_connection(MYSQL* con, mysql_connection_pool& pool);
 
   int last_insert_rowid() { return mysql_insert_id(con_); }
 
   mysql_statement& operator()(std::string rq) {
-    auto it = stm_cache_.find(rq);
-    if (it != stm_cache_.end())
-      return it->second;
-
-    MYSQL_STMT* stmt = mysql_stmt_init(con_);
-    if (!stmt)
-      throw std::runtime_error(std::string("mysql_stmt_init error: ") + mysql_error(con_));
-
-    if (mysql_stmt_prepare(stmt, rq.data(), rq.size()))
-      throw std::runtime_error(std::string("mysql_stmt_prepare error: ") + mysql_error(con_));
-
-    stm_cache_[rq] = mysql_statement(stmt);
-    return stm_cache_[rq];
+    return prepare(rq)();
   }
 
   mysql_statement& prepare(std::string rq) {
@@ -388,7 +349,7 @@ struct mysql_connection {
   std::unordered_map<std::string, mysql_statement> stm_cache_;
   MYSQL* con_;
   std::shared_ptr<int> sptr_;
-  std::shared_ptr<mysql_connection_pool> pool_;
+  mysql_connection_pool& pool_;
 };
 
 struct mysql_connection_pool : std::enable_shared_from_this<mysql_connection_pool> {
@@ -407,7 +368,8 @@ struct mysql_connection_pool : std::enable_shared_from_this<mysql_connection_poo
     database_ = options.database;
     user_ = options.user;
     passwd_ = options.password;
-
+    port_ = get_or(options, s::port, 0);
+ 
     character_set_ = get_or(options, s::charset, "utf8");
 
     if (mysql_library_init(0, NULL, NULL))
@@ -433,8 +395,9 @@ struct mysql_connection_pool : std::enable_shared_from_this<mysql_connection_poo
 
     if (!con_) {
       con_ = mysql_init(con_);
+      std::cout << port_ << std::endl;
       con_ = mysql_real_connect(con_, host_.c_str(), user_.c_str(), passwd_.c_str(),
-                                database_.c_str(), 0, NULL, 0);
+                                database_.c_str(), port_, NULL, 0);
       if (!con_)
         throw std::runtime_error("Cannot connect to the database");
 
@@ -442,18 +405,19 @@ struct mysql_connection_pool : std::enable_shared_from_this<mysql_connection_poo
     }
 
     assert(con_);
-    return mysql_connection(con_, shared_from_this());
+    return mysql_connection(con_, *this);
   }
 
   std::mutex mutex_;
   std::string host_, user_, passwd_, database_;
+  unsigned int port_;
   std::deque<MYSQL*> pool_;
   std::string character_set_;
 };
 
-mysql_connection::mysql_connection(MYSQL* con, std::shared_ptr<mysql_connection_pool> pool)
+inline mysql_connection::mysql_connection(MYSQL* con, mysql_connection_pool& pool)
     : con_(con), pool_(pool) {
-  sptr_ = std::shared_ptr<int>((int*)42, [pool, con](int* p) { pool->free_connection(con); });
+  sptr_ = std::shared_ptr<int>((int*)42, [&pool, con](int* p) { pool.free_connection(con); });
 }
 
 } // namespace iod

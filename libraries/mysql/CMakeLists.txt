@@ -11,7 +11,7 @@ enable_testing()
 add_executable(mysql_test test.cc)
 target_link_libraries(mysql_test ${MYSQL_LIBRARY})
 
-add_test(sqlite_test sqlite_test)
+add_test(mysql_test mysql_test)
 
 install(DIRECTORY sqlite DESTINATION include/iod
   FILES_MATCHING PATTERN "*.hh")

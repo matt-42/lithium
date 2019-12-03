@@ -11,7 +11,6 @@ enable_testing()
 
 add_executable(sqlite_test test.cc)
 target_link_libraries(sqlite_test ${SQLite3_LIBRARIES})
-
 add_test(sqlite_test sqlite_test)
 
 install(DIRECTORY sqlite DESTINATION include/iod

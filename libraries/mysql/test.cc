@@ -29,12 +29,13 @@ int main()
 {
   using namespace iod;
 
-  try
+  //try
   {
-    auto m = mysql_connection_pool(s::host = "localhost",
-                                  s::database = "silicon",
-                                  s::user = "my_silicon",
-                                  s::password = "silicon_test",
+    auto m = mysql_connection_pool(s::host = "127.0.0.1",
+                                  s::database = "silicon_test",
+                                  s::user = "root",
+                                  s::password = "sl_test_password",
+                                  s::port = 14550,
                                   s::charset = "utf8");
 
     auto c = m.get_connection();
@@ -45,13 +46,13 @@ int main()
     // Prepared statement.
     auto insert_user = c.prepare("INSERT into users(id, name, age) values (?,?,?);");
 
-
     insert_user
       (1, "John", 42)
       (2, "Bob", 24); // Send two queries.
 
     int count = 0;
     c("SELECT count(*) from users") >> count;
+    std::cout << count << std::endl;
     assert(count == 2);
     // // multiple inserts.
     // //c("INSERT into users(id, name, age) values", users);
@@ -131,9 +132,9 @@ int main()
     // };
     // c("INSERT into users(name, age) VALUES (?, ?)")("John", 42);
   }
-  catch(const std::exception& e)
-  {
-    std::cout << e.what() << std::endl;
-    return 1;
-  }
+  // catch(const std::exception& e)
+  // {
+  //   std::cout << "error during test: " << e.what() << std::endl;
+  //   return 1;
+  // }
 }

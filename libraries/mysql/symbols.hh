@@ -35,6 +35,11 @@
     IOD_SYMBOL(password)
 #endif
 
+#ifndef IOD_SYMBOL_port
+#define IOD_SYMBOL_port
+    IOD_SYMBOL(port)
+#endif
+
 #ifndef IOD_SYMBOL_user
 #define IOD_SYMBOL_user
     IOD_SYMBOL(user)

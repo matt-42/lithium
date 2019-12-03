@@ -255,7 +255,7 @@ struct sqlite_connection {
     format_error(err, args...);
   }
 
-  sqlite_statement operator()(const std::string& req) {
+  sqlite_statement prepare(const std::string& req) {
     std::cout << req << std::endl;
     auto it = stm_cache_->find(req);
     if (it != stm_cache_->end())
@@ -273,6 +273,9 @@ struct sqlite_connection {
         it, std::make_pair(req, sqlite_statement(db_, stmt)));
     cache_mutex_->unlock();
     return it2->second;
+  }
+  sqlite_statement operator()(const std::string& req) {
+    return prepare(req)();
   }
 
   template <typename T>

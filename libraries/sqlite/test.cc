@@ -6,10 +6,10 @@ int main() {
 
   auto c = db.get_connection();
 
-  c("DROP TABLE IF EXISTS person;")();
+  c("DROP TABLE IF EXISTS person;");
   c("CREATE TABLE IF NOT EXISTS person (id INTEGER PRIMARY KEY AUTOINCREMENT, "
-    "name VARCHAR, age INTEGER);")();
-  c("INSERT into person(name, age) VALUES (?, ?)")("John", 42)("Ella", 21);
+    "name VARCHAR, age INTEGER);");
+  c.prepare("INSERT into person(name, age) VALUES (?, ?)")("John", 42)("Ella", 21);
 
   c("SELECT id, name, age from person").map(
       [](int id, std::string name, int age) {
