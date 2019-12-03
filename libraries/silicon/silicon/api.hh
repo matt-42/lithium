@@ -60,11 +60,14 @@ template <typename Req, typename Resp> struct api {
 
   void add_subapi(std::string prefix, const self& subapi)
   {
-    subapi.routes_map_.for_all_routes([this, prefix] (auto r, auto h) {
+    subapi.routes_map_.for_all_routes([this, prefix] (auto r, VH h) {
       if (r.back() == '/')
-        this->routes_map_[prefix + r] = h;
+        h.url_spec = prefix + r;
       else
-        this->routes_map_[prefix + "/" + r] = h;
+        h.url_spec = prefix + "/" + r;
+
+      this->routes_map_[h.url_spec] = h;
+
     });
 
   }

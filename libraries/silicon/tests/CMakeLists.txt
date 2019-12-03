@@ -61,3 +61,7 @@ add_test(sql_authentication sql_authentication)
 add_executable(hashmap_http_session hashmap_http_session.cc)
 target_link_libraries(hashmap_http_session ${LIBS})
 add_test(hashmap_http_session hashmap_http_session)
+
+add_executable(serve_directory serve_directory.cc)
+target_link_libraries(serve_directory ${LIBS} boost_filesystem)
+add_test(serve_directory serve_directory)

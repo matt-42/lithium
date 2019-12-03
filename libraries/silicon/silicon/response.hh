@@ -3,6 +3,10 @@
 #include <string_view>
 #include <microhttpd.h>
 
+//#include <stdlib.h>
+#include <fcntl.h>
+//#include <sys/stat.h>
+
 namespace iod {
 using namespace iod;
 
@@ -12,7 +16,14 @@ struct http_response {
   inline void set_cookie(std::string k, std::string v) { cookies[k] = v; }
 
   void write(const std::string res) { body = res; }
+  void write_file(const std::string path) {
 
+    int fd = open(path.c_str(), O_RDONLY);
+
+    if (fd == -1)
+      throw http_error::not_found("File not found.");
+    file_descriptor = fd;
+  }
   // void write_file(http_response* r, const std::string& path) const {
   //   int fd = open(path.c_str(), O_RDONLY);
 
