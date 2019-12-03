@@ -26,7 +26,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
   }
 
   inline auto drop_table_if_exists() {
-    con_(std::string("DROP TABLE IF EXISTS ") + schema_.table_name())();
+    con_(std::string("DROP TABLE IF EXISTS ") + schema_.table_name());
     return *this;
   } 
   
@@ -104,7 +104,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
       ss << iod::symbol_string(k) << " = ? ";
     });
     ss << "LIMIT 1";
-    auto stmt = con_(ss.str());
+    auto stmt = con_.prepare(ss.str());
 
     found = (iod::tuple_reduce(metamap_values(where), stmt) >> o);
     call_callback(s::read_access, o);
@@ -149,7 +149,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     // auto values = intersection(o, schema_.without_autoset());
 
     ss << ") VALUES (" << vs.str() << ")";
-    auto req = con_(ss.str());
+    auto req = con_.prepare(ss.str());
     iod::reduce(values, req);
 
     call_callback(s::after_insert, o);
@@ -166,7 +166,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
   template <typename F> void forall(F f) {
     std::stringstream ss;
     ss << "SELECT * from " << schema_.table_name();
-    con_(ss.str())() | [&](decltype(schema_.all_fields()) o) { f(o); };
+    con_(ss.str()).map([&](decltype(schema_.all_fields()) o) { f(o); });
   }
 
   // Update N's members except auto increment members.
@@ -208,7 +208,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
       return k = v;
     });
 
-    auto stmt = con_(ss.str());
+    auto stmt = con_.prepare(ss.str());
     iod::tuple_reduce(std::tuple_cat(metamap_values(to_update), metamap_values(pk)), stmt);
 
     call_callback(s::after_update, o);
@@ -244,7 +244,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     });
 
     auto pks = intersection(o, schema_.primary_key());
-    iod::reduce(pks, con_(ss.str()));
+    iod::reduce(pks, con_.prepare(ss.str()));
 
     call_callback(s::after_destroy, o);
   }
