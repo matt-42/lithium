@@ -10,7 +10,6 @@ int main() {
   namespace fs = boost::filesystem;
 
   fs::path root = fs::unique_path();
-  fs::create_directories(root);
   fs::create_directories(root / "subdir");
 
   {
