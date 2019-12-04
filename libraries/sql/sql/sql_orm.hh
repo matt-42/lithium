@@ -375,7 +375,7 @@ struct sql_orm_schema : public MD {
   const std::string& table_name() const { return table_name_; }
   auto get_callbacks() const { return callbacks_; }
 
-  template <typename... P> auto callbacks(P... params_list) {
+  template <typename... P> auto callbacks(P... params_list) const {
     auto cbs = mmm(params_list...);
     auto allowed_callbacks = mmm(s::before_insert, s::before_remove, s::before_update,
                                  s::after_insert, s::after_remove, s::after_update, s::validate);
@@ -383,10 +383,10 @@ struct sql_orm_schema : public MD {
     static_assert(metamap_size<decltype(substract(cbs, allowed_callbacks))>() == 0, 
     "The only supported callbacks are: s::before_insert, s::before_remove, s::before_update,"
     " s::after_insert, s::after_remove, s::after_update, s::validate");
-    return sql_orm_schema<DB, MD, decltype(cbs)>(database_, table_name_, cbs, *static_cast<MD*>(this));
+    return sql_orm_schema<DB, MD, decltype(cbs)>(database_, table_name_, cbs, *static_cast<const MD*>(this));
   }
 
-  template <typename... P> auto fields(P... p) {
+  template <typename... P> auto fields(P... p) const {
     return sql_orm_schema<DB, orm_fields<P...>, CB>(database_, table_name_, callbacks_, orm_fields<P...>(p...));
   }
 

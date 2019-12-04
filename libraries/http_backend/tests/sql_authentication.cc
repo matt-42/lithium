@@ -14,7 +14,7 @@ int main() {
     api<http_request, http_response> my_api;
 
     // Users table
-    auto user_orm = sql_orm_schema(db, "users_to_test_session").fields(s::id(s::auto_increment, s::primary_key) = int(), s::login = std::string(),
+    auto user_orm = sql_orm_schema<decltype(db)>(db, "users_to_test_session").fields(s::id(s::auto_increment, s::primary_key) = int(), s::login = std::string(),
                               s::password = std::string());
     user_orm.connect().drop_table_if_exists().create_table_if_not_exists();
 

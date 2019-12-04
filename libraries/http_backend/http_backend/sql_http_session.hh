@@ -51,7 +51,7 @@ private:
 template <typename DB, typename... F>
 decltype(auto) create_session_orm(DB& db, std::string table_name,
                                   F... fields) {
-  return sql_orm_schema(db, table_name)
+  return sql_orm_schema<DB>(db, table_name)
       .fields(s::session_id(s::read_only, s::primary_key) = sql_varchar<32>(), fields...);
 }
 

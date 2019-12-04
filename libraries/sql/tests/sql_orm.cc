@@ -13,7 +13,7 @@ int main() {
   using namespace li;
 
   auto test_with_db = [] (auto& db) {
-    auto schema = sql_orm_schema(db, "users_orm_test")
+    auto schema = sql_orm_schema<decltype(db)>(db, "users_orm_test")
                   .fields(s::id(s::auto_increment, s::primary_key) = int(), s::age(s::read_only) = int(125), 
                           s::name = std::string("default_name"),
                           s::login = std::string())
