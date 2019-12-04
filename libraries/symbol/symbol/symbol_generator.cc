@@ -103,12 +103,7 @@ std::vector<std::string> find_symbols_in_files(std::vector<std::string> input_fi
 }
 
 void write_symbol_file(std::vector<std::string> symbols, std::ostream& os) {
-  // std::ofstream os(argv[argc - 1]);
-  // if (!os)
-  // {
-  //   std::cerr << "Cannot open file " << argv[2] << " for writing." << std::endl;
-  //   return 2;
-  // }
+
   if (!symbols.empty())
   {
     os <<  FIRST_LINE_COMMENT << std::endl;

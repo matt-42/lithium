@@ -40,7 +40,7 @@ include_directories(${CMAKE_BINARY_DIR}/include)
 
 add_custom_target(
     symbols_generation DEPENDS li_symbol_generator
-    COMMAND ${CMAKE_BINARY_DIR}/libraries/symbol/li_symbol_generator ${CMAKE_CURRENT_SOURCE_DIR})
+    COMMAND ${CMAKE_BINARY_DIR}/libraries/symbol/li_symbol_generator ${CMAKE_CURRENT_SOURCE_DIR}/libraries)
 
 function(li_add_executable target_name)
   add_executable(${target_name} ${ARGN})

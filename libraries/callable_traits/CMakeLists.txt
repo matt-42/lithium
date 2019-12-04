@@ -5,7 +5,7 @@ project(callable_traits)
 enable_testing()
 
 
-install(DIRECTORY callable_traits DESTINATION include/li
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} DESTINATION include/li
   FILES_MATCHING PATTERN "*.hh")
-install(DIRECTORY callable_traits DESTINATION include/li
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} DESTINATION include/li
   FILES_MATCHING PATTERN "*.hpp")
