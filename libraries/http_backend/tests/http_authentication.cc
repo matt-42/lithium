@@ -8,6 +8,7 @@
 #include "test.hh"
 #include "symbols.hh"
 
+
 int main()
 {
   using namespace li;
@@ -16,13 +17,17 @@ int main()
   auto users =
       li::sql_orm_schema(db, "blog_users")
           .fields(s::id(s::auto_increment, s::primary_key) = int(), s::login = std::string(),
-                  s::password = std::string());
+                  s::password = std::string(), s::secret_key = std::string());
 
   auto sessions = li::hashmap_http_session("test_cookie", s::user_id = -1);
 
   users.connect().drop_table_if_exists().create_table_if_not_exists();
-  //session.drop_table_if_exists().create_table_if_not_exists();
-  auto auth = li::http_authentication(sessions, users, s::login, s::password);
+
+  auto auth = li::http_authentication(sessions, users, s::login, s::password,
+                                      s::hash_password = [&] (auto login, auto password) { 
+                                        return hash_sha3_512(password); 
+                                        }
+                                      );
 
   li::api<li::http_request, li::http_response> my_api;
 
@@ -55,7 +60,7 @@ int main()
   std::cout << json_encode(r) << std::endl;
   CHECK_EQUAL("invalid", c.post("/login_invalid", s::post_parameters = mmm(s::login = "hello", s::password = "test")).status, 200);
 
-  users.connect().insert(s::login = "hello", s::password = "test");
+  users.connect().insert(s::login = "hello", s::password = hash_sha3_512("test"));
   CHECK_EQUAL("valid", c.post("/login_invalid", s::post_parameters = mmm(s::login = "hello", s::password = "testx")).status, 200);
   CHECK_EQUAL("valid", c.post("/login_valid", s::post_parameters = mmm(s::login = "hello", s::password = "test")).status, 200);
 

@@ -45,6 +45,11 @@
     LI_SYMBOL(get_parameters)
 #endif
 
+#ifndef LI_SYMBOL_hash_password
+#define LI_SYMBOL_hash_password
+    LI_SYMBOL(hash_password)
+#endif
+
 #ifndef LI_SYMBOL_host
 #define LI_SYMBOL_host
     LI_SYMBOL(host)
@@ -108,6 +113,11 @@
 #ifndef LI_SYMBOL_primary_key
 #define LI_SYMBOL_primary_key
     LI_SYMBOL(primary_key)
+#endif
+
+#ifndef LI_SYMBOL_secret_key
+#define LI_SYMBOL_secret_key
+    LI_SYMBOL(secret_key)
 #endif
 
 #ifndef LI_SYMBOL_synchronous

@@ -5,6 +5,16 @@
     LI_SYMBOL(blocking)
 #endif
 
+#ifndef LI_SYMBOL_create_secret_key
+#define LI_SYMBOL_create_secret_key
+    LI_SYMBOL(create_secret_key)
+#endif
+
+#ifndef LI_SYMBOL_hash_password
+#define LI_SYMBOL_hash_password
+    LI_SYMBOL(hash_password)
+#endif
+
 #ifndef LI_SYMBOL_https_cert
 #define LI_SYMBOL_https_cert
     LI_SYMBOL(https_cert)
@@ -68,6 +78,11 @@
 #ifndef LI_SYMBOL_session_id
 #define LI_SYMBOL_session_id
     LI_SYMBOL(session_id)
+#endif
+
+#ifndef LI_SYMBOL_update_secret_key
+#define LI_SYMBOL_update_secret_key
+    LI_SYMBOL(update_secret_key)
 #endif
 
 #ifndef LI_SYMBOL_user_id

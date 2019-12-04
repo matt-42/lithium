@@ -1,3 +1,5 @@
+#include <nettle/sha3.h>
+
 #include <li/http_backend/http_backend.hh>
 #include <li/sql/sqlite.hh>
 
@@ -28,7 +30,8 @@ int main() {
   // to the login HTTP route.
   // For the signup, the module will ask for every fields (login, password) except the auto
   // increment field (i.e. the id field).
-  auto auth = http_authentication(sessions, users, s::login, s::password);
+  auto auth = http_authentication(sessions, users,
+                                  s::login, s::password);
 
   // The posts ORM will handle the blog_posts table in the sqlite database.
   // We use the ORM callbacks to check if needed the user priviledges or the validity of post.
