@@ -1,6 +1,8 @@
 li::metamap
 ===============================
 
+*Tested compilers: Linux: G++ 9, Clang++ 9, Macos: Clang 11, Windows: MSVC 19*
+
 In dynamic languages, instanciating an object is simple, for example in javascript:
 
 ```js
