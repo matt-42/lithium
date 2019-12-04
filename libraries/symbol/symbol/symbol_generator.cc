@@ -41,7 +41,7 @@ std::string symbol_definition(std::string s)
   return body;
 }
 
-void generate_symbol_file(std::vector<std::string> input_files, std::ostream& os) {
+std::vector<std::string> find_symbols_in_files(std::vector<std::string> input_files) {
   std::set<std::string> symbols;
   std::regex symbol_regex(".?s::([a-z][[:alnum:]_]+)");
   std::set<std::string> keywords = {"alignas", "alignof", "and", "and_eq", "asm", "auto", "bitand", "bitor", "bool", "break", "case", "catch", "char", "char16_t", "char32_t", "class", "compl", "const", "constexpr", "const_cast", "continue", "decltype", "default", "delete", "do", "double", "dynamic_cast", "else", "enum", "explicit", "export", "extern", "false", "float", "for", "friend", "goto", "if", "inline", "int", "long", "mutable", "namespace", "new", "noexcept", "not", "not_eq", "nullptr", "operator", "or", "or_eq", "private", "protected", "public", "register", "reinterpret_cast", "return", "short", "signed", "sizeof", "static", "static_assert", "static_cast", "struct", "switch", "template", "this", "thread_local", "throw", "true", "try", "typedef", "typeid", "typename", "union", "unsigned", "using", "virtual", "void", "volatile", "wchar_t", "while", "xor", "xor_eq"};
@@ -99,6 +99,10 @@ void generate_symbol_file(std::vector<std::string> input_files, std::ostream& os
   for (auto path : input_files)
     parse_file(path);
   
+  return std::vector<std::string>(symbols.begin(), symbols.end());
+}
+
+void write_symbol_file(std::vector<std::string> symbols, std::ostream& os) {
   // std::ofstream os(argv[argc - 1]);
   // if (!os)
   // {
@@ -142,7 +146,7 @@ int main(int argc, char* argv[])
   {
     std::vector<std::string> files;
     for (int i = 1; i < argc; i++) files.push_back(argv[i]);
-    generate_symbol_file(files, std::cout);
+    write_symbol_file(find_symbols_in_files(files), std::cout);
   }
   if (fs::is_directory(argv[1]))
   {
@@ -154,14 +158,14 @@ int main(int argc, char* argv[])
         
         for (auto p2: fs::directory_iterator(p.path()))
           if (std::find(extentions.begin(), extentions.end(), p2.path().extension()) != extentions.end())
-          {
             files.push_back(p2.path());
-          }
-        if (!files.empty())
+
+        auto symbols = find_symbols_in_files(files);
+        if (!symbols.empty())
         {
           auto symbol_file = p / fs::path("symbols.hh");
           auto of = std::ofstream(symbol_file.string());
-          generate_symbol_file(files, of);
+          write_symbol_file(symbols, of);
         }
       }
   }
