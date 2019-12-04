@@ -1,66 +1,56 @@
 li::metamap
 ===============================
 
-```li::metamap``` is an immutable zero-cost key value map. All
-operations on metamaps are run by the compiler and have a O(1)
-runtime cost. This greatly helps to build high performance
-applications while keeping the flexibility of maps.
-Compile time has also been reduced thanks to a zero-compile-time cost
-key retrieve and the heavy use of parameter pack expansion.
+In dynamic languages, instanciating an object is simple, for example in javascript:
 
-Note: This is a work in progress.
-
-
-Dependencies
-==============
-
-[li::symbol](https://github.com/iodcpp/symbol)
-
-
-Tutorial
-==============
-
-Let's first define some [symbols](https://github.com/iodcpp/symbol). They will be
-used as map keys.
-
-```c++
-LI_SYMBOL(a)
-LI_SYMBOL(b)
+```js
+var person = { name: "John", age: 42 };
 ```
 
-A map is a set of key value pairs:
-
-```c++
-// Create a map
-auto m = li::metamap(s::a = 1, s::b = 2);
-
-// Retrieve map values via direct member access.
-// Zero cost neither at runtime nor compile time.
-assert(m.a == 1);
-// Or via operator[].
-assert(m[s::a] == 1);
+Javascript also provide a way to iterate on the object member:
+```js
+for(var key in person){
+    console.log(key + ': ' + person[key]);
+}
 ```
 
-Concatenation of two maps. Values of m1 are given the priority in case of dupplicate keys.
+In C++ it is harder, you need to declare the structure of your object before instantiating it,
+and you simply can't iterate over the properties of an object.
+
+Thanks to this library, you can reach Javascript simplicity without loosing the performances of C++:
+```c++
+auto person = mmm(s::name = "John", s::age = 42); // mmm means Make MetaMap
+
+map(person, [] (auto key, auto value) { std::cout << symbol_string(key) << value << std::endl; });
+```
+
+Everything is static, no hashmap or other dynamic structure is built by li::metamap. You can
+view it as compile-time introspection.
+As a comparison, this code is equivalent (in terms of runtime) to the less generic:
+```c++
+struct { const char* name, int age } person{"John", 42};
+std::cout << "name" << person.name << std::endl;
+std::cout << "age" << person.age << std::endl;
+```
+
+On top of this, li::metamap provides some algorithms that where only possible
+on dynamic structures before:
+
+
+- li::cat: Concatenation of two maps. Values of m1 are given the priority in case of dupplicate keys.
 
 ```c++
 auto m3 = li::cat(m1, m2);
 ```
 
-Build the map containing keys present in m1 and m2, taking values from m1.
+- li::intersection: Build the map containing keys present in m1 and m2, taking values from m1.
 
 ```c++
 auto m4 = li::intersection(m1, m2);
 ```
 
-Build the map containing keys present in m1 but not in m2, taking values from m1.
+- li::substract: Build the map containing keys present in m1 but not in m2, taking values from m1.
 
 ```c++
 auto m5 = li::substract(m1, m2);
-```
-
-Map a function on all key value pairs:
-
-```c++
-li::map(m1, [] (auto k, auto v) { std::cout << li::symbol_string(k) << "=" << v << std::endl; });
 ```
