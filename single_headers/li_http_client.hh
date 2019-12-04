@@ -7,29 +7,29 @@
 
 #pragma once
 
-#include <map>
-#include <cassert>
-#include <curl/curl.h>
 #include <vector>
-#include <iostream>
-#include <cmath>
-#include <sstream>
 #include <variant>
 #include <string_view>
-#include <utility>
-#include <functional>
 #include <cstring>
+#include <curl/curl.h>
+#include <iostream>
 #include <tuple>
+#include <functional>
+#include <cassert>
+#include <memory>
+#include <sstream>
+#include <utility>
 #include <optional>
 #include <string>
-#include <memory>
+#include <cmath>
+#include <map>
 
 #if defined(_MSC_VER)
 #include <ciso646>
 #endif // _MSC_VER
 
 
-// from file /home/matt/local/include/li/http_client/http_client.hh#define CURL_STATICLIB
+#define CURL_STATICLIB
 #pragma comment(lib, "crypt32")
 #pragma comment(lib, "ws2_32.lib")
 #pragma comment(lib, "Wldap32.lib")
@@ -37,9 +37,9 @@
 
 
 
-// from file /home/matt/local/include/li/http_client/symbols.hh
-// from file /home/matt/local/include/li/symbol/symbol.hh
-// from file /home/matt/local/include/li/symbol/ast.hh
+
+
+
 
 namespace li_http_client {
 
@@ -349,10 +349,10 @@ namespace li_http_client {
     LI_SYMBOL(status)
 #endif
 
-// from file /home/matt/local/include/li/json/json.hh
 
-// from file /home/matt/local/include/li/json/decoder.hh
-// from file /home/matt/local/include/li/metamap/metamap.hh
+
+
+
 
 namespace li_http_client {
 
@@ -506,7 +506,7 @@ namespace li_http_client {
   
 }
 
-// from file /home/matt/local/include/li/metamap/make.hh
+
 
 namespace li_http_client {
 
@@ -563,8 +563,8 @@ namespace li_http_client {
   }
   
 }
-// from file /home/matt/local/include/li/metamap/algorithms/map_reduce.hh
-// from file /home/matt/local/include/li/metamap/algorithms/tuple_utils.hh
+
+
 
 namespace li_http_client {
 
@@ -709,9 +709,9 @@ namespace li_http_client {
   }
 
 }
-// from file /home/matt/local/include/li/metamap/algorithms/intersection.hh
-// from file /home/matt/local/include/li/metamap/algorithms/make_metamap_skip.hh
-// from file /home/matt/local/include/li/metamap/algorithms/cat.hh
+
+
+
 
 namespace li_http_client {
 
@@ -774,7 +774,7 @@ namespace li_http_client {
   }
 
 }
-// from file /home/matt/local/include/li/metamap/algorithms/substract.hh
+
 
 namespace li_http_client {
 
@@ -790,9 +790,9 @@ namespace li_http_client {
   }
 
 }
-// from file /home/matt/local/include/li/json/utils.hh
 
-// from file /home/matt/local/include/li/json/symbols.hh
+
+
 #ifndef LI_SYMBOL_append
 #define LI_SYMBOL_append
     LI_SYMBOL(append)
@@ -945,10 +945,10 @@ namespace li_http_client {
   constexpr auto is_std_optional(T) -> std::false_type;
   
 }
-// from file /home/matt/local/include/li/json/unicode.hh
 
 
-// from file /home/matt/local/include/li/json/decode_stringstream.hh
+
+
 
 namespace li_http_client {
 
@@ -1156,7 +1156,7 @@ namespace li_http_client {
 
 }
 
-// from file /home/matt/local/include/li/json/error.hh
+
 
 namespace li_http_client {
 
@@ -1827,7 +1827,7 @@ namespace li_http_client {
 
 }
 
-// from file /home/matt/local/include/li/json/encoder.hh
+
 
 namespace li_http_client {
 

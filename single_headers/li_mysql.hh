@@ -7,25 +7,25 @@
 
 #pragma once
 
-#include <map>
-#include <mysql.h>
 #include <vector>
+#include <mysql.h>
+#include <thread>
+#include <cstring>
 #include <iostream>
 #include <mutex>
-#include <sstream>
-#include <deque>
-#include <string>
-#include <utility>
-#include <tuple>
-#include <cstring>
-#include <thread>
 #include <unordered_map>
+#include <tuple>
 #include <memory>
+#include <sstream>
+#include <utility>
+#include <string>
+#include <deque>
+#include <map>
 
 
-// from file /home/matt/local/include/li/sql/mysql.hh
 
-// from file /home/matt/local/include/li/callable_traits/callable_traits.hh
+
+
 namespace li_mysql {
 
   template <typename ...T>
@@ -141,7 +141,7 @@ namespace li_mysql {
   };
 
 }
-// from file /home/matt/local/include/li/metamap/metamap.hh
+
 
 namespace li_mysql {
 
@@ -295,9 +295,9 @@ namespace li_mysql {
   
 }
 
-// from file /home/matt/local/include/li/metamap/make.hh
-// from file /home/matt/local/include/li/symbol/symbol.hh
-// from file /home/matt/local/include/li/symbol/ast.hh
+
+
+
 
 namespace li_mysql {
 
@@ -638,8 +638,8 @@ namespace li_mysql {
   }
   
 }
-// from file /home/matt/local/include/li/metamap/algorithms/map_reduce.hh
-// from file /home/matt/local/include/li/metamap/algorithms/tuple_utils.hh
+
+
 
 namespace li_mysql {
 
@@ -784,9 +784,9 @@ namespace li_mysql {
   }
 
 }
-// from file /home/matt/local/include/li/metamap/algorithms/intersection.hh
-// from file /home/matt/local/include/li/metamap/algorithms/make_metamap_skip.hh
-// from file /home/matt/local/include/li/metamap/algorithms/cat.hh
+
+
+
 
 namespace li_mysql {
 
@@ -849,7 +849,7 @@ namespace li_mysql {
   }
 
 }
-// from file /home/matt/local/include/li/metamap/algorithms/substract.hh
+
 
 namespace li_mysql {
 
@@ -865,7 +865,7 @@ namespace li_mysql {
   }
 
 }
-// from file /home/matt/local/include/li/sql/sql_common.hh
+
 
 namespace li_mysql
 {
@@ -886,7 +886,7 @@ namespace li_mysql
 
     sql_varchar() : std::string() {}
   };
-}// from file /home/matt/local/include/li/sql/symbols.hh
+}
 #ifndef LI_SYMBOL_after_insert
 #define LI_SYMBOL_after_insert
     LI_SYMBOL(after_insert)
@@ -1416,8 +1416,8 @@ inline mysql_connection::mysql_connection(MYSQL* con, mysql_database& pool)
 }
 
 } // namespace li_mysql
-// from file /home/matt/local/include/li/sql/sql_orm.hh
-// from file /home/matt/local/include/li/http_backend/symbols.hh
+
+
 #ifndef LI_SYMBOL_blocking
 #define LI_SYMBOL_blocking
     LI_SYMBOL(blocking)

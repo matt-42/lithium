@@ -7,44 +7,44 @@
 
 #pragma once
 
-#include <boost/lexical_cast.hpp>
-#include <fstream>
-#include <random>
-#include <functional>
-#include <cstring>
+#include <vector>
 #include <thread>
-#include <map>
+#include <cstring>
+#include <tuple>
 #include <string.h>
-#include <mutex>
-#include <variant>
-#include <stdlib.h>
-#include <sys/stat.h>
-#include <memory>
-#include <fcntl.h>
-#include <cassert>
-#include <unistd.h>
-#include <iostream>
-#include <cmath>
+#include <windows.h>
 #include <sstream>
 #include <string>
-#include <microhttpd.h>
-#include <stdio.h>
-#include <vector>
-#include <string_view>
-#include <utility>
-#include <tuple>
+#include <cmath>
+#include <cassert>
+#include <stdlib.h>
 #include <optional>
-#include <unordered_map>
-#include <windows.h>
+#include <stdio.h>
+#include <microhttpd.h>
 #include <set>
+#include <map>
+#include <unordered_map>
+#include <functional>
+#include <sys/stat.h>
+#include <boost/lexical_cast.hpp>
+#include <utility>
+#include <fstream>
+#include <random>
+#include <fcntl.h>
+#include <variant>
+#include <string_view>
+#include <iostream>
+#include <mutex>
+#include <unistd.h>
+#include <memory>
 
 #if defined(_MSC_VER)
-#include <io.h>
 #include <ciso646>
+#include <io.h>
 #endif // _MSC_VER
 
 
-// from file /home/matt/local/include/li/http_backend/http_backend.hh// from file /home/matt/local/include/li/sql/sql_common.hh
+
 
 namespace li_http_backend
 {
@@ -66,8 +66,8 @@ namespace li_http_backend
     sql_varchar() : std::string() {}
   };
 }//#include <li/sql/mysql.hh>
-// from file /home/matt/local/include/li/sql/sql_orm.hh
-// from file /home/matt/local/include/li/metamap/metamap.hh
+
+
 
 namespace li_http_backend {
 
@@ -221,9 +221,9 @@ namespace li_http_backend {
   
 }
 
-// from file /home/matt/local/include/li/metamap/make.hh
-// from file /home/matt/local/include/li/symbol/symbol.hh
-// from file /home/matt/local/include/li/symbol/ast.hh
+
+
+
 
 namespace li_http_backend {
 
@@ -564,8 +564,8 @@ namespace li_http_backend {
   }
   
 }
-// from file /home/matt/local/include/li/metamap/algorithms/map_reduce.hh
-// from file /home/matt/local/include/li/metamap/algorithms/tuple_utils.hh
+
+
 
 namespace li_http_backend {
 
@@ -710,9 +710,9 @@ namespace li_http_backend {
   }
 
 }
-// from file /home/matt/local/include/li/metamap/algorithms/intersection.hh
-// from file /home/matt/local/include/li/metamap/algorithms/make_metamap_skip.hh
-// from file /home/matt/local/include/li/metamap/algorithms/cat.hh
+
+
+
 
 namespace li_http_backend {
 
@@ -775,7 +775,7 @@ namespace li_http_backend {
   }
 
 }
-// from file /home/matt/local/include/li/metamap/algorithms/substract.hh
+
 
 namespace li_http_backend {
 
@@ -791,7 +791,7 @@ namespace li_http_backend {
   }
 
 }
-// from file /home/matt/local/include/li/http_backend/symbols.hh
+
 #ifndef LI_SYMBOL_blocking
 #define LI_SYMBOL_blocking
     LI_SYMBOL(blocking)
@@ -1208,12 +1208,12 @@ struct sql_orm_schema : public MD {
 };
 
 }; // namespace li_http_backend
-// from file /home/matt/local/include/li/json/json.hh
 
-// from file /home/matt/local/include/li/json/decoder.hh
-// from file /home/matt/local/include/li/json/utils.hh
 
-// from file /home/matt/local/include/li/json/symbols.hh
+
+
+
+
 #ifndef LI_SYMBOL_append
 #define LI_SYMBOL_append
     LI_SYMBOL(append)
@@ -1366,10 +1366,10 @@ namespace li_http_backend {
   constexpr auto is_std_optional(T) -> std::false_type;
   
 }
-// from file /home/matt/local/include/li/json/unicode.hh
 
 
-// from file /home/matt/local/include/li/json/decode_stringstream.hh
+
+
 
 namespace li_http_backend {
 
@@ -1577,7 +1577,7 @@ namespace li_http_backend {
 
 }
 
-// from file /home/matt/local/include/li/json/error.hh
+
 
 namespace li_http_backend {
 
@@ -2248,7 +2248,7 @@ namespace li_http_backend {
 
 }
 
-// from file /home/matt/local/include/li/json/encoder.hh
+
 
 namespace li_http_backend {
 
@@ -2510,7 +2510,7 @@ template <typename A, typename B, typename... C> auto json_encode(const assign_e
 } // namespace li_http_backend
 
 
-// from file /home/matt/local/include/li/http_backend/api.hh// from file /home/matt/local/include/li/http_backend/dynamic_routing_table.hh
+
 
 namespace li_http_backend {
 
@@ -2652,7 +2652,7 @@ namespace li_http_backend {
   };
 
 }
-// from file /home/matt/local/include/li/http_backend/error.hh
+
 
 namespace li_http_backend {
 
@@ -2802,9 +2802,9 @@ template <typename Req, typename Resp> struct api {
 };
 
 } // namespace li_http_backend
-// from file /home/matt/local/include/li/http_backend/request.hh
 
-// from file /home/matt/local/include/li/http_backend/url_decode.hh
+
+
 #if defined(_MSC_VER)
 #endif
 
@@ -3267,7 +3267,7 @@ template <typename O> auto http_request::post_parameters(O& res) {
 }
 
 } // namespace li_http_backend
-// from file /home/matt/local/include/li/http_backend/response.hh
+
 
 //#include <stdlib.h>
 
@@ -3334,7 +3334,7 @@ struct http_response {
 };
 
 } // namespace li_http_backend
-// from file /home/matt/local/include/li/http_backend/sql_crud.hh
+
 
 
 namespace li_http_backend {
@@ -3372,7 +3372,7 @@ template <typename DB, typename A, typename B> auto sql_crud(DB& db, sql_orm_sch
 }
 
 } // namespace li_http_backend
-// from file /home/matt/local/include/li/http_backend/mhd.hh
+
 
 
 #if defined(__GNUC__) && defined(__MINGW32__)
@@ -3691,8 +3691,8 @@ namespace li_http_backend {
   
 
 }
-// from file /home/matt/local/include/li/http_backend/sql_http_session.hh
-// from file /home/matt/local/include/li/http_backend/cookie.hh
+
+
 
 namespace li_http_backend {
 
@@ -3800,7 +3800,7 @@ template <typename... F> struct sql_http_session {
 };
 
 } // namespace li_http_backend
-// from file /home/matt/local/include/li/http_backend/hashmap_http_session.hh
+
 
 namespace li_http_backend {
 
@@ -3854,7 +3854,7 @@ template <typename... F> struct hashmap_http_session {
 };
 
 } // namespace li_http_backend
-// from file /home/matt/local/include/li/http_backend/serve_directory.hh
+
 
 namespace li_http_backend {
 

@@ -7,29 +7,29 @@
 
 #pragma once
 
-#include <sqlite3.h>
 #include <vector>
+#include <sqlite3.h>
+#include <cstring>
 #include <iostream>
 #include <mutex>
-#include <sstream>
-#include <string>
-#include <utility>
-#include <tuple>
-#include <cstring>
 #include <unordered_map>
+#include <tuple>
 #include <memory>
+#include <sstream>
+#include <utility>
+#include <string>
 
 #if defined(_MSC_VER)
 #include <ciso646>
 #endif // _MSC_VER
 
 
-// from file /home/matt/local/include/li/sql/sqlite.hh
+
 #if defined(_MSC_VER)
 #endif
 
 
-// from file /home/matt/local/include/li/callable_traits/callable_traits.hh
+
 namespace li_sqlite {
 
   template <typename ...T>
@@ -145,7 +145,7 @@ namespace li_sqlite {
   };
 
 }
-// from file /home/matt/local/include/li/metamap/metamap.hh
+
 
 namespace li_sqlite {
 
@@ -299,9 +299,9 @@ namespace li_sqlite {
   
 }
 
-// from file /home/matt/local/include/li/metamap/make.hh
-// from file /home/matt/local/include/li/symbol/symbol.hh
-// from file /home/matt/local/include/li/symbol/ast.hh
+
+
+
 
 namespace li_sqlite {
 
@@ -642,8 +642,8 @@ namespace li_sqlite {
   }
   
 }
-// from file /home/matt/local/include/li/metamap/algorithms/map_reduce.hh
-// from file /home/matt/local/include/li/metamap/algorithms/tuple_utils.hh
+
+
 
 namespace li_sqlite {
 
@@ -788,9 +788,9 @@ namespace li_sqlite {
   }
 
 }
-// from file /home/matt/local/include/li/metamap/algorithms/intersection.hh
-// from file /home/matt/local/include/li/metamap/algorithms/make_metamap_skip.hh
-// from file /home/matt/local/include/li/metamap/algorithms/cat.hh
+
+
+
 
 namespace li_sqlite {
 
@@ -853,7 +853,7 @@ namespace li_sqlite {
   }
 
 }
-// from file /home/matt/local/include/li/metamap/algorithms/substract.hh
+
 
 namespace li_sqlite {
 
@@ -869,7 +869,7 @@ namespace li_sqlite {
   }
 
 }
-// from file /home/matt/local/include/li/sql/symbols.hh
+
 #ifndef LI_SYMBOL_after_insert
 #define LI_SYMBOL_after_insert
     LI_SYMBOL(after_insert)
@@ -965,7 +965,7 @@ namespace li_sqlite {
     LI_SYMBOL(write_access)
 #endif
 
-// from file /home/matt/local/include/li/sql/sql_common.hh
+
 
 namespace li_sqlite
 {
@@ -1312,8 +1312,8 @@ struct sqlite_database {
 };
 
 } // namespace li_sqlite
-// from file /home/matt/local/include/li/sql/sql_orm.hh
-// from file /home/matt/local/include/li/http_backend/symbols.hh
+
+
 #ifndef LI_SYMBOL_blocking
 #define LI_SYMBOL_blocking
     LI_SYMBOL(blocking)

@@ -8,11 +8,11 @@
 #pragma once
 
 #include <vector>
-#include <utility>
 #include <tuple>
+#include <utility>
 
 
-// from file /home/matt/local/include/li/metamap/metamap.hh
+
 
 namespace li_metamap {
 
@@ -166,9 +166,9 @@ namespace li_metamap {
   
 }
 
-// from file /home/matt/local/include/li/metamap/make.hh
-// from file /home/matt/local/include/li/symbol/symbol.hh
-// from file /home/matt/local/include/li/symbol/ast.hh
+
+
+
 
 namespace li_metamap {
 
@@ -509,8 +509,8 @@ namespace li_metamap {
   }
   
 }
-// from file /home/matt/local/include/li/metamap/algorithms/map_reduce.hh
-// from file /home/matt/local/include/li/metamap/algorithms/tuple_utils.hh
+
+
 
 namespace li_metamap {
 
@@ -655,9 +655,9 @@ namespace li_metamap {
   }
 
 }
-// from file /home/matt/local/include/li/metamap/algorithms/intersection.hh
-// from file /home/matt/local/include/li/metamap/algorithms/make_metamap_skip.hh
-// from file /home/matt/local/include/li/metamap/algorithms/cat.hh
+
+
+
 
 namespace li_metamap {
 
@@ -720,7 +720,7 @@ namespace li_metamap {
   }
 
 }
-// from file /home/matt/local/include/li/metamap/algorithms/substract.hh
+
 
 namespace li_metamap {
 
