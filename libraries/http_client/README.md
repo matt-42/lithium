@@ -24,6 +24,7 @@ Tutorial
 ========================
 
 ```c++
+using namespace li_http_client;
 
 // Simple GET request:
 auto res = http_get("http://www.google.com");
@@ -34,9 +35,9 @@ std::cout << res.body << std::endl;
 // http_post, http_put, http_delete are also avalable.
 
 // GET and POST Parameters.
-auto res = http_post("http://my_api.com/hello", 
+auto res = http_post("http://my_api.com/update_test", 
                      s::get_parameters = mmm(s::id = 42), 
-                     s::post_parameters = mmm(s::id = 42));
+                     s::post_parameters = mmm(s::name = "John", s::age = 42));
 
 // Access to headers.
 auto res = http_get("http://my_api.com/hello", s::fetch_headers);
