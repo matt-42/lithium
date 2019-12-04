@@ -30,7 +30,7 @@ int main() {
 
 
   // Crud for the User object.
-  api.add_subapi("/user", sql_crud(user_schema));
+  api.add_subapi("/user", sql_crud_api(user_schema));
 
   api.print_routes(); 
   // std::cout << api_description(api) << std::endl;

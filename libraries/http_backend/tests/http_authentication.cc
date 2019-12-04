@@ -22,7 +22,7 @@ int main()
 
   users.connect().drop_table_if_exists().create_table_if_not_exists();
   //session.drop_table_if_exists().create_table_if_not_exists();
-  auto auth = li::sql_http_authentication(sessions, users, s::login, s::password);
+  auto auth = li::http_authentication(sessions, users, s::login, s::password);
 
   li::api<li::http_request, li::http_response> my_api;
 

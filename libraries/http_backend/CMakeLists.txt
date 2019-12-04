@@ -5,6 +5,7 @@ find_package(Boost REQUIRED filesystem)
 
 include_directories(${Boost_INCLUDE_DIRS})
 
+add_subdirectory("examples")
 add_subdirectory("tests")
 
 

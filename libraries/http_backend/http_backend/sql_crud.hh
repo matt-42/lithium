@@ -7,7 +7,7 @@
 
 namespace li {
   
-template <typename A, typename B, typename C> auto sql_crud(sql_orm_schema<A, B, C>& orm_schema) {
+template <typename A, typename B, typename C> auto sql_crud_api(sql_orm_schema<A, B, C>& orm_schema) {
 
   api<http_request, http_response> api;
 

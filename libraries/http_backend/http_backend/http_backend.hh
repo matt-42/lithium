@@ -1,5 +1,4 @@
 #include <li/sql/sql_common.hh>
-//#include <li/sql/mysql.hh>
 #include <li/sql/sql_orm.hh>
 #include <li/json/json.hh>
 
@@ -13,3 +12,4 @@
 #include <li/http_backend/sql_http_session.hh>
 #include <li/http_backend/hashmap_http_session.hh>
 #include <li/http_backend/serve_directory.hh>
+#include <li/http_backend/http_authentication.hh>

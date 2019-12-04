@@ -259,7 +259,6 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
   template <typename N, typename... CB> void remove(const N& o, CB&&... args) {
 
-    call_callback(s::write_access, o, args...);
     call_callback(s::before_remove, o, args...);
 
     std::stringstream ss;

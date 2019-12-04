@@ -2,12 +2,13 @@
 
 #include <optional>
 #include <li/http_backend/sql_http_session.hh>
+#include <li/http_backend/api.hh>
 
 namespace li {
 
 template <typename S, typename U, typename... F>
-struct sql_http_authentication {
-  sql_http_authentication(S& session, U& users, F... login_fields)
+struct http_authentication {
+  http_authentication(S& session, U& users, F... login_fields)
       : sessions_(session),
         users_(users),
         login_fields_(std::make_tuple(login_fields...))
@@ -38,9 +39,10 @@ struct sql_http_authentication {
   }
 
   bool signup(http_request& req, http_response& resp) {
-      auto new_user = req.post_parameters(users_.schema().without_auto_increment());
+      auto new_user = req.post_parameters(users_.without_auto_increment());
       auto users = users_.connect();
-      if (users.exists(intersection(new_user, login_fields_)))
+      auto fields_mm = tuple_reduce(login_fields_, mmm);
+      if (users.exists(intersection(new_user, fields_mm)))
         return false;
       else 
       {
@@ -52,5 +54,28 @@ struct sql_http_authentication {
   U& users_;
   std::tuple<F...> login_fields_;
 };
+
+template <typename... A>
+api<http_request, http_response> http_authentication_api(http_authentication<A...>& auth) {
+
+  api<http_request, http_response> api;
+
+  api.post("/login") = [&] (http_request& request, http_response& response) {
+    if (!auth.login(request, response))
+      throw http_error::unauthorized("Bad login.");
+  };
+
+  api.get("/logout") = [&] (http_request& request, http_response& response) {
+    auth.logout(request, response);
+  };
+
+  api.get("/signup") = [&] (http_request& request, http_response& response) {
+    if (!auth.signup(request, response))
+      throw http_error::bad_request("User already exists.");
+  };
+
+
+  return api;
+}
 
 } // namespace li
