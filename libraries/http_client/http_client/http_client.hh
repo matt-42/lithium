@@ -11,6 +11,7 @@
 #include <map>
 #include <memory>
 #include <sstream>
+#include <unordered_map>
 
 #include <li/http_client/symbols.hh>
 #include <li/json/json.hh>
