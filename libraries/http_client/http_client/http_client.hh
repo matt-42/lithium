@@ -21,10 +21,27 @@ inline size_t curl_write_callback(char* ptr, size_t size, size_t nmemb, void* us
 
 inline std::streamsize curl_read_callback(void* ptr, size_t size, size_t nmemb, void* stream);
 
+inline size_t curl_header_callback(char *buffer,   size_t size,   size_t nitems,   void *userdata)
+{
+  auto& headers_map = *(std::unordered_map<std::string, std::string>*)userdata;
+
+  int split = 0;
+  size_t total_size = size * nitems;
+  while(split < total_size && buffer[split] != ':') split++;
+
+  if (split == total_size)
+    return total_size;
+  //throw std::runtime_error("Header line does not contains a colon (:)");
+
+  int skip_nl = (buffer[total_size - 1] == '\n');
+  int skip_space = (buffer[split + 1] == ' ');
+  headers_map[std::string(buffer, split)] = std::string(buffer + split + 1 + skip_space, total_size - split - 1 - skip_nl - skip_space);
+  return total_size;
+}
+
 struct http_client {
 
-
-  enum metthod_verb { HTTP_GET, HTTP_POST, HTTP_PUT, HTTP_DELETE };
+  enum method_verb { HTTP_GET, HTTP_POST, HTTP_PUT, HTTP_DELETE };
 
   inline http_client(const std::string& prefix = "") : url_prefix_(prefix) {
     curl_global_init(CURL_GLOBAL_ALL);
@@ -40,6 +57,8 @@ struct http_client {
     struct curl_slist* headers_list = NULL;
 
     auto arguments = mmm(args...);
+    constexpr bool fetch_headers = has_key<decltype(arguments)>(s::fetch_headers);
+
     // Generate url.
     std::stringstream url_ss;
     url_ss << url_prefix_ << url;
@@ -130,6 +149,14 @@ struct http_client {
 
     curl_easy_setopt(curl_, CURLOPT_HTTPHEADER, headers_list);
 
+    // Setup response header parsing.
+    std::unordered_map<std::string, std::string> response_headers_map;
+    if (fetch_headers)
+    {
+      curl_easy_setopt(curl_, CURLOPT_HEADERDATA, &response_headers_map); 
+      curl_easy_setopt(curl_, CURLOPT_HEADERFUNCTION, curl_header_callback); 
+    }
+
     // Send the request.
     char errbuf[CURL_ERROR_SIZE];
     curl_easy_setopt(curl_, CURLOPT_ERRORBUFFER, errbuf);
@@ -143,8 +170,11 @@ struct http_client {
     long response_code;
     curl_easy_getinfo(curl_, CURLINFO_RESPONSE_CODE, &response_code);
 
-    // Decode result.
-    return mmm(s::status = response_code, s::body = body_buffer_);
+    // Return response object.
+    if constexpr (fetch_headers)
+      return mmm(s::status = response_code, s::body = body_buffer_, s::headers = response_headers_map);
+    else
+      return mmm(s::status = response_code, s::body = body_buffer_);
   }
 
   template <typename... P>

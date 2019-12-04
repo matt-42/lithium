@@ -5,9 +5,19 @@
     LI_SYMBOL(body)
 #endif
 
+#ifndef LI_SYMBOL_fetch_headers
+#define LI_SYMBOL_fetch_headers
+    LI_SYMBOL(fetch_headers)
+#endif
+
 #ifndef LI_SYMBOL_get_parameters
 #define LI_SYMBOL_get_parameters
     LI_SYMBOL(get_parameters)
+#endif
+
+#ifndef LI_SYMBOL_headers
+#define LI_SYMBOL_headers
+    LI_SYMBOL(headers)
 #endif
 
 #ifndef LI_SYMBOL_jsonencoded
