@@ -10,19 +10,31 @@ things.
 A symbol is defined with a macro function :
 
 ```c++
-LI_SYMBOL(my_symbol)
-LI_SYMBOL(my_symbol2)
-``` 
+#ifndef LI_SYMBOL_my_symbol
+#define LI_SYMBOL_my_symbol
+  LI_SYMBOL(my_symbol)
+#endif
 
-And provides some operators :
+#ifndef LI_SYMBOL_my_symbol2
+#define LI_SYMBOL_my_symbol2
+  LI_SYMBOL(my_symbol2)
+#endif
+```
+
+A tool is provided to generate symbols automatically:
+```
+li_symbol_generator f1.cc f2.cc ... > symbol_declarations.hh
+```
+
+All symbols are placed in the s:: namespace and can be used with the followings :
 
 ```c++
 // Named Variable declaration.
 auto v = li::make_variable(s::my_symbol, 42);
 assert(v.my_symbol == 42);
 
-// Symbol introspection
-assert(!strcmp(li::symbol_string(v), "my_symbol"));
+// Get the string associated to a symbol.
+assert(!strcmp(li::symbol_string(s::my_symbol), "my_symbol"));
 
 // Member access.
 assert(li::symbol_member_access(v, s::my_symbol) == 42);  

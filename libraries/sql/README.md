@@ -4,16 +4,21 @@ li::sql
 This library aims to ease the communication with SQL databases within C++ code.
 
 It features:
-  - A sqlite C++ connector.
-  - A mysql C++ connector.
-  - An ORM-like class that allow to send requests without typing raw SQL code.
+  - A sqlite C++ connector
+  - A mysql C++ connector
+  - An ORM-like class that allow to send requests without typing raw SQL code
+
+# Installation
+
+
 
 # Tutorial
 
-## Connectors.
+## Connectors
 
 ```c++
 #include <li/sql/mysql.hh>
+#include <li/sql/sqlite.hh>
 
 // Declare a mysql database.
 auto db = li::mysql_database(s::host = "127.0.0.1",
@@ -55,7 +60,7 @@ con("select name, age from users;").map([] (std::string name, int age) {
 
 ```c++
 // Let's declare our orm.
-auto schema = sql_orm_schema("users_orm_test" /* the table name in the SQL db*/)
+auto schema = li::sql_orm_schema("users_orm_test" /* the table name in the SQL db*/)
 
 // The fields of our user object:
 
@@ -70,41 +75,41 @@ auto schema = sql_orm_schema("users_orm_test" /* the table name in the SQL db*/)
               .callbacks(
                 // the validate callback is called before insert and update.
                 s::validate = [] (auto p) { if (p.age < 0) throw std::runtime_error("invalid age"); },
-                // the [before|after][insert|remove|update] are self explanatory.
+                // the (before|after)(insert|remove|update) are self explanatory.
                 s::before_insert = [] (auto p) { std::cout << "going to insert " << json_encode(p) << std::endl; },
                 s::after_insert = [] (auto p) { std::cout << "inserted " << json_encode(p) << std::endl; },
                 s::after_remove = [] (auto p) { std::cout << "removed " << json_encode(p) << std::endl;})
                 ;
 
-// Connect the orm to a database (SQLITE or MySQL)
-auto orm = schema.connect(db);
+// Connect the orm to a database.
+auto users = schema.connect(db); // db can be built with li::sqlite_database or li::mysql_database
 
 // Drop the table.
-orm.drop_table_if_exists();
+users.drop_table_if_exists();
 
 // Create it.
-orm.create_table_if_not_exists();
+users.create_table_if_not_exists();
 
 // Count users.
-int count = orm.count();
+int count = users.count();
 
 // Find one user.
 // it returns a std::optional object.
-auto u = orm.find_one(s::id = 42);
+auto u = users.find_one(s::id = 42);
 if (u) std::cout << u->name << std::endl;
 else  std::cout << "user not foudn" << std::endl;
 // Note: you can use any combination of user field:
-auto u = orm.find_one(s::name = "John", s::age = 42); // look for name == John and age == 42;
+auto u = users.find_one(s::name = "John", s::age = 42); // look for name == John and age == 42;
 
 // Insert a new user.
 // Returns the id of the new object.
-long long int john_id = orm.insert(s::name = "John", s::age = 42, s::login = "lol");
+long long int john_id = users.insert(s::name = "John", s::age = 42, s::login = "lol");
 
 // Update.
-auto u = orm.find_one(s::id = john_id);
+auto u = users.find_one(s::id = john_id);
 u->age = 43;
-orm.update(*u);
+users.update(*u);
 
 // Remove.
-orm.remove(*u);
+users.remove(*u);
 ```

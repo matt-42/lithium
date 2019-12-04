@@ -1,5 +1,6 @@
 #pragma once
 
+#include <mutex>
 #include <li/http_backend/cookie.hh>
 
 namespace li {

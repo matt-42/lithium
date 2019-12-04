@@ -8,7 +8,7 @@ include_directories(${Boost_INCLUDE_DIRS})
 add_subdirectory("tests")
 
 
-install(DIRECTORY silicon DESTINATION include
+install(DIRECTORY http_backend DESTINATION include/li
   FILES_MATCHING PATTERN "*.hh")
-install(DIRECTORY silicon DESTINATION include
+install(DIRECTORY http_backend DESTINATION include/li
   FILES_MATCHING PATTERN "*.hpp")

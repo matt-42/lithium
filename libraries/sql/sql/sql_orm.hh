@@ -5,6 +5,8 @@
 #include <iostream>
 #include <sstream>
 
+#include "symbols.hh"
+
 namespace li {
 
 struct sqlite_connection;
