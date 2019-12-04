@@ -17,7 +17,8 @@ for(var key in person){
 In C++ it is harder, you need to declare the structure of your object before instantiating it,
 and you simply can't iterate over the members of an object.
 
-Thanks to this library, you can reach Javascript simplicity without loosing the performances of C++:
+This library aims at providing a new C++ paradigm that enables you to reach Javascript simplicity 
+without loosing the performances of C++:
 ```c++
 auto person = mmm(s::name = "John", s::age = 42); // mmm means Make MetaMap
 
