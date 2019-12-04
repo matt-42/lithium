@@ -57,3 +57,17 @@ auto m4 = li::intersection(m1, m2);
 ```c++
 auto m5 = li::substract(m1, m2);
 ```
+
+
+Installation
+============================
+
+Either install the single header library
+```
+wget https://github.com/matt-42/lithium/blob/master/single_headers/li_metamap.hh
+```
+and include the **li_metamap.hh** header. In this case the namespace of the library is **li_metamap**.
+
+Or install the lithium project: https://github.com/matt-42/lithium
+and include the **li/metamap/metamap.hh** header. In this case the namespace of the library is **li**.
+
