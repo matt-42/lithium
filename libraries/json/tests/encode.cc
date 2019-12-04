@@ -1,11 +1,7 @@
 #include <cassert>
 #include <string_view>
 #include <li/json/json.hh>
-
-LI_SYMBOL(test1)
-LI_SYMBOL(test2)
-
-
+#include "symbols.hh"
 
 using namespace li;
 

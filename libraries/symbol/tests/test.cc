@@ -1,8 +1,7 @@
 #include <li/symbol/symbol.hh>
 #include <cassert>
 #include <cstring>
-
-LI_SYMBOL(my_symbol)
+#include "symbols.hh"
 
 using namespace li;
 

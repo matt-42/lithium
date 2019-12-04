@@ -3,12 +3,7 @@
 #include <cassert>
 #include <string>
 
-LI_SYMBOL(test1)
-LI_SYMBOL(test2)
-LI_SYMBOL(test3)
-LI_SYMBOL(test4)
-LI_SYMBOL(test5)
-
+#include "symbols.hh"
 using namespace li;
 
 int main()

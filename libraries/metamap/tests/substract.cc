@@ -1,11 +1,7 @@
 #include <li/metamap/make.hh>
 #include <li/metamap/algorithms/substract.hh>
 #include <cassert>
-
-LI_SYMBOL(test1)
-LI_SYMBOL(test2)
-LI_SYMBOL(test3)
-LI_SYMBOL(test4)
+#include "symbols.hh"
 
 using namespace li;
 

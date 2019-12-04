@@ -2,12 +2,7 @@
 #include <iostream>
 #include <string>
 
-LI_SYMBOL(age)
-LI_SYMBOL(entry)
-LI_SYMBOL(id)
-
-
-
+#include "symbols.hh"
 
 int main ()
 {
