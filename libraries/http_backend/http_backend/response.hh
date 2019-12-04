@@ -5,6 +5,11 @@
 
 //#include <stdlib.h>
 #include <fcntl.h>
+
+#if defined(_MSC_VER)
+#include <io.h>
+#endif
+
 //#include <sys/stat.h>
 
 namespace li {
@@ -18,7 +23,12 @@ struct http_response {
   void write(const std::string res) { body = res; }
   void write_file(const std::string path) {
 
+#if defined(_MSC_VER)
+    int fd; 
+    _sopen_s(&fd, path.c_str(), O_RDONLY, _SH_DENYRW, _S_IREAD);
+#else
     int fd = open(path.c_str(), O_RDONLY);
+#endif
 
     if (fd == -1)
       throw http_error::not_found("File not found.");

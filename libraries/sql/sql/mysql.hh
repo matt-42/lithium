@@ -69,6 +69,12 @@ struct mysql_statement {
     }
   }
 
+  auto& operator()() {
+  if (mysql_stmt_execute(stmt_) != 0)
+      throw std::runtime_error(std::string("mysql_stmt_execute error: ") + mysql_stmt_error(stmt_));
+    return *this;
+  }
+
   template <typename... T> auto& operator()(T&&... args) {
     MYSQL_BIND bind[sizeof...(T)];
     memset(bind, 0, sizeof(bind));
@@ -89,7 +95,7 @@ struct mysql_statement {
     return *this;
   }
 
-  int affected_rows() { return mysql_stmt_affected_rows(stmt_); }
+  long long int affected_rows() { return mysql_stmt_affected_rows(stmt_); }
 
   template <typename V> void bind(MYSQL_BIND& b, V& v) {
     b.buffer = const_cast<std::remove_const_t<V>*>(&v);
@@ -285,7 +291,7 @@ struct mysql_statement {
     return f;
   }
 
-  int last_insert_id() { return mysql_stmt_insert_id(stmt_); }
+  long long int last_insert_id() { return mysql_stmt_insert_id(stmt_); }
 
   bool empty() { return mysql_stmt_fetch(stmt_) == MYSQL_NO_DATA; }
 
@@ -307,7 +313,7 @@ struct mysql_connection {
 
   inline mysql_connection(MYSQL* con, mysql_connection_pool& pool);
 
-  int last_insert_rowid() { return mysql_insert_id(con_); }
+  long long int last_insert_rowid() { return mysql_insert_id(con_); }
 
   mysql_statement& operator()(std::string rq) {
     return prepare(rq)();

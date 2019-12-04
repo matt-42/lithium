@@ -18,7 +18,7 @@ int main() {
     user_orm.connect(db).drop_table_if_exists().create_table_if_not_exists();
 
     // Session.
-    sql_http_session session("user_sessions", s::user_id = -1);
+    auto session = sql_http_session("user_sessions", s::user_id = -1);
     session.orm().connect(db).drop_table_if_exists().create_table_if_not_exists();
 
     my_api.get("/who_am_i") = [&](http_request& request, http_response& response) {
