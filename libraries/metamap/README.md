@@ -20,9 +20,15 @@ and you simply can't iterate over the members of an object.
 This library aims at providing a new C++ paradigm that enables you to reach Javascript simplicity 
 without loosing the performances of C++:
 ```c++
+// Declare an object
 auto person = mmm(s::name = "John", s::age = 42); // mmm means Make MetaMap
 
+// Iterate on the members.
 map(person, [] (auto key, auto value) { std::cout << symbol_string(key) << value << std::endl; });
+
+// You can also use it as a plain C++ object:
+person.name = "Aurelia";
+person.age = 52;
 
 // Note s::name and s::age must be defined earlier with LI_SYMBOL(name); LI_SYMBOL(age);
 ```
