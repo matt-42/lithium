@@ -57,7 +57,7 @@ int main() {
   auto sqlite_db = sqlite_database("iod_sqlite_test_orm.db");
   test_with_db(sqlite_db);
 
-  auto mysql_db = mysql_connection_pool(s::host = "127.0.0.1",
+  auto mysql_db = mysql_database(s::host = "127.0.0.1",
                                 s::database = "silicon_test",
                                 s::user = "root",
                                 s::password = "sl_test_password",

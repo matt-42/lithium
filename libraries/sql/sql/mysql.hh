@@ -159,7 +159,7 @@ struct mysql_statement {
     return std::integral_constant<int, sizeof...(A)>();
   }
 
-  template <typename T> int operator>>(T&& o) {
+  template <typename T> int fetch(T&& o) {
 
     constexpr int size = decltype(number_of_fields(o))::value;
     unsigned long real_lengths[size];
@@ -176,6 +176,28 @@ struct mysql_statement {
 
     mysql_stmt_free_result(stmt_);
     return res;
+  }
+  template <typename T> void read(std::optional<T>& o) {
+    T t;
+    if (fetch(t))
+      o = std::optional<T>(t);
+    else
+      o = std::optional<T>();
+  }
+
+  template <typename T> T read() {
+    T t;
+    if (!fetch(t))
+      throw std::runtime_error("Request did not return any data.");
+    return t;
+  }
+
+  template <typename T> std::optional<T> read_optional() {
+    T t;
+    if (fetch(t))
+      return std::optional<T>(t);
+    else
+      return std::optional<T>();
   }
 
   template <typename F> void map(F f) {
@@ -303,7 +325,7 @@ struct mysql_statement {
   MYSQL_FIELD* fields_;
 }; // namespace li
 
-struct mysql_connection_pool;
+struct mysql_database;
 
 struct mysql_connection {
   //mysql_connection(MYSQL* con) : con_(con) {}
@@ -311,7 +333,7 @@ struct mysql_connection {
   // template <typename... OPTS> inline mysql_connection(OPTS&&... opts) :
   // con_(impl::open_mysql_connection(opts...)) {}
 
-  inline mysql_connection(MYSQL* con, mysql_connection_pool& pool);
+  inline mysql_connection(MYSQL* con, mysql_database& pool);
 
   long long int last_insert_rowid() { return mysql_insert_id(con_); }
 
@@ -355,12 +377,12 @@ struct mysql_connection {
   std::unordered_map<std::string, mysql_statement> stm_cache_;
   MYSQL* con_;
   std::shared_ptr<int> sptr_;
-  mysql_connection_pool& pool_;
+  mysql_database& pool_;
 };
 
-struct mysql_connection_pool : std::enable_shared_from_this<mysql_connection_pool> {
+struct mysql_database : std::enable_shared_from_this<mysql_database> {
 
-  template <typename... O> inline mysql_connection_pool(O... opts) {
+  template <typename... O> inline mysql_database(O... opts) {
 
     auto options = mmm(opts...);
     static_assert(has_key(options, s::host), "open_mysql_connection requires the s::host argument");
@@ -420,7 +442,7 @@ struct mysql_connection_pool : std::enable_shared_from_this<mysql_connection_poo
   std::string character_set_;
 };
 
-inline mysql_connection::mysql_connection(MYSQL* con, mysql_connection_pool& pool)
+inline mysql_connection::mysql_connection(MYSQL* con, mysql_database& pool)
     : con_(con), pool_(pool) {
   sptr_ = std::shared_ptr<int>((int*)42, [&pool, con](int* p) { pool.free_connection(con); });
 }

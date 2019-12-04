@@ -31,7 +31,7 @@ int main()
 
   //try
   {
-    auto m = mysql_connection_pool(s::host = "127.0.0.1",
+    auto m = mysql_database(s::host = "127.0.0.1",
                                   s::database = "silicon_test",
                                   s::user = "root",
                                   s::password = "sl_test_password",
@@ -50,8 +50,7 @@ int main()
       (1, "John", 42)
       (2, "Bob", 24); // Send two queries.
 
-    int count = 0;
-    c("SELECT count(*) from users_test_mysql") >> count;
+    int count = c("SELECT count(*) from users_test_mysql").template read<int>();
     std::cout << count << std::endl;
     assert(count == 2);
     // // multiple inserts.

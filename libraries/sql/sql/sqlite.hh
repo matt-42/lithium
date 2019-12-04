@@ -102,7 +102,7 @@ struct sqlite_statement {
   }
 
   // Fill a metamap with the current result row.
-  template <typename... A> int operator>>(metamap<A...>& o) {
+  template <typename... A> int fetch(metamap<A...>& o) {
 
     if (not ready_for_reading_)
       this->operator()();
@@ -114,7 +114,7 @@ struct sqlite_statement {
   }
 
   // Fill an simple object (int or string) with the current result row.
-  template <typename T> int operator>>(T& o) {
+  template <typename T> int fetch(T& o) {
 
     if (not ready_for_reading_)
       this->operator()();
@@ -123,6 +123,29 @@ struct sqlite_statement {
     this->read_column(0, o);
     ready_for_reading_ = false;
     return true;
+  }
+
+  template <typename T> void read(std::optional<T>& o) {
+    T t;
+    if (fetch(t))
+      o = std::optional<T>(t);
+    else
+      o = std::optional<T>();
+  }
+
+  template <typename T> T read() {
+    T t;
+    if (!fetch(t))
+      throw std::runtime_error("Request did not return any data.");
+    return t;
+  }
+
+  template <typename T> std::optional<T> read_optional() {
+    T t;
+    if (fetch(t))
+      return std::optional<T>(t);
+    else
+      return std::optional<T>();
   }
 
   long long int last_insert_id() { return sqlite3_last_insert_rowid(db_); }

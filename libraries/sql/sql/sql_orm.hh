@@ -112,11 +112,12 @@ template <typename SCHEMA, typename C> struct sql_orm {
     ss << "LIMIT 1";
     auto stmt = con_.prepare(ss.str());
 
-    if (!(li::tuple_reduce(metamap_values(where), stmt) >> o))
-      return std::optional<O>();    
-    call_callback(s::read_access, o);
-    return std::make_optional(o);
+    auto res = li::tuple_reduce(metamap_values(where), stmt).template read_optional<O>();
+    if (res)
+      call_callback(s::read_access, o);
+    return res;
   }
+
   template <typename A, typename B, typename... W>
   auto find_one(assign_exp<A, B> w1, W... ws) {
     return find_one(mmm(w1, ws...));
@@ -133,12 +134,9 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
     auto stmt = con_.prepare(ss.str());
 
-    int count = 0;
-    if (!(li::tuple_reduce(metamap_values(cond), stmt) >> count))
-      throw std::runtime_error("count request did not return.");
-    else
-      return count;
+    return li::tuple_reduce(metamap_values(cond), stmt).template read<int>();
   }
+
   template <typename A, typename B, typename... W>
   auto exists(assign_exp<A, B> w1, W... ws) {
     return exists(mmm(w1, ws...));
@@ -234,15 +232,13 @@ template <typename SCHEMA, typename C> struct sql_orm {
   }
 
   inline int count() {
-    int c;
-    con_(std::string("SELECT count(*) from ") + schema_.table_name()) >> c;
-    return c;
+    return con_(std::string("SELECT count(*) from ") + schema_.table_name()).template read<int>();
   }
 
   template <typename T> void remove(const T& o) {
 
     call_callback(s::write_access, o);
-    call_callback(s::before_destroy, o);
+    call_callback(s::before_remove, o);
 
     std::stringstream ss;
     ss << "DELETE from " << schema_.table_name() << " WHERE ";
@@ -258,7 +254,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     auto pks = intersection(o, schema_.primary_key());
     li::reduce(pks, con_.prepare(ss.str()));
 
-    call_callback(s::after_destroy, o);
+    call_callback(s::after_remove, o);
   }
   template <typename A, typename B, typename... T>
   void remove(const assign_exp<A, B>& o, T... tail) {

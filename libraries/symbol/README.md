@@ -5,7 +5,7 @@ li::symbol
 This library implements the basics of symbol based
 programming. Symbols are a new C++ paradigm that allow you to simply
 implement introspection, serialization, named parameters, and other
-things that are very hard / impossible to build in classic C++.
+things.
 
 A symbol is defined with a macro function :
 

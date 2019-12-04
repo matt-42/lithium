@@ -1,0 +1,81 @@
+
+
+X write methods
+X handle different methods.
+X update decode_url_arguments to handle {{param}} syntax. + test
+x update libcurl client api + test
+X include metamap & json
+X update sqlite client + test
+X go back to one namespace only if needed :/
+X orm callbacks
+
+X update sql_orm + test
+X update sql_crud 
+X get parameters
+X request parameters,
+X missing urlencode params.
+
+X test request parameters.
+X test sql_crud
+
+X compilation on windows/mac.
+X session/cookie
+X sql_session
+
+X json post parameters
+X hashmap_session
+
+X update mysql client
+X test orm with mysql.
+X test sql session with mysql.
+
+X implement the ...path in url.
+
+X fix subapi with url parameter.
+X make the file server api.
+
+X access to http headers.
+
+X test optional.
+
+X new name ?
+  values: 
+  
+    simplicity,
+    no templates,
+    modern,
+    last c++ features
+    expressivity
+    metamap (core concept)
+    symbol (core concept)
+
+    symaps
+    
+    iodine
+    lithium
+
+X check compilation on mac.
+X check compilation on windows.
+
+brainstorm about docs:
+  ideas:
+    website ?
+      readthedoc
+      doxygen
+    readmes
+      problem
+      solution
+      small tutorials
+      examples
+
+make install
+single headers
+
+test mysql/sqlite 
+
+write docs
+release
+
+
+travis
+RMQ
