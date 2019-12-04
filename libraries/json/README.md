@@ -1,6 +1,8 @@
 li::json
 ============================
 
+*Tested compilers: Linux: G++ 9, Clang++ 9, Macos: Clang 11, Windows: MSVC 19*
+
 li::json is a C++17 JSON serializer/deserializer designed for
 ease of use and performances.
 

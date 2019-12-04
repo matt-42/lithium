@@ -14,20 +14,20 @@ int main() {
     api<http_request, http_response> my_api;
 
     // Users table
-    auto user_orm = sql_orm_schema("users_to_test_session").fields(s::id(s::auto_increment, s::primary_key) = int(), s::login = std::string(),
+    auto user_orm = sql_orm_schema(db, "users_to_test_session").fields(s::id(s::auto_increment, s::primary_key) = int(), s::login = std::string(),
                               s::password = std::string());
-    user_orm.connect(db).drop_table_if_exists().create_table_if_not_exists();
+    user_orm.connect().drop_table_if_exists().create_table_if_not_exists();
 
     // Session.
-    auto session = sql_http_session("user_sessions", s::user_id = -1);
-    session.orm().connect(db).drop_table_if_exists().create_table_if_not_exists();
+    auto session = sql_http_session(db, "user_sessions", "test_cookie", s::user_id = -1);
+    session.orm().connect().drop_table_if_exists().create_table_if_not_exists();
 
     my_api.get("/who_am_i") = [&](http_request& request, http_response& response) {
-      auto sess = session.connect(db, request, response);
+      auto sess = session.connect(request, response);
       std::cout << sess.values().user_id << std::endl;
       if (sess.values().user_id != -1)
       {
-        if (auto u = user_orm.connect(db).find_one(s::id = sess.values().user_id))
+        if (auto u = user_orm.connect().find_one(s::id = sess.values().user_id))
           response.write(u->login);
         else
           throw http_error::internal_server_error("Id in session does not match database...");   
@@ -38,9 +38,9 @@ int main() {
 
     my_api.post("/login") = [&](http_request& request, http_response& response) {
       auto lp = request.post_parameters(s::login = std::string(), s::password = std::string());
-      if (auto user = user_orm.connect(db).find_one(lp))
+      if (auto user = user_orm.connect().find_one(lp))
       {
-        session.connect(db, request, response).store(s::user_id = user->id);
+        session.connect(request, response).store(s::user_id = user->id);
         response.write("login success");
       }
       else throw http_error::unauthorized("Bad login or password.");
@@ -48,15 +48,14 @@ int main() {
 
     my_api.post("/signup") = [&](http_request& request, http_response& response) {
       auto new_user = request.post_parameters(s::login = std::string(), s::password = std::string());
-      bool exists = false;
-      auto user_db = user_orm.connect(db);
+      auto user_db = user_orm.connect();
       if (user_db.exists(s::login = new_user.login))
         throw http_error::bad_request("User already exists.");
       else user_db.insert(new_user);
     };
 
     my_api.get("/logout") = [&](http_request& request, http_response& response) {
-        session.connect(db, request, response).logout();
+        session.connect(request, response).logout();
     };
 
 
@@ -87,7 +86,7 @@ int main() {
     CHECK_EQUAL("valid login", r4.status, 200);
     CHECK_EQUAL("valid login", r4.body, "login success");
 
-    CHECK_EQUAL("valid login", session.orm().connect(db).count(), 1);
+    CHECK_EQUAL("valid login", session.orm().connect().count(), 1);
 
     // Check session.
     auto r5 = c.get("/who_am_i");

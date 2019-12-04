@@ -12,7 +12,7 @@ int main() {
   api<http_request, http_response> my_api;
 
   // Session.
-  hashmap_http_session session(s::user_id = -1);
+  hashmap_http_session session("test_cookie", s::user_id = -1);
 
   my_api.get("/test1") = [&](http_request& request, http_response& response) {
     auto sess = session.connect(request, response);

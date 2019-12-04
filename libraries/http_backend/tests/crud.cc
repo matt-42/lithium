@@ -16,21 +16,21 @@ int main() {
 
   auto db = sqlite_database("./sl_test_crud.sqlite", s::synchronous = 1); // sqlite middleware.
 
-  auto user_schema = sql_orm_schema("users")
+  auto user_schema = sql_orm_schema(db, "users")
                       .fields(s::id(s::auto_increment, s::primary_key) = int(), 
                               s::name = std::string(),
                               s::age = int(),
                               s::address = std::string(),
                               s::city = std::string())
-                      .callbacks(s::before_insert = [](auto& user) { user.city = "Paris"; });
+                      .callbacks(s::before_insert = [](auto& user, http_request&, http_response&) { user.city = "Paris"; });
 
-  auto orm = user_schema.connect(db);
+  auto orm = user_schema.connect();
   orm.drop_table_if_exists();
   orm.create_table_if_not_exists();
 
 
   // Crud for the User object.
-  api.add_subapi("/user", sql_crud(db, user_schema));
+  api.add_subapi("/user", sql_crud(user_schema));
 
   api.print_routes(); 
   // std::cout << api_description(api) << std::endl;

@@ -70,3 +70,8 @@
     LI_SYMBOL(session_id)
 #endif
 
+#ifndef LI_SYMBOL_user_id
+#define LI_SYMBOL_user_id
+    LI_SYMBOL(user_id)
+#endif
+

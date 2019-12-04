@@ -11,15 +11,18 @@ int main() {
   using namespace li;
 
   auto test_with_db = [] (auto& db) {
-    auto schema = sql_orm_schema("users_orm_test")
+    auto schema = sql_orm_schema(db, "users_orm_test")
                   .fields(s::id(s::auto_increment, s::primary_key) = int(), s::age(s::read_only) = int(), 
                           s::name = std::string(),
                           s::login = std::string())
                   .callbacks(
-                    s::after_insert = [] (auto p) { std::cout << "inserted " << json_encode(p) << std::endl; },
-                    s::after_destroy = [] (auto p) { std::cout << "removed " << json_encode(p) << std::endl;})
+                    s::after_insert = [] (auto p, int data) { std::cout << "inserted " << json_encode(p) << std::endl; assert(data == 42); },
+                    s::after_destroy = [] (auto p, int data1, int data2) { 
+                      std::cout << "removed " << json_encode(p) << std::endl;
+                      assert(data1 == 42); assert(data2 == 51);
+                      })
                     ;
-    auto orm = schema.connect(db);
+    auto orm = schema.connect();
     auto c = db.get_connection();
 
     orm.drop_table_if_exists();
@@ -29,7 +32,7 @@ int main() {
     assert(!orm.find_one(s::id = 1));
 
     // Insert.
-    long long int john_id = orm.insert(s::name = "John", s::age = 42, s::login = "lol");
+    long long int john_id = orm.insert(s::name = "John", s::age = 42, s::login = "lol", 42);
     assert(orm.count() == 1);
     std::cout << john_id << std::endl;
     auto u = orm.find_one(s::id = john_id);
@@ -48,7 +51,7 @@ int main() {
     assert(u2->name == "John2" and u2->age == 42 and u2->login == "foo");
 
     // Remove.
-    orm.remove(*u2);
+    orm.remove(*u2, 42, 51);
     assert(orm.count() == 0);
 
   };

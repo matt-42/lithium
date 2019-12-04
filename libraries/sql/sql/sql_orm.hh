@@ -23,8 +23,9 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
   sql_orm(SCHEMA& schema, C con) : schema_(schema), con_(con) {}
 
-  template <typename S, typename O> void call_callback(S s, O& o) {
-    get_or(schema_.get_callbacks(), s, [](auto p) {})(o);
+  template <typename S, typename... A> void call_callback(S s, A&&... args) {
+    if constexpr(has_key<decltype(schema_.get_callbacks())>(s))
+      return schema_.get_callbacks()[s](args...);
   }
 
   inline auto drop_table_if_exists() {
@@ -97,7 +98,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     ss << " ";
   }
 
-  template <typename... W> auto find_one(metamap<W...> where) {
+  template <typename... W, typename... A> auto find_one(metamap<W...> where, A&&... cb_args) {
     std::stringstream ss;
     O o;
     ss << "SELECT ";
@@ -116,13 +117,21 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
     auto res = li::tuple_reduce(metamap_values(where), stmt).template read_optional<O>();
     if (res)
-      call_callback(s::read_access, o);
+      call_callback(s::read_access, o, cb_args...);
     return res;
   }
 
+  // template <typename O, typename... W>
+  // auto find_one_rec(metamap<O...>&& o, W... ws) {
+  //   return find_one(std::forward<metamap<O...>>(o), ws...);
+  // }
+  template <typename A, typename B, typename... O, typename... W>
+  auto find_one(metamap<O...>&& o, assign_exp<A, B> w1, W... ws) {
+    return find_one(cat(o, mmm(w1)), ws...);
+  }
   template <typename A, typename B, typename... W>
   auto find_one(assign_exp<A, B> w1, W... ws) {
-    return find_one(mmm(w1, ws...));
+    return find_one(mmm(w1), ws...);
   }
 
   template <typename W>
@@ -145,14 +154,13 @@ template <typename SCHEMA, typename C> struct sql_orm {
   }
   // Save a ll fields except auto increment.
   // The db will automatically fill auto increment keys.
-  template <typename N> long long int insert(N& o) {
-    std::cout << json_encode(o)<< std::endl;
+  template <typename N, typename... A> long long int insert(N&& o, A&&... cb_args) {
     std::stringstream ss;
     std::stringstream vs;
 
-    call_callback(s::validate, o);
-    call_callback(s::before_insert, o);
-    call_callback(s::write_access, o);
+    call_callback(s::validate, o, cb_args...);
+    call_callback(s::before_insert, o, cb_args...);
+    call_callback(s::write_access, o, cb_args...);
     ss << "INSERT into " << schema_.table_name() << "(";
 
     bool first = true;
@@ -174,15 +182,24 @@ template <typename SCHEMA, typename C> struct sql_orm {
     auto req = con_.prepare(ss.str());
     li::reduce(values, req);
 
-    call_callback(s::after_insert, o);
+    call_callback(s::after_insert, o, cb_args...);
 
     return req.last_insert_id();
   };
-  template <typename S, typename V, typename... A>
-  long long int insert(const assign_exp<S, V>& a, A&&... tail) {
-    auto m = mmm(a, tail...);
-    return insert(m);
+  template <typename A, typename B, typename... O, typename... W>
+  long long int insert(metamap<O...>&& o, assign_exp<A, B> w1, W... ws) {
+    return insert(cat(o, mmm(w1)), ws...);
   }
+  template <typename A, typename B, typename... W>
+  long long int insert(assign_exp<A, B> w1, W... ws) {
+    return insert(mmm(w1), ws...);
+  }
+
+  // template <typename S, typename V, typename... A>
+  // long long int insert(const assign_exp<S, V>& a, A&&... tail) {
+  //   auto m = mmm(a, tail...);
+  //   return insert(m);
+  // }
 
   // Iterate on all the rows of the table.
   template <typename F> void forall(F f) {
@@ -193,12 +210,12 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
   // Update N's members except auto increment members.
   // N must have at least one primary key.
-  template <typename N> void update(const N& o) {
+  template <typename N, typename... CB> void update(const N& o, CB&&... args) {
     // check if N has at least one member of PKS.
 
-    call_callback(s::validate, o);
-    call_callback(s::write_access, o);
-    call_callback(s::before_update, o);
+    call_callback(s::validate, o, args...);
+    call_callback(s::write_access, o, args...);
+    call_callback(s::before_update, o, args...);
 
     // static_assert(metamap_size<decltype(intersect(o, schema_.read_only()))>(),
     //"You cannot give read only fields to the orm update method.");
@@ -224,23 +241,26 @@ template <typename SCHEMA, typename C> struct sql_orm {
     auto stmt = con_.prepare(ss.str());
     li::tuple_reduce(std::tuple_cat(metamap_values(to_update), metamap_values(pk)), stmt);
 
-    call_callback(s::after_update, o);
+    call_callback(s::after_update, o, args...);
   }
 
-  template <typename S, typename V, typename... A>
-  void update(const assign_exp<S, V>& a, A&&... tail) {
-    auto m = mmm(a, tail...);
-    return update(m);
+  template <typename A, typename B, typename... O, typename... W>
+  void update(metamap<O...>&& o, assign_exp<A, B> w1, W... ws) {
+    return update(cat(o, mmm(w1)), ws...);
+  }
+  template <typename A, typename B, typename... W>
+  void update(assign_exp<A, B> w1, W... ws) {
+    return update(mmm(w1), ws...);
   }
 
   inline int count() {
     return con_(std::string("SELECT count(*) from ") + schema_.table_name()).template read<int>();
   }
 
-  template <typename T> void remove(const T& o) {
+  template <typename N, typename... CB> void remove(const N& o, CB&&... args) {
 
-    call_callback(s::write_access, o);
-    call_callback(s::before_remove, o);
+    call_callback(s::write_access, o, args...);
+    call_callback(s::before_remove, o, args...);
 
     std::stringstream ss;
     ss << "DELETE from " << schema_.table_name() << " WHERE ";
@@ -256,12 +276,18 @@ template <typename SCHEMA, typename C> struct sql_orm {
     auto pks = intersection(o, schema_.primary_key());
     li::reduce(pks, con_.prepare(ss.str()));
 
-    call_callback(s::after_remove, o);
+    call_callback(s::after_remove, o, args...);
   }
-  template <typename A, typename B, typename... T>
-  void remove(const assign_exp<A, B>& o, T... tail) {
-    return remove(mmm(o, tail...));
+  template <typename A, typename B, typename... O, typename... W>
+  void remove(metamap<O...>&& o, assign_exp<A, B> w1, W... ws) {
+    return remove(cat(o, mmm(w1)), ws...);
   }
+  template <typename A, typename B, typename... W>
+  void remove(assign_exp<A, B> w1, W... ws) {
+    return remove(mmm(w1), ws...);
+  }
+
+  auto& schema() { return schema_; }
 
   SCHEMA schema_;
   C con_;
@@ -325,26 +351,27 @@ template <typename... F> struct orm_fields {
   std::tuple<F...> fields_;
 };
 
-template <typename MD = orm_fields<>, typename CB = decltype(mmm())>
+template <typename DB, typename MD = orm_fields<>, typename CB = decltype(mmm())>
 struct sql_orm_schema : public MD {
 
-  sql_orm_schema(const std::string& table_name, CB cb = CB(), MD md = MD())
-      : MD(md), table_name_(table_name), callbacks_(cb) {}
+  sql_orm_schema(DB& db, const std::string& table_name, CB cb = CB(), MD md = MD())
+      : MD(md), database_(db), table_name_(table_name), callbacks_(cb) {}
 
-  template <typename D> auto connect(D& db) { return sql_orm(*this, db.get_connection()); }
+  inline auto connect() { return sql_orm(*this, database_.get_connection()); }
 
   const std::string& table_name() const { return table_name_; }
   auto get_callbacks() const { return callbacks_; }
 
   template <typename... P> auto callbacks(P... params_list) {
     auto cbs = mmm(params_list...);
-    return sql_orm_schema<MD, decltype(cbs)>(table_name_, cbs, *static_cast<MD*>(this));
+    return sql_orm_schema<DB, MD, decltype(cbs)>(database_, table_name_, cbs, *static_cast<MD*>(this));
   }
 
   template <typename... P> auto fields(P... p) {
-    return sql_orm_schema<orm_fields<P...>, CB>(table_name_, callbacks_, orm_fields<P...>(p...));
+    return sql_orm_schema<DB, orm_fields<P...>, CB>(database_, table_name_, callbacks_, orm_fields<P...>(p...));
   }
 
+  DB& database_;
   std::string table_name_;
   CB callbacks_;
 };

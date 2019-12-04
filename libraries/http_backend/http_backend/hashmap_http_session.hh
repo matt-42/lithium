@@ -1,7 +1,7 @@
 #pragma once
 
-#include <mutex>
 #include <li/http_backend/cookie.hh>
+#include <mutex>
 
 namespace li {
 
@@ -39,16 +39,17 @@ private:
 template <typename... F> struct hashmap_http_session {
 
   typedef decltype(mmm(std::declval<F>()...)) session_values_type;
-  inline hashmap_http_session(F... fields)
-      : default_values_(mmm(s::session_id = std::string(), fields...)) {}
+  inline hashmap_http_session(std::string cookie_name, F... fields)
+      : cookie_name_(cookie_name), default_values_(mmm(s::session_id = std::string(), fields...)) {}
 
   inline auto connect(http_request& request, http_response& response) {
-    std::string session_id = session_cookie(request, response);
+    std::string session_id = session_cookie(request, response, cookie_name_.c_str());
     auto it = sessions_.try_emplace(session_id, default_values_).first;
     return connected_hashmap_http_session<session_values_type>{session_id, &it->second, sessions_,
                                                                sessions_mutex_};
   }
 
+  std::string cookie_name_;
   session_values_type default_values_;
   std::unordered_map<std::string, session_values_type> sessions_;
   std::mutex sessions_mutex_;
