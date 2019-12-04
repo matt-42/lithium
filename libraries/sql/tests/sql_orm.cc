@@ -4,6 +4,8 @@
 #include <li/sql/mysql.hh>
 #include <cassert>
 
+#include "../../http_backend/tests/test.hh"
+
 #include "symbols.hh"
 
 int main() {
@@ -12,8 +14,8 @@ int main() {
 
   auto test_with_db = [] (auto& db) {
     auto schema = sql_orm_schema(db, "users_orm_test")
-                  .fields(s::id(s::auto_increment, s::primary_key) = int(), s::age(s::read_only) = int(), 
-                          s::name = std::string(),
+                  .fields(s::id(s::auto_increment, s::primary_key) = int(), s::age(s::read_only) = int(125), 
+                          s::name = std::string("default_name"),
                           s::login = std::string())
                   .callbacks(
                     s::after_insert = [] (auto p, int data) { std::cout << "inserted " << json_encode(p) << std::endl; assert(data == 42); },
@@ -38,6 +40,13 @@ int main() {
     auto u = orm.find_one(s::id = john_id);
     assert(u);
     assert(u->id = john_id and u->name == "John" and u->age == 42 and u->login == "lol");
+
+    // Insert. Check if defaults value are kept.
+    long long int john2_id = orm.insert(s::login = "lol", 42);
+    auto john2 = orm.find_one(s::id = john2_id);
+    CHECK_EQUAL("default value", john2->age, 125);
+    CHECK_EQUAL("default value", john2->name, "default_name");
+    orm.remove(*john2, 42, 51);
 
     // Update.
     u->name = "John2";

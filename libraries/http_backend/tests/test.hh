@@ -1,3 +1,4 @@
+#include <li/http_backend/error.hh>
 
 #define CHECK_EQUAL(name, exp, ref) \
 try {\
