@@ -29,35 +29,34 @@ endif (OPENSSL_FOUND)
 
 set(LIBS ${MICROHTTPD_LIBRARIES} ${SQLite3_LIBRARIES} ${CURL_LIBRARIES} ${MYSQL_LIBRARY} ${Boost_LIBRARIES})
 message(${Boost_LIBRARIES})
-add_executable(url_parameter url_parameter.cc)
+li_add_executable(url_parameter url_parameter.cc)
 target_link_libraries(url_parameter ${LIBS})
 add_test(url_parameter url_parameter)
 
-
-add_executable(url_decode url_decode.cc)
+li_add_executable(url_decode url_decode.cc)
 target_link_libraries(url_decode ${LIBS})
 add_test(url_decode url_decode)
 
-add_executable(hello_world hello_world.cc)
+li_add_executable(hello_world hello_world.cc)
 target_link_libraries(hello_world ${LIBS})
 add_test(hello_world hello_world)
 
-add_executable(crud crud.cc)
+li_add_executable(crud crud.cc)
 target_link_libraries(crud ${LIBS})
 add_test(crud crud)
 
-add_executable(request_parameters request_parameters.cc)
+li_add_executable(request_parameters request_parameters.cc)
 target_link_libraries(request_parameters ${LIBS})
 add_test(request_parameters request_parameters)
 
-add_executable(sql_authentication sql_authentication.cc)
+li_add_executable(sql_authentication sql_authentication.cc)
 target_link_libraries(sql_authentication ${LIBS})
 add_test(sql_authentication sql_authentication)
 
-add_executable(hashmap_http_session hashmap_http_session.cc)
+li_add_executable(hashmap_http_session hashmap_http_session.cc)
 target_link_libraries(hashmap_http_session ${LIBS})
 add_test(hashmap_http_session hashmap_http_session)
 
-add_executable(serve_directory serve_directory.cc)
+li_add_executable(serve_directory serve_directory.cc)
 target_link_libraries(serve_directory ${LIBS})
 add_test(serve_directory serve_directory)

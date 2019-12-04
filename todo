@@ -76,6 +76,6 @@ test mysql/sqlite
 write docs
 release
 
-
+parse_command_line
 travis
 RMQ

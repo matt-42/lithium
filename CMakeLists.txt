@@ -38,6 +38,15 @@ link_build_include("sql" "/libraries/sql/sql")
 
 include_directories(${CMAKE_BINARY_DIR}/include)
 
+add_custom_target(
+    symbols_generation DEPENDS li_symbol_generator
+    COMMAND ${CMAKE_BINARY_DIR}/libraries/symbol/li_symbol_generator ${CMAKE_CURRENT_SOURCE_DIR})
+
+function(li_add_executable target_name)
+  add_executable(${target_name} ${ARGN})
+  add_dependencies(${target_name} symbols_generation)
+endfunction(li_add_executable)
+
 add_subdirectory(libraries/metamap)
 add_subdirectory(libraries/callable_traits)
 add_subdirectory(libraries/json)
