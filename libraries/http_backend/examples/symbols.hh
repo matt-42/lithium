@@ -5,14 +5,29 @@
     LI_SYMBOL(auto_increment)
 #endif
 
-#ifndef LI_SYMBOL_before_create
-#define LI_SYMBOL_before_create
-    LI_SYMBOL(before_create)
+#ifndef LI_SYMBOL_before_insert
+#define LI_SYMBOL_before_insert
+    LI_SYMBOL(before_insert)
+#endif
+
+#ifndef LI_SYMBOL_before_update
+#define LI_SYMBOL_before_update
+    LI_SYMBOL(before_update)
 #endif
 
 #ifndef LI_SYMBOL_body
 #define LI_SYMBOL_body
     LI_SYMBOL(body)
+#endif
+
+#ifndef LI_SYMBOL_computed
+#define LI_SYMBOL_computed
+    LI_SYMBOL(computed)
+#endif
+
+#ifndef LI_SYMBOL_email
+#define LI_SYMBOL_email
+    LI_SYMBOL(email)
 #endif
 
 #ifndef LI_SYMBOL_id
@@ -48,10 +63,5 @@
 #ifndef LI_SYMBOL_validate
 #define LI_SYMBOL_validate
     LI_SYMBOL(validate)
-#endif
-
-#ifndef LI_SYMBOL_write_access
-#define LI_SYMBOL_write_access
-    LI_SYMBOL(write_access)
 #endif
 

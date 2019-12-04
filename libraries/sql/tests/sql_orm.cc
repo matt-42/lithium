@@ -17,7 +17,7 @@ int main() {
                           s::login = std::string())
                   .callbacks(
                     s::after_insert = [] (auto p, int data) { std::cout << "inserted " << json_encode(p) << std::endl; assert(data == 42); },
-                    s::after_destroy = [] (auto p, int data1, int data2) { 
+                    s::after_remove = [] (auto p, int data1, int data2) { 
                       std::cout << "removed " << json_encode(p) << std::endl;
                       assert(data1 == 42); assert(data2 == 51);
                       })

@@ -20,7 +20,7 @@ template <typename A, typename B, typename C> auto sql_crud_api(sql_orm_schema<A
   };
 
   api(POST, "/create") = [&](http_request& request, http_response& response) {
-    auto insert_fields = substract(orm_schema.all_fields(), orm_schema.auto_increment());
+    auto insert_fields = orm_schema.all_fields_except_computed();
     auto obj = request.post_parameters(insert_fields);
     long long int id = orm_schema.connect().insert(obj, request, response);
     response.write(json_encode(s::id = id));

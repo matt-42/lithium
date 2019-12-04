@@ -32,8 +32,12 @@ int main() {
 
   // The posts ORM will handle the blog_posts table in the sqlite database.
   // We use the ORM callbacks to check if needed the user priviledges or the validity of post.
+  // 
   auto posts = sql_orm_schema(db, "blog_posts")
-                   .fields(s::id(s::auto_increment, s::primary_key) = int(), s::user_id = int(),
+                   .fields(s::id(s::auto_increment, s::primary_key) = int(), 
+                           // We mark the user_id as computed so the CRUD api does not
+                           // require it in the create and update methods.
+                           s::user_id(s::computed) = int(),
                            s::title = std::string(), s::body = std::string())
 
                    .callbacks(
@@ -49,7 +53,7 @@ int main() {
                        // Only logged users are allowed to post. We check it everytime someone tries
                        // to create a post. 
                        // We also use this callback to set the user_id of the new post before the ORM saves it in the database.
-                       s::before_create =
+                       s::before_insert =
                            [&](auto& post, http_request& req, http_response& resp) {
                              auto u = auth.current_user(req, resp);
                              if (!u)
@@ -58,7 +62,7 @@ int main() {
                            },
 
                        // This checks that a given use has the right to edit the post.
-                       s::write_access =
+                       s::before_update =
                            [&](auto& post, http_request& req, http_response& resp) {
                              auto u = auth.current_user(req, resp);
                              if (!u || u->id != post.user_id)

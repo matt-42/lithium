@@ -40,6 +40,11 @@
     LI_SYMBOL(charset)
 #endif
 
+#ifndef LI_SYMBOL_computed
+#define LI_SYMBOL_computed
+    LI_SYMBOL(computed)
+#endif
+
 #ifndef LI_SYMBOL_database
 #define LI_SYMBOL_database
     LI_SYMBOL(database)
