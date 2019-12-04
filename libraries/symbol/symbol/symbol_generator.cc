@@ -115,6 +115,19 @@ void write_symbol_file(std::vector<std::string> symbols, std::ostream& os) {
     }
   }
 }
+
+std::string get_file_contents(std::string filename)
+{
+  std::ifstream in(filename, std::ios::in | std::ios::binary);
+  if (in)
+  {
+    std::ostringstream contents;
+    contents << in.rdbuf();
+    in.close();
+    return(contents.str());
+  }
+  throw(errno);
+}
 // Iod symbols generator.
 //
 //    For each variable name starting with underscore, generates a symbol
@@ -159,8 +172,16 @@ int main(int argc, char* argv[])
         if (!symbols.empty())
         {
           auto symbol_file = p / fs::path("symbols.hh");
-          auto of = std::ofstream(symbol_file.string());
-          write_symbol_file(symbols, of);
+          std::stringstream ss;
+          write_symbol_file(symbols, ss);
+
+          if (fs::is_regular_file(symbol_file) && ss.str() == get_file_contents(symbol_file.string()))
+            continue;
+          else
+          {
+            auto of = std::ofstream(symbol_file.string());
+            of << ss.str();
+          }
         }
       }
   }
