@@ -13,6 +13,10 @@ namespace li {
   {};
 }
 
+#ifdef LI_SYMBOL
+# undef LI_SYMBOL
+#endif
+
 #define LI_SYMBOL(NAME)                                                \
 namespace s {                                                           \
 struct NAME##_t : li::symbol<NAME##_t> {                         \

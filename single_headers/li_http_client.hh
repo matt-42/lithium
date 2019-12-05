@@ -7,23 +7,23 @@
 
 #pragma once
 
-#include <string>
-#include <sstream>
-#include <curl/curl.h>
-#include <functional>
-#include <unordered_map>
-#include <variant>
-#include <memory>
-#include <string_view>
-#include <optional>
-#include <cstring>
-#include <cmath>
-#include <map>
 #include <iostream>
-#include <cassert>
-#include <utility>
-#include <vector>
+#include <curl/curl.h>
 #include <tuple>
+#include <optional>
+#include <functional>
+#include <cstring>
+#include <sstream>
+#include <vector>
+#include <utility>
+#include <string>
+#include <cmath>
+#include <variant>
+#include <string_view>
+#include <cassert>
+#include <unordered_map>
+#include <map>
+#include <memory>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -211,6 +211,10 @@ namespace li_http_client {
                  public Exp<S>
   {};
 }
+
+#ifdef LI_SYMBOL
+# undef LI_SYMBOL
+#endif
 
 #define LI_SYMBOL(NAME)                                                \
 namespace s {                                                           \

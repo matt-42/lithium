@@ -7,18 +7,18 @@
 
 #pragma once
 
-#include <mutex>
-#include <string>
-#include <sqlite3.h>
-#include <sstream>
-#include <unordered_map>
-#include <memory>
+#include <iostream>
 #include <optional>
 #include <cstring>
-#include <iostream>
-#include <utility>
+#include <sstream>
 #include <vector>
+#include <utility>
+#include <string>
+#include <sqlite3.h>
+#include <unordered_map>
 #include <tuple>
+#include <mutex>
+#include <memory>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -473,6 +473,10 @@ namespace li_sqlite {
                  public Exp<S>
   {};
 }
+
+#ifdef LI_SYMBOL
+# undef LI_SYMBOL
+#endif
 
 #define LI_SYMBOL(NAME)                                                \
 namespace s {                                                           \
@@ -1415,7 +1419,6 @@ struct sqlite_database {
 #endif
 
 
-#include "symbols.hh"
 
 namespace li_sqlite {
 

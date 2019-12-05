@@ -7,38 +7,38 @@
 
 #pragma once
 
-#include <sstream>
+#include <cstring>
+#include <string_view>
+#include <cassert>
+#include <tuple>
+#include <unistd.h>
+#include <optional>
+#include <cmath>
 #include <stdlib.h>
 #include <boost/lexical_cast.hpp>
-#include <cstring>
-#include <unistd.h>
-#include <cassert>
-#include <utility>
-#include <tuple>
-#include <mutex>
-#include <string>
-#include <thread>
-#include <optional>
-#include <iostream>
-#include <random>
-#include <fstream>
-#include <functional>
 #include <unordered_map>
-#include <microhttpd.h>
-#include <string_view>
-#include <windows.h>
-#include <stdio.h>
-#include <variant>
-#include <memory>
-#include <string.h>
-#include <vector>
 #include <map>
-#include <sys/stat.h>
 #include <fcntl.h>
+#include <memory>
+#include <thread>
+#include <random>
+#include <functional>
+#include <sstream>
+#include <vector>
+#include <utility>
+#include <string>
+#include <variant>
 #include <set>
-#include <cmath>
+#include <microhttpd.h>
+#include <iostream>
+#include <stdio.h>
+#include <string.h>
+#include <fstream>
+#include <sys/stat.h>
+#include <mutex>
 
 #if defined(_MSC_VER)
+#include <windows.h>
 #include <io.h>
 #include <ciso646>
 #endif // _MSC_VER
@@ -394,6 +394,10 @@ namespace li_http_backend {
                  public Exp<S>
   {};
 }
+
+#ifdef LI_SYMBOL
+# undef LI_SYMBOL
+#endif
 
 #define LI_SYMBOL(NAME)                                                \
 namespace s {                                                           \
@@ -887,7 +891,107 @@ namespace li_http_backend {
 #endif
 
 
-#include "symbols.hh"
+
+#ifndef LI_SYMBOL_after_insert
+#define LI_SYMBOL_after_insert
+    LI_SYMBOL(after_insert)
+#endif
+
+#ifndef LI_SYMBOL_after_remove
+#define LI_SYMBOL_after_remove
+    LI_SYMBOL(after_remove)
+#endif
+
+#ifndef LI_SYMBOL_after_update
+#define LI_SYMBOL_after_update
+    LI_SYMBOL(after_update)
+#endif
+
+#ifndef LI_SYMBOL_auto_increment
+#define LI_SYMBOL_auto_increment
+    LI_SYMBOL(auto_increment)
+#endif
+
+#ifndef LI_SYMBOL_before_insert
+#define LI_SYMBOL_before_insert
+    LI_SYMBOL(before_insert)
+#endif
+
+#ifndef LI_SYMBOL_before_remove
+#define LI_SYMBOL_before_remove
+    LI_SYMBOL(before_remove)
+#endif
+
+#ifndef LI_SYMBOL_before_update
+#define LI_SYMBOL_before_update
+    LI_SYMBOL(before_update)
+#endif
+
+#ifndef LI_SYMBOL_charset
+#define LI_SYMBOL_charset
+    LI_SYMBOL(charset)
+#endif
+
+#ifndef LI_SYMBOL_computed
+#define LI_SYMBOL_computed
+    LI_SYMBOL(computed)
+#endif
+
+#ifndef LI_SYMBOL_database
+#define LI_SYMBOL_database
+    LI_SYMBOL(database)
+#endif
+
+#ifndef LI_SYMBOL_host
+#define LI_SYMBOL_host
+    LI_SYMBOL(host)
+#endif
+
+#ifndef LI_SYMBOL_password
+#define LI_SYMBOL_password
+    LI_SYMBOL(password)
+#endif
+
+#ifndef LI_SYMBOL_port
+#define LI_SYMBOL_port
+    LI_SYMBOL(port)
+#endif
+
+#ifndef LI_SYMBOL_primary_key
+#define LI_SYMBOL_primary_key
+    LI_SYMBOL(primary_key)
+#endif
+
+#ifndef LI_SYMBOL_read_access
+#define LI_SYMBOL_read_access
+    LI_SYMBOL(read_access)
+#endif
+
+#ifndef LI_SYMBOL_read_only
+#define LI_SYMBOL_read_only
+    LI_SYMBOL(read_only)
+#endif
+
+#ifndef LI_SYMBOL_synchronous
+#define LI_SYMBOL_synchronous
+    LI_SYMBOL(synchronous)
+#endif
+
+#ifndef LI_SYMBOL_user
+#define LI_SYMBOL_user
+    LI_SYMBOL(user)
+#endif
+
+#ifndef LI_SYMBOL_validate
+#define LI_SYMBOL_validate
+    LI_SYMBOL(validate)
+#endif
+
+#ifndef LI_SYMBOL_write_access
+#define LI_SYMBOL_write_access
+    LI_SYMBOL(write_access)
+#endif
+
 
 namespace li_http_backend {
 

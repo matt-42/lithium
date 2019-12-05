@@ -7,21 +7,21 @@
 
 #pragma once
 
-#include <mutex>
-#include <string>
-#include <sstream>
 #include <thread>
-#include <deque>
-#include <unordered_map>
-#include <memory>
-#include <optional>
-#include <cstring>
-#include <map>
 #include <iostream>
 #include <mysql.h>
-#include <utility>
-#include <vector>
 #include <tuple>
+#include <optional>
+#include <cstring>
+#include <sstream>
+#include <vector>
+#include <deque>
+#include <utility>
+#include <string>
+#include <unordered_map>
+#include <map>
+#include <mutex>
+#include <memory>
 
 
 
@@ -470,6 +470,10 @@ namespace li_mysql {
                  public Exp<S>
   {};
 }
+
+#ifdef LI_SYMBOL
+# undef LI_SYMBOL
+#endif
 
 #define LI_SYMBOL(NAME)                                                \
 namespace s {                                                           \
@@ -1520,7 +1524,6 @@ inline mysql_connection::mysql_connection(MYSQL* con, mysql_database& pool)
 #endif
 
 
-#include "symbols.hh"
 
 namespace li_mysql {
 

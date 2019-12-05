@@ -5,7 +5,7 @@
 #include <iostream>
 #include <sstream>
 
-#include "symbols.hh"
+#include <li/sql/symbols.hh>
 
 namespace li {
 

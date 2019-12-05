@@ -7,19 +7,19 @@
 
 #pragma once
 
-#include <string>
-#include <sstream>
-#include <functional>
-#include <variant>
 #include <optional>
-#include <string_view>
-#include <memory>
+#include <functional>
 #include <cstring>
-#include <cmath>
-#include <cassert>
-#include <utility>
+#include <sstream>
 #include <vector>
+#include <utility>
+#include <string>
+#include <cmath>
+#include <variant>
+#include <string_view>
+#include <cassert>
 #include <tuple>
+#include <memory>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -356,6 +356,10 @@ namespace li_json {
                  public Exp<S>
   {};
 }
+
+#ifdef LI_SYMBOL
+# undef LI_SYMBOL
+#endif
 
 #define LI_SYMBOL(NAME)                                                \
 namespace s {                                                           \

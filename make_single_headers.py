@@ -63,7 +63,7 @@ def make_single_header(install_dir, library_name, input_files, output_path):
 
     body=[]
     includes=[]
-    windows_includes_ref=["ciso646", "io.h"]
+    windows_includes_ref=["ciso646", "io.h", "windows.h"]
     windows_includes=[]
     for line in lines:
         m = re.match("^\s*#include <(.*)>$", line)

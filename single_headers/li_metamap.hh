@@ -7,8 +7,8 @@
 
 #pragma once
 
-#include <utility>
 #include <vector>
+#include <utility>
 #include <tuple>
 
 
@@ -339,6 +339,10 @@ namespace li_metamap {
                  public Exp<S>
   {};
 }
+
+#ifdef LI_SYMBOL
+# undef LI_SYMBOL
+#endif
 
 #define LI_SYMBOL(NAME)                                                \
 namespace s {                                                           \
