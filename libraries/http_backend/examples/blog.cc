@@ -1,4 +1,3 @@
-#include <nettle/sha3.h>
 
 #include <li/http_backend/http_backend.hh>
 #include <li/sql/sqlite.hh>

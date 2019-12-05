@@ -26,7 +26,7 @@ inline size_t curl_header_callback(char *buffer,   size_t size,   size_t nitems,
 {
   auto& headers_map = *(std::unordered_map<std::string, std::string>*)userdata;
 
-  int split = 0;
+  size_t split = 0;
   size_t total_size = size * nitems;
   while(split < total_size && buffer[split] != ':') split++;
 

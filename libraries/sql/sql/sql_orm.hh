@@ -24,7 +24,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
   sql_orm(SCHEMA& schema, C con) : schema_(schema), con_(con) {}
 
   template <typename S, typename... A> void call_callback(S s, A&&... args) {
-    if constexpr(has_key<decltype(schema_.get_callbacks())>(s))
+    if constexpr(has_key<decltype(schema_.get_callbacks())>(S{}))
       return schema_.get_callbacks()[s](args...);
   }
 
@@ -55,7 +55,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
       ss << li::symbol_string(k) << " " << con_.type_to_string(v);
 
       if (std::is_same<C, sqlite_connection>::value) {
-        if (auto_increment or primary_key)
+        if (auto_increment || primary_key)
           ss << " PRIMARY KEY ";
       }
 
@@ -296,7 +296,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
 template <typename... F> struct orm_fields {
 
   orm_fields(F... fields) : fields_(fields...) {
-    static_assert(sizeof...(F) == 0 or metamap_size<decltype(this->primary_key())>() != 0,
+    static_assert(sizeof...(F) == 0 || metamap_size<decltype(this->primary_key())>() != 0,
                   "You must give at least one primary key to the ORM. Use "
                   "s::your_field_name(s::primary_key) to add a primary_key");
   }

@@ -8,6 +8,8 @@
 #include <sstream>
 #include <thread>
 #include <unordered_map>
+#include <optional>
+
 #include <mysql.h>
 
 #include <li/callable_traits/callable_traits.hh>

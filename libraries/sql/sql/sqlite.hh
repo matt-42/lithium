@@ -10,6 +10,7 @@
 #include <mutex>
 #include <sstream>
 #include <unordered_map>
+#include <optional>
 
 #include <li/callable_traits/callable_traits.hh>
 #include <li/metamap/metamap.hh>

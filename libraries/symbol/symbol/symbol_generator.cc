@@ -166,7 +166,7 @@ int main(int argc, char* argv[])
         
         for (auto p2: fs::directory_iterator(p.path()))
           if (std::find(extentions.begin(), extentions.end(), p2.path().extension()) != extentions.end())
-            files.push_back(p2.path());
+            files.push_back(p2.path().string());
 
         auto symbols = find_symbols_in_files(files);
         if (!symbols.empty())
