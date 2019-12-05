@@ -95,7 +95,8 @@ auto database = mysql_database(s::host = "127.0.0.1",
 api.post("/db_test") = [&] (http_request& request, http_response& response) {
   auto connection = database.connect();
   int count = connection("Select count(*) from users").read<int>();
-  std::optional<std::string> name = connection("Select name from users LIMIT 1").read_optional<std::string>();
+  std::optional<std::string> name = 
+    connection("Select name from users LIMIT 1").read_optional<std::string>();
   if (name) response.write(*name);
   else response.write("empty table");
 };
@@ -255,13 +256,13 @@ https://github.com/matt-42/lithium/blob/master/libraries/http_backend/http_backe
 # Testing
 
 ```c++
-  // Use the s::non_blocking parameters so the http_serve will run in a separate thread. 
-  auto ctx = http_serve(my_api, 12344, s::non_blocking);
+// Use the s::non_blocking parameters so the http_serve will run in a separate thread. 
+auto ctx = http_serve(my_api, 12344, s::non_blocking);
 
-  // Use li::http_client to test your API.
-  auto r = http_get("http://localhost:12344/hello_world", s::get_parameters = mmm(s::name = "John")));
-  assert(r.status == 200);
-  assert(r.body == "expected response body");
+// Use li::http_client to test your API.
+auto r = http_get("http://localhost:12344/hello_world", s::get_parameters = mmm(s::name = "John")));
+assert(r.status == 200);
+assert(r.body == "expected response body");
 ```
 
 # A complete blog API
