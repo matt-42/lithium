@@ -1,6 +1,6 @@
-#include <li/http_client/http_client.hh>
-#include <li/http_backend/http_backend.hh>
 #include "test.hh"
+#include <li/http_backend/http_backend.hh>
+#include <li/http_client/http_client.hh>
 
 using namespace li;
 
@@ -16,6 +16,14 @@ int main() {
   };
   my_api.get("/url/{{id}}") = [&](http_request& request, http_response& response) {
     response.write(json_encode(request.url_parameters(s::id = int())));
+  };
+  my_api.post("/optional_not_set") = [&](http_request& request, http_response& response) {
+    assert(!request.get_parameters(s::id = std::optional<int>()).id);
+    assert(!request.post_parameters(s::id = std::optional<int>()).id);
+  };
+  my_api.post("/optional_set") = [&](http_request& request, http_response& response) {
+    assert(request.get_parameters(s::id = std::optional<int>()).id.value() == 42);
+    assert(request.post_parameters(s::id = std::optional<int>()).id.value() == 43);
   };
 
   auto ctx = http_serve(my_api, 12347, s::non_blocking);
@@ -37,10 +45,9 @@ int main() {
 
   // valid post JSON
   auto r31 = http_post("http://localhost:12347/post", s::post_parameters = mmm(s::id = 42),
-  s::jsonencoded);
+                       s::jsonencoded);
   CHECK_EQUAL("post", r31.status, 200);
   CHECK_EQUAL("post", r31.body, ref);
-
 
   // badly typed post
   auto r32 = http_post("http://localhost:12347/post", s::post_parameters = mmm(s::id = "id"));
@@ -51,4 +58,11 @@ int main() {
 
   CHECK_EQUAL("url", http_get("http://localhost:12347/url/42").body, ref);
   CHECK_EQUAL("url invalid type", http_get("http://localhost:12347/url/xxx").status, 400);
+
+  CHECK_EQUAL("not setting optionals.", http_post("http://localhost:12347/optional_not_set").status,
+              200);
+  auto r5 = http_post("http://localhost:12347/optional_set", s::get_parameters = mmm(s::id = 42),
+                      s::post_parameters = mmm(s::id = 43));
+  std::cout << json_encode(r5) << std::endl;
+  CHECK_EQUAL("setting optionals.", r5.status, 200);
 }

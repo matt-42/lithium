@@ -46,6 +46,15 @@ namespace li
       return str.substr(end + 1, str.size() - end - 1);
   }
 
+  template <typename O>
+  std::string_view url_decode2(std::set<void*>& found, std::string_view str, std::optional<O>& obj)
+  {
+    O o;
+    auto ret = url_decode2(found, str, o);
+    obj = o;
+    return ret;
+  }
+
   template <typename... O>
   std::string_view url_decode2(std::set<void*>& found, std::string_view str, metamap<O...>& obj, bool root = false);
   

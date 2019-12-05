@@ -1,3 +1,5 @@
+#pragma once
+
 #include <li/sql/sql_common.hh>
 #include <li/sql/sql_orm.hh>
 #include <li/json/json.hh>
@@ -13,3 +15,7 @@
 #include <li/http_backend/hashmap_http_session.hh>
 #include <li/http_backend/serve_directory.hh>
 #include <li/http_backend/http_authentication.hh>
+
+namespace li {
+  using http_api = api<http_request, http_response>;
+}
