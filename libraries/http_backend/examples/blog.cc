@@ -2,7 +2,7 @@
 #include <li/http_backend/http_backend.hh>
 #include <li/sql/sqlite.hh>
 
-#include <li/http_backend/symbols.hh>
+#include "symbols.hh"
 
 int main() {
 

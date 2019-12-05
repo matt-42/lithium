@@ -341,6 +341,7 @@ template <typename... F> struct orm_fields {
   CHECK_FIELD_ATTR(read_only);
   CHECK_FIELD_ATTR(auto_increment);
   CHECK_FIELD_ATTR(computed);
+#undef CHECK_FIELD_ATTR
 
   // Do not remove this comment, this is used by the symbol generation.
   // s::primary_key s::read_only s::auto_increment s::computed 

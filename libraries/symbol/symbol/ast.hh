@@ -161,4 +161,6 @@ namespace li {
   iod_query_declare_binary_op(&&, and);
   iod_query_declare_binary_op(||, or);
 
+# undef iod_query_declare_binary_op
+
 }

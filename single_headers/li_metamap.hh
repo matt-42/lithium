@@ -8,8 +8,8 @@
 #pragma once
 
 #include <vector>
-#include <utility>
 #include <tuple>
+#include <utility>
 
 
 
@@ -327,6 +327,8 @@ namespace li_metamap {
   iod_query_declare_binary_op(|, logical_or);
   iod_query_declare_binary_op(&&, and);
   iod_query_declare_binary_op(||, or);
+
+# undef iod_query_declare_binary_op
 
 }
 

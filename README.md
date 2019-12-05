@@ -26,7 +26,9 @@ A library that ease the writing of web HTTP APIs.
 
 ### [li::symbol](https://github.com/matt-42/lithium/tree/master/libraries/symbol)
 
-The root of the lithium project.
+The root of the lithium project. Used by all other libraries.
+You probably will not use this library directly but
+you can check the code if you want to know what is inside the s:: namespace.
 
 
 ## Installation / Supported compilers

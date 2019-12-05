@@ -7,35 +7,35 @@
 
 #pragma once
 
-#include <cstring>
-#include <string_view>
-#include <cassert>
-#include <tuple>
-#include <unistd.h>
-#include <optional>
-#include <cmath>
-#include <stdlib.h>
-#include <boost/lexical_cast.hpp>
-#include <unordered_map>
-#include <map>
-#include <fcntl.h>
-#include <memory>
-#include <thread>
-#include <random>
-#include <functional>
 #include <sstream>
-#include <vector>
-#include <utility>
-#include <string>
-#include <variant>
-#include <set>
-#include <microhttpd.h>
-#include <iostream>
-#include <stdio.h>
-#include <string.h>
+#include <memory>
+#include <map>
 #include <fstream>
-#include <sys/stat.h>
+#include <optional>
+#include <variant>
+#include <random>
+#include <set>
+#include <unordered_map>
+#include <cmath>
 #include <mutex>
+#include <stdio.h>
+#include <string>
+#include <thread>
+#include <unistd.h>
+#include <iostream>
+#include <sys/stat.h>
+#include <functional>
+#include <stdlib.h>
+#include <string.h>
+#include <fcntl.h>
+#include <microhttpd.h>
+#include <vector>
+#include <cassert>
+#include <utility>
+#include <cstring>
+#include <boost/lexical_cast.hpp>
+#include <tuple>
+#include <string_view>
 
 #if defined(_MSC_VER)
 #include <windows.h>
@@ -382,6 +382,8 @@ namespace li_http_backend {
   iod_query_declare_binary_op(|, logical_or);
   iod_query_declare_binary_op(&&, and);
   iod_query_declare_binary_op(||, or);
+
+# undef iod_query_declare_binary_op
 
 }
 
@@ -1327,6 +1329,7 @@ template <typename... F> struct orm_fields {
   CHECK_FIELD_ATTR(read_only);
   CHECK_FIELD_ATTR(auto_increment);
   CHECK_FIELD_ATTR(computed);
+#undef CHECK_FIELD_ATTR
 
   // Do not remove this comment, this is used by the symbol generation.
   // s::primary_key s::read_only s::auto_increment s::computed 

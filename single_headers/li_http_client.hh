@@ -7,23 +7,23 @@
 
 #pragma once
 
-#include <iostream>
-#include <curl/curl.h>
-#include <tuple>
-#include <optional>
-#include <functional>
-#include <cstring>
-#include <sstream>
-#include <vector>
-#include <utility>
-#include <string>
-#include <cmath>
-#include <variant>
-#include <string_view>
-#include <cassert>
-#include <unordered_map>
 #include <map>
 #include <memory>
+#include <sstream>
+#include <cmath>
+#include <vector>
+#include <cassert>
+#include <string_view>
+#include <iostream>
+#include <optional>
+#include <variant>
+#include <string>
+#include <cstring>
+#include <utility>
+#include <functional>
+#include <curl/curl.h>
+#include <tuple>
+#include <unordered_map>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -199,6 +199,8 @@ namespace li_http_client {
   iod_query_declare_binary_op(|, logical_or);
   iod_query_declare_binary_op(&&, and);
   iod_query_declare_binary_op(||, or);
+
+# undef iod_query_declare_binary_op
 
 }
 

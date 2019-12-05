@@ -7,19 +7,19 @@
 
 #pragma once
 
+#include <sstream>
+#include <memory>
+#include <cmath>
+#include <vector>
+#include <cassert>
 #include <optional>
+#include <variant>
+#include <string>
+#include <utility>
 #include <functional>
 #include <cstring>
-#include <sstream>
-#include <vector>
-#include <utility>
-#include <string>
-#include <cmath>
-#include <variant>
-#include <string_view>
-#include <cassert>
 #include <tuple>
-#include <memory>
+#include <string_view>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -344,6 +344,8 @@ namespace li_json {
   iod_query_declare_binary_op(|, logical_or);
   iod_query_declare_binary_op(&&, and);
   iod_query_declare_binary_op(||, or);
+
+# undef iod_query_declare_binary_op
 
 }
 

@@ -7,18 +7,18 @@
 
 #pragma once
 
+#include <memory>
+#include <sstream>
+#include <sqlite3.h>
+#include <mutex>
+#include <vector>
 #include <iostream>
 #include <optional>
-#include <cstring>
-#include <sstream>
-#include <vector>
-#include <utility>
 #include <string>
-#include <sqlite3.h>
-#include <unordered_map>
+#include <utility>
+#include <cstring>
 #include <tuple>
-#include <mutex>
-#include <memory>
+#include <unordered_map>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -461,6 +461,8 @@ namespace li_sqlite {
   iod_query_declare_binary_op(|, logical_or);
   iod_query_declare_binary_op(&&, and);
   iod_query_declare_binary_op(||, or);
+
+# undef iod_query_declare_binary_op
 
 }
 
@@ -1754,6 +1756,7 @@ template <typename... F> struct orm_fields {
   CHECK_FIELD_ATTR(read_only);
   CHECK_FIELD_ATTR(auto_increment);
   CHECK_FIELD_ATTR(computed);
+#undef CHECK_FIELD_ATTR
 
   // Do not remove this comment, this is used by the symbol generation.
   // s::primary_key s::read_only s::auto_increment s::computed 
