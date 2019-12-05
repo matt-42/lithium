@@ -18,8 +18,7 @@ namespace li {
 				    const char* key = "silicon_token")
   {
     std::string token;
-    const char* token_ = MHD_lookup_connection_value(request.mhd_connection, MHD_COOKIE_KIND, key);
-
+    const char* token_ = request.cookie(key);
     if (!token_)
       {
         token = generate_secret_tracking_id();
