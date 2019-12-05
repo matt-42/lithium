@@ -60,7 +60,7 @@ int main()
   std::cout << json_encode(r) << std::endl;
   CHECK_EQUAL("invalid", c.post("/login_invalid", s::post_parameters = mmm(s::login = "hello", s::password = "test")).status, 200);
 
-  users.connect().insert(s::login = "hello", s::password = hash_sha3_512("test"));
+  users.connect().insert(s::login = "hello", s::password = "testhash");
   CHECK_EQUAL("valid", c.post("/login_invalid", s::post_parameters = mmm(s::login = "hello", s::password = "testx")).status, 200);
   CHECK_EQUAL("valid", c.post("/login_valid", s::post_parameters = mmm(s::login = "hello", s::password = "test")).status, 200);
 
