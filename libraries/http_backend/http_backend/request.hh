@@ -17,7 +17,8 @@ namespace li {
 
 struct http_request {
 
-  const char* header(const char* k) const;
+  inline const char* header(const char* k) const;
+  inline const char* cookie(const char* k) const;
 
   // With list of parameters: s::id = int(), s::name = string(), ...
   template <typename S, typename V, typename... T>
@@ -150,6 +151,10 @@ auto parse_url_parameters(const url_parser_info& fmt, const std::string_view url
 
 inline const char* http_request::header(const char* k) const {
   return MHD_lookup_connection_value(mhd_connection, MHD_HEADER_KIND, k);
+}
+
+inline const char* http_request::cookie(const char* k) const {
+  return MHD_lookup_connection_value(mhd_connection, MHD_COOKIE_KIND, k);
 }
 
 template <typename S, typename V, typename... T>

@@ -43,6 +43,14 @@ api.post("/url_params/{{name}}") = [&](http_request& request, http_response& res
   auto params = request.url_parameters(s::name = std::string());
   response.write("hello " + params.name);
 };
+
+// You can also pass optional parameters:
+auto param = request.get_parameters(s::my_param = std::optional<int>());
+// here param.id has type std::optional<int>()
+if (param.id)
+  std::cout << "optional parameter set." << std::endl;
+else
+  std::cout << "optional set: " << param.id.value() >> << std::endl;
 ```
 
 ## Error handling
@@ -56,14 +64,19 @@ api.get("/unauthorized") = [&](http_request& request, http_response& response) {
 };
 ```
 
-## Optional parameters
+## Reading and writing headers and cookies
+
 ```c++
-auto param = request.get_parameters(s::my_param = std::optional<int>());
-// param.id has type std::optional<int>()
-if (param.id)
-  std::cout << "optional parameter set." << std::endl;
-else
-  std::cout << "optional set: " << param.id.value() >> << std::endl;
+
+api.get("/unauthorized") = [&](http_request& request, http_response& response) {
+  const char* value = request.header("_header_name_");
+  const char* value = request.cookie("_cookie_name_");
+  // Values are null if the header/cookie does not exists.
+
+  response.set_header("header_name", "header value");
+  response.set_cookie("cookie_name", "cookie_value");
+};
+
 ```
 
 ## SQL Databases
