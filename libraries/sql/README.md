@@ -113,3 +113,12 @@ users.update(*u);
 // Remove.
 users.remove(*u);
 ```
+
+# Authors
+
+Matthieu Garrigues https://github.com/matt-42
+
+# Donate
+
+If you find this project helpful, please consider donating:
+https://www.paypal.me/matthieugarrigues

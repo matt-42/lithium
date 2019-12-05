@@ -1,7 +1,8 @@
 li::metamap
 ===============================
 
-*Tested compilers: Linux: G++ 9, Clang++ 9, Macos: Clang 11, Windows: MSVC 19*
+
+# Introduction 
 
 In dynamic languages, instanciating an object is simple, for example in javascript:
 
@@ -66,7 +67,22 @@ auto m4 = li::intersection(m1, m2);
 auto m5 = li::substract(m1, m2);
 ```
 
-Installation / Supported compilers
-============================
+# Applications
+
+Most of the other libraries of the Lithium project are using this paradigm to build
+zero-cost abstraction without the need of complex meta-programing. I invite you to check them out
+to see how metamap can be used in concrete applications.
+
+
+# Installation / Supported compilers
 
 Everything explained here: https://github.com/matt-42/lithium#installation
+
+# Authors
+
+Matthieu Garrigues https://github.com/matt-42
+
+# Donate
+
+If you find this project helpful, please consider donating:
+https://www.paypal.me/matthieugarrigues

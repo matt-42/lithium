@@ -91,3 +91,13 @@ add_dependencies(_your_target_name_ symbols_generation)
 ```
 
 All you need now is to `#include "symbols.hh"` in your C++ code.
+
+
+# Authors
+
+Matthieu Garrigues https://github.com/matt-42
+
+# Donate
+
+If you find this project helpful, please consider donating:
+https://www.paypal.me/matthieugarrigues

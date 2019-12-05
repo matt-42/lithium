@@ -38,3 +38,13 @@ for (auto it : res.headers) {
   std::cout << it.first << ":::" << it.second  << std::endl;
 }
 ```
+
+Authors
+==============
+Matthieu Garrigues https://github.com/matt-42
+
+
+Donate
+=============
+If you find this project helpful, please consider donating:
+https://www.paypal.me/matthieugarrigues

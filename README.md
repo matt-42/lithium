@@ -46,7 +46,7 @@ cmake .. -DCMAKE_INSTALL_PREFIX=_your_prefix_; make -j4 install;
 
 **Important note:** In the single header versions, the namespace `li` is renamed as `li_{library_name}`.
 
-### Tested compilers:
+### Supported compilers:
     - Linux: G++ 9.2, Clang++ 9.0
     - Macos: Clang 11
     - Windows: MSVC 19

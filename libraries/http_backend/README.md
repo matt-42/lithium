@@ -266,11 +266,12 @@ Contributing
 Do not hesitate to fill issues, send pull requests, or contact me
 at matthieu.garrigues@gmail.com.
 
+Authors
+=====
+Matthieu Garrigues https://github.com/matt-42
+
 Donate
-===========================
+==============
 
-If you find this project helpful, please consider donating.
-
-<a href='https://pledgie.com/campaigns/28272'>
-<img alt='Click here to lend your support to: The Silicon Web Framework and make a donation at pledgie.com !' src='https://pledgie.com/campaigns/28272.png?skin_name=chrome' border='0' >
-</a>
+If you find this project helpful, please consider donating:
+https://www.paypal.me/matthieugarrigues

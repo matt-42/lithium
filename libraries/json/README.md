@@ -39,16 +39,6 @@ It these specific cases, metajson is faster and produce smaller binaries.
 of metajson performances and does not take into account the fact that other libraries provides
 more features.
 
-Authors
-============================
-
-Matthieu Garrigues https://github.com/matt-42
-
-Installation / Supported compilers
-============================
-
-Everything explained here: https://github.com/matt-42/lithium#installation
-
 Overview
 ============================
 
@@ -142,3 +132,18 @@ int main ()
 }
 
 ```
+
+Installation / Supported compilers
+============================
+
+Everything explained here: https://github.com/matt-42/lithium#installation
+
+Authors
+============================
+
+Matthieu Garrigues https://github.com/matt-42
+
+Donate
+=============
+If you find this project helpful, please consider donating:
+https://www.paypal.me/matthieugarrigues
