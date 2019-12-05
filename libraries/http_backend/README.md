@@ -1,7 +1,244 @@
-The Silicon Web Framework
+li::http_backend
 =================================
 
-Documentation is hosted on http://siliconframework.org
+*Tested compilers: Linux: G++ 9, Clang++ 9, Macos: Clang 11, Windows: MSVC 19*
+
+This library aims to ease the development of http backend servers. 
+Built on top of microhttpd and other lithium libraries.
+
+Installation
+===================
+
+Either install the single header library
+```
+wget https://github.com/matt-42/lithium/blob/master/single_headers/li_http_backend.hh
+```
+and include the **li_http_backend.hh** header. In this case the namespace of the library is **li_http_backend**.
+
+Or install the lithium project: https://github.com/matt-42/lithium
+and include the **li/http_backend/http_backend.hh** header. In this case the namespace of the library is **li**.
+
+
+Quick tour
+===========================
+
+## Hello world
+```c++
+  // Build an api.
+  http_api api;
+  api.get("/hello_world") = [&](http_request& request, http_response& response) {
+    response.write("hello world.");
+  };
+
+  //Start a http server.
+  http_serve(my_api, 12345);
+```
+
+## Request parameters
+```c++
+  http_api api;
+  api.get("/get_params") = [&](http_request& request, http_response& response) {
+    // This will throw a BAD REQUEST http error if one field is missing or ill-formated.
+    auto params = request.get_parameters(s::my_param = int(), s::my_param2 = std::string());
+    response.write("hello " + params.my_param2);
+  };
+
+  api.post("/post_params") = [&](http_request& request, http_response& response) {
+    // This will throw a BAD REQUEST http error if one field is missing or ill-formated.
+    auto params = request.post_parameters(s::my_param = int(), s::my_param2 = std::string());
+    response.write("hello " + params.my_param2);
+  };
+
+  api.post("/url_params/{{name}}") = [&](http_request& request, http_response& response) {
+    auto params = request.url_parameters(s::name = std::string());
+    response.write("hello " + params.name);
+  };
+```
+
+## Optional parameters
+```c++
+  auto param = request.get_parameters(s::my_param = std::optional<int>());
+  // param.id has type std::optional<int>()
+  if (param.id)
+    std::cout << "optional parameter set." << std::endl;
+  else
+    std::cout << "optional set: " << param.id.value() >> << std::endl;
+```
+
+## SQL Databases
+
+```c++
+  // Declare a sqlite database.
+  auto database = sqlite_database("iod_sqlite_test_orm.db");
+
+  // Or a mysql database.
+  auto database = mysql_database(s::host = "127.0.0.1",
+                                s::database = "silicon_test",
+                                s::user = "root",
+                                s::password = "sl_test_password",
+                                s::port = 14550,
+                                s::charset = "utf8");
+
+  api.post("/db_test") = [&] (http_request& request, http_response& response) {
+    auto connection = database.connect();
+    int count = connection("Select count(*) from users").read<int>();
+    std::optional<std::string> name = connection("Select name from users LIMIT 1").read_optional<std::string>();
+    if (name) response.write(*name);
+    else response.write("empty table");
+  };
+
+```
+
+Check https://github.com/matt-42/lithium/tree/master/libraries/sql for more information
+on how to use these connections.
+
+## Object Relational Mapping
+
+```c++
+auto users = li::sql_orm_schema(database, "user_table" /* the table name in the SQL db*/)
+
+              .fields(s::id(s::auto_increment, s::primary_key) = int(),
+                      s::age = int(),
+                      s::name = std::string(),
+                      s::login = std::string());
+
+api.post("/orm_test") = [&] (http_request& request, http_response& response) {
+  auto U = users.connect();
+  long long int id = U.insert(s::name = "john", s::age = 42, s::login = "doe");
+  response.write("new inserted id: ", id, ", new user count is ", U.count());
+  
+  U.update(s::id = id, s::age = 43);
+  assert(U.find_one(s::id = id)->age == 43);
+  U.remove(s::id = id);
+
+}
+```
+### ORM Callbacks
+
+If you need to insert custom logic in the ORM, you can pass callbacks to the orm:
+```c++
+auto users = li::sql_orm_schema(database, "user_table")
+              .fields([...])
+              .callbacks(s::before_insert = [] (auto& user) { ... });
+```
+
+Callbacks can also take additional arguments:
+```c++
+auto users = li::sql_orm_schema(database, "user_table")
+              .fields([...])
+              .callbacks(
+                s::before_insert = [] (auto& user, http_request& request) { ... });
+
+// In this case you must pass them to the ORM methods:
+api.post("/orm_test") = [&] (http_request& request, http_response& response) {
+  users.connect().insert(s::name = "john", s::age = 42, s::login = "doe", request);
+}
+```
+
+
+More info on the ORM here: https://github.com/matt-42/lithium/tree/master/libraries/sql
+
+## Insert/Update/Remove API
+
+If you are lazy to write update/remove/remove/find_by_id routes for all you objects, you can
+use `sql_crud_api` to define them for you: 
+```c++
+api.add_subapi("/user", sql_crud_api(my_orm));
+```
+Note that when using it, ORM callbacks must take `http_request& request, http_response& response`
+as additional arguments.
+
+Check the code for info:
+https://github.com/matt-42/lithium/blob/master/libraries/http_backend/http_backend/sql_crud_api.hh
+
+
+## Cookies
+
+```c++
+api.post("/cookie") = [&] (http_request& request, http_response& response) {
+  // Set a random cookie value, or retrieve the existing one.
+  std::string cookie_id = cookie(request, response, "my_cookie_field");
+}
+```
+
+## Sessions
+
+```c++
+// Let's use a session to remember the name of a user.
+// By default, we set the username to "unknown"
+// Store sessions in a sql db:
+auto session = sql_http_session(db, "user_sessions_table", "test_cookie", s::name = "unknown");
+// Or in-memory
+auto session = hashmap_http_session("test_cookie", s::name = "unknown");
+
+api.get("/sessions") = [&] (http_request& request, http_response& response) {
+  auto sess = session.connect(request, response);
+
+  // Access session values.
+  response.write("hello ", sess.values().name);
+
+  // Store values in the session.
+  auto get_params = request.get_parameter(s::name = std::string());
+  sess.store(s::name = params.name);
+
+  // Remove an existing session.
+  sess.logout();
+}
+```
+
+## User authentication
+
+```c++
+auto db = sqlite_database("blog_database.sqlite");
+auto users =
+    li::sql_orm_schema(db, "auth_users")
+        .fields(s::id(s::auto_increment, s::primary_key) = int(), 
+                s::email = std::string(),
+                s::password = std::string());
+
+auto sessions = li::hashmap_http_session("auth_cookie", s::user_id = -1);
+
+//
+auto auth = li::http_authentication(// the sessions to store the user id of the logged user.
+                                    // It need to have a user_id field.
+                                    sessions,
+                                    users, // The user ORM
+                                    s::email, // The user field used as login.
+                                    s::password, // The user field used as password.
+                                    // Optional but really recommended: password hashing.
+                                    s::hash_password = [&] (auto login, auto password) { 
+                                      return your_secure_hash_function(login, password);
+                                      },
+                                    // Optional: generate secret key to salt your hash function.
+                                    s::update_secret_key = [&] (auto login, auto password) {
+
+                                      },
+                                    );
+
+li::api<li::http_request, li::http_response> my_api;
+
+my_api.post("/auth_test") = [&] (http_request& request, http_response& response) {
+  // Login: 
+  //   Read the email/password field in the POST parameters
+  //   Check if this match with a user in DB.
+  //   Store the user_id in the session.
+  //   Return true if the login is successful, false otherwise.
+  if (!auth.login(request, response))
+      throw http_error::unauthorized("Bad login.");
+
+  // Logout: destroy the session.
+  auth.logout(request, response);
+};
+```
+
+Check the code for more info:
+https://github.com/matt-42/lithium/blob/master/libraries/http_backend/http_backend/http_authentication.hh
+
+
+# A complete blog API
+
+Checkout the code here:
+https://github.com/matt-42/lithium/blob/master/libraries/http_backend/examples/blog.cc
 
 Contributing
 ===========================
