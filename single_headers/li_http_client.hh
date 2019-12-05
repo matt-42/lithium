@@ -7,22 +7,23 @@
 
 #pragma once
 
-#include <vector>
-#include <variant>
-#include <string_view>
-#include <cstring>
-#include <curl/curl.h>
-#include <iostream>
-#include <tuple>
-#include <functional>
-#include <cassert>
-#include <memory>
-#include <sstream>
-#include <utility>
-#include <optional>
 #include <string>
+#include <sstream>
+#include <curl/curl.h>
+#include <functional>
+#include <unordered_map>
+#include <variant>
+#include <memory>
+#include <string_view>
+#include <optional>
+#include <cstring>
 #include <cmath>
 #include <map>
+#include <iostream>
+#include <cassert>
+#include <utility>
+#include <vector>
+#include <tuple>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -96,8 +97,12 @@ namespace li_http_client {
     typedef L left_t;
     typedef R right_t;
 
-    template <typename V>
-    inline assign_exp(L l, V&& r) : left(l), right(std::forward<V>(r)) {}
+    //template <typename V>
+    //assign_exp(L l, V&& r) : left(l), right(std::forward<V>(r)) {}
+    //template <typename V>
+    inline assign_exp(L l, R r) : left(l), right(r) {}
+    //template <typename V>
+    //inline assign_exp(L l, const V& r) : left(l), right(r) {}
  
     L left;
     R right;
@@ -329,9 +334,19 @@ namespace li_http_client {
     LI_SYMBOL(body)
 #endif
 
+#ifndef LI_SYMBOL_fetch_headers
+#define LI_SYMBOL_fetch_headers
+    LI_SYMBOL(fetch_headers)
+#endif
+
 #ifndef LI_SYMBOL_get_parameters
 #define LI_SYMBOL_get_parameters
     LI_SYMBOL(get_parameters)
+#endif
+
+#ifndef LI_SYMBOL_headers
+#define LI_SYMBOL_headers
+    LI_SYMBOL(headers)
 #endif
 
 #ifndef LI_SYMBOL_json_encoded
@@ -2094,10 +2109,27 @@ inline size_t curl_write_callback(char* ptr, size_t size, size_t nmemb, void* us
 
 inline std::streamsize curl_read_callback(void* ptr, size_t size, size_t nmemb, void* stream);
 
+inline size_t curl_header_callback(char *buffer,   size_t size,   size_t nitems,   void *userdata)
+{
+  auto& headers_map = *(std::unordered_map<std::string, std::string>*)userdata;
+
+  size_t split = 0;
+  size_t total_size = size * nitems;
+  while(split < total_size && buffer[split] != ':') split++;
+
+  if (split == total_size)
+    return total_size;
+  //throw std::runtime_error("Header line does not contains a colon (:)");
+
+  int skip_nl = (buffer[total_size - 1] == '\n');
+  int skip_space = (buffer[split + 1] == ' ');
+  headers_map[std::string(buffer, split)] = std::string(buffer + split + 1 + skip_space, total_size - split - 1 - skip_nl - skip_space);
+  return total_size;
+}
+
 struct http_client {
 
-
-  enum metthod_verb { HTTP_GET, HTTP_POST, HTTP_PUT, HTTP_DELETE };
+  enum method_verb { HTTP_GET, HTTP_POST, HTTP_PUT, HTTP_DELETE };
 
   inline http_client(const std::string& prefix = "") : url_prefix_(prefix) {
     curl_global_init(CURL_GLOBAL_ALL);
@@ -2113,6 +2145,8 @@ struct http_client {
     struct curl_slist* headers_list = NULL;
 
     auto arguments = mmm(args...);
+    constexpr bool fetch_headers = has_key<decltype(arguments)>(s::fetch_headers);
+
     // Generate url.
     std::stringstream url_ss;
     url_ss << url_prefix_ << url;
@@ -2203,6 +2237,14 @@ struct http_client {
 
     curl_easy_setopt(curl_, CURLOPT_HTTPHEADER, headers_list);
 
+    // Setup response header parsing.
+    std::unordered_map<std::string, std::string> response_headers_map;
+    if (fetch_headers)
+    {
+      curl_easy_setopt(curl_, CURLOPT_HEADERDATA, &response_headers_map); 
+      curl_easy_setopt(curl_, CURLOPT_HEADERFUNCTION, curl_header_callback); 
+    }
+
     // Send the request.
     char errbuf[CURL_ERROR_SIZE];
     curl_easy_setopt(curl_, CURLOPT_ERRORBUFFER, errbuf);
@@ -2216,8 +2258,11 @@ struct http_client {
     long response_code;
     curl_easy_getinfo(curl_, CURLINFO_RESPONSE_CODE, &response_code);
 
-    // Decode result.
-    return mmm(s::status = response_code, s::body = body_buffer_);
+    // Return response object.
+    if constexpr (fetch_headers)
+      return mmm(s::status = response_code, s::body = body_buffer_, s::headers = response_headers_map);
+    else
+      return mmm(s::status = response_code, s::body = body_buffer_);
   }
 
   template <typename... P>

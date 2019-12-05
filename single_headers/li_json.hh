@@ -7,19 +7,19 @@
 
 #pragma once
 
-#include <vector>
-#include <variant>
-#include <string_view>
-#include <cstring>
-#include <tuple>
-#include <cassert>
-#include <functional>
-#include <memory>
-#include <sstream>
-#include <utility>
-#include <optional>
 #include <string>
+#include <sstream>
+#include <functional>
+#include <variant>
+#include <optional>
+#include <string_view>
+#include <memory>
+#include <cstring>
 #include <cmath>
+#include <cassert>
+#include <utility>
+#include <vector>
+#include <tuple>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -242,8 +242,12 @@ namespace li_json {
     typedef L left_t;
     typedef R right_t;
 
-    template <typename V>
-    inline assign_exp(L l, V&& r) : left(l), right(std::forward<V>(r)) {}
+    //template <typename V>
+    //assign_exp(L l, V&& r) : left(l), right(std::forward<V>(r)) {}
+    //template <typename V>
+    inline assign_exp(L l, R r) : left(l), right(r) {}
+    //template <typename V>
+    //inline assign_exp(L l, const V& r) : left(l), right(r) {}
  
     L left;
     R right;

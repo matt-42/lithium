@@ -7,41 +7,42 @@
 
 #pragma once
 
-#include <vector>
-#include <thread>
-#include <cstring>
-#include <tuple>
-#include <string.h>
-#include <windows.h>
 #include <sstream>
-#include <string>
-#include <cmath>
-#include <cassert>
 #include <stdlib.h>
-#include <optional>
-#include <stdio.h>
-#include <microhttpd.h>
-#include <set>
-#include <map>
-#include <unordered_map>
-#include <functional>
-#include <sys/stat.h>
 #include <boost/lexical_cast.hpp>
-#include <utility>
-#include <fstream>
-#include <random>
-#include <fcntl.h>
-#include <variant>
-#include <string_view>
-#include <iostream>
-#include <mutex>
+#include <cstring>
 #include <unistd.h>
+#include <cassert>
+#include <utility>
+#include <tuple>
+#include <mutex>
+#include <string>
+#include <thread>
+#include <optional>
+#include <iostream>
+#include <random>
+#include <fstream>
+#include <functional>
+#include <unordered_map>
+#include <microhttpd.h>
+#include <string_view>
+#include <windows.h>
+#include <stdio.h>
+#include <variant>
 #include <memory>
+#include <string.h>
+#include <vector>
+#include <map>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <set>
+#include <cmath>
 
 #if defined(_MSC_VER)
-#include <ciso646>
 #include <io.h>
+#include <ciso646>
 #endif // _MSC_VER
+
 
 
 
@@ -65,8 +66,7 @@ namespace li_http_backend
 
     sql_varchar() : std::string() {}
   };
-}//#include <li/sql/mysql.hh>
-
+}
 
 
 namespace li_http_backend {
@@ -280,8 +280,12 @@ namespace li_http_backend {
     typedef L left_t;
     typedef R right_t;
 
-    template <typename V>
-    inline assign_exp(L l, V&& r) : left(l), right(std::forward<V>(r)) {}
+    //template <typename V>
+    //assign_exp(L l, V&& r) : left(l), right(std::forward<V>(r)) {}
+    //template <typename V>
+    inline assign_exp(L l, R r) : left(l), right(r) {}
+    //template <typename V>
+    //inline assign_exp(L l, const V& r) : left(l), right(r) {}
  
     L left;
     R right;
@@ -797,6 +801,16 @@ namespace li_http_backend {
     LI_SYMBOL(blocking)
 #endif
 
+#ifndef LI_SYMBOL_create_secret_key
+#define LI_SYMBOL_create_secret_key
+    LI_SYMBOL(create_secret_key)
+#endif
+
+#ifndef LI_SYMBOL_hash_password
+#define LI_SYMBOL_hash_password
+    LI_SYMBOL(hash_password)
+#endif
+
 #ifndef LI_SYMBOL_https_cert
 #define LI_SYMBOL_https_cert
     LI_SYMBOL(https_cert)
@@ -862,6 +876,16 @@ namespace li_http_backend {
     LI_SYMBOL(session_id)
 #endif
 
+#ifndef LI_SYMBOL_update_secret_key
+#define LI_SYMBOL_update_secret_key
+    LI_SYMBOL(update_secret_key)
+#endif
+
+#ifndef LI_SYMBOL_user_id
+#define LI_SYMBOL_user_id
+    LI_SYMBOL(user_id)
+#endif
+
 
 #include "symbols.hh"
 
@@ -881,8 +905,9 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
   sql_orm(SCHEMA& schema, C con) : schema_(schema), con_(con) {}
 
-  template <typename S, typename O> void call_callback(S s, O& o) {
-    get_or(schema_.get_callbacks(), s, [](auto p) {})(o);
+  template <typename S, typename... A> void call_callback(S s, A&&... args) {
+    if constexpr(has_key<decltype(schema_.get_callbacks())>(S{}))
+      return schema_.get_callbacks()[s](args...);
   }
 
   inline auto drop_table_if_exists() {
@@ -896,10 +921,11 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
     bool first = true;
     li_http_backend::tuple_map(schema_.all_info(), [&](auto f) {
+      auto f2 = schema_.get_field(f);
       typedef decltype(f) F;
-      typedef typename SCHEMA::template get_field<F>::ret A;
-      typedef typename A::left_t K;
-      typedef typename A::right_t V;
+      typedef decltype(f2) F2;
+      typedef typename F2::left_t K;
+      typedef typename F2::right_t V;
 
       bool auto_increment = SCHEMA::template is_auto_increment<F>::value;
       bool primary_key = SCHEMA::template is_primary_key<F>::value;
@@ -911,7 +937,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
       ss << li_http_backend::symbol_string(k) << " " << con_.type_to_string(v);
 
       if (std::is_same<C, sqlite_connection>::value) {
-        if (auto_increment or primary_key)
+        if (auto_increment || primary_key)
           ss << " PRIMARY KEY ";
       }
 
@@ -955,7 +981,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     ss << " ";
   }
 
-  template <typename... W> auto find_one(metamap<W...> where) {
+  template <typename... W, typename... A> auto find_one(metamap<W...> where, A&&... cb_args) {
     std::stringstream ss;
     O o;
     ss << "SELECT ";
@@ -974,13 +1000,21 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
     auto res = li_http_backend::tuple_reduce(metamap_values(where), stmt).template read_optional<O>();
     if (res)
-      call_callback(s::read_access, o);
+      call_callback(s::read_access, o, cb_args...);
     return res;
   }
 
+  // template <typename O, typename... W>
+  // auto find_one_rec(metamap<O...>&& o, W... ws) {
+  //   return find_one(std::forward<metamap<O...>>(o), ws...);
+  // }
+  template <typename A, typename B, typename... O, typename... W>
+  auto find_one(metamap<O...>&& o, assign_exp<A, B> w1, W... ws) {
+    return find_one(cat(o, mmm(w1)), ws...);
+  }
   template <typename A, typename B, typename... W>
   auto find_one(assign_exp<A, B> w1, W... ws) {
-    return find_one(mmm(w1, ws...));
+    return find_one(mmm(w1), ws...);
   }
 
   template <typename W>
@@ -1003,18 +1037,20 @@ template <typename SCHEMA, typename C> struct sql_orm {
   }
   // Save a ll fields except auto increment.
   // The db will automatically fill auto increment keys.
-  template <typename N> long long int insert(N& o) {
-    std::cout << json_encode(o)<< std::endl;
+  template <typename N, typename... A> long long int insert(N&& o, A&&... cb_args) {
     std::stringstream ss;
     std::stringstream vs;
 
-    call_callback(s::validate, o);
-    call_callback(s::before_insert, o);
-    call_callback(s::write_access, o);
+    auto values = schema_.without_auto_increment();
+    map(o, [&](auto k, auto& v) { values[k] = o[k]; });
+    // auto values = intersection(o, schema_.without_auto_increment());
+    
+    call_callback(s::validate, values, cb_args...);
+    call_callback(s::before_insert, values, cb_args...);
     ss << "INSERT into " << schema_.table_name() << "(";
 
     bool first = true;
-    li_http_backend::map(schema_.without_auto_increment(), [&](auto k, auto v) {
+    li_http_backend::map(values, [&](auto k, auto v) {
       if (!first) {
         ss << ",";
         vs << ",";
@@ -1024,23 +1060,29 @@ template <typename SCHEMA, typename C> struct sql_orm {
       vs << "?";
     });
 
-    auto values = intersection(schema_.without_auto_increment(), o);
-    map(values, [&](auto k, auto& v) { v = o[k]; });
-    // auto values = intersection(o, schema_.without_auto_increment());
 
     ss << ") VALUES (" << vs.str() << ")";
     auto req = con_.prepare(ss.str());
     li_http_backend::reduce(values, req);
 
-    call_callback(s::after_insert, o);
+    call_callback(s::after_insert, o, cb_args...);
 
     return req.last_insert_id();
   };
-  template <typename S, typename V, typename... A>
-  long long int insert(const assign_exp<S, V>& a, A&&... tail) {
-    auto m = mmm(a, tail...);
-    return insert(m);
+  template <typename A, typename B, typename... O, typename... W>
+  long long int insert(metamap<O...>&& o, assign_exp<A, B> w1, W... ws) {
+    return insert(cat(o, mmm(w1)), ws...);
   }
+  template <typename A, typename B, typename... W>
+  long long int insert(assign_exp<A, B> w1, W... ws) {
+    return insert(mmm(w1), ws...);
+  }
+
+  // template <typename S, typename V, typename... A>
+  // long long int insert(const assign_exp<S, V>& a, A&&... tail) {
+  //   auto m = mmm(a, tail...);
+  //   return insert(m);
+  // }
 
   // Iterate on all the rows of the table.
   template <typename F> void forall(F f) {
@@ -1051,12 +1093,12 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
   // Update N's members except auto increment members.
   // N must have at least one primary key.
-  template <typename N> void update(const N& o) {
+  template <typename N, typename... CB> void update(const N& o, CB&&... args) {
     // check if N has at least one member of PKS.
 
-    call_callback(s::validate, o);
-    call_callback(s::write_access, o);
-    call_callback(s::before_update, o);
+    call_callback(s::validate, o, args...);
+    call_callback(s::write_access, o, args...);
+    call_callback(s::before_update, o, args...);
 
     // static_assert(metamap_size<decltype(intersect(o, schema_.read_only()))>(),
     //"You cannot give read only fields to the orm update method.");
@@ -1082,23 +1124,25 @@ template <typename SCHEMA, typename C> struct sql_orm {
     auto stmt = con_.prepare(ss.str());
     li_http_backend::tuple_reduce(std::tuple_cat(metamap_values(to_update), metamap_values(pk)), stmt);
 
-    call_callback(s::after_update, o);
+    call_callback(s::after_update, o, args...);
   }
 
-  template <typename S, typename V, typename... A>
-  void update(const assign_exp<S, V>& a, A&&... tail) {
-    auto m = mmm(a, tail...);
-    return update(m);
+  template <typename A, typename B, typename... O, typename... W>
+  void update(metamap<O...>&& o, assign_exp<A, B> w1, W... ws) {
+    return update(cat(o, mmm(w1)), ws...);
+  }
+  template <typename A, typename B, typename... W>
+  void update(assign_exp<A, B> w1, W... ws) {
+    return update(mmm(w1), ws...);
   }
 
   inline int count() {
     return con_(std::string("SELECT count(*) from ") + schema_.table_name()).template read<int>();
   }
 
-  template <typename T> void remove(const T& o) {
+  template <typename N, typename... CB> void remove(const N& o, CB&&... args) {
 
-    call_callback(s::write_access, o);
-    call_callback(s::before_remove, o);
+    call_callback(s::before_remove, o, args...);
 
     std::stringstream ss;
     ss << "DELETE from " << schema_.table_name() << " WHERE ";
@@ -1114,12 +1158,18 @@ template <typename SCHEMA, typename C> struct sql_orm {
     auto pks = intersection(o, schema_.primary_key());
     li_http_backend::reduce(pks, con_.prepare(ss.str()));
 
-    call_callback(s::after_remove, o);
+    call_callback(s::after_remove, o, args...);
   }
-  template <typename A, typename B, typename... T>
-  void remove(const assign_exp<A, B>& o, T... tail) {
-    return remove(mmm(o, tail...));
+  template <typename A, typename B, typename... O, typename... W>
+  void remove(metamap<O...>&& o, assign_exp<A, B> w1, W... ws) {
+    return remove(cat(o, mmm(w1)), ws...);
   }
+  template <typename A, typename B, typename... W>
+  void remove(assign_exp<A, B> w1, W... ws) {
+    return remove(mmm(w1), ws...);
+  }
+
+  auto& schema() { return schema_; }
 
   SCHEMA schema_;
   C con_;
@@ -1128,21 +1178,28 @@ template <typename SCHEMA, typename C> struct sql_orm {
 template <typename... F> struct orm_fields {
 
   orm_fields(F... fields) : fields_(fields...) {
-    static_assert(sizeof...(F) == 0 or metamap_size<decltype(this->primary_key())>() != 0,
+    static_assert(sizeof...(F) == 0 || metamap_size<decltype(this->primary_key())>() != 0,
                   "You must give at least one primary key to the ORM. Use "
                   "s::your_field_name(s::primary_key) to add a primary_key");
   }
 
   // Field extractor.
-  template <typename M> struct get_field { typedef M ret; };
-  template <typename M, typename T> struct get_field<assign_exp<M, T>> {
-    typedef assign_exp<M, T> ret;
-    static auto ctor() { return assign_exp<M, T>{M{}, T()}; }
-  };
-  template <typename M, typename T, typename... A>
-  struct get_field<assign_exp<function_call_exp<M, A...>, T>> : public get_field<assign_exp<M, T>> {
-  };
+  template <typename M> auto get_field(M m) { return m; }
+  template <typename M, typename T> 
+  auto get_field(assign_exp<M, T> e) { return e; }
+  template <typename M, typename T, typename... A> 
+  auto get_field(assign_exp<function_call_exp<M, A...>, T> e) { return assign_exp<M, T>{M{}, e.right}; }
 
+  // template <typename M> struct get_field { typedef M ret; };
+  // template <typename M, typename T> struct get_field<assign_exp<M, T>> {
+  //   typedef assign_exp<M, T> ret;
+  //   static auto ctor() { return assign_exp<M, T>{M{}, T()}; }
+  // };
+  // template <typename M, typename T, typename... A>
+  // struct get_field<assign_exp<function_call_exp<M, A...>, T>> : public get_field<assign_exp<M, T>> {
+  // };
+
+//get_field<E>::ctor();
 // field attributes checks.
 #define CHECK_FIELD_ATTR(ATTR)                                                                     \
   template <typename M> struct is_##ATTR : std::false_type {};                                     \
@@ -1152,57 +1209,70 @@ template <typename... F> struct orm_fields {
                                                                                                    \
   auto ATTR() {                                                                                    \
     return tuple_map_reduce(fields_,                                                               \
-                            [](auto e) {                                                           \
+                            [this](auto e) {                                                           \
                               typedef std::remove_reference_t<decltype(e)> E;                      \
                               if constexpr (is_##ATTR<E>::value)                                   \
-                                return get_field<E>::ctor();                                       \
+                                return get_field(e);                                       \
                               else                                                                 \
                                 return skip{};                                                     \
                             },                                                                     \
                             make_metamap_skip);                                                    \
   }
 
-  CHECK_FIELD_ATTR(primary_key);
+  CHECK_FIELD_ATTR(primary_key); 
   CHECK_FIELD_ATTR(read_only);
   CHECK_FIELD_ATTR(auto_increment);
+  CHECK_FIELD_ATTR(computed);
+
+  // Do not remove this comment, this is used by the symbol generation.
+  // s::primary_key s::read_only s::auto_increment s::computed 
 
   auto all_info() { return fields_; }
 
   auto all_fields() {
 
     return tuple_map_reduce(fields_,
-                            [](auto e) {
-                              typedef std::remove_reference_t<decltype(e)> E;
-                              return get_field<E>::ctor();
+                            [this](auto e) {
+                              //typedef std::remove_reference_t<decltype(e)> E;
+                              return get_field(e);
                             },
                             [](auto... e) { return mmm(e...); });
   }
 
   auto without_auto_increment() { return substract(all_fields(), auto_increment()); }
+  auto all_fields_except_computed() { return substract(substract(all_fields(), computed()),
+                                                       auto_increment()); }
 
   std::tuple<F...> fields_;
 };
 
-template <typename MD = orm_fields<>, typename CB = decltype(mmm())>
+template <typename DB, typename MD = orm_fields<>, typename CB = decltype(mmm())>
 struct sql_orm_schema : public MD {
 
-  sql_orm_schema(const std::string& table_name, CB cb = CB(), MD md = MD())
-      : MD(md), table_name_(table_name), callbacks_(cb) {}
+  sql_orm_schema(DB& db, const std::string& table_name, CB cb = CB(), MD md = MD())
+      : MD(md), database_(db), table_name_(table_name), callbacks_(cb) {}
 
-  template <typename D> auto connect(D& db) { return sql_orm(*this, db.connect()); }
+  inline auto connect() { return sql_orm(*this, database_.connect()); }
 
   const std::string& table_name() const { return table_name_; }
   auto get_callbacks() const { return callbacks_; }
 
-  template <typename... P> auto callbacks(P... params_list) {
+  template <typename... P> auto callbacks(P... params_list) const {
     auto cbs = mmm(params_list...);
-    return sql_orm_schema<MD, decltype(cbs)>(table_name_, cbs, *static_cast<MD*>(this));
+    auto allowed_callbacks = mmm(s::before_insert, s::before_remove, s::before_update,
+                                 s::after_insert, s::after_remove, s::after_update, s::validate);
+
+    static_assert(metamap_size<decltype(substract(cbs, allowed_callbacks))>() == 0, 
+    "The only supported callbacks are: s::before_insert, s::before_remove, s::before_update,"
+    " s::after_insert, s::after_remove, s::after_update, s::validate");
+    return sql_orm_schema<DB, MD, decltype(cbs)>(database_, table_name_, cbs, *static_cast<const MD*>(this));
   }
 
-  template <typename... P> auto fields(P... p) {
-    return sql_orm_schema<orm_fields<P...>, CB>(table_name_, callbacks_, orm_fields<P...>(p...));
+  template <typename... P> auto fields(P... p) const {
+    return sql_orm_schema<DB, orm_fields<P...>, CB>(database_, table_name_, callbacks_, orm_fields<P...>(p...));
   }
 
+  DB& database_;
   std::string table_name_;
   CB callbacks_;
 };
@@ -2512,6 +2582,7 @@ template <typename A, typename B, typename... C> auto json_encode(const assign_e
 
 
 
+
 namespace li_http_backend {
 
   namespace internal
@@ -2838,6 +2909,15 @@ namespace li_http_backend
       return str.substr(end, 0);
     else
       return str.substr(end + 1, str.size() - end - 1);
+  }
+
+  template <typename O>
+  std::string_view url_decode2(std::set<void*>& found, std::string_view str, std::optional<O>& obj)
+  {
+    O o;
+    auto ret = url_decode2(found, str, o);
+    obj = o;
+    return ret;
   }
 
   template <typename... O>
@@ -3284,8 +3364,11 @@ struct http_response {
   inline void set_header(std::string k, std::string v) { headers[k] = v; }
   inline void set_cookie(std::string k, std::string v) { cookies[k] = v; }
 
-  void write(const std::string res) { body = res; }
-  void write_file(const std::string path) {
+  inline void write() {}
+  template <typename A1, typename... A>
+  inline void write(A1 a1, A&&... a) { body += boost::lexical_cast<std::string>(a1); write(a...); }
+  //inline void write(const std::string res) { body = res; }
+  inline void write_file(const std::string path) {
 
 #if defined(_MSC_VER)
     int fd; 
@@ -3298,33 +3381,12 @@ struct http_response {
       throw http_error::not_found("File not found.");
     file_descriptor = fd;
   }
-  // void write_file(http_response* r, const std::string& path) const {
-  //   int fd = open(path.c_str(), O_RDONLY);
 
-  //   if (fd == -1)
-  //     throw http_error::not_found("File not found.");
-
-  //   // Read extension.
-  //   int c = path.size();
-  //   while (c >= 1 and path[c - 1] != '.')
-  //     c--;
-  //   if (c > 1 and c < path.size()) {
-  //     const char* ext = path.c_str() + c;
-  //     if (!strcmp(ext, "js"))
-  //       r->set_header("Content-Type", "text/javascript");
-  //     if (!strcmp(ext, "css"))
-  //       r->set_header("Content-Type", "text/css");
-  //     if (!strcmp(ext, "html"))
-  //       r->set_header("Content-Type", "text/html");
-  //   }
-  //   r->file_descriptor = fd;
+  // void write(const std::string_view res) {
+  //   body = std::string(res.data(), res.size());
   // }
 
-  void write(const std::string_view res) {
-    body = std::string(res.data(), res.size());
-  }
-
-  void write(const char* res) { body = res; }
+  //void write(const char* res) { body += std::strres; }
 
   int status;
   std::string body;
@@ -3339,33 +3401,33 @@ struct http_response {
 
 namespace li_http_backend {
   
-template <typename DB, typename A, typename B> auto sql_crud(DB& db, sql_orm_schema<A, B>& orm_schema) {
+template <typename A, typename B, typename C> auto sql_crud_api(sql_orm_schema<A, B, C>& orm_schema) {
 
   api<http_request, http_response> api;
 
   api(POST, "/find_by_id") = [&](http_request& request, http_response& response) {
     auto params = request.post_parameters(s::id = int());
-    if (auto obj = orm_schema.connect(db).find_one(s::id = params.id))
+    if (auto obj = orm_schema.connect().find_one(s::id = params.id, request, response))
       response.write(json_encode(obj));
     else
       throw http_error::not_found(orm_schema.table_name(), " with id ", params.id, " does not exist.");
   };
 
   api(POST, "/create") = [&](http_request& request, http_response& response) {
-    auto insert_fields = substract(orm_schema.all_fields(), orm_schema.auto_increment());
+    auto insert_fields = orm_schema.all_fields_except_computed();
     auto obj = request.post_parameters(insert_fields);
-    long long int id = orm_schema.connect(db).insert(obj);
+    long long int id = orm_schema.connect().insert(obj, request, response);
     response.write(json_encode(s::id = id));
   };
 
   api(POST, "/update") = [&](http_request& request, http_response& response) {
     auto obj = request.post_parameters(orm_schema.all_fields());
-    orm_schema.connect(db).update(obj);
+    orm_schema.connect().update(obj, request, response);
   };
 
   api(POST, "/remove") = [&](http_request& request, http_response& response) {
     auto obj = request.post_parameters(orm_schema.primary_key());
-    orm_schema.connect(db).remove(obj);
+    orm_schema.connect().remove(obj, request, response);
   };
 
   return api;
@@ -3726,7 +3788,6 @@ namespace li_http_backend {
 
 }
 
-
 namespace li_http_backend {
 
 template <typename ORM> struct connected_sql_http_session {
@@ -3735,10 +3796,9 @@ template <typename ORM> struct connected_sql_http_session {
   // Retrive the cookie
   // Retrieve it from the database.
   // Insert it if it does not exists.
-  connected_sql_http_session(typename ORM::object_type& defaults, ORM orm, const std::string& session_id)
-      : loaded_(false), session_id_(session_id), orm_(orm), values_(defaults) {
-
-      }
+  connected_sql_http_session(typename ORM::object_type& defaults, ORM orm,
+                             const std::string& session_id)
+      : loaded_(false), session_id_(session_id), orm_(orm), values_(defaults) {}
 
   // Store fiels into the session
   template <typename... F> auto store(F... fields) {
@@ -3773,30 +3833,33 @@ private:
   typename ORM::object_type values_;
 };
 
-template <typename... F>
-decltype(auto) create_session_orm(std::string table_name, F... fields)
-{
-  return sql_orm_schema(table_name)
-                           .fields(s::session_id(s::read_only, s::primary_key) = sql_varchar<32>(), fields...);
+template <typename DB, typename... F>
+decltype(auto) create_session_orm(DB& db, std::string table_name,
+                                  F... fields) {
+  return sql_orm_schema<DB>(db, table_name)
+      .fields(s::session_id(s::read_only, s::primary_key) = sql_varchar<32>(), fields...);
 }
 
-template <typename... F> struct sql_http_session {
+template <typename DB, typename... F> struct sql_http_session {
 
-  sql_http_session(std::string table_name, F... fields)
-      : default_values_(mmm(s::session_id = sql_varchar<32>(), fields...)), session_table_(create_session_orm(table_name, fields...)) 
-      {
-      }
+  sql_http_session(DB& db, std::string table_name, std::string cookie_name, F... fields)
+      : cookie_name_(cookie_name),
+        default_values_(mmm(s::session_id = sql_varchar<32>(), fields...)),
+        session_table_(create_session_orm(db, table_name, fields...)) {}
 
-  template <typename DB>
-  auto connect(DB& database, http_request& request, http_response& response) {
-    return connected_sql_http_session(default_values_, session_table_.connect(database),
-                                      cookie(request, response));
+  auto connect(http_request& request, http_response& response) {
+    return connected_sql_http_session(default_values_, session_table_.connect(),
+                                      cookie(request, response, cookie_name_.c_str()));
   }
 
   auto orm() { return session_table_; }
 
-  std::decay_t<decltype(mmm(s::session_id = sql_varchar<32>(), std::declval<F>()...))> default_values_;
-  std::decay_t<decltype(create_session_orm(std::string(), std::declval<F>()...))> session_table_;
+  std::string cookie_name_;
+  std::decay_t<decltype(mmm(s::session_id = sql_varchar<32>(), std::declval<F>()...))>
+      default_values_;
+  std::decay_t<decltype(
+      create_session_orm(std::declval<DB&>(), std::string(), std::declval<F>()...))>
+      session_table_;
 };
 
 } // namespace li_http_backend
@@ -3838,16 +3901,17 @@ private:
 template <typename... F> struct hashmap_http_session {
 
   typedef decltype(mmm(std::declval<F>()...)) session_values_type;
-  inline hashmap_http_session(F... fields)
-      : default_values_(mmm(s::session_id = std::string(), fields...)) {}
+  inline hashmap_http_session(std::string cookie_name, F... fields)
+      : cookie_name_(cookie_name), default_values_(mmm(s::session_id = std::string(), fields...)) {}
 
   inline auto connect(http_request& request, http_response& response) {
-    std::string session_id = cookie(request, response);
+    std::string session_id = cookie(request, response, cookie_name_.c_str());
     auto it = sessions_.try_emplace(session_id, default_values_).first;
     return connected_hashmap_http_session<session_values_type>{session_id, &it->second, sessions_,
                                                                sessions_mutex_};
   }
 
+  std::string cookie_name_;
   session_values_type default_values_;
   std::unordered_map<std::string, session_values_type> sessions_;
   std::mutex sessions_mutex_;
@@ -3906,3 +3970,121 @@ inline auto serve_directory(std::string root) {
 }
 
 } // namespace li_http_backend
+
+
+
+namespace li_http_backend {
+
+template <typename S, typename U, typename L, typename P, typename... CB>
+struct http_authentication {
+  http_authentication(S& session, U& users, L login_field, P password_field,
+                      CB... callbacks)
+      : sessions_(session),
+        users_(users),
+        login_field_(login_field),
+        password_field_(password_field),
+        callbacks_(mmm(callbacks...))
+        {
+
+    auto allowed_callbacks = mmm(s::hash_password, s::create_secret_key);
+
+    static_assert(metamap_size<decltype(substract(callbacks_, allowed_callbacks))>() == 0, 
+    "The only supported callbacks for http_authentication are: s::hash_password, s::create_secret_key");
+        }
+
+
+  template <typename SS, typename... A> void call_callback(SS s, A&&... args) {
+    if constexpr(has_key<decltype(callbacks_)>(s))
+      return callbacks_[s](std::forward<A>(args)...);
+  }
+  
+ bool login(http_request& req, http_response& resp) {
+    auto lp = req.post_parameters(login_field_ = users_.all_fields()[login_field_],
+                                  password_field_ = users_.all_fields()[password_field_]);
+
+    if constexpr(has_key<decltype(callbacks_)>(s::hash_password))
+      lp[password_field_] = callbacks_[s::hash_password](lp[login_field_], lp[password_field_]);
+
+    if (auto user = users_.connect().find_one(lp)) {
+      sessions_.connect(req, resp).store(s::user_id = user->id);
+      return true;
+    } else
+      return false;
+  }
+
+  auto current_user(http_request& req, http_response& resp) {
+    auto sess = sessions_.connect(req, resp);
+    if (sess.values().user_id != -1)
+      return users_.connect().find_one(s::id = sess.values().user_id);
+    else
+      return decltype(users_.connect().find_one(s::id = sess.values().user_id)){};
+  }
+
+  void logout(http_request& req, http_response& resp) {
+    sessions_.connect(req, resp).logout();
+  }
+
+  bool signup(http_request& req, http_response& resp) {
+      auto new_user = req.post_parameters(users_.all_fields_except_computed());
+      auto users = users_.connect();
+
+      if (users.exists(login_field_ = new_user[login_field_]))
+        return false;
+      else 
+      {
+        if constexpr(has_key<decltype(callbacks_)>(s::update_secret_key))
+          callbacks_[s::update_secret_key](new_user[login_field_], new_user[password_field_]);        
+        if constexpr(has_key<decltype(callbacks_)>(s::hash_password))
+          new_user[password_field_] = callbacks_[s::hash_password](new_user[login_field_], new_user[password_field_]);        
+        users.insert(new_user);
+        return true;
+      }
+  }
+
+  S& sessions_;
+  U& users_;
+  L login_field_;
+  P password_field_;
+  decltype(mmm(std::declval<CB>()...)) callbacks_;
+};
+
+template <typename... A>
+api<http_request, http_response> http_authentication_api(http_authentication<A...>& auth) {
+
+  api<http_request, http_response> api;
+
+  api.post("/login") = [&] (http_request& request, http_response& response) {
+    if (!auth.login(request, response))
+      throw http_error::unauthorized("Bad login.");
+  };
+
+  api.get("/logout") = [&] (http_request& request, http_response& response) {
+    auth.logout(request, response);
+  };
+
+  api.get("/signup") = [&] (http_request& request, http_response& response) {
+    if (!auth.signup(request, response))
+      throw http_error::bad_request("User already exists.");
+  };
+
+
+  return api;
+}
+
+// Disable this for now. (No time to install nettle on windows.)
+// #include <nettle/sha3.h>
+// inline std::string hash_sha3_512(const std::string& str)
+// {
+//   struct sha3_512_ctx ctx;
+//   sha3_512_init(&ctx);
+//   sha3_512_update(&ctx, str.size(), (const uint8_t*) str.data());
+//   uint8_t h[SHA3_512_DIGEST_SIZE];
+//   sha3_512_digest(&ctx, sizeof(h), h);
+//   return std::string((const char*)h, sizeof(h));
+// }
+
+} // namespace li_http_backend
+
+namespace li_http_backend {
+  using http_api = api<http_request, http_response>;
+}

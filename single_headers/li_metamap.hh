@@ -7,9 +7,9 @@
 
 #pragma once
 
+#include <utility>
 #include <vector>
 #include <tuple>
-#include <utility>
 
 
 
@@ -225,8 +225,12 @@ namespace li_metamap {
     typedef L left_t;
     typedef R right_t;
 
-    template <typename V>
-    inline assign_exp(L l, V&& r) : left(l), right(std::forward<V>(r)) {}
+    //template <typename V>
+    //assign_exp(L l, V&& r) : left(l), right(std::forward<V>(r)) {}
+    //template <typename V>
+    inline assign_exp(L l, R r) : left(l), right(r) {}
+    //template <typename V>
+    //inline assign_exp(L l, const V& r) : left(l), right(r) {}
  
     L left;
     R right;
