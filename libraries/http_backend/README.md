@@ -3,7 +3,7 @@ li::http_backend
 
 *Tested compilers: Linux: G++ 9, Clang++ 9, Macos: Clang 11, Windows: MSVC 19*
 
-This library aims to ease the development of http backend servers. 
+This library goal is to ease the development of http backend servers. 
 Built on top of microhttpd and other lithium libraries.
 
 Installation
@@ -24,68 +24,81 @@ Quick tour
 
 ## Hello world
 ```c++
-  // Build an api.
-  http_api api;
-  api.get("/hello_world") = [&](http_request& request, http_response& response) {
-    response.write("hello world.");
-  };
+// Build an api.
+http_api api;
 
-  //Start a http server.
-  http_serve(my_api, 12345);
+// Define a HTTP GET endpoint.
+api.get("/hello_world") = [&](http_request& request, http_response& response) {
+  response.write("hello world.");
+};
+
+//Start a http server.
+http_serve(my_api, 12345);
 ```
 
 ## Request parameters
 ```c++
-  http_api api;
-  api.get("/get_params") = [&](http_request& request, http_response& response) {
-    // This will throw a BAD REQUEST http error if one field is missing or ill-formated.
-    auto params = request.get_parameters(s::my_param = int(), s::my_param2 = std::string());
-    response.write("hello " + params.my_param2);
-  };
+http_api api;
+api.get("/get_params") = [&](http_request& request, http_response& response) {
+  // This will throw a BAD REQUEST http error if one field is missing or ill-formated.
+  auto params = request.get_parameters(s::my_param = int(), s::my_param2 = std::string());
+  response.write("hello " + params.my_param2);
+};
 
-  api.post("/post_params") = [&](http_request& request, http_response& response) {
-    // This will throw a BAD REQUEST http error if one field is missing or ill-formated.
-    auto params = request.post_parameters(s::my_param = int(), s::my_param2 = std::string());
-    response.write("hello " + params.my_param2);
-  };
+api.post("/post_params") = [&](http_request& request, http_response& response) {
+  // This will throw a BAD REQUEST http error if one field is missing or ill-formated.
+  auto params = request.post_parameters(s::my_param = int(), s::my_param2 = std::string());
+  response.write("hello " + params.my_param2);
+};
 
-  api.post("/url_params/{{name}}") = [&](http_request& request, http_response& response) {
-    auto params = request.url_parameters(s::name = std::string());
-    response.write("hello " + params.name);
-  };
+api.post("/url_params/{{name}}") = [&](http_request& request, http_response& response) {
+  auto params = request.url_parameters(s::name = std::string());
+  response.write("hello " + params.name);
+};
+```
+
+## Error handling
+
+`li::http_backend` uses exceptions to report HTTP errors.
+
+```c++
+http_api api;
+api.get("/unauthorized") = [&](http_request& request, http_response& response) {
+  throw http_error::unauthorized("You cannot access this route.");
+};
 ```
 
 ## Optional parameters
 ```c++
-  auto param = request.get_parameters(s::my_param = std::optional<int>());
-  // param.id has type std::optional<int>()
-  if (param.id)
-    std::cout << "optional parameter set." << std::endl;
-  else
-    std::cout << "optional set: " << param.id.value() >> << std::endl;
+auto param = request.get_parameters(s::my_param = std::optional<int>());
+// param.id has type std::optional<int>()
+if (param.id)
+  std::cout << "optional parameter set." << std::endl;
+else
+  std::cout << "optional set: " << param.id.value() >> << std::endl;
 ```
 
 ## SQL Databases
 
 ```c++
-  // Declare a sqlite database.
-  auto database = sqlite_database("iod_sqlite_test_orm.db");
+// Declare a sqlite database.
+auto database = sqlite_database("iod_sqlite_test_orm.db");
 
-  // Or a mysql database.
-  auto database = mysql_database(s::host = "127.0.0.1",
-                                s::database = "silicon_test",
-                                s::user = "root",
-                                s::password = "sl_test_password",
-                                s::port = 14550,
-                                s::charset = "utf8");
+// Or a mysql database.
+auto database = mysql_database(s::host = "127.0.0.1",
+                              s::database = "silicon_test",
+                              s::user = "root",
+                              s::password = "sl_test_password",
+                              s::port = 14550,
+                              s::charset = "utf8");
 
-  api.post("/db_test") = [&] (http_request& request, http_response& response) {
-    auto connection = database.connect();
-    int count = connection("Select count(*) from users").read<int>();
-    std::optional<std::string> name = connection("Select name from users LIMIT 1").read_optional<std::string>();
-    if (name) response.write(*name);
-    else response.write("empty table");
-  };
+api.post("/db_test") = [&] (http_request& request, http_response& response) {
+  auto connection = database.connect();
+  int count = connection("Select count(*) from users").read<int>();
+  std::optional<std::string> name = connection("Select name from users LIMIT 1").read_optional<std::string>();
+  if (name) response.write(*name);
+  else response.write("empty table");
+};
 
 ```
 
@@ -226,6 +239,10 @@ my_api.post("/auth_test") = [&] (http_request& request, http_response& response)
   if (!auth.login(request, response))
       throw http_error::unauthorized("Bad login.");
 
+  // Access the current user.
+  auto u = auth.current_user();
+  // u is a std::optional.
+  if (!u) throw http_error::unauthorized("Please login.");
   // Logout: destroy the session.
   auth.logout(request, response);
 };
@@ -235,6 +252,18 @@ Check the code for more info:
 https://github.com/matt-42/lithium/blob/master/libraries/http_backend/http_backend/http_authentication.hh
 
 
+# Testing
+
+```c++
+  // Use the s::non_blocking parameters so the http_serve will run in a separate thread. 
+  auto ctx = http_serve(my_api, 12344, s::non_blocking);
+
+  // Use li::http_client to test your API.
+  auto r = http_get("http://localhost:12344/hello_world", s::get_parameters = mmm(s::name = "John")));
+  assert(r.status == 200);
+  assert(r.body == "expected response body");
+```
+
 # A complete blog API
 
 Checkout the code here:
@@ -242,11 +271,6 @@ https://github.com/matt-42/lithium/blob/master/libraries/http_backend/examples/b
 
 Contributing
 ===========================
-
-Contributions are welcome. Silicon can be easily extended with
-  - New middlewares
-  - New backends (websockets, other non-http protocols)
-  - New message formats (messagepack, protobuf, ...)
 
 Do not hesitate to fill issues, send pull requests, or contact me
 at matthieu.garrigues@gmail.com.
