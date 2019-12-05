@@ -3,28 +3,28 @@ The Lithium C++ Libraries
 
 Lithium provides a set of free C++17 multi-platform libraries including:
 
-### li::metamap
+### [li::metamap](https://github.com/matt-42/lithium/tree/master/libraries/metamap)
 
 A zero-cost compile time key/value map.
 
-### li::json
+### [li::json](https://github.com/matt-42/lithium/tree/master/libraries/json)
 
 A JSON serializer/deserializer designed for
 ease of use and performances.
 
-### li::sql
+### [li::sql](https://github.com/matt-42/lithium/tree/master/libraries/sql)
 
 A set of tools to interact with SQL databases.
 
-### li::http_client
+### [li::http_client](https://github.com/matt-42/lithium/tree/master/libraries/http_client)
 
 An http_client built around the libcurl library.
 
-### li::http_backend
+### [li::http_backend](https://github.com/matt-42/lithium/tree/master/libraries/http_backend)
 
 A library that ease the writing of web HTTP APIs.
 
-### li::symbol
+### [li::symbol](https://github.com/matt-42/lithium/tree/master/libraries/symbol)
 
 The root of the lithium project.
 
