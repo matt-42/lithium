@@ -1,7 +1,7 @@
-Lithium C++ Libraries
+The Lithium C++ Libraries
 ========================
 
-Lithium provides a set of C++17 libraries including:
+Lithium provides a set of C++17 multi-platform libraries including:
 
 ### li::metamap
 
@@ -23,3 +23,7 @@ An http_client built around the libcurl library.
 ### li::http_backend
 
 A library that ease the writing of web HTTP APIs.
+
+### li::symbol
+
+The root of the lithium project.
