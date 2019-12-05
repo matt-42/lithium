@@ -131,7 +131,7 @@ auto users = li::sql_orm_schema(database, "user_table")
               .callbacks(
                 s::before_insert = [] (auto& user, http_request& request) { ... });
 
-// In this case you must pass them to the ORM methods:
+// Additional arguments are passed to the ORM methods:
 api.post("/orm_test") = [&] (http_request& request, http_response& response) {
   users.connect().insert(s::name = "john", s::age = 42, s::login = "doe", request);
 }

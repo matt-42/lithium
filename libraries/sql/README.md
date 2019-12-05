@@ -110,6 +110,23 @@ users.update(*u);
 users.remove(*u);
 ```
 
+### Callbacks additional arguments
+
+Callbacks can also take additional arguments, it is used in the http_backend library to
+access the HTTP session.
+
+```c++
+auto users = li::sql_orm_schema(database, "user_table")
+              .fields([...])
+              .callbacks(
+                s::before_insert = [] (auto& user, http_request& request) { ... });
+
+// Additional arguments are passed to the ORM methods:
+api.post("/orm_test") = [&] (http_request& request, http_response& response) {
+  users.connect().insert(s::name = "john", s::age = 42, s::login = "doe", request);
+}
+```
+
 # Installation / Supported compilers
 
 Everything explained here: https://github.com/matt-42/lithium#installation
