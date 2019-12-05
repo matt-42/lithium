@@ -167,15 +167,6 @@ Check the code for info:
 https://github.com/matt-42/lithium/blob/master/libraries/http_backend/http_backend/sql_crud_api.hh
 
 
-## Cookies
-
-```c++
-api.post("/cookie") = [&] (http_request& request, http_response& response) {
-  // Set a random cookie value, or retrieve the existing one.
-  std::string cookie_id = cookie(request, response, "my_cookie_field");
-}
-```
-
 ## Sessions
 
 ```c++
