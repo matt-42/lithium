@@ -7,6 +7,12 @@ programming. Symbols are a new C++ paradigm that allow you to simply
 implement introspection, serialization, named parameters, and other
 things.
 
+# Installation / Supported compiler
+
+Everything explained here: https://github.com/matt-42/lithium#installation
+
+# Quick Tour
+
 A symbol is defined with a macro function :
 
 ```c++
@@ -47,8 +53,8 @@ assert(li::has_member(obj, s::my_symbol))
 assert(!li::has_member(obj, s::my_symbol2))
 ```
 
-Automatic symbol generation
-===================
+# Automatic symbol generation
+
 
 Declaring all symbols you are using is quite tedious.
 

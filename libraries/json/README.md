@@ -44,19 +44,10 @@ Authors
 
 Matthieu Garrigues https://github.com/matt-42
 
-
-Installation
+Installation / Supported compilers
 ============================
 
-Either install the single header library
-```
-wget https://github.com/matt-42/lithium/blob/master/single_headers/li_json.hh
-```
-and include the **li_json.hh** header. In this case the namespace of the library is **li_json**.
-
-Or install the lithium project: https://github.com/matt-42/lithium
-and include the **li/json/json.hh** header. In this case the namespace of the library is **li**.
-
+Everything explained here: https://github.com/matt-42/lithium#installation
 
 Overview
 ============================

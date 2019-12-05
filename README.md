@@ -29,7 +29,8 @@ A library that ease the writing of web HTTP APIs.
 The root of the lithium project.
 
 
-## Installation
+## Installation / Supported compilers
+
 
 You can either use the single header version of the libraries:
 https://github.com/matt-42/lithium/tree/master/single_headers
@@ -42,6 +43,13 @@ cd lithium;
 mkdir build; cd build;
 cmake .. -DCMAKE_INSTALL_PREFIX=_your_prefix_; make -j4 install;
 ```
+
+**Important note:** In the single header versions, the namespace `li` is renamed as `li_{library_name}`.
+
+### Tested compilers:
+    - Linux: G++ 9.2, Clang++ 9.0
+    - Macos: Clang 11
+    - Windows: MSVC 19
 
 ## Donate
 

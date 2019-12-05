@@ -6,19 +6,11 @@ li::http_client
 `li::http_client` is an easy to use http client built around
 the libcurl library.
 
-Installation
+Installation / Supported compilers
 ============================
 
-Either install the single header library
-```
-wget https://github.com/matt-42/lithium/blob/master/single_headers/li_http_client.hh
-```
-and include the **li_http_client.hh** header. In this case the namespace of the library is **li_http_client**.
+Everything explained here: https://github.com/matt-42/lithium#installation
 
-Or install the lithium project: https://github.com/matt-42/lithium
-and include the **li/http_client/http_client.hh** header. In this case the namespace of the library is **li**.
-
-You will also have to install and link your program with the libcurl library.
 
 Tutorial
 ========================

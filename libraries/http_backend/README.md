@@ -6,21 +6,11 @@ li::http_backend
 This library goal is to ease the development of http backend servers. 
 Built on top of microhttpd and other lithium libraries.
 
-Installation
-===================
+# Installation / Supported compiler
 
-Either install the single header library
-```
-wget https://github.com/matt-42/lithium/blob/master/single_headers/li_http_backend.hh
-```
-and include the **li_http_backend.hh** header. In this case the namespace of the library is **li_http_backend**.
+Everything explained here: https://github.com/matt-42/lithium#installation
 
-Or install the lithium project: https://github.com/matt-42/lithium
-and include the **li/http_backend/http_backend.hh** header. In this case the namespace of the library is **li**.
-
-
-Quick tour
-===========================
+# Quick tour
 
 ## Hello world
 ```c++
