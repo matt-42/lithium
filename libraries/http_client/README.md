@@ -1,19 +1,11 @@
 li::http_client
 ===============================
 
-*Tested compilers: Linux: G++ 9, Clang++ 9, Macos: Clang 11, Windows: MSVC 19*
-
 `li::http_client` is an easy to use http client built around
 the libcurl library.
 
-Installation / Supported compilers
-============================
 
-Everything explained here: https://github.com/matt-42/lithium#installation
-
-
-Tutorial
-========================
+# Tutorial
 
 ```c++
 using namespace li_http_client;
@@ -39,12 +31,17 @@ for (auto it : res.headers) {
 }
 ```
 
-Authors
-==============
+# Installation / Supported compilers
+
+Everything explained here: https://github.com/matt-42/lithium#installation
+
+
+# Authors
+
 Matthieu Garrigues https://github.com/matt-42
 
 
-Donate
-=============
+# Donate
+
 If you find this project helpful, please consider donating:
 https://www.paypal.me/matthieugarrigues

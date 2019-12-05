@@ -7,7 +7,7 @@ programming. Symbols are a new C++ paradigm that allow you to simply
 implement introspection, serialization, named parameters, and other
 things.
 
-# Installation / Supported compiler
+# Installation / Supported compilers
 
 Everything explained here: https://github.com/matt-42/lithium#installation
 

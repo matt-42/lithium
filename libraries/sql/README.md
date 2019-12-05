@@ -8,10 +8,6 @@ It features:
   - A MySQL C++ connector
   - An ORM-like class that allow to send requests without typing raw SQL code
 
-# Installation / Supported compiler
-
-Everything explained here: https://github.com/matt-42/lithium#installation
-
 # Tutorial
 
 ## Connectors
@@ -113,6 +109,10 @@ users.update(*u);
 // Remove.
 users.remove(*u);
 ```
+
+# Installation / Supported compilers
+
+Everything explained here: https://github.com/matt-42/lithium#installation
 
 # Authors
 

@@ -1,12 +1,10 @@
 li::http_backend
 =================================
 
-*Tested compilers: Linux: G++ 9, Clang++ 9, Macos: Clang 11, Windows: MSVC 19*
-
 This library goal is to ease the development of http backend servers. 
 Built on top of microhttpd and other lithium libraries.
 
-# Installation / Supported compiler
+# Installation / Supported compilers
 
 Everything explained here: https://github.com/matt-42/lithium#installation
 
@@ -260,18 +258,16 @@ assert(r.body == "expected response body");
 Checkout the code here:
 https://github.com/matt-42/lithium/blob/master/libraries/http_backend/examples/blog.cc
 
-Contributing
-===========================
+# Contributing
 
 Do not hesitate to fill issues, send pull requests, or contact me
 at matthieu.garrigues@gmail.com.
 
-Authors
-=====
+# Authors
+
 Matthieu Garrigues https://github.com/matt-42
 
-Donate
-==============
+# Donate
 
 If you find this project helpful, please consider donating:
 https://www.paypal.me/matthieugarrigues
