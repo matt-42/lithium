@@ -34,6 +34,8 @@ person.name = "Aurelia";
 person.age = 52;
 
 // Note s::name and s::age must be defined earlier with LI_SYMBOL(name); LI_SYMBOL(age);
+// Check https://github.com/matt-42/lithium/tree/master/libraries/symbol#lisymbol for more info.
+
 ```
 
 Everything is static, no hashmap or other dynamic structure is built by li::metamap. You can

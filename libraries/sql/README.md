@@ -127,6 +127,10 @@ api.post("/orm_test") = [&] (http_request& request, http_response& response) {
 }
 ```
 
+# What is the s:: namespace ?
+
+Everything explained here: https://github.com/matt-42/lithium/tree/master/libraries/symbol#lisymbol
+
 # Installation / Supported compilers
 
 Everything explained here: https://github.com/matt-42/lithium#installation

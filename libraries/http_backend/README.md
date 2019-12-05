@@ -258,10 +258,9 @@ assert(r.body == "expected response body");
 Checkout the code here:
 https://github.com/matt-42/lithium/blob/master/libraries/http_backend/examples/blog.cc
 
-# Contributing
+# What is the s:: namespace ?
 
-Do not hesitate to fill issues, send pull requests, or contact me
-at matthieu.garrigues@gmail.com.
+Everything explained here: https://github.com/matt-42/lithium/tree/master/libraries/symbol#lisymbol
 
 # Authors
 
