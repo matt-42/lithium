@@ -54,7 +54,7 @@ target_link_libraries(sql_authentication ${LIBS})
 add_test(sql_authentication sql_authentication)
 
 li_add_executable(http_authentication http_authentication.cc)
-target_link_libraries(http_authentication ${LIBS} nettle)
+target_link_libraries(http_authentication ${LIBS})
 add_test(http_authentication http_authentication)
 
 li_add_executable(hashmap_http_session hashmap_http_session.cc)

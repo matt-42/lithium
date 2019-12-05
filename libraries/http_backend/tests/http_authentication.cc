@@ -25,7 +25,7 @@ int main()
 
   auto auth = li::http_authentication(sessions, users, s::login, s::password,
                                       s::hash_password = [&] (auto login, auto password) { 
-                                        return hash_sha3_512(password); 
+                                        return password + "hash"; 
                                         }
                                       );
 

@@ -1,7 +1,6 @@
 #pragma once
 
 #include <optional>
-#include <nettle/sha3.h>
 
 #include <li/http_backend/sql_http_session.hh>
 #include <li/http_backend/api.hh>
@@ -104,14 +103,16 @@ api<http_request, http_response> http_authentication_api(http_authentication<A..
   return api;
 }
 
-inline std::string hash_sha3_512(const std::string& str)
-{
-  struct sha3_512_ctx ctx;
-  sha3_512_init(&ctx);
-  sha3_512_update(&ctx, str.size(), (const uint8_t*) str.data());
-  uint8_t h[SHA3_512_DIGEST_SIZE];
-  sha3_512_digest(&ctx, sizeof(h), h);
-  return std::string((const char*)h, sizeof(h));
-}
+// Disable this for now. (No time to install nettle on windows.)
+// #include <nettle/sha3.h>
+// inline std::string hash_sha3_512(const std::string& str)
+// {
+//   struct sha3_512_ctx ctx;
+//   sha3_512_init(&ctx);
+//   sha3_512_update(&ctx, str.size(), (const uint8_t*) str.data());
+//   uint8_t h[SHA3_512_DIGEST_SIZE];
+//   sha3_512_digest(&ctx, sizeof(h), h);
+//   return std::string((const char*)h, sizeof(h));
+// }
 
 } // namespace li
