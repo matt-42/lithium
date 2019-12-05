@@ -37,14 +37,14 @@ con("DROP table if exists users;");
 int count = con("select count(*) from users;").template read<int>();
 
 // Use placeholder to format your request according to some variables.
-int my_id = 42;
-auto login = con("select login from users where id = ?;")(my_id).template read_optional<std::string>();
+auto login = con("select login from users where id = ? and name = ?;")(42, "John")
+              .template read_optional<std::string>();
 // Note: use read_optional when the request may not return data.
 //       it returns a std::optional object that allows you to check it:
 if (login)
   std::cout << *login << std::endl;
 else  
-  std::cout << "id not found" << std::endl;
+  std::cout << "user not found" << std::endl;
 
 // Process multiple result rows.
 con("select name, age from users;").map([] (std::string name, int age) {
