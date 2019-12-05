@@ -7,35 +7,35 @@
 
 #pragma once
 
-#include <sstream>
-#include <memory>
-#include <map>
 #include <fstream>
-#include <optional>
-#include <variant>
-#include <random>
 #include <set>
-#include <unordered_map>
+#include <unistd.h>
 #include <cmath>
 #include <mutex>
 #include <stdio.h>
-#include <string>
-#include <thread>
-#include <unistd.h>
+#include <vector>
 #include <iostream>
 #include <sys/stat.h>
-#include <functional>
-#include <stdlib.h>
-#include <string.h>
-#include <fcntl.h>
-#include <microhttpd.h>
-#include <vector>
 #include <cassert>
-#include <utility>
-#include <cstring>
-#include <boost/lexical_cast.hpp>
+#include <sstream>
+#include <random>
+#include <map>
+#include <variant>
+#include <optional>
+#include <stdlib.h>
+#include <microhttpd.h>
 #include <tuple>
+#include <string.h>
+#include <string>
+#include <utility>
+#include <memory>
+#include <fcntl.h>
 #include <string_view>
+#include <cstring>
+#include <thread>
+#include <functional>
+#include <boost/lexical_cast.hpp>
+#include <unordered_map>
 
 #if defined(_MSC_VER)
 #include <windows.h>
@@ -3207,27 +3207,29 @@ namespace li_http_backend {
 
 struct http_request {
 
-  const char* header(const char* k) const;
+  inline const char* header(const char* k) const;
+  inline const char* cookie(const char* k) const;
 
   // With list of parameters: s::id = int(), s::name = string(), ...
   template <typename S, typename V, typename... T>
-  auto url_parameters(assign_exp<S, V> e, T... tail);
+  auto url_parameters(assign_exp<S, V> e, T... tail) const;
   template <typename S, typename V, typename... T>
-  auto get_parameters(assign_exp<S, V> e, T... tail);
+  auto get_parameters(assign_exp<S, V> e, T... tail) const;
   template <typename S, typename V, typename... T>
-  auto post_parameters(assign_exp<S, V> e, T... tail);
+  auto post_parameters(assign_exp<S, V> e, T... tail) const;
 
   // Const wrapper.
-  template <typename O> auto url_parameters(const O& res);
-  template <typename O> auto get_parameters(const O& res);
-  template <typename O> auto post_parameters(const O& res);
+  template <typename O> auto url_parameters(const O& res) const;
+  template <typename O> auto get_parameters(const O& res) const;
+  template <typename O> auto post_parameters(const O& res) const;
 
   // With a metamap.
-  template <typename O> auto url_parameters(O& res);
-  template <typename O> auto get_parameters(O& res);
-  template <typename O> auto post_parameters(O& res);
+  template <typename O> auto url_parameters(O& res) const;
+  template <typename O> auto get_parameters(O& res) const;
+  template <typename O> auto post_parameters(O& res) const;
 
   MHD_Connection* mhd_connection;
+
   std::string body;
   std::string url;
   std::string url_spec;
@@ -3341,85 +3343,46 @@ inline const char* http_request::header(const char* k) const {
   return MHD_lookup_connection_value(mhd_connection, MHD_HEADER_KIND, k);
 }
 
-// template <typename P, typename O>
-// void decode_post_parameters_json(O& res, mhd_request* r) const {
-//   try {
-//     if (r->body.size())
-//       json_decode(res, r->body);
-//     else
-//       json_decode(res, "{}");
-//   } catch (const std::exception& e) {
-//     throw http_error::bad_request("Error when decoding procedure arguments: ",
-//                              e.what());
-//   }
-// }
-
-// template <typename P, typename T>
-// auto decode_parameters(http_request* r, P procedure, T& res) const {
-//   try {
-//     decode_url_arguments<typename P::path_type>(res, r->url);
-//     decode_get_arguments<typename P::route_type::get_parameters_type>(res,
-//     r);
-
-//     using post_t = typename P::route_type::post_parameters_type;
-//     if (post_t::size() > 0) {
-//       const char* encoding = MHD_lookup_connection_value(
-//           r->connection, MHD_HEADER_KIND, "Content-Type");
-//       if (!encoding)
-//         throw http_error::bad_request(std::string(
-//             "Content-Type is required to decode the POST parameters"));
-
-//       if (encoding == std::string("application/x-www-form-urlencoded"))
-//         decode_post_parameters_urlencoded<post_t>(res, r);
-//       else if (encoding == std::string("application/json"))
-//         decode_post_parameters_json<post_t>(res, r);
-//       else
-//         throw http_error::bad_request(std::string("Content-Type not implemented:
-//         ") +
-//                                  encoding);
-//     }
-//   } catch (const std::runtime_error& e) {
-//     throw http_error::bad_request("Error when decoding procedure arguments: ",
-//                              e.what());
-//   }
-// }
+inline const char* http_request::cookie(const char* k) const {
+  return MHD_lookup_connection_value(mhd_connection, MHD_COOKIE_KIND, k);
+}
 
 template <typename S, typename V, typename... T>
-auto http_request::url_parameters(assign_exp<S, V> e, T... tail) {
+auto http_request::url_parameters(assign_exp<S, V> e, T... tail) const {
   return url_parameters(mmm(e, tail...));
 }
 
 template <typename S, typename V, typename... T>
-auto http_request::get_parameters(assign_exp<S, V> e, T... tail) {
+auto http_request::get_parameters(assign_exp<S, V> e, T... tail) const {
   return get_parameters(mmm(e, tail...));
 }
 
 template <typename S, typename V, typename... T>
-auto http_request::post_parameters(assign_exp<S, V> e, T... tail) {
+auto http_request::post_parameters(assign_exp<S, V> e, T... tail) const {
   auto o = mmm(e, tail...);
   return post_parameters(o);
 }
 
-template <typename O> auto http_request::url_parameters(const O& res) {
+template <typename O> auto http_request::url_parameters(const O& res) const {
   O r;
   return url_parameters(r);
 }
 
-template <typename O> auto http_request::get_parameters(const O& res) {
+template <typename O> auto http_request::get_parameters(const O& res) const {
   O r;
   return get_parameters(r);
 }
-template <typename O> auto http_request::post_parameters(const O& res) {
+template <typename O> auto http_request::post_parameters(const O& res) const {
   O r;
   return post_parameters(r);
 }
 
-template <typename O> auto http_request::url_parameters(O& res) {
+template <typename O> auto http_request::url_parameters(O& res) const {
   auto info = make_url_parser_info(url_spec);
   return parse_url_parameters(info, url, res);
 }
 
-template <typename O> auto http_request::get_parameters(O& res) {
+template <typename O> auto http_request::get_parameters(O& res) const {
   std::set<void*> found;
   auto add = [&](const char* k, const char* v) {
     url_decode2(found, std::string(k) + "=" + v, res, true);
@@ -3435,7 +3398,7 @@ template <typename O> auto http_request::get_parameters(O& res) {
   return res;
 }
 
-template <typename O> auto http_request::post_parameters(O& res) {
+template <typename O> auto http_request::post_parameters(O& res) const {
   try {
     const char* encoding = this->header("Content-Type");
     if (!encoding)
@@ -3873,13 +3836,12 @@ namespace li_http_backend {
     return os.str();
   }
   
-  inline std::string cookie(http_request& request,
+  inline std::string random_cookie(http_request& request,
 				    http_response& response,
 				    const char* key = "silicon_token")
   {
     std::string token;
-    const char* token_ = MHD_lookup_connection_value(request.mhd_connection, MHD_COOKIE_KIND, key);
-
+    const char* token_ = request.cookie(key);
     if (!token_)
       {
         token = generate_secret_tracking_id();
@@ -3956,7 +3918,7 @@ template <typename DB, typename... F> struct sql_http_session {
 
   auto connect(http_request& request, http_response& response) {
     return connected_sql_http_session(default_values_, session_table_.connect(),
-                                      cookie(request, response, cookie_name_.c_str()));
+                                      random_cookie(request, response, cookie_name_.c_str()));
   }
 
   auto orm() { return session_table_; }
@@ -4012,7 +3974,7 @@ template <typename... F> struct hashmap_http_session {
       : cookie_name_(cookie_name), default_values_(mmm(s::session_id = std::string(), fields...)) {}
 
   inline auto connect(http_request& request, http_response& response) {
-    std::string session_id = cookie(request, response, cookie_name_.c_str());
+    std::string session_id = random_cookie(request, response, cookie_name_.c_str());
     auto it = sessions_.try_emplace(session_id, default_values_).first;
     return connected_hashmap_http_session<session_values_type>{session_id, &it->second, sessions_,
                                                                sessions_mutex_};

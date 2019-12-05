@@ -1,6 +1,6 @@
 #pragma once
 
-#include <li/http_backend/cookie.hh>
+#include <li/http_backend/random_cookie.hh>
 #include <li/sql/sql_orm.hh>
 
 namespace li {
@@ -64,7 +64,7 @@ template <typename DB, typename... F> struct sql_http_session {
 
   auto connect(http_request& request, http_response& response) {
     return connected_sql_http_session(default_values_, session_table_.connect(),
-                                      cookie(request, response, cookie_name_.c_str()));
+                                      random_cookie(request, response, cookie_name_.c_str()));
   }
 
   auto orm() { return session_table_; }

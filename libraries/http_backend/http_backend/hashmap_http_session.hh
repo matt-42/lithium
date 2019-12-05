@@ -1,6 +1,6 @@
 #pragma once
 
-#include <li/http_backend/cookie.hh>
+#include <li/http_backend/random_cookie.hh>
 #include <mutex>
 
 namespace li {
@@ -43,7 +43,7 @@ template <typename... F> struct hashmap_http_session {
       : cookie_name_(cookie_name), default_values_(mmm(s::session_id = std::string(), fields...)) {}
 
   inline auto connect(http_request& request, http_response& response) {
-    std::string session_id = cookie(request, response, cookie_name_.c_str());
+    std::string session_id = random_cookie(request, response, cookie_name_.c_str());
     auto it = sessions_.try_emplace(session_id, default_values_).first;
     return connected_hashmap_http_session<session_values_type>{session_id, &it->second, sessions_,
                                                                sessions_mutex_};
