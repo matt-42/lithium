@@ -336,7 +336,7 @@ struct sqlite_database {
     }
   }
 
-  sqlite_connection& get_connection() { return con_; }
+  sqlite_connection& connect() { return con_; }
 
   sqlite_connection con_;
   std::string path_;

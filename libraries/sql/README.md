@@ -4,8 +4,8 @@ li::sql
 This library aims to ease the communication with SQL databases within C++ code.
 
 It features:
-  - A sqlite C++ connector
-  - A mysql C++ connector
+  - A SQLite C++ connector
+  - A MySQL C++ connector
   - An ORM-like class that allow to send requests without typing raw SQL code
 
 # Installation
@@ -32,7 +32,7 @@ auto db = li::mysql_database(s::host = "127.0.0.1",
 auto db = li::sqlite_database("my_sqlitedb.db");
 
 // Connect to the database.
-auto con = db.get_connection();
+auto con = db.connect();
 
 // Run simple requests.
 con("DROP table if exists users;");
@@ -56,11 +56,11 @@ con("select name, age from users;").map([] (std::string name, int age) {
 });
 ```
 
-## ORM
+## Object Relational Mapping
 
 ```c++
 // Let's declare our orm.
-auto schema = li::sql_orm_schema("users_orm_test" /* the table name in the SQL db*/)
+auto schema = li::sql_orm_schema(db, "users_orm_test" /* the table name in the SQL db*/)
 
 // The fields of our user object:
 
@@ -82,7 +82,7 @@ auto schema = li::sql_orm_schema("users_orm_test" /* the table name in the SQL d
                 ;
 
 // Connect the orm to a database.
-auto users = schema.connect(db); // db can be built with li::sqlite_database or li::mysql_database
+auto users = schema.connect(); // db can be built with li::sqlite_database or li::mysql_database
 
 // Drop the table.
 users.drop_table_if_exists();

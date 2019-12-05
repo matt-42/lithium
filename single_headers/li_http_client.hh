@@ -334,9 +334,9 @@ namespace li_http_client {
     LI_SYMBOL(get_parameters)
 #endif
 
-#ifndef LI_SYMBOL_jsonencoded
-#define LI_SYMBOL_jsonencoded
-    LI_SYMBOL(jsonencoded)
+#ifndef LI_SYMBOL_json_encoded
+#define LI_SYMBOL_json_encoded
+    LI_SYMBOL(json_encoded)
 #endif
 
 #ifndef LI_SYMBOL_post_parameters
@@ -2138,7 +2138,7 @@ struct http_client {
     curl_easy_setopt(curl_, CURLOPT_URL, url_ss.str().c_str());
 
     // HTTP_POST parameters.
-    bool is_urlencoded = not li_http_client::has_key(arguments, s::jsonencoded);
+    bool is_urlencoded = not li_http_client::has_key(arguments, s::json_encoded);
     std::stringstream post_stream;
     std::string rq_body;
     if (is_urlencoded) { // urlencoded

@@ -4,7 +4,7 @@
 int main() {
   auto db = li::sqlite_database("iod_sqlite_test.db");
 
-  auto c = db.get_connection();
+  auto c = db.connect();
 
   c("DROP TABLE IF EXISTS person;");
   c("CREATE TABLE IF NOT EXISTS person (id INTEGER PRIMARY KEY AUTOINCREMENT, "

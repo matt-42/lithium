@@ -8,7 +8,7 @@
 #include <li/http_backend/api.hh>
 #include <li/http_backend/request.hh>
 #include <li/http_backend/response.hh>
-#include <li/http_backend/sql_crud.hh>
+#include <li/http_backend/sql_crud_api.hh>
 #include <li/http_backend/mhd.hh>
 #include <li/http_backend/symbols.hh>
 #include <li/http_backend/sql_http_session.hh>

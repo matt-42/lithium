@@ -45,7 +45,7 @@ int main() {
 
   // valid post JSON
   auto r31 = http_post("http://localhost:12347/post", s::post_parameters = mmm(s::id = 42),
-                       s::jsonencoded);
+                       s::json_encoded);
   CHECK_EQUAL("post", r31.status, 200);
   CHECK_EQUAL("post", r31.body, ref);
 
@@ -65,4 +65,8 @@ int main() {
                       s::post_parameters = mmm(s::id = 43));
   std::cout << json_encode(r5) << std::endl;
   CHECK_EQUAL("setting optionals.", r5.status, 200);
+  auto r6 = http_post("http://localhost:12347/optional_set", s::get_parameters = mmm(s::id = 42),
+                      s::post_parameters = mmm(s::id = 43), s::json_encoded);
+  std::cout << json_encode(r6) << std::endl;
+  CHECK_EQUAL("setting optionals.", r6.status, 200);
 }

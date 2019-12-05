@@ -65,9 +65,9 @@
     LI_SYMBOL(id2)
 #endif
 
-#ifndef LI_SYMBOL_jsonencoded
-#define LI_SYMBOL_jsonencoded
-    LI_SYMBOL(jsonencoded)
+#ifndef LI_SYMBOL_json_encoded
+#define LI_SYMBOL_json_encoded
+    LI_SYMBOL(json_encoded)
 #endif
 
 #ifndef LI_SYMBOL_login

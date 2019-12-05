@@ -370,7 +370,7 @@ struct sql_orm_schema : public MD {
   sql_orm_schema(DB& db, const std::string& table_name, CB cb = CB(), MD md = MD())
       : MD(md), database_(db), table_name_(table_name), callbacks_(cb) {}
 
-  inline auto connect() { return sql_orm(*this, database_.get_connection()); }
+  inline auto connect() { return sql_orm(*this, database_.connect()); }
 
   const std::string& table_name() const { return table_name_; }
   auto get_callbacks() const { return callbacks_; }

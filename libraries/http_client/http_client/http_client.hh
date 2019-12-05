@@ -85,7 +85,7 @@ struct http_client {
     curl_easy_setopt(curl_, CURLOPT_URL, url_ss.str().c_str());
 
     // HTTP_POST parameters.
-    bool is_urlencoded = not li::has_key(arguments, s::jsonencoded);
+    bool is_urlencoded = not li::has_key(arguments, s::json_encoded);
     std::stringstream post_stream;
     std::string rq_body;
     if (is_urlencoded) { // urlencoded

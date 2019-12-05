@@ -38,7 +38,7 @@ int main()
                                   s::port = 14550,
                                   s::charset = "utf8");
 
-    auto c = m.get_connection();
+    auto c = m.connect();
 
     c("DROP table if exists users_test_mysql;");
     c("CREATE TABLE users_test_mysql (id int,name varchar(255),age int);");

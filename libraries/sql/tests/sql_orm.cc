@@ -25,7 +25,7 @@ int main() {
                       })
                     ;
     auto orm = schema.connect();
-    auto c = db.get_connection();
+    auto c = db.connect();
 
     orm.drop_table_if_exists();
     orm.create_table_if_not_exists();

@@ -413,7 +413,7 @@ struct mysql_database : std::enable_shared_from_this<mysql_database> {
     pool_.push_back(c);
   }
 
-  inline mysql_connection get_connection() {
+  inline mysql_connection connect() {
     MYSQL* con_ = nullptr;
     {
       std::unique_lock<std::mutex> l(mutex_);

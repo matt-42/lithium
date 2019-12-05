@@ -1305,7 +1305,7 @@ struct sqlite_database {
     }
   }
 
-  sqlite_connection& get_connection() { return con_; }
+  sqlite_connection& connect() { return con_; }
 
   sqlite_connection con_;
   std::string path_;
@@ -1711,7 +1711,7 @@ struct sql_orm_schema : public MD {
   sql_orm_schema(const std::string& table_name, CB cb = CB(), MD md = MD())
       : MD(md), table_name_(table_name), callbacks_(cb) {}
 
-  template <typename D> auto connect(D& db) { return sql_orm(*this, db.get_connection()); }
+  template <typename D> auto connect(D& db) { return sql_orm(*this, db.connect()); }
 
   const std::string& table_name() const { return table_name_; }
   auto get_callbacks() const { return callbacks_; }

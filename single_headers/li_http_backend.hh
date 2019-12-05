@@ -1189,7 +1189,7 @@ struct sql_orm_schema : public MD {
   sql_orm_schema(const std::string& table_name, CB cb = CB(), MD md = MD())
       : MD(md), table_name_(table_name), callbacks_(cb) {}
 
-  template <typename D> auto connect(D& db) { return sql_orm(*this, db.get_connection()); }
+  template <typename D> auto connect(D& db) { return sql_orm(*this, db.connect()); }
 
   const std::string& table_name() const { return table_name_; }
   auto get_callbacks() const { return callbacks_; }
@@ -3704,7 +3704,7 @@ namespace li_http_backend {
     return os.str();
   }
   
-  inline std::string session_cookie(http_request& request,
+  inline std::string cookie(http_request& request,
 				    http_response& response,
 				    const char* key = "silicon_token")
   {
@@ -3790,7 +3790,7 @@ template <typename... F> struct sql_http_session {
   template <typename DB>
   auto connect(DB& database, http_request& request, http_response& response) {
     return connected_sql_http_session(default_values_, session_table_.connect(database),
-                                      session_cookie(request, response));
+                                      cookie(request, response));
   }
 
   auto orm() { return session_table_; }
@@ -3842,7 +3842,7 @@ template <typename... F> struct hashmap_http_session {
       : default_values_(mmm(s::session_id = std::string(), fields...)) {}
 
   inline auto connect(http_request& request, http_response& response) {
-    std::string session_id = session_cookie(request, response);
+    std::string session_id = cookie(request, response);
     auto it = sessions_.try_emplace(session_id, default_values_).first;
     return connected_hashmap_http_session<session_values_type>{session_id, &it->second, sessions_,
                                                                sessions_mutex_};

@@ -13,7 +13,7 @@ namespace li {
     return os.str();
   }
   
-  inline std::string session_cookie(http_request& request,
+  inline std::string cookie(http_request& request,
 				    http_response& response,
 				    const char* key = "silicon_token")
   {
