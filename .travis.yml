@@ -37,7 +37,7 @@ matrix:
       env: COMPILER=clang++
       before_install:
         - brew update
-        - brew install boost sqlite mariadb cmake
+        - brew install boost sqlite mariadb cmake libmicrohttpd
   
     # - compiler: gcc
     #   addons:
@@ -105,7 +105,7 @@ before_script:
 
 script:
     - cd $HOME/build/$TRAVIS_REPO_SLUG/build 
-    - bash ../libraries/sql/tests/mysql_test_server.sh
+    - bash ../libraries/sql/tests/mysql_test_server.sh start
     - make all test
 
 after_success:
