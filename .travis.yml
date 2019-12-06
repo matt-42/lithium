@@ -26,7 +26,7 @@ matrix:
         - wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | sudo apt-key add -
         - sudo apt-add-repository -y 'deb https://apt.kitware.com/ubuntu/ bionic main'
         - wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key|sudo apt-key add -;
-        - sudo deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-9 main;
+        - sudo deb-scr http://apt.llvm.org/bionic/ llvm-toolchain-bionic-9 main;
         - sudo apt-get update -qq;
         - sudo apt-get install -qq clang-9 libc++-9-dev libc++abi-9-dev;
         - sudo apt-get install -qq libboost-all-dev libssl-dev lcov libsqlite3-dev libmicrohttpd-dev cmake
@@ -37,9 +37,7 @@ matrix:
     #   env: COMPILER=clang++
     #   before_install:
     #     - brew update
-    #     - brew tap homebrew/science
-    #     - brew install eigen
-    #     - brew ln opencv --force
+    #     - brew install boost sqlite mariadb cmake
   
     # - compiler: gcc
     #   addons:
@@ -100,14 +98,14 @@ matrix:
 
 before_script:
     - cd $HOME/build/$TRAVIS_REPO_SLUG
-    - mkdir -p tests/build 
-    - cd tests/build 
+    - mkdir -p build 
+    - cd build 
 #    - lcov --directory . --zerocounters
     - cmake .. -DCMAKE_CXX_COMPILER=${LOCAL_CXX} -DCMAKE_INSTALL_PREFIX=$HOME/local
 
 script:
-    - cd $HOME/build/$TRAVIS_REPO_SLUG/tests/build 
-    - bash ./libraries/sql/tests/mysql_test_server.sh
+    - cd $HOME/build/$TRAVIS_REPO_SLUG/build 
+    - bash ../libraries/sql/tests/mysql_test_server.sh
     - make all test
 
 after_success:
