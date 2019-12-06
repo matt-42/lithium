@@ -7,40 +7,40 @@
 
 #pragma once
 
-#include <fstream>
+#include <boost/lexical_cast.hpp>
 #include <set>
-#include <unistd.h>
-#include <cmath>
-#include <mutex>
-#include <stdio.h>
-#include <vector>
-#include <iostream>
-#include <sys/stat.h>
-#include <cassert>
-#include <sstream>
-#include <random>
-#include <map>
-#include <variant>
-#include <optional>
 #include <stdlib.h>
-#include <microhttpd.h>
-#include <tuple>
-#include <string.h>
 #include <string>
-#include <utility>
-#include <memory>
-#include <fcntl.h>
+#include <random>
 #include <string_view>
 #include <cstring>
+#include <iostream>
+#include <mutex>
+#include <map>
+#include <fstream>
+#include <utility>
+#include <cmath>
+#include <microhttpd.h>
+#include <variant>
+#include <fcntl.h>
+#include <cassert>
 #include <thread>
 #include <functional>
-#include <boost/lexical_cast.hpp>
+#include <stdio.h>
 #include <unordered_map>
+#include <tuple>
+#include <sstream>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <vector>
+#include <string.h>
+#include <optional>
+#include <memory>
 
 #if defined(_MSC_VER)
-#include <windows.h>
-#include <io.h>
 #include <ciso646>
+#include <io.h>
+#include <windows.h>
 #endif // _MSC_VER
 
 
@@ -3437,7 +3437,6 @@ struct http_response {
   inline void write() {}
   template <typename A1, typename... A>
   inline void write(A1 a1, A&&... a) { body += boost::lexical_cast<std::string>(a1); write(a...); }
-  //inline void write(const std::string res) { body = res; }
   inline void write_file(const std::string path) {
 
 #if defined(_MSC_VER)
@@ -3451,12 +3450,6 @@ struct http_response {
       throw http_error::not_found("File not found.");
     file_descriptor = fd;
   }
-
-  // void write(const std::string_view res) {
-  //   body = std::string(res.data(), res.size());
-  // }
-
-  //void write(const char* res) { body += std::strres; }
 
   int status;
   std::string body;
