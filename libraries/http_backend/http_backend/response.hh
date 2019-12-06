@@ -23,7 +23,6 @@ struct http_response {
   inline void write() {}
   template <typename A1, typename... A>
   inline void write(A1 a1, A&&... a) { body += boost::lexical_cast<std::string>(a1); write(a...); }
-  //inline void write(const std::string res) { body = res; }
   inline void write_file(const std::string path) {
 
 #if defined(_MSC_VER)
@@ -37,12 +36,6 @@ struct http_response {
       throw http_error::not_found("File not found.");
     file_descriptor = fd;
   }
-
-  // void write(const std::string_view res) {
-  //   body = std::string(res.data(), res.size());
-  // }
-
-  //void write(const char* res) { body += std::strres; }
 
   int status;
   std::string body;

@@ -1,3 +1,4 @@
+#! /bin/bash
 
 if [ ! -d "./libraries" -o ! -f "README.md" ]; then
   echo "This must be run from the iod base directory."
@@ -16,6 +17,12 @@ elif [ -d "/c/Program Files (x86)/MariaDB 10.4" ]; then
   export PATH="${PATH}:/c/Program Files (x86)/MariaDB 10.4/bin"
 fi
 
+if [ $# -eq 0 ]; then
+  echo "Start or stop the mysql test server."
+  echo
+  echo "Usage: " $0 "start|stop"
+  exit 1
+fi
 
 if [ $1 == "start" ]; then
 
