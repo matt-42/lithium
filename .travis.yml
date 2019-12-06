@@ -14,7 +14,7 @@ matrix:
       env:
         - LOCAL_CC=clang-9
         - LOCAL_CXX=clang++-9
-        - JOBNAME=gcc
+        - JOBNAME=clang
     # - compiler: gcc
     #   addons:
     #     apt:
