@@ -10,6 +10,11 @@ matrix:
         - LOCAL_CC=gcc-9
         - LOCAL_CXX=g++-9
         - JOBNAME=gcc
+    - compiler: clang++
+      env:
+        - LOCAL_CC=clang-9
+        - LOCAL_CXX=clang++-9
+        - JOBNAME=gcc
     # - compiler: gcc
     #   addons:
     #     apt:
@@ -72,9 +77,13 @@ before_install:
     #- $LOCAL_GCOV --version
     # Install deps
     - if  [ "${JOBNAME}" == gcc ]; then
-        sudo add-apt-repository -y ppa:jonathonf/gcc-9.0 #ppa:ubuntu-toolchain-r/test
+        sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
         sudo apt-get update -qq
         sudo apt-get install -qq gcc-9 g++-9
+      fi
+    - if  [ "${JOBNAME}" == clang ]; then
+        sudo apt-get update -qq
+        sudo apt-get install -qq llvm-toolchain-9
       fi
     - sudo apt-get install -qq libboost-all-dev libssl-dev lcov libsqlite3-dev libmicrohttpd-dev
 
