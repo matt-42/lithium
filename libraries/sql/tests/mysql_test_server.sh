@@ -56,14 +56,12 @@ log_error                      = $TMPDIR/error.log
 EOF
 
 
-  mysql_install_db --help
   if [[ "$OSTYPE" == "msys" ]]; then
     TMPDIR=$(echo $TMPDIR | sed 's/\/c\//C:\//')
     echo $TMPDIR
     mysql_install_db --datadir=$TMPDIR/data --allow-remote-root-access --port=14550
   else
     mysql_install_db --auth-root-authentication-method=normal --defaults-file=$CONF --skip-test-db --basedir=$basedir
-    #mysql_install_db --defaults-file=$CONF --basedir=$basedir
   fi
   mysqld --defaults-file=$CONF &
   sleep 2 # wait for server to start 
