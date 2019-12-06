@@ -142,7 +142,7 @@ Everything explained here: https://github.com/matt-42/lithium#installation
 
 Matthieu Garrigues https://github.com/matt-42
 
-# Donate
+# Support the project
 
 If you find this project helpful, please consider donating:
 https://www.paypal.me/matthieugarrigues

@@ -22,7 +22,7 @@ A http_client built around the libcurl library.
 
 ### [li::http_backend](https://github.com/matt-42/lithium/tree/master/libraries/http_backend)
 
-A library that ease the writing of web HTTP APIs.
+A library that eases the writing of web HTTP APIs.
 
 ### [li::symbol](https://github.com/matt-42/lithium/tree/master/libraries/symbol)
 
@@ -31,7 +31,7 @@ You probably will not use this library directly but
 you can check the code if you want to know what is inside the s:: namespace.
 
 
-## Installation / Supported compilers
+# Installation / Supported compilers
 
 
 You can either use the single header version of the libraries:
@@ -48,12 +48,12 @@ cmake .. -DCMAKE_INSTALL_PREFIX=_your_prefix_; make -j4 install;
 
 **Important note:** In the single header versions, the namespace `li` is renamed as `li_{library_name}`.
 
-### Supported compilers:
+## Supported compilers:
     - Linux: G++ 9.2, Clang++ 9.0
     - Macos: Clang 11
     - Windows: MSVC 19
 
-## Donate
+# Support the project
 
 If you find this project helpful, please consider donating:
 https://www.paypal.me/matthieugarrigues
