@@ -15,7 +15,7 @@ matrix:
         - sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test;
         - sudo apt-get install -qq gcc-9 g++-9;
         - sudo apt-get install -qq libboost-all-dev libssl-dev lcov libsqlite3-dev libmicrohttpd-dev cmake
-        - sudo apt-get install mariadb-server libmariadbd-dev
+        - sudo apt-get install -qq  libmariadbd-dev
 
 
     - compiler: clang++
@@ -32,7 +32,7 @@ matrix:
         - sudo apt-get update -qq;
         - sudo apt-get install -qq clang-9 libc++-9-dev libc++abi-9-dev libclang-9-dev;
         - sudo apt-get install -qq libboost-all-dev libssl-dev lcov libsqlite3-dev libmicrohttpd-dev cmake
-        - sudo apt-get install mariadb-server libmariadbd-dev
+        - sudo apt-get install -qq libmariadbd-dev
 
     # std::filesystem Need macos 10.15. Not yet on travis.
     # - os: osx
