@@ -26,8 +26,8 @@ auto res = http_post("http://my_api.com/update_test",
 // Access to headers.
 auto res = http_get("http://my_api.com/hello", s::fetch_headers);
 // returns an object with a status, body AND headers member.
-for (auto it : res.headers) {
-  std::cout << it.first << ":::" << it.second  << std::endl;
+for (auto pair : res.headers) {
+  std::cout << pair.first << ":::" << pair.second  << std::endl;
 }
 ```
 

@@ -7,43 +7,43 @@
 
 #pragma once
 
+#include <fstream>
+#include <functional>
+#include <thread>
 #include <cstring>
-#include <utility>
+#include <stdio.h>
+#include <map>
+#include <optional>
+#include <boost/lexical_cast.hpp>
+#include <sstream>
 #include <unordered_map>
+#include <cassert>
+#include <set>
+#include <stdlib.h>
+#include <variant>
+#include <cmath>
+#include <random>
+#include <memory>
+#include <iostream>
+#include <deque>
+#include <sys/stat.h>
+#include <tuple>
+#include <microhttpd.h>
+#include <utility>
+#include <string>
 #include <mutex>
 #include <sqlite3.h>
-#include <memory>
-#include <fcntl.h>
-#include <stdlib.h>
-#include <mysql.h>
-#include <deque>
-#include <cmath>
-#include <string.h>
-#include <string>
-#include <iostream>
-#include <random>
-#include <tuple>
-#include <boost/lexical_cast.hpp>
-#include <functional>
-#include <string_view>
-#include <map>
-#include <stdio.h>
-#include <thread>
-#include <optional>
-#include <cassert>
-#include <fstream>
-#include <microhttpd.h>
-#include <vector>
-#include <sys/stat.h>
-#include <sstream>
 #include <unistd.h>
-#include <variant>
-#include <set>
+#include <vector>
+#include <string_view>
+#include <fcntl.h>
+#include <mysql.h>
+#include <string.h>
 
 #if defined(_MSC_VER)
 #include <ciso646>
-#include <io.h>
 #include <windows.h>
+#include <io.h>
 #endif // _MSC_VER
 
 
@@ -3393,22 +3393,22 @@ namespace internal {
 
 template <typename V> struct drt_node {
 
-  drt_node() : v{0, nullptr} {}
+  drt_node() : v_{0, nullptr} {}
   struct iterator {
     drt_node<V>* ptr;
     std::string_view first;
     V second;
 
     auto operator-> () { return this; }
-    bool operator==(const iterator& b) { return this->ptr == b.ptr; }
-    bool operator!=(const iterator& b) { return this->ptr != b.ptr; }
+    bool operator==(const iterator& b) const { return this->ptr == b.ptr; }
+    bool operator!=(const iterator& b) const { return this->ptr != b.ptr; }
   };
 
-  auto end() { return iterator{nullptr, std::string_view(), V()}; }
+  auto end() const { return iterator{nullptr, std::string_view(), V()}; }
 
   auto& find_or_create(std::string_view r, unsigned int c) {
     if (c == r.size())
-      return v;
+      return v_;
 
     if (r[c] == '/')
       c++; // skip the /
@@ -3417,29 +3417,29 @@ template <typename V> struct drt_node {
       c++;
     std::string_view k = r.substr(s, c - s);
 
-    auto& v = children[k].find_or_create(r, c);
+    auto& v_ = children_[k].find_or_create(r, c);
 
-    return v;
+    return v_;
   }
 
   template <typename F> void for_all_routes(F f, std::string prefix = "") const {
-    if (children.size() == 0)
-      f(prefix, v);
+    if (children_.size() == 0)
+      f(prefix, v_);
     else {
       if (prefix.size() && prefix.back() != '/')
         prefix += '/';
-      for (auto it : children)
-        it.second.for_all_routes(f, prefix + std::string(it.first));
+      for (auto pair : children_)
+        pair.second.for_all_routes(f, prefix + std::string(pair.first));
     }
   }
   iterator find(const std::string_view& r, unsigned int c) {
     // We found the route r.
-    if ((c == r.size() and v.handler != nullptr) or (children.size() == 0))
-      return iterator{this, r, v};
+    if ((c == r.size() and v_.handler != nullptr) or (children_.size() == 0))
+      return iterator{this, r, v_};
 
     // r does not match any route.
-    if (c == r.size() and v.handler == nullptr)
-      return iterator{nullptr, r, v};
+    if (c == r.size() and v_.handler == nullptr)
+      return iterator{nullptr, r, v_};
 
     if (r[c] == '/')
       c++; // skip the first /
@@ -3453,8 +3453,8 @@ template <typename V> struct drt_node {
     std::string_view k(&r[s], c - s);
 
     // look for k in the children.
-    auto it = children.find(k);
-    if (it != children.end()) {
+    auto it = children_.find(k);
+    if (it != children_.end()) {
       auto it2 = it->second.find(r, c); // search in the corresponding child.
       if (it2 != it->second.end())
         return it2;
@@ -3462,7 +3462,7 @@ template <typename V> struct drt_node {
 
     {
       // if one child is a url param {{param_name}}, choose it
-      for (auto& kv : children) {
+      for (auto& kv : children_) {
         auto name = kv.first;
         if (name.size() > 4 and name[0] == '{' and name[1] == '{' and
             name[name.size() - 2] == '}' and name[name.size() - 1] == '}')
@@ -3472,8 +3472,8 @@ template <typename V> struct drt_node {
     }
   }
 
-  V v;
-  std::map<std::string_view, drt_node> children;
+  V v_;
+  std::map<std::string_view, drt_node> children_;
 };
 } // namespace internal
 
@@ -3495,7 +3495,7 @@ template <typename V> struct dynamic_routing_table {
   auto find(const std::string_view& r) { return root.find(r, 0); }
 
   template <typename F> void for_all_routes(F f) const { root.for_all_routes(f); }
-  auto end() { return root.end(); }
+  auto end() const { return root.end(); }
 
   std::vector<std::shared_ptr<std::string>> strings;
   internal::drt_node<V> root;
