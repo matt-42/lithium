@@ -1,0 +1,122 @@
+# Use new trusty images, should yield newer compilers and packages
+sudo: required
+dist: bionic
+language: cpp
+
+matrix:
+  include:
+    - compiler: g++
+      addons:
+        apt:
+          sources:
+            - ppa:jonathonf/gcc-9.0
+          packages:
+            - gcc-9
+            - libboost-all-dev
+            - libssl-dev
+            - lcov
+            - libsqlite3-dev
+      env:
+        - LOCAL_CC=g++
+        - LOCAL_CXX=g++
+    # - compiler: gcc
+    #   addons:
+    #     apt:
+    #       sources:
+    #         - ubuntu-toolchain-r-test
+    #       packages:
+    #         - g++-5
+    #   env:
+    #     - LOCAL_CXX=g++-5
+    #     - LOCAL_GCOV=gcov-5
+    # - compiler: gcc
+    #   addons:
+    #     apt:
+    #       sources:
+    #         - ubuntu-toolchain-r-test
+    #       packages:
+    #         - g++-6
+    #   env:
+    #     - LOCAL_CXX=g++-6
+    #     - LOCAL_GCOV=gcov-6
+    # - compiler: gcc
+    #   addons:
+    #     apt:
+    #       sources:
+    #         - ubuntu-toolchain-r-test
+    #       packages:
+    #         - g++-7
+    #   env:
+    #     - LOCAL_CXX=g++-7
+    #     - LOCAL_GCOV=gcov-7
+    # - compiler: clang
+    #   addons:
+    #     apt:
+    #       sources:
+    #         - ubuntu-toolchain-r-test
+    #         - llvm-toolchain-precise-3.6
+    #       packages:
+    #         - gcc-7 # just for the newer c++ headers
+    #         - clang-3.6
+    #         - llvm-3.6
+    #   env:
+    #     - LOCAL_CXX=clang++-3.6
+    #     - LOCAL_GCOV=llvm-cov-3.6
+    # - compiler: clang
+    #   addons:
+    #     apt:
+    #       sources:
+    #         - ubuntu-toolchain-r-test
+    #         - llvm-toolchain-precise-3.7
+    #       packages:
+    #         - gcc-7 # just for the newer c++ headers
+    #         - clang-3.7
+    #         - llvm-3.7
+    #   env:
+    #     - LOCAL_CXX=clang++-3.7
+    #     - LOCAL_GCOV=llvm-cov-3.7
+
+before_install:
+    #- $LOCAL_CXX --version
+    #- $LOCAL_GCOV --version
+    #- sudo apt-get update -qq
+    # Install deps
+    # - sudo apt-get install -qq libboost-all-dev libssl-dev lcov libsqlite3-dev
+    # Create env
+    - mkdir -p $HOME/build
+    # Install libmicrohttpd
+    - cd $HOME/build
+    - wget http://ftp.gnu.org/gnu/libmicrohttpd/libmicrohttpd-0.9.48.tar.gz
+    - tar xzf libmicrohttpd-0.9.48.tar.gz
+    - cd libmicrohttpd-0.9.48
+    - ./configure  --prefix=$HOME/local
+    - make -j 4 install
+
+install:
+    - cd $HOME/build/$TRAVIS_REPO_SLUG
+    - mkdir -p build 
+    - cd build
+    - cmake .. -DCMAKE_CXX_COMPILER=${LOCAL_CXX} -DCMAKE_INSTALL_PREFIX=$HOME/local
+    - make -j 4 install
+
+before_script:
+    - cd $HOME/build/$TRAVIS_REPO_SLUG
+    - mkdir -p tests/build 
+    - cd tests/build 
+#    - lcov --directory . --zerocounters
+    - cmake .. -DCMAKE_CXX_COMPILER=${LOCAL_CXX} -DCMAKE_INSTALL_PREFIX=$HOME/local
+
+script:
+    - cd $HOME/build/$TRAVIS_REPO_SLUG/tests/build 
+    - ./libraries/sql/tests/mysql_test_server.sh
+    - make all test
+
+after_success:
+#    - cd $HOME/build/$TRAVIS_REPO_SLUG/tests/build
+#    - lcov --directory . --capture --gcov-tool `which $LOCAL_GCOV` --output-file coverage.info
+#    - lcov --remove coverage.info 'tests/*' '/usr/*' --gcov-tool `which $LOCAL_GCOV` --output-file coverage.info
+#    - lcov --list coverage.info
+#    - coveralls-lcov --repo-token ${COVERALLS_TOKEN} coverage.info
+
+after_script:
+    echo after_script
