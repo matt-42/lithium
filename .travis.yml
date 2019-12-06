@@ -26,18 +26,18 @@ matrix:
         - wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | sudo apt-key add -
         - sudo apt-add-repository -y 'deb https://apt.kitware.com/ubuntu/ bionic main'
         - wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key|sudo apt-key add -;
-        - sudo deb-scr http://apt.llvm.org/bionic/ llvm-toolchain-bionic-9 main;
+        - sudo echo deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-9 main >> /etc/apt/sources.list;
         - sudo apt-get update -qq;
         - sudo apt-get install -qq clang-9 libc++-9-dev libc++abi-9-dev;
         - sudo apt-get install -qq libboost-all-dev libssl-dev lcov libsqlite3-dev libmicrohttpd-dev cmake
 
-    # - os: osx
-    #   osx_image: xcode11.2
-    #   compiler: clang
-    #   env: COMPILER=clang++
-    #   before_install:
-    #     - brew update
-    #     - brew install boost sqlite mariadb cmake
+    - os: osx
+      osx_image: xcode11.2
+      compiler: clang
+      env: COMPILER=clang++
+      before_install:
+        - brew update
+        - brew install boost sqlite mariadb cmake
   
     # - compiler: gcc
     #   addons:
