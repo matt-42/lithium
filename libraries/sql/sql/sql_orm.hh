@@ -122,10 +122,6 @@ template <typename SCHEMA, typename C> struct sql_orm {
     return res;
   }
 
-  // template <typename O, typename... W>
-  // auto find_one_rec(metamap<O...>&& o, W... ws) {
-  //   return find_one(std::forward<metamap<O...>>(o), ws...);
-  // }
   template <typename A, typename B, typename... O, typename... W>
   auto find_one(metamap<O...>&& o, assign_exp<A, B> w1, W... ws) {
     return find_one(cat(o, mmm(w1)), ws...);

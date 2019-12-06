@@ -16,9 +16,8 @@ def process_file(library_name, f, processed, output):
         raise Exception(f"file not found {f}")
 
     header_guard = "LITHIUM_SINGLE_HEADER_GUARD_" + re.match(".*include/(li/[^.]+)", f).group(1).upper().replace('/', '_');
-    print(header_guard)
-    output += f"#ifndef LITHIUM_SINGLE_HEADER_GUARD_{header_guard}\n" 
-    output += f"#define LITHIUM_SINGLE_HEADER_GUARD_{header_guard}\n" 
+    output += f"#ifndef {header_guard}\n" 
+    output += f"#define {header_guard}\n" 
     for line in open(f, "r"):
         #line = line.replace("li::", f"{library_name}::")
         #line = line.replace("namespace li", f"namespace {library_name}")
@@ -32,7 +31,7 @@ def process_file(library_name, f, processed, output):
         else:
             output += [line];
 
-    output += f"\n#endif // LITHIUM_SINGLE_HEADER_GUARD_{header_guard}\n"
+    output += f"\n#endif // {header_guard}\n\n"
 
 def install_lithium():
     # create temp directory.
