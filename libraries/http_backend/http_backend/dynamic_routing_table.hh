@@ -18,11 +18,11 @@ template <typename V> struct drt_node {
     V second;
 
     auto operator-> () { return this; }
-    bool operator==(const iterator& b) { return this->ptr == b.ptr; }
-    bool operator!=(const iterator& b) { return this->ptr != b.ptr; }
+    bool operator==(const iterator& b) const { return this->ptr == b.ptr; }
+    bool operator!=(const iterator& b) const { return this->ptr != b.ptr; }
   };
 
-  auto end() { return iterator{nullptr, std::string_view(), V()}; }
+  auto end() const { return iterator{nullptr, std::string_view(), V()}; }
 
   auto& find_or_create(std::string_view r, unsigned int c) {
     if (c == r.size())
@@ -113,7 +113,7 @@ template <typename V> struct dynamic_routing_table {
   auto find(const std::string_view& r) { return root.find(r, 0); }
 
   template <typename F> void for_all_routes(F f) const { root.for_all_routes(f); }
-  auto end() { return root.end(); }
+  auto end() const { return root.end(); }
 
   std::vector<std::shared_ptr<std::string>> strings;
   internal::drt_node<V> root;
