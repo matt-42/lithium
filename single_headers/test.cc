@@ -1,9 +1,9 @@
-#include <li_http_backend.hh>
-//#include <li_http_client.hh>
-//#include <li_json.hh>
-//#include <li_metamap.hh>
-//#include <li_mysql.hh>
-//#include <li_sqlite.hh>
+#include <lithium_http_backend.hh>
+#include <lithium_http_client.hh>
+#include <lithium_json.hh>
+#include <lithium_metamap.hh>
+#include <lithium_mysql.hh>
+#include <lithium_sqlite.hh>
 
 int main()
 {

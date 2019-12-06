@@ -42,7 +42,6 @@ more features.
 Note: This example use the single header version.
 
 ```c++
-#include "li_json.hh"
 
 LI_SYMBOL(name)
 LI_SYMBOL(age)
@@ -51,12 +50,12 @@ LI_SYMBOL(id)
 
 int main ()
 {
-  using li_json::json_encode;
-  using li_json::json_decode;
-  using li_json::json_object;
-  using li_json::json_vector;
-  using li_json::json_key;
-  using li_json::mmm;
+  using li::json_encode;
+  using li::json_decode;
+  using li::json_object;
+  using li::json_vector;
+  using li::json_key;
+  using li::mmm;
 
   std::string json_str;
 

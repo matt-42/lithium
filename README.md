@@ -34,10 +34,10 @@ you can check the code if you want to know what is inside the s:: namespace.
 # Installation / Supported compilers
 
 
-You can either use the single header version of the libraries:
+You can either use the single header version of the libraries (does not provide the li_symbol_generator utility):
 https://github.com/matt-42/lithium/tree/master/single_headers
 
-Or install all the libraries at once:
+Or install the lithium project:
 
 ```c++
 git clone https://github.com/matt-42/lithium.git
@@ -45,8 +45,6 @@ cd lithium;
 mkdir build; cd build;
 cmake .. -DCMAKE_INSTALL_PREFIX=_your_prefix_; make -j4 install;
 ```
-
-**Important note:** In the single header versions, the namespace `li` is renamed as `li_{library_name}`.
 
 ## Supported compilers:
     - Linux: G++ 9.2, Clang++ 9.0

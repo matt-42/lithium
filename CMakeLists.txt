@@ -47,8 +47,8 @@ function(li_add_executable target_name)
   add_dependencies(${target_name} symbols_generation)
 endfunction(li_add_executable)
 
-include_directories(./single_headers /usr/include/mysql)
-add_executable(test_single_headers ./single_headers/test.cc)
+#include_directories(./single_headers /usr/include/mysql)
+#add_executable(test_single_headers ./single_headers/test.cc)
 
 add_subdirectory(libraries/metamap)
 add_subdirectory(libraries/callable_traits)

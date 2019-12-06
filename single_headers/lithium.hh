@@ -1,75 +1,184 @@
 // Author: Matthieu Garrigues matthieu.garrigues@gmail.com
 //
-// Single header version the li_http_backend library.
+// Single header version the lithium library.
 // https://github.com/matt-42/lithium
 //
 // This file is generated do not edit it.
 
 #pragma once
 
-#include <boost/lexical_cast.hpp>
-#include <set>
-#include <stdlib.h>
-#include <string>
-#include <random>
-#include <string_view>
-#include <cstring>
-#include <iostream>
-#include <mutex>
-#include <map>
-#include <fstream>
-#include <utility>
-#include <cmath>
-#include <microhttpd.h>
-#include <variant>
-#include <fcntl.h>
-#include <cassert>
-#include <thread>
-#include <functional>
-#include <stdio.h>
-#include <unordered_map>
-#include <tuple>
-#include <sstream>
 #include <unistd.h>
-#include <sys/stat.h>
+#include <unordered_map>
 #include <vector>
-#include <string.h>
-#include <optional>
 #include <memory>
+#include <fcntl.h>
+#include <mutex>
+#include <variant>
+#include <fstream>
+#include <string_view>
+#include <microhttpd.h>
+#include <sstream>
+#include <stdio.h>
+#include <tuple>
+#include <thread>
+#include <cstring>
+#include <mysql.h>
+#include <map>
+#include <functional>
+#include <sqlite3.h>
+#include <boost/lexical_cast.hpp>
+#include <random>
+#include <cassert>
+#include <stdlib.h>
+#include <utility>
+#include <string>
+#include <cmath>
+#include <set>
+#include <deque>
+#include <optional>
+#include <string.h>
+#include <iostream>
+#include <sys/stat.h>
 
 #if defined(_MSC_VER)
+#include <windows.h>
 #include <ciso646>
 #include <io.h>
-#include <windows.h>
 #endif // _MSC_VER
 
 
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQLITE
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQLITE
+
+#if defined(_MSC_VER)
+#endif
 
 
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_CALLABLE_TRAITS_CALLABLE_TRAITS
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_CALLABLE_TRAITS_CALLABLE_TRAITS
 
-namespace li_http_backend
-{
-  struct sql_blob : public std::string {
-    using std::string::string;
-    using std::string::operator=;
+namespace li {
 
-    sql_blob() : std::string() {}
+  template <typename ...T>
+  struct typelist {};
+
+  namespace internal
+  {
+    template <typename T>
+    struct has_parenthesis_operator
+    {
+      template<typename C> 
+      static char test(decltype(&C::operator()));
+      template<typename C>
+      static int test(...);
+      static const bool value = sizeof(test<T>(0)) == 1;
+    };
+
+  }
+
+  // Traits on callable (function, functors and lambda functions).
+
+  // callable_traits<F>::is_callable = true_type if F is callable.
+  // callable_traits<F>::arity = N if F takes N arguments.
+  // callable_traits<F>::arguments_tuple_type = tuple<Arg1, ..., ArgN>
+
+  template <typename F, typename X = void>
+  struct callable_traits
+  {
+    typedef std::false_type is_callable;
+    static const int arity = 0;
+    typedef std::tuple<> arguments_tuple;
+    typedef typelist<> arguments_list;
+    typedef void return_type;
   };
 
-  struct sql_null_t {};
-  static sql_null_t null;
-
-  template <unsigned SIZE>
-  struct sql_varchar : public std::string {
-    using std::string::string;
-    using std::string::operator=;
-
-    sql_varchar() : std::string() {}
+  template <typename F, typename X>
+  struct callable_traits<F&, X> : public callable_traits<F, X> {};
+  template <typename F, typename X>
+  struct callable_traits<F&&, X> : public callable_traits<F, X> {};
+  template <typename F, typename X>
+  struct callable_traits<const F&, X> : public callable_traits<F, X> {};
+  
+  template <typename F>
+  struct callable_traits<F, std::enable_if_t<internal::has_parenthesis_operator<F>::value>>
+  {
+    typedef callable_traits<decltype(&F::operator())> super;
+    typedef std::true_type is_callable;
+    static const int arity = super::arity;
+    typedef typename super::arguments_tuple arguments_tuple;
+    typedef typename super::arguments_list arguments_list;
+    typedef typename super::return_type return_type;
   };
+
+  template <typename C, typename R, typename... ARGS>
+  struct callable_traits<R (C::*)(ARGS...) const>
+  {
+    typedef std::true_type is_callable;
+    static const int arity = sizeof...(ARGS);
+    typedef std::tuple<ARGS...> arguments_tuple;
+    typedef typelist<ARGS...> arguments_list;
+    typedef R return_type;
+  };
+
+  template <typename C, typename R, typename... ARGS>
+  struct callable_traits<R (C::*)(ARGS...)>
+  {
+    typedef std::true_type is_callable;
+    static const int arity = sizeof...(ARGS);
+    typedef std::tuple<ARGS...> arguments_tuple;
+    typedef typelist<ARGS...> arguments_list;
+    typedef R return_type;
+  };
+  
+  template <typename R, typename... ARGS>
+  struct callable_traits<R(ARGS...)>
+  {
+    typedef std::true_type is_callable;
+    static const int arity = sizeof...(ARGS);
+    typedef std::tuple<ARGS...> arguments_tuple;
+    typedef typelist<ARGS...> arguments_list;
+    typedef R return_type;
+  };
+
+  
+  template <typename R, typename... ARGS>
+  struct callable_traits<R(*)(ARGS...)>
+  {
+    typedef std::true_type is_callable;
+    static const int arity = sizeof...(ARGS);
+    typedef std::tuple<ARGS...> arguments_tuple;
+    typedef typelist<ARGS...> arguments_list;
+    typedef R return_type;
+  };
+
+  template <typename F>
+  using callable_arguments_tuple_t = typename callable_traits<F>::arguments_tuple;
+  template <typename F>
+  using callable_arguments_list_t = typename callable_traits<F>::arguments_list;
+  template <typename F>
+  using callable_return_type_t = typename callable_traits<F>::return_type;
+
+  template <typename F>
+  struct is_callable : public callable_traits<F>::is_callable {};
+  
+  template <typename F, typename... A>
+  struct callable_with
+  {
+    template<typename G, typename... B> 
+    static char test(int x, std::remove_reference_t<decltype(std::declval<G>()(std::declval<B>()...))>* = 0);
+    template<typename G, typename... B> 
+    static int test(...);
+    static const bool value = sizeof(test<F, A...>(0)) == 1;    
+  };
+
 }
 
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_CALLABLE_TRAITS_CALLABLE_TRAITS
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_METAMAP
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_METAMAP
 
-namespace li_http_backend {
+
+namespace li {
 
   namespace internal
   {
@@ -221,11 +330,17 @@ namespace li_http_backend {
   
 }
 
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_MAKE
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_MAKE
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SYMBOL_SYMBOL
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SYMBOL_SYMBOL
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SYMBOL_AST
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SYMBOL_AST
 
 
-
-
-namespace li_http_backend {
+namespace li {
 
   template <typename E>
   struct Exp {};
@@ -387,7 +502,9 @@ namespace li_http_backend {
 
 }
 
-namespace li_http_backend {
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SYMBOL_AST
+
+namespace li {
 
   template <typename S>
   class symbol : public assignable<S>,
@@ -403,7 +520,7 @@ namespace li_http_backend {
 
 #define LI_SYMBOL(NAME)                                                \
 namespace s {                                                           \
-struct NAME##_t : li_http_backend::symbol<NAME##_t> {                         \
+struct NAME##_t : li::symbol<NAME##_t> {                         \
                                                                         \
 using assignable<NAME##_t>::operator=;                               \
                                                                         \
@@ -441,7 +558,7 @@ static constexpr  NAME##_t NAME;                                    \
 }
 
 
-namespace li_http_backend {
+namespace li {
 
   template <typename S>
   inline decltype(auto) make_variable(S s, char const v[])
@@ -519,7 +636,9 @@ namespace li_http_backend {
 }
 
 
-namespace li_http_backend {
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SYMBOL_SYMBOL
+
+namespace li {
 
   
   template <typename ...Ms>
@@ -575,9 +694,15 @@ namespace li_http_backend {
   
 }
 
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_MAKE
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_MAP_REDUCE
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_MAP_REDUCE
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS
 
 
-namespace li_http_backend {
+namespace li {
 
 
   template <typename... E, typename F>
@@ -635,7 +760,9 @@ namespace li_http_backend {
   }
   
 }
-namespace li_http_backend {
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS
+
+namespace li {
 
   // Map a function(key, value) on all kv pair
   template <typename... M, typename F>
@@ -721,10 +848,18 @@ namespace li_http_backend {
 
 }
 
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_MAP_REDUCE
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_INTERSECTION
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_INTERSECTION
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_MAKE_METAMAP_SKIP
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_MAKE_METAMAP_SKIP
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_CAT
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_CAT
 
 
-
-namespace li_http_backend {
+namespace li {
 
 
   template <typename ...T, typename ...U>
@@ -737,7 +872,9 @@ namespace li_http_backend {
   
 }
 
-namespace li_http_backend {
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_CAT
+
+namespace li {
 
   
   struct skip {};
@@ -771,7 +908,9 @@ namespace li_http_backend {
 
 }
 
-namespace li_http_backend {
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_MAKE_METAMAP_SKIP
+
+namespace li {
 
   template <typename ...T, typename ...U>
   inline decltype(auto) intersection(const metamap<T...>& a,
@@ -786,8 +925,12 @@ namespace li_http_backend {
 
 }
 
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_INTERSECTION
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_SUBSTRACT
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_SUBSTRACT
 
-namespace li_http_backend {
+
+namespace li {
 
   template <typename ...T, typename ...U>
   inline auto substract(const metamap<T...>& a,
@@ -802,97 +945,11 @@ namespace li_http_backend {
 
 }
 
-#ifndef LI_SYMBOL_blocking
-#define LI_SYMBOL_blocking
-    LI_SYMBOL(blocking)
-#endif
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_SUBSTRACT
 
-#ifndef LI_SYMBOL_create_secret_key
-#define LI_SYMBOL_create_secret_key
-    LI_SYMBOL(create_secret_key)
-#endif
-
-#ifndef LI_SYMBOL_hash_password
-#define LI_SYMBOL_hash_password
-    LI_SYMBOL(hash_password)
-#endif
-
-#ifndef LI_SYMBOL_https_cert
-#define LI_SYMBOL_https_cert
-    LI_SYMBOL(https_cert)
-#endif
-
-#ifndef LI_SYMBOL_https_key
-#define LI_SYMBOL_https_key
-    LI_SYMBOL(https_key)
-#endif
-
-#ifndef LI_SYMBOL_id
-#define LI_SYMBOL_id
-    LI_SYMBOL(id)
-#endif
-
-#ifndef LI_SYMBOL_linux_epoll
-#define LI_SYMBOL_linux_epoll
-    LI_SYMBOL(linux_epoll)
-#endif
-
-#ifndef LI_SYMBOL_name
-#define LI_SYMBOL_name
-    LI_SYMBOL(name)
-#endif
-
-#ifndef LI_SYMBOL_non_blocking
-#define LI_SYMBOL_non_blocking
-    LI_SYMBOL(non_blocking)
-#endif
-
-#ifndef LI_SYMBOL_nthreads
-#define LI_SYMBOL_nthreads
-    LI_SYMBOL(nthreads)
-#endif
-
-#ifndef LI_SYMBOL_one_thread_per_connection
-#define LI_SYMBOL_one_thread_per_connection
-    LI_SYMBOL(one_thread_per_connection)
-#endif
-
-#ifndef LI_SYMBOL_path
-#define LI_SYMBOL_path
-    LI_SYMBOL(path)
-#endif
-
-#ifndef LI_SYMBOL_primary_key
-#define LI_SYMBOL_primary_key
-    LI_SYMBOL(primary_key)
-#endif
-
-#ifndef LI_SYMBOL_read_only
-#define LI_SYMBOL_read_only
-    LI_SYMBOL(read_only)
-#endif
-
-#ifndef LI_SYMBOL_select
-#define LI_SYMBOL_select
-    LI_SYMBOL(select)
-#endif
-
-#ifndef LI_SYMBOL_session_id
-#define LI_SYMBOL_session_id
-    LI_SYMBOL(session_id)
-#endif
-
-#ifndef LI_SYMBOL_update_secret_key
-#define LI_SYMBOL_update_secret_key
-    LI_SYMBOL(update_secret_key)
-#endif
-
-#ifndef LI_SYMBOL_user_id
-#define LI_SYMBOL_user_id
-    LI_SYMBOL(user_id)
-#endif
-
-
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_METAMAP
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SYMBOLS
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SYMBOLS
 
 #ifndef LI_SYMBOL_after_insert
 #define LI_SYMBOL_after_insert
@@ -995,7 +1052,461 @@ namespace li_http_backend {
 #endif
 
 
-namespace li_http_backend {
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SYMBOLS
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_COMMON
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_COMMON
+
+
+namespace li
+{
+  struct sql_blob : public std::string {
+    using std::string::string;
+    using std::string::operator=;
+
+    sql_blob() : std::string() {}
+  };
+
+  struct sql_null_t {};
+  static sql_null_t null;
+
+  template <unsigned SIZE>
+  struct sql_varchar : public std::string {
+    using std::string::string;
+    using std::string::operator=;
+
+    sql_varchar() : std::string() {}
+  };
+}
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_COMMON
+
+namespace li {
+
+template <typename T> struct tuple_remove_references_and_const;
+template <typename... T>
+struct tuple_remove_references_and_const<std::tuple<T...>> {
+  typedef std::tuple<std::remove_const_t<std::remove_reference_t<T>>...> type;
+};
+
+template <typename T>
+using tuple_remove_references_and_const_t =
+    typename tuple_remove_references_and_const<T>::type;
+
+void free_sqlite3_statement(void* s) { sqlite3_finalize((sqlite3_stmt*)s); }
+
+struct sqlite_statement {
+  typedef std::shared_ptr<sqlite3_stmt> stmt_sptr;
+
+  sqlite_statement() {}
+
+  sqlite_statement(sqlite3* db, sqlite3_stmt* s)
+      : db_(db), stmt_(s), stmt_sptr_(stmt_sptr(s, free_sqlite3_statement)),
+        ready_for_reading_(false) {}
+
+  template <typename... A> void row_to_metamap(metamap<A...>& o) {
+    int ncols = sqlite3_column_count(stmt_);
+    int filled[sizeof...(A)];
+    for (unsigned i = 0; i < sizeof...(A); i++)
+      filled[i] = 0;
+
+    for (int i = 0; i < ncols; i++) {
+      const char* cname = sqlite3_column_name(stmt_, i);
+      bool found = false;
+      int j = 0;
+      li::map(o, [&](auto k, auto& v) {
+        if (!found and !filled[j] and !strcmp(cname, symbol_string(k))) {
+          this->read_column(i, v);
+          filled[j] = 1;
+        }
+        j++;
+      });
+    }
+  }
+
+  template <typename... A> void row_to_tuple(std::tuple<A...>& o) {
+    int ncols = sqlite3_column_count(stmt_);
+    if (ncols != sizeof...(A)) {
+      std::stringstream ss;
+      ss << "Invalid number of parameters: SQL request has " << ncols
+         << " fields but the function to process it has " << sizeof...(A)
+         << " parameters.";
+      throw std::runtime_error(ss.str());
+    }
+    int i = 0;
+    auto read_elt = [&](auto& v) {
+      this->read_column(i, v);
+      i++;
+    };
+    ::li::tuple_map(o, read_elt);
+  }
+
+
+  // Bind arguments to the request unknowns (marked with ?)
+  template <typename... T> auto& operator()(T&&... args) {
+    ready_for_reading_ = true;
+    sqlite3_reset(stmt_);
+    sqlite3_clear_bindings(stmt_);
+    int i = 1;
+    li::tuple_map(std::forward_as_tuple(args...),
+        [&](auto& m) {
+          int err;
+          if ((err = this->bind(stmt_, i, m)) != SQLITE_OK)
+            throw std::runtime_error(
+                std::string("Sqlite error during binding: ") +
+                sqlite3_errmsg(db_));
+          i++;
+        });
+
+    last_step_ret_ = sqlite3_step(stmt_);
+    if (last_step_ret_ != SQLITE_ROW and last_step_ret_ != SQLITE_DONE)
+      throw std::runtime_error(sqlite3_errstr(last_step_ret_));
+
+    return *this;
+  }
+
+  // Fill a metamap with the current result row.
+  template <typename... A> int fetch(metamap<A...>& o) {
+
+    if (not ready_for_reading_)
+      this->operator()();
+    if (empty())
+      return false;
+    row_to_metamap(o);
+    ready_for_reading_ = false;
+    return true;
+  }
+
+  // Fill an simple object (int or string) with the current result row.
+  template <typename T> int fetch(T& o) {
+
+    if (not ready_for_reading_)
+      this->operator()();
+    if (empty())
+      return false;
+    this->read_column(0, o);
+    ready_for_reading_ = false;
+    return true;
+  }
+
+  template <typename T> void read(std::optional<T>& o) {
+    T t;
+    if (fetch(t))
+      o = std::optional<T>(t);
+    else
+      o = std::optional<T>();
+  }
+
+  template <typename T> T read() {
+    T t;
+    if (!fetch(t))
+      throw std::runtime_error("Request did not return any data.");
+    return t;
+  }
+
+  template <typename T> std::optional<T> read_optional() {
+    T t;
+    if (fetch(t))
+      return std::optional<T>(t);
+    else
+      return std::optional<T>();
+  }
+
+  long long int last_insert_id() { return sqlite3_last_insert_rowid(db_); }
+
+  int empty() { return last_step_ret_ != SQLITE_ROW; }
+
+  // Apply a function to all result rows.
+  template <typename F> void map(F f) {
+    if (not ready_for_reading_)
+      this->operator()();
+
+    while (last_step_ret_ == SQLITE_ROW) {
+      typedef callable_arguments_tuple_t<F> tp;
+      typedef std::remove_reference_t<std::tuple_element_t<0, tp>> T;
+      if constexpr (li::is_metamap<T>::ret) {
+        T o;
+        row_to_metamap(o);
+        f(o);
+        last_step_ret_ = sqlite3_step(stmt_);
+      } else {
+        typedef tuple_remove_references_and_const_t<std::remove_pointer_t<tp>>
+            T;
+        T o;
+        row_to_tuple(o);
+        std::apply(f, o);
+        last_step_ret_ = sqlite3_step(stmt_);
+      }
+    }
+    ready_for_reading_ = false;
+  }
+
+  template <typename V> void append_to(V& v) {
+    (*this) | [&v](typename V::value_type& o) { v.push_back(o); };
+  }
+
+  void read_column(int pos, int& v) { v = sqlite3_column_int(stmt_, pos); }
+  void read_column(int pos, float& v) { v = float(sqlite3_column_double(stmt_, pos)); }
+  void read_column(int pos, double& v) {
+    v = sqlite3_column_double(stmt_, pos);
+  }
+  void read_column(int pos, int64_t& v) {
+    v = sqlite3_column_int64(stmt_, pos);
+  }
+  void read_column(int pos, std::string& v) {
+    auto str = sqlite3_column_text(stmt_, pos);
+    auto n = sqlite3_column_bytes(stmt_, pos);
+    v = std::move(std::string((const char*)str, n));
+  }
+  // Todo: Date types
+  // template <typename C, typename D>
+  // void read_column(int pos, std::chrono::time_point<C, D>& v)
+  // {
+  //   v = std::chrono::time_point<C, D>(sqlite3_column_int(stmt_, pos));
+  // }
+
+  int bind(sqlite3_stmt* stmt, int pos, double d) const {
+    return sqlite3_bind_double(stmt, pos, d);
+  }
+
+  int bind(sqlite3_stmt* stmt, int pos, int d) const {
+    return sqlite3_bind_int(stmt, pos, d);
+  }
+  int bind(sqlite3_stmt* stmt, int pos, long int d) const {
+    return sqlite3_bind_int64(stmt, pos, d);
+  }
+  int bind(sqlite3_stmt* stmt, int pos, long long int d) const {
+    return sqlite3_bind_int64(stmt, pos, d);
+  }
+  void bind(sqlite3_stmt* stmt, int pos, sql_null_t) {
+    sqlite3_bind_null(stmt, pos);
+  }
+  int bind(sqlite3_stmt* stmt, int pos, const char* s) const {
+    return sqlite3_bind_text(stmt, pos, s, strlen(s), nullptr);
+  }
+  int bind(sqlite3_stmt* stmt, int pos, const std::string& s) const {
+    return sqlite3_bind_text(stmt, pos, s.data(), s.size(), nullptr);
+  }
+  int bind(sqlite3_stmt* stmt, int pos, const std::string_view& s) const {
+    return sqlite3_bind_text(stmt, pos, s.data(), s.size(), nullptr);
+  }
+  int bind(sqlite3_stmt* stmt, int pos, const sql_blob& b) const {
+    return sqlite3_bind_blob(stmt, pos, b.data(), b.size(), nullptr);
+  }
+
+  sqlite3* db_;
+  sqlite3_stmt* stmt_;
+  stmt_sptr stmt_sptr_;
+  int last_step_ret_;
+  bool ready_for_reading_;
+};
+
+void free_sqlite3_db(void* db) { sqlite3_close_v2((sqlite3*)db); }
+
+struct sqlite_connection {
+  typedef std::shared_ptr<sqlite3> db_sptr;
+  typedef std::unordered_map<std::string, sqlite_statement> stmt_map;
+  typedef std::shared_ptr<std::unordered_map<std::string, sqlite_statement>>
+      stmt_map_ptr;
+  typedef std::shared_ptr<std::mutex> mutex_ptr;
+
+  sqlite_connection()
+      : db_(nullptr), stm_cache_(new stmt_map()),
+        cache_mutex_(new std::mutex()) // FIXME
+  {}
+
+  void connect(const std::string& filename,
+               int flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE) {
+    int r = sqlite3_open_v2(filename.c_str(), &db_, flags, nullptr);
+    if (r != SQLITE_OK)
+      throw std::runtime_error(std::string("Cannot open database ") + filename +
+                               " " + sqlite3_errstr(r));
+
+    db_sptr_ = db_sptr(db_, free_sqlite3_db);
+  }
+
+  template <typename E> inline void format_error(E&) const {}
+
+  template <typename E, typename T1, typename... T>
+  inline void format_error(E& err, T1 a, T... args) const {
+    err << a;
+    format_error(err, args...);
+  }
+
+  sqlite_statement prepare(const std::string& req) {
+    std::cout << req << std::endl;
+    auto it = stm_cache_->find(req);
+    if (it != stm_cache_->end())
+      return it->second;
+
+    sqlite3_stmt* stmt;
+
+    int err = sqlite3_prepare_v2(db_, req.c_str(), req.size(), &stmt, nullptr);
+    if (err != SQLITE_OK)
+      throw std::runtime_error(std::string("Sqlite error during prepare: ") +
+                               sqlite3_errmsg(db_) + " statement was: " + req);
+
+    cache_mutex_->lock();
+    auto it2 = stm_cache_->insert(
+        it, std::make_pair(req, sqlite_statement(db_, stmt)));
+    cache_mutex_->unlock();
+    return it2->second;
+  }
+  sqlite_statement operator()(const std::string& req) {
+    return prepare(req)();
+  }
+
+  template <typename T>
+  inline std::string
+  type_to_string(const T&, std::enable_if_t<std::is_integral<T>::value>* = 0) {
+    return "INTEGER";
+  }
+  template <typename T>
+  inline std::string
+  type_to_string(const T&,
+                 std::enable_if_t<std::is_floating_point<T>::value>* = 0) {
+    return "REAL";
+  }
+  inline std::string type_to_string(const std::string&) { return "TEXT"; }
+  inline std::string type_to_string(const sql_blob&) { return "BLOB"; }
+  template <unsigned SIZE>
+  inline std::string type_to_string(const sql_varchar<SIZE>&) { 
+    std::stringstream ss;
+    ss << "VARCHAR(" << SIZE << ')'; return ss.str(); }
+
+  mutex_ptr cache_mutex_;
+  sqlite3* db_;
+  db_sptr db_sptr_;
+  stmt_map_ptr stm_cache_;
+};
+
+struct sqlite_database {
+  typedef sqlite_connection connection_type;
+  
+  sqlite_database() {}
+
+  template <typename... O>
+  sqlite_database(const std::string& path, O... options_) {
+    auto options = mmm(options_...);
+
+    path_ = path;
+    con_.connect(path, SQLITE_OPEN_FULLMUTEX | SQLITE_OPEN_READWRITE |
+                           SQLITE_OPEN_CREATE);
+    if (has_key(options, s::synchronous)) {
+      std::stringstream ss;
+      ss << "PRAGMA synchronous=" << li::get_or(options, s::synchronous, 2);
+      con_(ss.str())();
+    }
+  }
+
+  sqlite_connection& connect() { return con_; }
+
+  sqlite_connection con_;
+  std::string path_;
+};
+
+} // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQLITE
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_ORM
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_ORM
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SYMBOLS
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SYMBOLS
+
+#ifndef LI_SYMBOL_blocking
+#define LI_SYMBOL_blocking
+    LI_SYMBOL(blocking)
+#endif
+
+#ifndef LI_SYMBOL_create_secret_key
+#define LI_SYMBOL_create_secret_key
+    LI_SYMBOL(create_secret_key)
+#endif
+
+#ifndef LI_SYMBOL_hash_password
+#define LI_SYMBOL_hash_password
+    LI_SYMBOL(hash_password)
+#endif
+
+#ifndef LI_SYMBOL_https_cert
+#define LI_SYMBOL_https_cert
+    LI_SYMBOL(https_cert)
+#endif
+
+#ifndef LI_SYMBOL_https_key
+#define LI_SYMBOL_https_key
+    LI_SYMBOL(https_key)
+#endif
+
+#ifndef LI_SYMBOL_id
+#define LI_SYMBOL_id
+    LI_SYMBOL(id)
+#endif
+
+#ifndef LI_SYMBOL_linux_epoll
+#define LI_SYMBOL_linux_epoll
+    LI_SYMBOL(linux_epoll)
+#endif
+
+#ifndef LI_SYMBOL_name
+#define LI_SYMBOL_name
+    LI_SYMBOL(name)
+#endif
+
+#ifndef LI_SYMBOL_non_blocking
+#define LI_SYMBOL_non_blocking
+    LI_SYMBOL(non_blocking)
+#endif
+
+#ifndef LI_SYMBOL_nthreads
+#define LI_SYMBOL_nthreads
+    LI_SYMBOL(nthreads)
+#endif
+
+#ifndef LI_SYMBOL_one_thread_per_connection
+#define LI_SYMBOL_one_thread_per_connection
+    LI_SYMBOL(one_thread_per_connection)
+#endif
+
+#ifndef LI_SYMBOL_path
+#define LI_SYMBOL_path
+    LI_SYMBOL(path)
+#endif
+
+#ifndef LI_SYMBOL_primary_key
+#define LI_SYMBOL_primary_key
+    LI_SYMBOL(primary_key)
+#endif
+
+#ifndef LI_SYMBOL_read_only
+#define LI_SYMBOL_read_only
+    LI_SYMBOL(read_only)
+#endif
+
+#ifndef LI_SYMBOL_select
+#define LI_SYMBOL_select
+    LI_SYMBOL(select)
+#endif
+
+#ifndef LI_SYMBOL_session_id
+#define LI_SYMBOL_session_id
+    LI_SYMBOL(session_id)
+#endif
+
+#ifndef LI_SYMBOL_update_secret_key
+#define LI_SYMBOL_update_secret_key
+    LI_SYMBOL(update_secret_key)
+#endif
+
+#ifndef LI_SYMBOL_user_id
+#define LI_SYMBOL_user_id
+    LI_SYMBOL(user_id)
+#endif
+
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SYMBOLS
+
+
+namespace li {
 
 struct sqlite_connection;
 struct mysql_connection;
@@ -1026,7 +1537,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     ss << "CREATE TABLE if not exists " << schema_.table_name() << " (";
 
     bool first = true;
-    li_http_backend::tuple_map(schema_.all_info(), [&](auto f) {
+    li::tuple_map(schema_.all_info(), [&](auto f) {
       auto f2 = schema_.get_field(f);
       typedef decltype(f) F;
       typedef decltype(f2) F2;
@@ -1040,7 +1551,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
       if (!first)
         ss << ", ";
-      ss << li_http_backend::symbol_string(k) << " " << con_.type_to_string(v);
+      ss << li::symbol_string(k) << " " << con_.type_to_string(v);
 
       if (std::is_same<C, sqlite_connection>::value) {
         if (auto_increment || primary_key)
@@ -1082,7 +1593,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
       if (!first)
         ss << " and ";
       first = false;
-      ss << li_http_backend::symbol_string(k) << " = ? ";
+      ss << li::symbol_string(k) << " = ? ";
     });
     ss << " ";
   }
@@ -1092,11 +1603,11 @@ template <typename SCHEMA, typename C> struct sql_orm {
     O o;
     ss << "SELECT ";
     bool first = true;
-    li_http_backend::map(o, [&](auto k, auto v) {
+    li::map(o, [&](auto k, auto v) {
       if (!first)
         ss << ",";
       first = false;
-      ss << li_http_backend::symbol_string(k);
+      ss << li::symbol_string(k);
     });
 
     ss << " FROM " << schema_.table_name();
@@ -1104,7 +1615,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     ss << "LIMIT 1";
     auto stmt = con_.prepare(ss.str());
 
-    auto res = li_http_backend::tuple_reduce(metamap_values(where), stmt).template read_optional<O>();
+    auto res = li::tuple_reduce(metamap_values(where), stmt).template read_optional<O>();
     if (res)
       call_callback(s::read_access, o, cb_args...);
     return res;
@@ -1134,7 +1645,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
     auto stmt = con_.prepare(ss.str());
 
-    return li_http_backend::tuple_reduce(metamap_values(cond), stmt).template read<int>();
+    return li::tuple_reduce(metamap_values(cond), stmt).template read<int>();
   }
 
   template <typename A, typename B, typename... W>
@@ -1156,20 +1667,20 @@ template <typename SCHEMA, typename C> struct sql_orm {
     ss << "INSERT into " << schema_.table_name() << "(";
 
     bool first = true;
-    li_http_backend::map(values, [&](auto k, auto v) {
+    li::map(values, [&](auto k, auto v) {
       if (!first) {
         ss << ",";
         vs << ",";
       }
       first = false;
-      ss << li_http_backend::symbol_string(k);
+      ss << li::symbol_string(k);
       vs << "?";
     });
 
 
     ss << ") VALUES (" << vs.str() << ")";
     auto req = con_.prepare(ss.str());
-    li_http_backend::reduce(values, req);
+    li::reduce(values, req);
 
     call_callback(s::after_insert, o, cb_args...);
 
@@ -1222,13 +1733,13 @@ template <typename SCHEMA, typename C> struct sql_orm {
       if (!first)
         ss << ",";
       first = false;
-      ss << li_http_backend::symbol_string(k) << " = ?";
+      ss << li::symbol_string(k) << " = ?";
     });
 
     where_clause(pk, ss);
 
     auto stmt = con_.prepare(ss.str());
-    li_http_backend::tuple_reduce(std::tuple_cat(metamap_values(to_update), metamap_values(pk)), stmt);
+    li::tuple_reduce(std::tuple_cat(metamap_values(to_update), metamap_values(pk)), stmt);
 
     call_callback(s::after_update, o, args...);
   }
@@ -1258,11 +1769,11 @@ template <typename SCHEMA, typename C> struct sql_orm {
       if (!first)
         ss << " and ";
       first = false;
-      ss << li_http_backend::symbol_string(k) << " = ? ";
+      ss << li::symbol_string(k) << " = ? ";
     });
 
     auto pks = intersection(o, schema_.primary_key());
-    li_http_backend::reduce(pks, con_.prepare(ss.str()));
+    li::reduce(pks, con_.prepare(ss.str()));
 
     call_callback(s::after_remove, o, args...);
   }
@@ -1384,12 +1895,466 @@ struct sql_orm_schema : public MD {
   CB callbacks_;
 };
 
-}; // namespace li_http_backend
+}; // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_ORM
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL
 
 
 
 
+namespace li {
 
+struct mysql_scoped_use_result {
+  inline mysql_scoped_use_result(MYSQL* con) : res_(mysql_use_result(con)) {
+    if (!res_)
+      throw std::runtime_error(std::string("Mysql error: ") + mysql_error(con));
+  }
+
+  inline ~mysql_scoped_use_result() { mysql_free_result(res_); }
+  inline operator MYSQL_RES*() { return res_; }
+
+private:
+  MYSQL_RES* res_;
+};
+
+auto type_to_mysql_statement_buffer_type(const char&) { return MYSQL_TYPE_TINY; }
+auto type_to_mysql_statement_buffer_type(const short int&) { return MYSQL_TYPE_SHORT; }
+auto type_to_mysql_statement_buffer_type(const int&) { return MYSQL_TYPE_LONG; }
+auto type_to_mysql_statement_buffer_type(const long long int&) { return MYSQL_TYPE_LONGLONG; }
+auto type_to_mysql_statement_buffer_type(const float&) { return MYSQL_TYPE_FLOAT; }
+auto type_to_mysql_statement_buffer_type(const double&) { return MYSQL_TYPE_DOUBLE; }
+auto type_to_mysql_statement_buffer_type(const sql_blob&) { return MYSQL_TYPE_BLOB; }
+auto type_to_mysql_statement_buffer_type(const char*) { return MYSQL_TYPE_STRING; }
+template <unsigned S>
+auto type_to_mysql_statement_buffer_type(const sql_varchar<S>) { return MYSQL_TYPE_STRING; }
+
+auto type_to_mysql_statement_buffer_type(const unsigned char&) { return MYSQL_TYPE_TINY; }
+auto type_to_mysql_statement_buffer_type(const unsigned short int&) { return MYSQL_TYPE_SHORT; }
+auto type_to_mysql_statement_buffer_type(const unsigned int&) { return MYSQL_TYPE_LONG; }
+auto type_to_mysql_statement_buffer_type(const unsigned long long int&) {
+  return MYSQL_TYPE_LONGLONG;
+}
+
+struct mysql_statement {
+  mysql_statement()
+      : stmt_(nullptr), stmt_sptr_(nullptr), num_fields_(-1), metadata_(nullptr),
+        metadata_sptr_(nullptr), fields_(nullptr) {}
+
+  mysql_statement(MYSQL_STMT* s) : stmt_(s) {
+    metadata_ = mysql_stmt_result_metadata(stmt_);
+    stmt_sptr_ = std::shared_ptr<MYSQL_STMT>(stmt_, mysql_stmt_close);
+
+    if (metadata_) {
+      metadata_sptr_ = std::shared_ptr<MYSQL_RES>(metadata_, mysql_free_result);
+      fields_ = mysql_fetch_fields(metadata_);
+      num_fields_ = mysql_num_fields(metadata_);
+    } else {
+      num_fields_ = -1;
+      metadata_ = nullptr;
+      metadata_sptr_ = nullptr;
+      fields_ = nullptr;
+    }
+  }
+
+  auto& operator()() {
+  if (mysql_stmt_execute(stmt_) != 0)
+      throw std::runtime_error(std::string("mysql_stmt_execute error: ") + mysql_stmt_error(stmt_));
+    return *this;
+  }
+
+  template <typename... T> auto& operator()(T&&... args) {
+    MYSQL_BIND bind[sizeof...(T)];
+    memset(bind, 0, sizeof(bind));
+
+    int i = 0;
+    tuple_map(std::forward_as_tuple(args...), [&](auto& m) {
+      this->bind(bind[i], m);
+      i++;
+    });
+
+    if (mysql_stmt_bind_param(stmt_, bind) != 0)
+      throw std::runtime_error(std::string("mysql_stmt_bind_param error: ") +
+                               mysql_stmt_error(stmt_));
+
+    if (mysql_stmt_execute(stmt_) != 0)
+      throw std::runtime_error(std::string("mysql_stmt_execute error: ") + mysql_stmt_error(stmt_));
+
+    return *this;
+  }
+
+  long long int affected_rows() { return mysql_stmt_affected_rows(stmt_); }
+
+  template <typename V> void bind(MYSQL_BIND& b, V& v) {
+    b.buffer = const_cast<std::remove_const_t<V>*>(&v);
+    b.buffer_type = type_to_mysql_statement_buffer_type(v);
+    b.is_unsigned = std::is_unsigned<V>::value;
+  }
+
+  void bind(MYSQL_BIND& b, std::string& s) {
+    b.buffer = &s[0];
+    b.buffer_type = MYSQL_TYPE_STRING;
+    b.buffer_length = s.size();
+  }
+  void bind(MYSQL_BIND& b, const std::string& s) { bind(b, *const_cast<std::string*>(&s)); }
+  template <unsigned SIZE>
+  void bind(MYSQL_BIND& b, const sql_varchar<SIZE>& s) { bind(b, *const_cast<std::string*>(static_cast<const std::string*>(&s))); }
+
+  void bind(MYSQL_BIND& b, char* s) {
+    b.buffer = s;
+    b.buffer_type = MYSQL_TYPE_STRING;
+    b.buffer_length = strlen(s);
+  }
+  void bind(MYSQL_BIND& b, const char* s) { bind(b, const_cast<char*>(s)); }
+
+  void bind(MYSQL_BIND& b, sql_blob& s) {
+    b.buffer = &s[0];
+    b.buffer_type = MYSQL_TYPE_BLOB;
+    b.buffer_length = s.size();
+  }
+  void bind(MYSQL_BIND& b, const sql_blob& s) { bind(b, *const_cast<sql_blob*>(&s)); }
+
+  void bind(MYSQL_BIND& b, sql_null_t n) { b.buffer_type = MYSQL_TYPE_NULL; }
+
+  template <typename T> void fetch_column(MYSQL_BIND*, unsigned long, T&, int) {}
+  void fetch_column(MYSQL_BIND* b, unsigned long real_length, std::string& v, int i) {
+    v.resize(real_length);
+    b[i].buffer_length = real_length;
+    b[i].length = nullptr;
+    b[i].buffer = &v[0];
+    if (mysql_stmt_fetch_column(stmt_, b + i, i, 0) != 0)
+      throw std::runtime_error(std::string("mysql_stmt_fetch_column error: ") +
+                               mysql_stmt_error(stmt_));
+  }
+
+  template <typename T> void bind_output(MYSQL_BIND& b, unsigned long* real_length, T& v) {
+    bind(b, v);
+  }
+  void bind_output(MYSQL_BIND& b, unsigned long* real_length, std::string& v) {
+    b.buffer_type = MYSQL_TYPE_STRING;
+    b.buffer_length = 0;
+    b.buffer = 0;
+    b.length = real_length;
+  }
+
+  template <typename A> static constexpr auto number_of_fields(const A&) {
+    return std::integral_constant<int, 1>();
+  }
+  template <typename... A> static constexpr auto number_of_fields(const metamap<A...>&) {
+    return std::integral_constant<int, sizeof...(A)>();
+  }
+  template <typename... A> static constexpr auto number_of_fields(const std::tuple<A...>&) {
+    return std::integral_constant<int, sizeof...(A)>();
+  }
+
+  template <typename T> int fetch(T&& o) {
+
+    constexpr int size = decltype(number_of_fields(o))::value;
+    unsigned long real_lengths[size];
+    MYSQL_BIND bind[size];
+    memset(bind, 0, sizeof(bind));
+
+    prepare_fetch(bind, real_lengths, o);
+    int f = fetch();
+    int res = 1;
+    if (f == MYSQL_NO_DATA)
+      res = 0;
+    else
+      finalize_fetch(bind, real_lengths, o);
+
+    mysql_stmt_free_result(stmt_);
+    return res;
+  }
+  template <typename T> void read(std::optional<T>& o) {
+    T t;
+    if (fetch(t))
+      o = std::optional<T>(t);
+    else
+      o = std::optional<T>();
+  }
+
+  template <typename T> T read() {
+    T t;
+    if (!fetch(t))
+      throw std::runtime_error("Request did not return any data.");
+    return t;
+  }
+
+  template <typename T> std::optional<T> read_optional() {
+    T t;
+    if (fetch(t))
+      return std::optional<T>(t);
+    else
+      return std::optional<T>();
+  }
+
+  template <typename F> void map(F f) {
+    typedef callable_arguments_tuple_t<F> tp;
+    typedef std::remove_reference_t<std::tuple_element_t<0, tp>> T;
+    if constexpr (li::is_metamap<T>::ret) {
+      T o;
+
+      unsigned long real_lengths[decltype(number_of_fields(T()))::value];
+      MYSQL_BIND bind[decltype(number_of_fields(T()))::value];
+      memset(bind, 0, sizeof(bind));
+      this->prepare_fetch(bind, real_lengths, o);
+      while (this->fetch() != MYSQL_NO_DATA) {
+        this->finalize_fetch(bind, real_lengths, o);
+        f(o);
+      }
+      mysql_stmt_free_result(stmt_);
+    } else {
+      tp o;
+
+      unsigned long real_lengths[std::tuple_size<tp>::value];
+      MYSQL_BIND bind[std::tuple_size<tp>::value];
+      memset(bind, 0, sizeof(bind));
+      this->prepare_fetch(bind, real_lengths, o);
+      while (this->fetch() != MYSQL_NO_DATA) {
+        this->finalize_fetch(bind, real_lengths, o);
+        apply(o, f);
+      }
+      mysql_stmt_free_result(stmt_);
+    }
+  }
+
+  template <typename A> void prepare_fetch(MYSQL_BIND* bind, unsigned long* real_lengths, A& o) {
+    if (num_fields_ != 1)
+      throw std::runtime_error("mysql_statement error: The number of column in the result set "
+                               "shoud be 1. Use std::tuple or li::sio to fetch several columns or "
+                               "modify the request so that it returns a set of 1 column.");
+
+    this->bind_output(bind[0], real_lengths, o);
+    mysql_stmt_bind_result(stmt_, bind);
+  }
+
+  template <typename... A>
+  void prepare_fetch(MYSQL_BIND* bind, unsigned long* real_lengths, metamap<A...>& o) {
+    if (num_fields_ != sizeof...(A)) {
+      throw std::runtime_error(
+          "mysql_statement error: Not enough columns in the result set to fill the object.");
+    }
+
+    li::map(o, [&](auto k, auto& v) {
+      // Find li::symbol_string(k) position.
+      for (int i = 0; i < num_fields_; i++)
+        if (!strcmp(fields_[i].name, li::symbol_string(k)))
+        // bind the column.
+        {
+          this->bind_output(bind[i], real_lengths + i, v);
+        }
+    });
+
+    for (int i = 0; i < num_fields_; i++) {
+      if (!bind[i].buffer_type) {
+        std::stringstream ss;
+        ss << "Error while binding the mysql request to a SIO object: " << std::endl
+           << "   Field " << fields_[i].name << " could not be bound." << std::endl;
+        throw std::runtime_error(ss.str());
+      }
+    }
+
+    mysql_stmt_bind_result(stmt_, bind);
+  }
+
+  template <typename... A>
+  void prepare_fetch(MYSQL_BIND* bind, unsigned long* real_lengths, std::tuple<A...>& o) {
+    if (num_fields_ != sizeof...(A))
+      throw std::runtime_error("mysql_statement error: The number of column in the result set does "
+                               "not match the number of attributes of the tuple to bind.");
+
+    int i = 0;
+    tuple_map(o, [&](auto& m) {
+      this->bind_output(bind[i], real_lengths + i, m);
+      i++;
+    });
+
+    mysql_stmt_bind_result(stmt_, bind);
+  }
+
+  template <typename... A>
+  void finalize_fetch(MYSQL_BIND* bind, unsigned long* real_lengths, metamap<A...>& o) {
+    li::map(o, [&](auto k, auto& v) {
+      for (int i = 0; i < num_fields_; i++)
+        if (!strcmp(fields_[i].name, li::symbol_string(k)))
+          this->fetch_column(bind, real_lengths[i], v, i);
+    });
+  }
+
+  template <typename... A>
+  void finalize_fetch(MYSQL_BIND* bind, unsigned long* real_lengths, std::tuple<A...>& o) {
+    int i = 0;
+    tuple_map(o, [&](auto& m) {
+      this->fetch_column(bind, real_lengths[i], m, i);
+      i++;
+    });
+  }
+
+  template <typename A> void finalize_fetch(MYSQL_BIND* bind, unsigned long* real_lengths, A& o) {
+    this->fetch_column(bind, real_lengths[0], o, 0);
+  }
+
+  int fetch() {
+    int f = mysql_stmt_fetch(stmt_);
+    if (f == 1)
+      throw std::runtime_error(std::string("mysql_stmt_fetch error: ") + mysql_stmt_error(stmt_));
+    return f;
+  }
+
+  long long int last_insert_id() { return mysql_stmt_insert_id(stmt_); }
+
+  bool empty() { return mysql_stmt_fetch(stmt_) == MYSQL_NO_DATA; }
+
+  MYSQL_STMT* stmt_;
+  std::shared_ptr<MYSQL_STMT> stmt_sptr_;
+  int num_fields_;
+  MYSQL_RES* metadata_;
+  std::shared_ptr<MYSQL_RES> metadata_sptr_;
+  MYSQL_FIELD* fields_;
+}; // namespace li
+
+struct mysql_database;
+
+struct mysql_connection {
+  //mysql_connection(MYSQL* con) : con_(con) {}
+
+  // template <typename... OPTS> inline mysql_connection(OPTS&&... opts) :
+  // con_(impl::open_mysql_connection(opts...)) {}
+
+  inline mysql_connection(MYSQL* con, mysql_database& pool);
+
+  long long int last_insert_rowid() { return mysql_insert_id(con_); }
+
+  mysql_statement& operator()(std::string rq) {
+    return prepare(rq)();
+  }
+
+  mysql_statement& prepare(std::string rq) {
+    std::cout << rq << std::endl;
+    auto it = stm_cache_.find(rq);
+    if (it != stm_cache_.end())
+      return it->second;
+
+    MYSQL_STMT* stmt = mysql_stmt_init(con_);
+    if (!stmt)
+      throw std::runtime_error(std::string("mysql_stmt_init error: ") + mysql_error(con_));
+
+    if (mysql_stmt_prepare(stmt, rq.data(), rq.size()))
+      throw std::runtime_error(std::string("mysql_stmt_prepare error: ") + mysql_error(con_));
+
+    stm_cache_[rq] = mysql_statement(stmt);
+    return stm_cache_[rq];
+  }
+
+  template <typename T>
+  inline std::string type_to_string(const T&, std::enable_if_t<std::is_integral<T>::value>* = 0) {
+    return "INT";
+  }
+  template <typename T>
+  inline std::string type_to_string(const T&,
+                                    std::enable_if_t<std::is_floating_point<T>::value>* = 0) {
+    return "DOUBLE";
+  }
+  inline std::string type_to_string(const std::string&) { return "MEDIUMTEXT"; }
+  inline std::string type_to_string(const sql_blob&) { return "BLOB"; }
+  template <unsigned S>
+  inline std::string type_to_string(const sql_varchar<S>) { 
+    std::stringstream ss;
+    ss << "VARCHAR(" << S << ')'; return ss.str(); }
+
+  std::unordered_map<std::string, mysql_statement> stm_cache_;
+  MYSQL* con_;
+  std::shared_ptr<int> sptr_;
+  mysql_database& pool_;
+};
+
+struct mysql_database : std::enable_shared_from_this<mysql_database> {
+
+  template <typename... O> inline mysql_database(O... opts) {
+
+    auto options = mmm(opts...);
+    static_assert(has_key(options, s::host), "open_mysql_connection requires the s::host argument");
+    static_assert(has_key(options, s::database),
+                  "open_mysql_connection requires the s::databaser argument");
+    static_assert(has_key(options, s::user), "open_mysql_connection requires the s::user argument");
+    static_assert(has_key(options, s::password),
+                  "open_mysql_connection requires the s::password argument");
+
+    host_ = options.host;
+    database_ = options.database;
+    user_ = options.user;
+    passwd_ = options.password;
+    port_ = get_or(options, s::port, 0);
+ 
+    character_set_ = get_or(options, s::charset, "utf8");
+
+    if (mysql_library_init(0, NULL, NULL))
+      throw std::runtime_error("Could not initialize MySQL library.");
+    if (!mysql_thread_safe())
+      throw std::runtime_error("Mysql is not compiled as thread safe.");
+  }
+
+  inline void free_connection(MYSQL* c) {
+    std::unique_lock<std::mutex> l(mutex_);
+    pool_.push_back(c);
+  }
+
+  inline mysql_connection connect() {
+    MYSQL* con_ = nullptr;
+    {
+      std::unique_lock<std::mutex> l(mutex_);
+      if (!pool_.empty()) {
+        con_ = pool_.back();
+        pool_.pop_back();
+      }
+    }
+
+    if (!con_) {
+      con_ = mysql_init(con_);
+      con_ = mysql_real_connect(con_, host_.c_str(), user_.c_str(), passwd_.c_str(),
+                                database_.c_str(), port_, NULL, 0);
+      if (!con_)
+        throw std::runtime_error("Cannot connect to the database");
+
+      mysql_set_character_set(con_, character_set_.c_str());
+    }
+
+    assert(con_);
+    return mysql_connection(con_, *this);
+  }
+
+  std::mutex mutex_;
+  std::string host_, user_, passwd_, database_;
+  unsigned int port_;
+  std::deque<MYSQL*> pool_;
+  std::string character_set_;
+};
+
+inline mysql_connection::mysql_connection(MYSQL* con, mysql_database& pool)
+    : con_(con), pool_(pool) {
+  sptr_ = std::shared_ptr<int>((int*)42, [&pool, con](int* p) { pool.free_connection(con); });
+}
+
+} // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_HTTP_BACKEND
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_HTTP_BACKEND
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_JSON
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_JSON
+
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_DECODER
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_DECODER
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_UTILS
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_UTILS
+
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_SYMBOLS
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_SYMBOLS
 
 #ifndef LI_SYMBOL_append
 #define LI_SYMBOL_append
@@ -1412,7 +2377,9 @@ struct sql_orm_schema : public MD {
 #endif
 
 
-namespace li_http_backend {
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_SYMBOLS
+
+namespace li {
 
 
   
@@ -1434,7 +2401,7 @@ namespace li_http_backend {
     template <typename S, typename... A>
     auto make_json_object_member(const function_call_exp<S, A...>& e);
     template <typename S>
-    auto make_json_object_member(const li_http_backend::symbol<S>&);
+    auto make_json_object_member(const li::symbol<S>&);
 
     template <typename S, typename T>
     auto make_json_object_member(const assign_exp<S, T>& e)
@@ -1444,7 +2411,7 @@ namespace li_http_backend {
     }
 
     template <typename S>
-    auto make_json_object_member(const li_http_backend::symbol<S>&)
+    auto make_json_object_member(const li::symbol<S>&)
     {
       return mmm(s::name = S{});
     }
@@ -1509,7 +2476,7 @@ namespace li_http_backend {
             }
         };
 
-      ::li_http_backend::tuple_map(e.args, parse);
+      ::li::tuple_map(e.args, parse);
       return res;
     }
     
@@ -1544,11 +2511,17 @@ namespace li_http_backend {
   
 }
 
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_UTILS
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_UNICODE
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_UNICODE
 
 
 
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_DECODE_STRINGSTREAM
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_DECODE_STRINGSTREAM
 
-namespace li_http_backend {
+
+namespace li {
 
   using std::string_view;
   
@@ -1754,9 +2727,13 @@ namespace li_http_backend {
 
 }
 
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_DECODE_STRINGSTREAM
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_ERROR
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_ERROR
 
 
-namespace li_http_backend {
+namespace li {
 
 
   enum json_error_code
@@ -1782,7 +2759,9 @@ namespace li_http_backend {
 
 }
 
-namespace li_http_backend {
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_ERROR
+
+namespace li {
 
   
   
@@ -2114,7 +3093,9 @@ namespace li_http_backend {
   }
 }
 
-namespace li_http_backend {
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_UNICODE
+
+namespace li {
 
   namespace impl
   {
@@ -2426,8 +3407,12 @@ namespace li_http_backend {
 }
 
 
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_DECODER
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_ENCODER
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_ENCODER
 
-namespace li_http_backend {
+
+namespace li {
 
   using std::string_view;
 
@@ -2578,7 +3563,9 @@ namespace li_http_backend {
 
 }
 
-namespace li_http_backend {
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_ENCODER
+
+namespace li {
 
 
 
@@ -2684,13 +3671,19 @@ template <typename A, typename B, typename... C> auto json_encode(const assign_e
   return impl::to_json_schema(obj).encode(obj);
 }
 
-} // namespace li_http_backend
+} // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_JSON
 
 
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_API
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_API
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_DYNAMIC_ROUTING_TABLE
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_DYNAMIC_ROUTING_TABLE
 
 
-
-namespace li_http_backend {
+namespace li {
 
   namespace internal
   {
@@ -2831,8 +3824,12 @@ namespace li_http_backend {
 
 }
 
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_DYNAMIC_ROUTING_TABLE
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_ERROR
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_ERROR
 
-namespace li_http_backend {
+
+namespace li {
 
 template <typename E> inline void format_error_(E&) {}
 
@@ -2878,9 +3875,11 @@ private:
   std::string what_;
 };
 
-} // namespace li_http_backend
+} // namespace li
 
-namespace li_http_backend {
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_ERROR
+
+namespace li {
 
 enum { ANY, GET, POST, PUT, HTTP_DELETE };
 
@@ -2979,15 +3978,21 @@ template <typename Req, typename Resp> struct api {
   dynamic_routing_table<VH> routes_map_;
 };
 
-} // namespace li_http_backend
+} // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_API
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_REQUEST
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_REQUEST
 
 
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_URL_DECODE
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_URL_DECODE
 
 #if defined(_MSC_VER)
 #endif
 
 
-namespace li_http_backend
+namespace li
 {
   // Decode a plain value.
   template <typename O>
@@ -3109,7 +4114,7 @@ namespace li_http_backend
     std::string_view ret;
     map(obj, [&] (auto k, auto& v)
     {
-      if (li_http_backend::symbol_string(k) == key)
+      if (li::symbol_string(k) == key)
       {
       try{
         ret = url_decode2(found, next_str, v);
@@ -3117,7 +4122,7 @@ namespace li_http_backend
       catch(std::exception e)
       {
         throw std::runtime_error(format_error("url_decode error: cannot decode parameter ", 
-                                  li_http_backend::symbol_string(k)));
+                                  li::symbol_string(k)));
       }
       }
     });
@@ -3165,7 +4170,7 @@ namespace li_http_backend
       if (missing.size()) return;
       missing = url_decode_check_missing_fields(found, v);
       if (missing.size())
-        missing = (root ? "" : ".") + std::string(li_http_backend::symbol_string(k)) + missing;
+        missing = (root ? "" : ".") + std::string(li::symbol_string(k)) + missing;
     });
     return missing;
   }
@@ -3180,7 +4185,7 @@ namespace li_http_backend
       auto& v = obj[k];
       missing = url_decode_check_missing_fields(found, v);
       if (missing.size())
-        missing = (root ? "" : ".") + std::string(li_http_backend::symbol_string(k)) + missing;
+        missing = (root ? "" : ".") + std::string(li::symbol_string(k)) + missing;
     });
     return missing;
   }
@@ -3203,7 +4208,9 @@ namespace li_http_backend
 
 }
 
-namespace li_http_backend {
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_URL_DECODE
+
+namespace li {
 
 struct http_request {
 
@@ -3330,7 +4337,7 @@ auto parse_url_parameters(const url_parser_info& fmt, const std::string_view url
         try {
           obj[k] = boost::lexical_cast<decltype(v)>(content);
         } catch (std::exception e) {
-          throw http_error::bad_request("Cannot decode url parameter ", li_http_backend::symbol_string(k), " : ",
+          throw http_error::bad_request("Cannot decode url parameter ", li::symbol_string(k), " : ",
                                         e.what());
         }
       }
@@ -3416,7 +4423,11 @@ template <typename O> auto http_request::post_parameters(O& res) const {
   return res;
 }
 
-} // namespace li_http_backend
+} // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_REQUEST
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_RESPONSE
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_RESPONSE
 
 
 //#include <stdlib.h>
@@ -3426,8 +4437,8 @@ template <typename O> auto http_request::post_parameters(O& res) const {
 
 //#include <sys/stat.h>
 
-namespace li_http_backend {
-using namespace li_http_backend;
+namespace li {
+using namespace li;
 
 struct http_response {
   inline http_response() : status(200), file_descriptor(-1) {}
@@ -3458,11 +4469,15 @@ struct http_response {
   std::unordered_map<std::string, std::string> headers;
 };
 
-} // namespace li_http_backend
+} // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_RESPONSE
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SQL_CRUD_API
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SQL_CRUD_API
 
 
 
-namespace li_http_backend {
+namespace li {
   
 template <typename A, typename B, typename C> auto sql_crud_api(sql_orm_schema<A, B, C>& orm_schema) {
 
@@ -3496,7 +4511,11 @@ template <typename A, typename B, typename C> auto sql_crud_api(sql_orm_schema<A
   return api;
 }
 
-} // namespace li_http_backend
+} // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SQL_CRUD_API
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_MHD
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_MHD
 
 
 
@@ -3522,8 +4541,8 @@ void usleep(__int64 usec)
 //#include <li/http_backend/file.hh>
 //#include <li/http_backend/url_decode.hh>
 
-namespace li_http_backend {
-  using namespace li_http_backend;
+namespace li {
+  using namespace li;
     
   template <typename S>
   int mhd_handler(void * cls,
@@ -3817,9 +4836,15 @@ namespace li_http_backend {
 
 }
 
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_MHD
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SQL_HTTP_SESSION
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SQL_HTTP_SESSION
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_RANDOM_COOKIE
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_RANDOM_COOKIE
 
 
-namespace li_http_backend {
+namespace li {
 
   std::string generate_secret_tracking_id()
   {
@@ -3850,7 +4875,9 @@ namespace li_http_backend {
 
 }
 
-namespace li_http_backend {
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_RANDOM_COOKIE
+
+namespace li {
 
 template <typename ORM> struct connected_sql_http_session {
 
@@ -3924,10 +4951,14 @@ template <typename DB, typename... F> struct sql_http_session {
       session_table_;
 };
 
-} // namespace li_http_backend
+} // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SQL_HTTP_SESSION
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_HASHMAP_HTTP_SESSION
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_HASHMAP_HTTP_SESSION
 
 
-namespace li_http_backend {
+namespace li {
 
 template <typename O> struct connected_hashmap_http_session {
 
@@ -3979,10 +5010,14 @@ template <typename... F> struct hashmap_http_session {
   std::mutex sessions_mutex_;
 };
 
-} // namespace li_http_backend
+} // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_HASHMAP_HTTP_SESSION
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SERVE_DIRECTORY
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SERVE_DIRECTORY
 
 
-namespace li_http_backend {
+namespace li {
 
 auto serve_file(const std::string& root, std::string path, http_response& response) {
   std::string base_path = root;
@@ -4031,11 +5066,15 @@ inline auto serve_directory(std::string root) {
   return api;
 }
 
-} // namespace li_http_backend
+} // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SERVE_DIRECTORY
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_HTTP_AUTHENTICATION
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_HTTP_AUTHENTICATION
 
 
 
-namespace li_http_backend {
+namespace li {
 
 template <typename S, typename U, typename L, typename P, typename... CB>
 struct http_authentication {
@@ -4145,8 +5184,12 @@ api<http_request, http_response> http_authentication_api(http_authentication<A..
 //   return std::string((const char*)h, sizeof(h));
 // }
 
-} // namespace li_http_backend
+} // namespace li
 
-namespace li_http_backend {
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_HTTP_AUTHENTICATION
+
+namespace li {
   using http_api = api<http_request, http_response>;
 }
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_HTTP_BACKEND

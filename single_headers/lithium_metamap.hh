@@ -1,6 +1,6 @@
 // Author: Matthieu Garrigues matthieu.garrigues@gmail.com
 //
-// Single header version the li_metamap library.
+// Single header version the lithium_metamap library.
 // https://github.com/matt-42/lithium
 //
 // This file is generated do not edit it.
@@ -8,13 +8,15 @@
 #pragma once
 
 #include <utility>
-#include <vector>
 #include <tuple>
+#include <vector>
 
 
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_METAMAP
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_METAMAP
 
 
-namespace li_metamap {
+namespace li {
 
   namespace internal
   {
@@ -166,11 +168,17 @@ namespace li_metamap {
   
 }
 
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_MAKE
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_MAKE
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SYMBOL_SYMBOL
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SYMBOL_SYMBOL
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SYMBOL_AST
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SYMBOL_AST
 
 
-
-
-namespace li_metamap {
+namespace li {
 
   template <typename E>
   struct Exp {};
@@ -332,7 +340,9 @@ namespace li_metamap {
 
 }
 
-namespace li_metamap {
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SYMBOL_AST
+
+namespace li {
 
   template <typename S>
   class symbol : public assignable<S>,
@@ -348,7 +358,7 @@ namespace li_metamap {
 
 #define LI_SYMBOL(NAME)                                                \
 namespace s {                                                           \
-struct NAME##_t : li_metamap::symbol<NAME##_t> {                         \
+struct NAME##_t : li::symbol<NAME##_t> {                         \
                                                                         \
 using assignable<NAME##_t>::operator=;                               \
                                                                         \
@@ -386,7 +396,7 @@ static constexpr  NAME##_t NAME;                                    \
 }
 
 
-namespace li_metamap {
+namespace li {
 
   template <typename S>
   inline decltype(auto) make_variable(S s, char const v[])
@@ -464,7 +474,9 @@ namespace li_metamap {
 }
 
 
-namespace li_metamap {
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SYMBOL_SYMBOL
+
+namespace li {
 
   
   template <typename ...Ms>
@@ -520,9 +532,15 @@ namespace li_metamap {
   
 }
 
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_MAKE
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_MAP_REDUCE
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_MAP_REDUCE
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS
 
 
-namespace li_metamap {
+namespace li {
 
 
   template <typename... E, typename F>
@@ -580,7 +598,9 @@ namespace li_metamap {
   }
   
 }
-namespace li_metamap {
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS
+
+namespace li {
 
   // Map a function(key, value) on all kv pair
   template <typename... M, typename F>
@@ -666,10 +686,18 @@ namespace li_metamap {
 
 }
 
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_MAP_REDUCE
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_INTERSECTION
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_INTERSECTION
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_MAKE_METAMAP_SKIP
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_MAKE_METAMAP_SKIP
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_CAT
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_CAT
 
 
-
-namespace li_metamap {
+namespace li {
 
 
   template <typename ...T, typename ...U>
@@ -682,7 +710,9 @@ namespace li_metamap {
   
 }
 
-namespace li_metamap {
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_CAT
+
+namespace li {
 
   
   struct skip {};
@@ -716,7 +746,9 @@ namespace li_metamap {
 
 }
 
-namespace li_metamap {
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_MAKE_METAMAP_SKIP
+
+namespace li {
 
   template <typename ...T, typename ...U>
   inline decltype(auto) intersection(const metamap<T...>& a,
@@ -731,8 +763,12 @@ namespace li_metamap {
 
 }
 
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_INTERSECTION
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_SUBSTRACT
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_SUBSTRACT
 
-namespace li_metamap {
+
+namespace li {
 
   template <typename ...T, typename ...U>
   inline auto substract(const metamap<T...>& a,
@@ -746,3 +782,7 @@ namespace li_metamap {
   }
 
 }
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_SUBSTRACT
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_METAMAP

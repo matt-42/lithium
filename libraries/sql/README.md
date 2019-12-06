@@ -13,9 +13,6 @@ It features:
 ## Connectors
 
 ```c++
-#include <li/sql/mysql.hh>
-#include <li/sql/sqlite.hh>
-
 // Declare a mysql database.
 auto db = li::mysql_database(s::host = "127.0.0.1",
                              s::database = "testdb",

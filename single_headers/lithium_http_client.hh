@@ -1,193 +1,56 @@
 // Author: Matthieu Garrigues matthieu.garrigues@gmail.com
 //
-// Single header version the li_json library.
+// Single header version the lithium_http_client library.
 // https://github.com/matt-42/lithium
 //
 // This file is generated do not edit it.
 
 #pragma once
 
-#include <sstream>
-#include <tuple>
-#include <utility>
-#include <string>
-#include <vector>
-#include <cmath>
-#include <cassert>
-#include <optional>
-#include <variant>
-#include <cstring>
-#include <string_view>
-#include <memory>
+#include <curl/curl.h>
 #include <functional>
+#include <variant>
+#include <string_view>
+#include <cassert>
+#include <unordered_map>
+#include <vector>
+#include <memory>
+#include <utility>
+#include <optional>
+#include <sstream>
+#include <string>
+#include <cmath>
+#include <tuple>
+#include <iostream>
+#include <cstring>
+#include <map>
 
 #if defined(_MSC_VER)
 #include <ciso646>
 #endif // _MSC_VER
 
 
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_CLIENT_HTTP_CLIENT
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_CLIENT_HTTP_CLIENT
+#define CURL_STATICLIB
+#pragma comment(lib, "crypt32")
+#pragma comment(lib, "ws2_32.lib")
+#pragma comment(lib, "Wldap32.lib")
+#pragma comment(lib, "Normaliz.lib")
 
 
 
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_CLIENT_SYMBOLS
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_CLIENT_SYMBOLS
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SYMBOL_SYMBOL
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SYMBOL_SYMBOL
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SYMBOL_AST
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SYMBOL_AST
 
 
-namespace li_json {
-
-  namespace internal
-  {
-    struct {
-      template <typename A, typename... B>
-      constexpr auto operator()(A&& a, B&&... b)
-      {
-        auto result = a;
-        using expand_variadic_pack  = int[];
-        (void)expand_variadic_pack{0, ((result += b), 0)... };
-        return result;
-      }
-    } reduce_add;
-
-  }
-
-  
-  template <typename... Ms>
-  struct metamap;
-  
-  template <typename F, typename... M>
-  decltype(auto) find_first(metamap<M...>&& map, F fun);
-
-  template <typename ...Ms>
-  struct metamap;
-
-  template <typename M1, typename ...Ms>
-  struct metamap<M1, Ms...> : public M1, public Ms...
-  {
-    typedef metamap<M1, Ms...> self;
-    // Constructors.
-    inline metamap() = default;
-    //inline metamap(self&&) = default;
-    inline metamap(const self&) = default;
-    self& operator=(const self&) = default;
-
-    //metamap(self& other)
-    //  : metamap(const_cast<const self&>(other)) {}
-
-    inline metamap(M1&& m1, Ms&&... members) : M1(m1), Ms(std::forward<Ms>(members))... {}
-    inline metamap(const M1& m1, const Ms&... members) : M1(m1), Ms((members))... {}
-
-    // Assignemnt ?
-
-    // Retrive a value.
-    template <typename K>
-    decltype(auto) operator[](K k)
-    {
-      return symbol_member_access(*this, k);
-    }
-
-    template <typename K>
-    decltype(auto) operator[](K k) const
-    {
-      return symbol_member_access(*this, k);
-    }
-
-  };
-
-  template <>
-  struct metamap<>
-  {
-    typedef metamap<> self;
-    // Constructors.
-    inline metamap() = default;
-    //inline metamap(self&&) = default;
-    inline metamap(const self&) = default;
-    //self& operator=(const self&) = default;
-
-    //metamap(self& other)
-    //  : metamap(const_cast<const self&>(other)) {}
-
-    // Assignemnt ?
-
-    // Retrive a value.
-    template <typename K>
-    decltype(auto) operator[](K k)
-    {
-      return symbol_member_access(*this, k);
-    }
-
-    template <typename K>
-    decltype(auto) operator[](K k) const
-    {
-      return symbol_member_access(*this, k);
-    }
-
-  };
-
-  template <typename... Ms>
-  constexpr auto size(metamap<Ms...>)
-  {
-    return sizeof...(Ms);
-  }
-  
-  template <typename M>
-  struct metamap_size_t
-  {
-  };
-  template <typename... Ms>
-  struct metamap_size_t<metamap<Ms...>>
-  {
-    enum { value = sizeof...(Ms) };
-  };
-  template <typename M>
-  constexpr int metamap_size()
-  {
-    return metamap_size_t<std::decay_t<M>>::value;
-  }
-
-  template <typename... Ks>
-  decltype(auto) metamap_values(const metamap<Ks...>& map)
-  {
-    return std::forward_as_tuple(map[typename Ks::_iod_symbol_type()]...);
-  }
-
-  template <typename K, typename M>
-  constexpr auto has_key(M&& map, K k)
-  {
-    return decltype(has_member(map, k)){};
-  }
-
-  template <typename M, typename K>
-  constexpr auto has_key(K k)
-  {
-    return decltype(has_member(std::declval<M>(), std::declval<K>())){};
-  }
-
-  template <typename M, typename K>
-  constexpr auto has_key()
-  {
-    return decltype(has_member(std::declval<M>(), std::declval<K>())){};
-  }
-
-  template <typename K, typename M, typename O>
-  constexpr auto get_or(M&& map, K k, O default_)
-  {
-    if constexpr(has_key<M, decltype(k)>()) {
-        return map[k];
-      }
-    else
-      return default_;
-  }
-  
-  template <typename X>
-  struct is_metamap { enum { ret = false }; };
-  template <typename... M>
-  struct is_metamap<metamap<M...>> { enum { ret = true }; };
-  
-}
-
-
-
-
-
-namespace li_json {
+namespace li {
 
   template <typename E>
   struct Exp {};
@@ -349,7 +212,9 @@ namespace li_json {
 
 }
 
-namespace li_json {
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SYMBOL_AST
+
+namespace li {
 
   template <typename S>
   class symbol : public assignable<S>,
@@ -365,7 +230,7 @@ namespace li_json {
 
 #define LI_SYMBOL(NAME)                                                \
 namespace s {                                                           \
-struct NAME##_t : li_json::symbol<NAME##_t> {                         \
+struct NAME##_t : li::symbol<NAME##_t> {                         \
                                                                         \
 using assignable<NAME##_t>::operator=;                               \
                                                                         \
@@ -403,7 +268,7 @@ static constexpr  NAME##_t NAME;                                    \
 }
 
 
-namespace li_json {
+namespace li {
 
   template <typename S>
   inline decltype(auto) make_variable(S s, char const v[])
@@ -481,7 +346,212 @@ namespace li_json {
 }
 
 
-namespace li_json {
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SYMBOL_SYMBOL
+#ifndef LI_SYMBOL_body
+#define LI_SYMBOL_body
+    LI_SYMBOL(body)
+#endif
+
+#ifndef LI_SYMBOL_fetch_headers
+#define LI_SYMBOL_fetch_headers
+    LI_SYMBOL(fetch_headers)
+#endif
+
+#ifndef LI_SYMBOL_get_parameters
+#define LI_SYMBOL_get_parameters
+    LI_SYMBOL(get_parameters)
+#endif
+
+#ifndef LI_SYMBOL_headers
+#define LI_SYMBOL_headers
+    LI_SYMBOL(headers)
+#endif
+
+#ifndef LI_SYMBOL_json_encoded
+#define LI_SYMBOL_json_encoded
+    LI_SYMBOL(json_encoded)
+#endif
+
+#ifndef LI_SYMBOL_post_parameters
+#define LI_SYMBOL_post_parameters
+    LI_SYMBOL(post_parameters)
+#endif
+
+#ifndef LI_SYMBOL_status
+#define LI_SYMBOL_status
+    LI_SYMBOL(status)
+#endif
+
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_CLIENT_SYMBOLS
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_JSON
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_JSON
+
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_DECODER
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_DECODER
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_METAMAP
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_METAMAP
+
+
+namespace li {
+
+  namespace internal
+  {
+    struct {
+      template <typename A, typename... B>
+      constexpr auto operator()(A&& a, B&&... b)
+      {
+        auto result = a;
+        using expand_variadic_pack  = int[];
+        (void)expand_variadic_pack{0, ((result += b), 0)... };
+        return result;
+      }
+    } reduce_add;
+
+  }
+
+  
+  template <typename... Ms>
+  struct metamap;
+  
+  template <typename F, typename... M>
+  decltype(auto) find_first(metamap<M...>&& map, F fun);
+
+  template <typename ...Ms>
+  struct metamap;
+
+  template <typename M1, typename ...Ms>
+  struct metamap<M1, Ms...> : public M1, public Ms...
+  {
+    typedef metamap<M1, Ms...> self;
+    // Constructors.
+    inline metamap() = default;
+    //inline metamap(self&&) = default;
+    inline metamap(const self&) = default;
+    self& operator=(const self&) = default;
+
+    //metamap(self& other)
+    //  : metamap(const_cast<const self&>(other)) {}
+
+    inline metamap(M1&& m1, Ms&&... members) : M1(m1), Ms(std::forward<Ms>(members))... {}
+    inline metamap(const M1& m1, const Ms&... members) : M1(m1), Ms((members))... {}
+
+    // Assignemnt ?
+
+    // Retrive a value.
+    template <typename K>
+    decltype(auto) operator[](K k)
+    {
+      return symbol_member_access(*this, k);
+    }
+
+    template <typename K>
+    decltype(auto) operator[](K k) const
+    {
+      return symbol_member_access(*this, k);
+    }
+
+  };
+
+  template <>
+  struct metamap<>
+  {
+    typedef metamap<> self;
+    // Constructors.
+    inline metamap() = default;
+    //inline metamap(self&&) = default;
+    inline metamap(const self&) = default;
+    //self& operator=(const self&) = default;
+
+    //metamap(self& other)
+    //  : metamap(const_cast<const self&>(other)) {}
+
+    // Assignemnt ?
+
+    // Retrive a value.
+    template <typename K>
+    decltype(auto) operator[](K k)
+    {
+      return symbol_member_access(*this, k);
+    }
+
+    template <typename K>
+    decltype(auto) operator[](K k) const
+    {
+      return symbol_member_access(*this, k);
+    }
+
+  };
+
+  template <typename... Ms>
+  constexpr auto size(metamap<Ms...>)
+  {
+    return sizeof...(Ms);
+  }
+  
+  template <typename M>
+  struct metamap_size_t
+  {
+  };
+  template <typename... Ms>
+  struct metamap_size_t<metamap<Ms...>>
+  {
+    enum { value = sizeof...(Ms) };
+  };
+  template <typename M>
+  constexpr int metamap_size()
+  {
+    return metamap_size_t<std::decay_t<M>>::value;
+  }
+
+  template <typename... Ks>
+  decltype(auto) metamap_values(const metamap<Ks...>& map)
+  {
+    return std::forward_as_tuple(map[typename Ks::_iod_symbol_type()]...);
+  }
+
+  template <typename K, typename M>
+  constexpr auto has_key(M&& map, K k)
+  {
+    return decltype(has_member(map, k)){};
+  }
+
+  template <typename M, typename K>
+  constexpr auto has_key(K k)
+  {
+    return decltype(has_member(std::declval<M>(), std::declval<K>())){};
+  }
+
+  template <typename M, typename K>
+  constexpr auto has_key()
+  {
+    return decltype(has_member(std::declval<M>(), std::declval<K>())){};
+  }
+
+  template <typename K, typename M, typename O>
+  constexpr auto get_or(M&& map, K k, O default_)
+  {
+    if constexpr(has_key<M, decltype(k)>()) {
+        return map[k];
+      }
+    else
+      return default_;
+  }
+  
+  template <typename X>
+  struct is_metamap { enum { ret = false }; };
+  template <typename... M>
+  struct is_metamap<metamap<M...>> { enum { ret = true }; };
+  
+}
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_MAKE
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_MAKE
+
+
+namespace li {
 
   
   template <typename ...Ms>
@@ -537,9 +607,15 @@ namespace li_json {
   
 }
 
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_MAKE
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_MAP_REDUCE
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_MAP_REDUCE
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS
 
 
-namespace li_json {
+namespace li {
 
 
   template <typename... E, typename F>
@@ -597,7 +673,9 @@ namespace li_json {
   }
   
 }
-namespace li_json {
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS
+
+namespace li {
 
   // Map a function(key, value) on all kv pair
   template <typename... M, typename F>
@@ -683,10 +761,18 @@ namespace li_json {
 
 }
 
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_MAP_REDUCE
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_INTERSECTION
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_INTERSECTION
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_MAKE_METAMAP_SKIP
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_MAKE_METAMAP_SKIP
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_CAT
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_CAT
 
 
-
-namespace li_json {
+namespace li {
 
 
   template <typename ...T, typename ...U>
@@ -699,7 +785,9 @@ namespace li_json {
   
 }
 
-namespace li_json {
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_CAT
+
+namespace li {
 
   
   struct skip {};
@@ -733,7 +821,9 @@ namespace li_json {
 
 }
 
-namespace li_json {
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_MAKE_METAMAP_SKIP
+
+namespace li {
 
   template <typename ...T, typename ...U>
   inline decltype(auto) intersection(const metamap<T...>& a,
@@ -748,8 +838,12 @@ namespace li_json {
 
 }
 
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_INTERSECTION
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_SUBSTRACT
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_SUBSTRACT
 
-namespace li_json {
+
+namespace li {
 
   template <typename ...T, typename ...U>
   inline auto substract(const metamap<T...>& a,
@@ -764,7 +858,15 @@ namespace li_json {
 
 }
 
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_SUBSTRACT
 
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_METAMAP
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_UTILS
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_UTILS
+
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_SYMBOLS
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_SYMBOLS
 
 #ifndef LI_SYMBOL_append
 #define LI_SYMBOL_append
@@ -787,7 +889,9 @@ namespace li_json {
 #endif
 
 
-namespace li_json {
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_SYMBOLS
+
+namespace li {
 
 
   
@@ -809,7 +913,7 @@ namespace li_json {
     template <typename S, typename... A>
     auto make_json_object_member(const function_call_exp<S, A...>& e);
     template <typename S>
-    auto make_json_object_member(const li_json::symbol<S>&);
+    auto make_json_object_member(const li::symbol<S>&);
 
     template <typename S, typename T>
     auto make_json_object_member(const assign_exp<S, T>& e)
@@ -819,7 +923,7 @@ namespace li_json {
     }
 
     template <typename S>
-    auto make_json_object_member(const li_json::symbol<S>&)
+    auto make_json_object_member(const li::symbol<S>&)
     {
       return mmm(s::name = S{});
     }
@@ -884,7 +988,7 @@ namespace li_json {
             }
         };
 
-      ::li_json::tuple_map(e.args, parse);
+      ::li::tuple_map(e.args, parse);
       return res;
     }
     
@@ -919,11 +1023,17 @@ namespace li_json {
   
 }
 
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_UTILS
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_UNICODE
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_UNICODE
 
 
 
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_DECODE_STRINGSTREAM
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_DECODE_STRINGSTREAM
 
-namespace li_json {
+
+namespace li {
 
   using std::string_view;
   
@@ -1129,9 +1239,13 @@ namespace li_json {
 
 }
 
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_DECODE_STRINGSTREAM
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_ERROR
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_ERROR
 
 
-namespace li_json {
+namespace li {
 
 
   enum json_error_code
@@ -1157,7 +1271,9 @@ namespace li_json {
 
 }
 
-namespace li_json {
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_ERROR
+
+namespace li {
 
   
   
@@ -1489,7 +1605,9 @@ namespace li_json {
   }
 }
 
-namespace li_json {
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_UNICODE
+
+namespace li {
 
   namespace impl
   {
@@ -1801,8 +1919,12 @@ namespace li_json {
 }
 
 
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_DECODER
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_ENCODER
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_ENCODER
 
-namespace li_json {
+
+namespace li {
 
   using std::string_view;
 
@@ -1953,7 +2075,9 @@ namespace li_json {
 
 }
 
-namespace li_json {
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_ENCODER
+
+namespace li {
 
 
 
@@ -2059,4 +2183,219 @@ template <typename A, typename B, typename... C> auto json_encode(const assign_e
   return impl::to_json_schema(obj).encode(obj);
 }
 
-} // namespace li_json
+} // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_JSON
+
+namespace li {
+
+inline size_t curl_write_callback(char* ptr, size_t size, size_t nmemb, void* userdata);
+
+inline std::streamsize curl_read_callback(void* ptr, size_t size, size_t nmemb, void* stream);
+
+inline size_t curl_header_callback(char *buffer,   size_t size,   size_t nitems,   void *userdata)
+{
+  auto& headers_map = *(std::unordered_map<std::string, std::string>*)userdata;
+
+  size_t split = 0;
+  size_t total_size = size * nitems;
+  while(split < total_size && buffer[split] != ':') split++;
+
+  if (split == total_size)
+    return total_size;
+  //throw std::runtime_error("Header line does not contains a colon (:)");
+
+  int skip_nl = (buffer[total_size - 1] == '\n');
+  int skip_space = (buffer[split + 1] == ' ');
+  headers_map[std::string(buffer, split)] = std::string(buffer + split + 1 + skip_space, total_size - split - 1 - skip_nl - skip_space);
+  return total_size;
+}
+
+struct http_client {
+
+  enum method_verb { HTTP_GET, HTTP_POST, HTTP_PUT, HTTP_DELETE };
+
+  inline http_client(const std::string& prefix = "") : url_prefix_(prefix) {
+    curl_global_init(CURL_GLOBAL_ALL);
+    curl_ = curl_easy_init();
+  }
+
+  inline ~http_client() { curl_easy_cleanup(curl_); }
+
+  inline http_client& operator=(const http_client&) = delete;
+
+  template <typename... A> inline auto operator()(int http_method, const std::string_view& url, const A&... args) {
+
+    struct curl_slist* headers_list = NULL;
+
+    auto arguments = mmm(args...);
+    constexpr bool fetch_headers = has_key<decltype(arguments)>(s::fetch_headers);
+
+    // Generate url.
+    std::stringstream url_ss;
+    url_ss << url_prefix_ << url;
+
+    // Get params
+    auto get_params = li::get_or(arguments, s::get_parameters, mmm());
+    bool first = true;
+    li::map(get_params, [&](auto k, auto v) {
+      if (first)
+        url_ss << '?';
+      else
+        url_ss << "&";
+      std::stringstream value_ss;
+      value_ss << v;
+      char* escaped = curl_easy_escape(curl_, value_ss.str().c_str(), value_ss.str().size());
+      url_ss << li::symbol_string(k) << '=' << escaped;
+      first = false;
+      curl_free(escaped);
+    });
+
+    //std::cout << url_ss.str() << std::endl;
+    // Pass the url to libcurl.
+    curl_easy_setopt(curl_, CURLOPT_URL, url_ss.str().c_str());
+
+    // HTTP_POST parameters.
+    bool is_urlencoded = not li::has_key(arguments, s::json_encoded);
+    std::stringstream post_stream;
+    std::string rq_body;
+    if (is_urlencoded) { // urlencoded
+      req_body_buffer_.str("");
+
+      auto post_params = li::get_or(arguments, s::post_parameters, mmm());
+      first = true;
+      li::map(post_params, [&](auto k, auto v) {
+        if (!first)
+          post_stream << "&";
+        post_stream << li::symbol_string(k) << "=";
+        std::stringstream value_str;
+        value_str << v;
+        char* escaped = curl_easy_escape(curl_, value_str.str().c_str(), value_str.str().size());
+        first = false;
+        post_stream << escaped;
+        curl_free(escaped);
+      });
+      rq_body = post_stream.str();
+      req_body_buffer_.str(rq_body);
+
+    } else // Json encoded
+      rq_body = li::json_encode(li::get_or(arguments, s::post_parameters, mmm()));
+
+    // HTTP HTTP_POST
+    if (http_method == HTTP_POST) {
+      curl_easy_setopt(curl_, CURLOPT_POST, 1);
+      curl_easy_setopt(curl_, CURLOPT_POSTFIELDS, rq_body.c_str());
+    }
+
+    // HTTP HTTP_GET
+    if (http_method == HTTP_GET)
+      curl_easy_setopt(curl_, CURLOPT_HTTPGET, 1);
+
+    // HTTP HTTP_PUT
+    if (http_method == HTTP_PUT) {
+      curl_easy_setopt(curl_, CURLOPT_UPLOAD, 1L);
+      curl_easy_setopt(curl_, CURLOPT_READFUNCTION, curl_read_callback);
+      curl_easy_setopt(curl_, CURLOPT_READDATA, this);
+    }
+
+    if (http_method == HTTP_PUT or http_method == HTTP_POST)
+    {
+      if (is_urlencoded)
+        headers_list =
+            curl_slist_append(headers_list, "Content-Type: application/x-www-form-urlencoded");
+      else
+        headers_list = curl_slist_append(headers_list, "Content-Type: application/json");
+    }
+
+    // HTTP HTTP_DELETE
+    if (http_method == HTTP_DELETE)
+      curl_easy_setopt(curl_, CURLOPT_CUSTOMREQUEST, "HTTP_DELETE");
+
+    // Cookies
+    curl_easy_setopt(curl_, CURLOPT_COOKIEJAR,
+                     0); // Enable cookies but do no write a cookiejar.
+
+    body_buffer_.clear();
+    curl_easy_setopt(curl_, CURLOPT_WRITEFUNCTION, curl_write_callback);
+    curl_easy_setopt(curl_, CURLOPT_WRITEDATA, this);
+
+    curl_easy_setopt(curl_, CURLOPT_HTTPHEADER, headers_list);
+
+    // Setup response header parsing.
+    std::unordered_map<std::string, std::string> response_headers_map;
+    if (fetch_headers)
+    {
+      curl_easy_setopt(curl_, CURLOPT_HEADERDATA, &response_headers_map); 
+      curl_easy_setopt(curl_, CURLOPT_HEADERFUNCTION, curl_header_callback); 
+    }
+
+    // Send the request.
+    char errbuf[CURL_ERROR_SIZE];
+    curl_easy_setopt(curl_, CURLOPT_ERRORBUFFER, errbuf);
+    if (curl_easy_perform(curl_) != CURLE_OK) {
+      std::stringstream errss;
+      errss << "Libcurl error when sending request: " << errbuf;
+      throw std::runtime_error(errss.str());
+    }
+    curl_slist_free_all(headers_list);
+    // Read response code.
+    long response_code;
+    curl_easy_getinfo(curl_, CURLINFO_RESPONSE_CODE, &response_code);
+
+    // Return response object.
+    if constexpr (fetch_headers)
+      return mmm(s::status = response_code, s::body = body_buffer_, s::headers = response_headers_map);
+    else
+      return mmm(s::status = response_code, s::body = body_buffer_);
+  }
+
+  template <typename... P>
+  auto get(const std::string& url, P... params) { return this->operator()(HTTP_GET, url, params...); }
+  template <typename... P>
+  auto put(const std::string& url, P... params) { return this->operator()(HTTP_PUT, url, params...); }
+  template <typename... P>
+  auto post(const std::string& url, P... params) { return this->operator()(HTTP_POST, url, params...); }
+  template <typename... P>
+  auto delete_(const std::string& url, P... params) { return this->operator()(HTTP_DELETE, url, params...); }
+
+  inline void read(char* ptr, int size) { body_buffer_.append(ptr, size); }
+
+  inline std::streamsize write(char* ptr, int size) {
+    std::streamsize ret = req_body_buffer_.sgetn(ptr, size);
+    return ret;
+  }
+
+  CURL* curl_;
+  std::map<std::string, std::string> cookies_;
+  std::string body_buffer_;
+  std::stringbuf req_body_buffer_;
+  std::string url_prefix_;
+};
+
+inline std::streamsize curl_read_callback(void* ptr, size_t size, size_t nmemb, void* userdata) {
+  http_client* client = (http_client*)userdata;
+  return client->write((char*)ptr, size * nmemb);
+}
+
+size_t curl_write_callback(char* ptr, size_t size, size_t nmemb, void* userdata) {
+  http_client* client = (http_client*)userdata;
+  client->read(ptr, size * nmemb);
+  return size * nmemb;
+}
+
+template <typename... P> auto http_get(const std::string& url, P... params) {
+  return http_client{}.get(url, params...);
+}
+template <typename... P> auto http_post(const std::string& url, P... params) {
+  return http_client{}.post(url, params...);
+}
+template <typename... P> auto http_put(const std::string& url, P... params) {
+  return http_client{}.put(url, params...);
+}
+template <typename... P> auto http_delete(const std::string& url, P... params) {
+  return http_client{}.delete_(url, params...);
+}
+
+} // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_CLIENT_HTTP_CLIENT

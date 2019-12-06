@@ -1,37 +1,41 @@
 // Author: Matthieu Garrigues matthieu.garrigues@gmail.com
 //
-// Single header version the li_sqlite library.
+// Single header version the lithium_sqlite library.
 // https://github.com/matt-42/lithium
 //
 // This file is generated do not edit it.
 
 #pragma once
 
-#include <unordered_map>
-#include <sstream>
-#include <tuple>
-#include <utility>
-#include <string>
-#include <vector>
-#include <mutex>
 #include <sqlite3.h>
+#include <unordered_map>
+#include <vector>
 #include <memory>
 #include <optional>
-#include <cstring>
+#include <utility>
+#include <sstream>
+#include <string>
 #include <iostream>
+#include <tuple>
+#include <mutex>
+#include <cstring>
 
 #if defined(_MSC_VER)
 #include <ciso646>
 #endif // _MSC_VER
 
 
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQLITE
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQLITE
 
 #if defined(_MSC_VER)
 #endif
 
 
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_CALLABLE_TRAITS_CALLABLE_TRAITS
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_CALLABLE_TRAITS_CALLABLE_TRAITS
 
-namespace li_sqlite {
+namespace li {
 
   template <typename ...T>
   struct typelist {};
@@ -147,8 +151,12 @@ namespace li_sqlite {
 
 }
 
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_CALLABLE_TRAITS_CALLABLE_TRAITS
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_METAMAP
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_METAMAP
 
-namespace li_sqlite {
+
+namespace li {
 
   namespace internal
   {
@@ -300,11 +308,17 @@ namespace li_sqlite {
   
 }
 
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_MAKE
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_MAKE
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SYMBOL_SYMBOL
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SYMBOL_SYMBOL
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SYMBOL_AST
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SYMBOL_AST
 
 
-
-
-namespace li_sqlite {
+namespace li {
 
   template <typename E>
   struct Exp {};
@@ -466,7 +480,9 @@ namespace li_sqlite {
 
 }
 
-namespace li_sqlite {
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SYMBOL_AST
+
+namespace li {
 
   template <typename S>
   class symbol : public assignable<S>,
@@ -482,7 +498,7 @@ namespace li_sqlite {
 
 #define LI_SYMBOL(NAME)                                                \
 namespace s {                                                           \
-struct NAME##_t : li_sqlite::symbol<NAME##_t> {                         \
+struct NAME##_t : li::symbol<NAME##_t> {                         \
                                                                         \
 using assignable<NAME##_t>::operator=;                               \
                                                                         \
@@ -520,7 +536,7 @@ static constexpr  NAME##_t NAME;                                    \
 }
 
 
-namespace li_sqlite {
+namespace li {
 
   template <typename S>
   inline decltype(auto) make_variable(S s, char const v[])
@@ -598,7 +614,9 @@ namespace li_sqlite {
 }
 
 
-namespace li_sqlite {
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SYMBOL_SYMBOL
+
+namespace li {
 
   
   template <typename ...Ms>
@@ -654,9 +672,15 @@ namespace li_sqlite {
   
 }
 
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_MAKE
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_MAP_REDUCE
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_MAP_REDUCE
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS
 
 
-namespace li_sqlite {
+namespace li {
 
 
   template <typename... E, typename F>
@@ -714,7 +738,9 @@ namespace li_sqlite {
   }
   
 }
-namespace li_sqlite {
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS
+
+namespace li {
 
   // Map a function(key, value) on all kv pair
   template <typename... M, typename F>
@@ -800,10 +826,18 @@ namespace li_sqlite {
 
 }
 
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_MAP_REDUCE
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_INTERSECTION
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_INTERSECTION
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_MAKE_METAMAP_SKIP
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_MAKE_METAMAP_SKIP
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_CAT
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_CAT
 
 
-
-namespace li_sqlite {
+namespace li {
 
 
   template <typename ...T, typename ...U>
@@ -816,7 +850,9 @@ namespace li_sqlite {
   
 }
 
-namespace li_sqlite {
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_CAT
+
+namespace li {
 
   
   struct skip {};
@@ -850,7 +886,9 @@ namespace li_sqlite {
 
 }
 
-namespace li_sqlite {
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_MAKE_METAMAP_SKIP
+
+namespace li {
 
   template <typename ...T, typename ...U>
   inline decltype(auto) intersection(const metamap<T...>& a,
@@ -865,8 +903,12 @@ namespace li_sqlite {
 
 }
 
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_INTERSECTION
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_SUBSTRACT
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_SUBSTRACT
 
-namespace li_sqlite {
+
+namespace li {
 
   template <typename ...T, typename ...U>
   inline auto substract(const metamap<T...>& a,
@@ -880,6 +922,12 @@ namespace li_sqlite {
   }
 
 }
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_SUBSTRACT
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_METAMAP
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SYMBOLS
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SYMBOLS
 
 #ifndef LI_SYMBOL_after_insert
 #define LI_SYMBOL_after_insert
@@ -982,8 +1030,12 @@ namespace li_sqlite {
 #endif
 
 
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SYMBOLS
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_COMMON
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_COMMON
 
-namespace li_sqlite
+
+namespace li
 {
   struct sql_blob : public std::string {
     using std::string::string;
@@ -1003,7 +1055,9 @@ namespace li_sqlite
     sql_varchar() : std::string() {}
   };
 }
-namespace li_sqlite {
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_COMMON
+
+namespace li {
 
 template <typename T> struct tuple_remove_references_and_const;
 template <typename... T>
@@ -1036,7 +1090,7 @@ struct sqlite_statement {
       const char* cname = sqlite3_column_name(stmt_, i);
       bool found = false;
       int j = 0;
-      li_sqlite::map(o, [&](auto k, auto& v) {
+      li::map(o, [&](auto k, auto& v) {
         if (!found and !filled[j] and !strcmp(cname, symbol_string(k))) {
           this->read_column(i, v);
           filled[j] = 1;
@@ -1060,7 +1114,7 @@ struct sqlite_statement {
       this->read_column(i, v);
       i++;
     };
-    ::li_sqlite::tuple_map(o, read_elt);
+    ::li::tuple_map(o, read_elt);
   }
 
 
@@ -1070,7 +1124,7 @@ struct sqlite_statement {
     sqlite3_reset(stmt_);
     sqlite3_clear_bindings(stmt_);
     int i = 1;
-    li_sqlite::tuple_map(std::forward_as_tuple(args...),
+    li::tuple_map(std::forward_as_tuple(args...),
         [&](auto& m) {
           int err;
           if ((err = this->bind(stmt_, i, m)) != SQLITE_OK)
@@ -1146,7 +1200,7 @@ struct sqlite_statement {
     while (last_step_ret_ == SQLITE_ROW) {
       typedef callable_arguments_tuple_t<F> tp;
       typedef std::remove_reference_t<std::tuple_element_t<0, tp>> T;
-      if constexpr (li_sqlite::is_metamap<T>::ret) {
+      if constexpr (li::is_metamap<T>::ret) {
         T o;
         row_to_metamap(o);
         f(o);
@@ -1316,7 +1370,7 @@ struct sqlite_database {
                            SQLITE_OPEN_CREATE);
     if (has_key(options, s::synchronous)) {
       std::stringstream ss;
-      ss << "PRAGMA synchronous=" << li_sqlite::get_or(options, s::synchronous, 2);
+      ss << "PRAGMA synchronous=" << li::get_or(options, s::synchronous, 2);
       con_(ss.str())();
     }
   }
@@ -1327,8 +1381,14 @@ struct sqlite_database {
   std::string path_;
 };
 
-} // namespace li_sqlite
+} // namespace li
 
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQLITE
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_ORM
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_ORM
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SYMBOLS
+#define LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SYMBOLS
 
 #ifndef LI_SYMBOL_blocking
 #define LI_SYMBOL_blocking
@@ -1421,8 +1481,10 @@ struct sqlite_database {
 #endif
 
 
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SYMBOLS
 
-namespace li_sqlite {
+
+namespace li {
 
 struct sqlite_connection;
 struct mysql_connection;
@@ -1453,7 +1515,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     ss << "CREATE TABLE if not exists " << schema_.table_name() << " (";
 
     bool first = true;
-    li_sqlite::tuple_map(schema_.all_info(), [&](auto f) {
+    li::tuple_map(schema_.all_info(), [&](auto f) {
       auto f2 = schema_.get_field(f);
       typedef decltype(f) F;
       typedef decltype(f2) F2;
@@ -1467,7 +1529,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
       if (!first)
         ss << ", ";
-      ss << li_sqlite::symbol_string(k) << " " << con_.type_to_string(v);
+      ss << li::symbol_string(k) << " " << con_.type_to_string(v);
 
       if (std::is_same<C, sqlite_connection>::value) {
         if (auto_increment || primary_key)
@@ -1509,7 +1571,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
       if (!first)
         ss << " and ";
       first = false;
-      ss << li_sqlite::symbol_string(k) << " = ? ";
+      ss << li::symbol_string(k) << " = ? ";
     });
     ss << " ";
   }
@@ -1519,11 +1581,11 @@ template <typename SCHEMA, typename C> struct sql_orm {
     O o;
     ss << "SELECT ";
     bool first = true;
-    li_sqlite::map(o, [&](auto k, auto v) {
+    li::map(o, [&](auto k, auto v) {
       if (!first)
         ss << ",";
       first = false;
-      ss << li_sqlite::symbol_string(k);
+      ss << li::symbol_string(k);
     });
 
     ss << " FROM " << schema_.table_name();
@@ -1531,7 +1593,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     ss << "LIMIT 1";
     auto stmt = con_.prepare(ss.str());
 
-    auto res = li_sqlite::tuple_reduce(metamap_values(where), stmt).template read_optional<O>();
+    auto res = li::tuple_reduce(metamap_values(where), stmt).template read_optional<O>();
     if (res)
       call_callback(s::read_access, o, cb_args...);
     return res;
@@ -1561,7 +1623,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
     auto stmt = con_.prepare(ss.str());
 
-    return li_sqlite::tuple_reduce(metamap_values(cond), stmt).template read<int>();
+    return li::tuple_reduce(metamap_values(cond), stmt).template read<int>();
   }
 
   template <typename A, typename B, typename... W>
@@ -1583,20 +1645,20 @@ template <typename SCHEMA, typename C> struct sql_orm {
     ss << "INSERT into " << schema_.table_name() << "(";
 
     bool first = true;
-    li_sqlite::map(values, [&](auto k, auto v) {
+    li::map(values, [&](auto k, auto v) {
       if (!first) {
         ss << ",";
         vs << ",";
       }
       first = false;
-      ss << li_sqlite::symbol_string(k);
+      ss << li::symbol_string(k);
       vs << "?";
     });
 
 
     ss << ") VALUES (" << vs.str() << ")";
     auto req = con_.prepare(ss.str());
-    li_sqlite::reduce(values, req);
+    li::reduce(values, req);
 
     call_callback(s::after_insert, o, cb_args...);
 
@@ -1649,13 +1711,13 @@ template <typename SCHEMA, typename C> struct sql_orm {
       if (!first)
         ss << ",";
       first = false;
-      ss << li_sqlite::symbol_string(k) << " = ?";
+      ss << li::symbol_string(k) << " = ?";
     });
 
     where_clause(pk, ss);
 
     auto stmt = con_.prepare(ss.str());
-    li_sqlite::tuple_reduce(std::tuple_cat(metamap_values(to_update), metamap_values(pk)), stmt);
+    li::tuple_reduce(std::tuple_cat(metamap_values(to_update), metamap_values(pk)), stmt);
 
     call_callback(s::after_update, o, args...);
   }
@@ -1685,11 +1747,11 @@ template <typename SCHEMA, typename C> struct sql_orm {
       if (!first)
         ss << " and ";
       first = false;
-      ss << li_sqlite::symbol_string(k) << " = ? ";
+      ss << li::symbol_string(k) << " = ? ";
     });
 
     auto pks = intersection(o, schema_.primary_key());
-    li_sqlite::reduce(pks, con_.prepare(ss.str()));
+    li::reduce(pks, con_.prepare(ss.str()));
 
     call_callback(s::after_remove, o, args...);
   }
@@ -1811,4 +1873,6 @@ struct sql_orm_schema : public MD {
   CB callbacks_;
 };
 
-}; // namespace li_sqlite
+}; // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_ORM

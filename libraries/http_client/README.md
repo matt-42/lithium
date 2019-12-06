@@ -8,7 +8,7 @@ the libcurl library.
 # Tutorial
 
 ```c++
-using namespace li_http_client;
+using namespace li;
 
 // Simple GET request:
 auto res = http_get("http://www.google.com");
