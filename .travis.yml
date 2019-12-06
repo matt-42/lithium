@@ -1,4 +1,3 @@
-# Use new trusty images, should yield newer compilers and packages
 sudo: required
 dist: bionic
 language: cpp
@@ -10,11 +9,38 @@ matrix:
         - LOCAL_CC=gcc-9
         - LOCAL_CXX=g++-9
         - JOBNAME=gcc
+      before_install:
+        - wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | sudo apt-key add -
+        - sudo apt-add-repository -y 'deb https://apt.kitware.com/ubuntu/ bionic main'
+        - sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test;
+        - sudo apt-get install -qq gcc-9 g++-9;
+        - sudo apt-get install -qq libboost-all-dev libssl-dev lcov libsqlite3-dev libmicrohttpd-dev cmake
+
+
     - compiler: clang++
       env:
         - LOCAL_CC=clang-9
         - LOCAL_CXX=clang++-9
         - JOBNAME=clang
+      before_install:
+        - wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | sudo apt-key add -
+        - sudo apt-add-repository -y 'deb https://apt.kitware.com/ubuntu/ bionic main'
+        - wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key|sudo apt-key add -;
+        - sudo deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-9 main;
+        - sudo apt-get update -qq;
+        - sudo apt-get install -qq clang-9 libc++-9-dev libc++abi-9-dev;
+        - sudo apt-get install -qq libboost-all-dev libssl-dev lcov libsqlite3-dev libmicrohttpd-dev cmake
+
+    # - os: osx
+    #   osx_image: xcode11.2
+    #   compiler: clang
+    #   env: COMPILER=clang++
+    #   before_install:
+    #     - brew update
+    #     - brew tap homebrew/science
+    #     - brew install eigen
+    #     - brew ln opencv --force
+  
     # - compiler: gcc
     #   addons:
     #     apt:
@@ -71,35 +97,6 @@ matrix:
     #   env:
     #     - LOCAL_CXX=clang++-3.7
     #     - LOCAL_GCOV=llvm-cov-3.7
-
-before_install:
-    #- $LOCAL_CXX --version
-    #- $LOCAL_GCOV --version
-    # Install deps
-    - if [ "${JOBNAME}" == gcc ]; then
-        sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test;
-        sudo apt-get update -qq;
-        sudo apt-get install -qq gcc-9 g++-9;
-      fi
-    - if [ "${JOBNAME}" == clang ]; then
-        wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key|sudo apt-key add -;
-        sudo deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-9 main;
-        sudo apt-get update -qq;
-        sudo apt-get install -qq clang-9 libc++-9-dev libc++abi-9-dev;
-      fi
-    - wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | sudo apt-key add -
-    - sudo apt-add-repository -y 'deb https://apt.kitware.com/ubuntu/ bionic main'
-    - sudo apt-get update -q
-
-    - sudo apt-get install -qq libboost-all-dev libssl-dev lcov libsqlite3-dev libmicrohttpd-dev cmake
-
-    
-install:
-    - cd $HOME/build/$TRAVIS_REPO_SLUG
-    - mkdir -p build 
-    - cd build
-    - cmake .. -DCMAKE_CXX_COMPILER=${LOCAL_CXX} -DCMAKE_INSTALL_PREFIX=$HOME/local
-    - make -j 4 install
 
 before_script:
     - cd $HOME/build/$TRAVIS_REPO_SLUG
