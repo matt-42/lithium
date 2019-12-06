@@ -81,9 +81,9 @@ struct http_authentication {
 };
 
 template <typename... A>
-api<http_request, http_response> http_authentication_api(http_authentication<A...>& auth) {
+http_api http_authentication_api(http_authentication<A...>& auth) {
 
-  api<http_request, http_response> api;
+  http_api api;
 
   api.post("/login") = [&] (http_request& request, http_response& response) {
     if (!auth.login(request, response))

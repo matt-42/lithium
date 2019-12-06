@@ -1091,7 +1091,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
   }
 
   inline auto create_table_if_not_exists() {
-    std::stringstream ss;
+    std::ostringstream ss;
     ss << "CREATE TABLE if not exists " << schema_.table_name() << " (";
 
     bool first = true;
@@ -1143,7 +1143,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
   }
 
   template <typename W>
-  void where_clause(W&& cond, std::stringstream& ss)
+  void where_clause(W&& cond, std::ostringstream& ss)
   {
     ss << " WHERE ";
     bool first = true;
@@ -1157,7 +1157,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
   }
 
   template <typename... W, typename... A> auto find_one(metamap<W...> where, A&&... cb_args) {
-    std::stringstream ss;
+    std::ostringstream ss;
     O o;
     ss << "SELECT ";
     bool first = true;
@@ -1191,7 +1191,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
   template <typename W>
   bool exists(W&& cond)
   {
-    std::stringstream ss;
+    std::ostringstream ss;
     O o;
     ss << "SELECT count(*) FROM " << schema_.table_name();
     where_clause(cond, ss);
@@ -1209,8 +1209,8 @@ template <typename SCHEMA, typename C> struct sql_orm {
   // Save a ll fields except auto increment.
   // The db will automatically fill auto increment keys.
   template <typename N, typename... A> long long int insert(N&& o, A&&... cb_args) {
-    std::stringstream ss;
-    std::stringstream vs;
+    std::ostringstream ss;
+    std::ostringstream vs;
 
     auto values = schema_.without_auto_increment();
     map(o, [&](auto k, auto& v) { values[k] = o[k]; });
@@ -1257,7 +1257,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
   // Iterate on all the rows of the table.
   template <typename F> void forall(F f) {
-    std::stringstream ss;
+    std::ostringstream ss;
     ss << "SELECT * from " << schema_.table_name();
     con_(ss.str()).map([&](decltype(schema_.all_fields()) o) { f(o); });
   }
@@ -1277,7 +1277,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     auto pk = intersection(o, schema_.primary_key());
     static_assert(metamap_size<decltype(pk)>() > 0,
                   "You must provide at least one primary key to update an object.");
-    std::stringstream ss;
+    std::ostringstream ss;
     ss << "UPDATE " << schema_.table_name() << " SET ";
 
     bool first = true;
@@ -1315,7 +1315,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
     call_callback(s::before_remove, o, args...);
 
-    std::stringstream ss;
+    std::ostringstream ss;
     ss << "DELETE from " << schema_.table_name() << " WHERE ";
 
     bool first = true;
@@ -1886,7 +1886,7 @@ namespace li {
     return mmm(s::append = [&s] (char c) { s << c; });
   }
   
-  inline decltype(auto) wrap_json_output_stream(std::stringstream& s)
+  inline decltype(auto) wrap_json_output_stream(std::ostringstream& s)
   {
     return mmm(s::append = [&s] (char c) { s << c; });
   }
@@ -1897,15 +1897,15 @@ namespace li {
   }
 
   inline decltype(auto)
-  wrap_json_input_stream(std::stringstream& s) { return s; }
+  wrap_json_input_stream(std::ostringstream& s) { return s; }
   inline decltype(auto)
   wrap_json_input_stream(decode_stringstream& s) { return s; }
   inline decltype(auto)
-  wrap_json_input_stream(const std::string& s) { return std::stringstream(s); }
+  wrap_json_input_stream(const std::string& s) { return std::ostringstream(s); }
   inline decltype(auto)
-  wrap_json_input_stream(const char* s) { return std::stringstream(std::string(s)); }
+  wrap_json_input_stream(const char* s) { return std::ostringstream(std::string(s)); }
   inline decltype(auto)
-  wrap_json_input_stream(const std::string_view& s) { return std::stringstream(std::string(s)); }
+  wrap_json_input_stream(const std::string_view& s) { return std::ostringstream(std::string(s)); }
 
   namespace unicode_impl
   {
@@ -2265,7 +2265,7 @@ namespace li {
       inline json_error_code make_json_error(T&&... t)
       {
         if (!error_stream)
-          error_stream = new std::stringstream();
+          error_stream = new std::ostringstream();
         *error_stream << "json error: ";
         auto add = [this] (auto w) { *error_stream << w; };
         apply_each(add, t...);
@@ -2342,7 +2342,7 @@ namespace li {
       }
       
       S& ss;
-      std::stringstream* error_stream = nullptr;
+      std::ostringstream* error_stream = nullptr;
     };
 
     template <typename P, typename O, typename S>
@@ -2702,13 +2702,13 @@ public:
   }
 
   template <typename O> std::string encode(O obj) const {
-    std::stringstream ss;
+    std::ostringstream ss;
     impl::json_encode(ss, std::forward<O>(obj), *downcast());
     return ss.str();
   }
 
   template <typename... M> std::string encode(const metamap<M...>& obj) const {
-    std::stringstream ss;
+    std::ostringstream ss;
     impl::json_encode(ss, obj, *downcast());
     return ss.str();
   }
@@ -2836,7 +2836,7 @@ namespace li {
         while (c < r.size() and r[c] != '/') c++;
         std::string_view k = r.substr(s, c - s);
 
-        auto& v = childs[k].find_or_create(r, c);
+        auto& v = children[k].find_or_create(r, c);
 
         return v;
       }
@@ -2844,13 +2844,13 @@ namespace li {
       template <typename F>
       void for_all_routes(F f, std::string prefix = "") const
       {
-        if (childs.size() == 0)
+        if (children.size() == 0)
           f(prefix, v);
         else
         {
           if (prefix.size() && prefix.back() != '/')
             prefix += '/';
-          for (auto it : childs)
+          for (auto it : children)
             it.second.for_all_routes(f, prefix + std::string(it.first));
         }
       } 
@@ -2858,7 +2858,7 @@ namespace li {
       {
         // We found the route r.
         if ((c == r.size() and v.handler != nullptr) or
-            (childs.size() == 0))
+            (children.size() == 0))
           return iterator{this, r, v};
 
         // r does not match any route.
@@ -2875,9 +2875,9 @@ namespace li {
         // k is the string between the 2 /.
         std::string_view k(&r[s], c - s);
         
-        // look for k in the childs.
-        auto it = childs.find(k);
-        if (it != childs.end())
+        // look for k in the children.
+        auto it = children.find(k);
+        if (it != children.end())
         {
           auto it2 = it->second.find(r, c); // search in the corresponding child.
           if (it2 != it->second.end()) return it2;
@@ -2886,7 +2886,7 @@ namespace li {
 
         {
           // if one child is a url param {{param_name}}, choose it
-          for (auto& kv : childs)
+          for (auto& kv : children)
           {
             auto name = kv.first;
             if (name.size() > 4 and 
@@ -2901,7 +2901,7 @@ namespace li {
       }
 
       V v;
-      std::map<std::string_view, drt_node> childs;
+      std::map<std::string_view, drt_node> children;
     };
   }
   
@@ -2960,7 +2960,7 @@ inline void format_error_(E& err, T1 a, T... args) {
 }
 
 template <typename... T> inline std::string format_error(T&&... args) {
-  std::stringstream ss;
+  std::ostringstream ss;
   format_error_(ss, std::forward<T>(args)...);
   return ss.str();
 }
@@ -3275,7 +3275,7 @@ namespace li
     //   std::string missing = url_decode_check_missing_fields(found, obj[i]);
     //   if (missing.size())
     //   {
-    //     std::stringstream ss;
+    //     std::ostringstream ss;
     //     ss << '[' << i << "]" << missing;
     //     return ss.str();
     //   }
@@ -3847,7 +3847,7 @@ namespace li {
       std::ifstream in(path);
       if (!in.good())
       {
-        std::stringstream err_ss;
+        std::ostringstream err_ss;
 #if defined (_MSC_VER)
         err_ss << "Cannot read " << path;
 #else

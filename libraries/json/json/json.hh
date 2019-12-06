@@ -25,13 +25,13 @@ public:
   }
 
   template <typename O> std::string encode(O obj) const {
-    std::stringstream ss;
+    std::ostringstream ss;
     impl::json_encode(ss, std::forward<O>(obj), *downcast());
     return ss.str();
   }
 
   template <typename... M> std::string encode(const metamap<M...>& obj) const {
-    std::stringstream ss;
+    std::ostringstream ss;
     impl::json_encode(ss, obj, *downcast());
     return ss.str();
   }

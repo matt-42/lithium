@@ -1312,7 +1312,7 @@ struct mysql_statement {
 
     for (int i = 0; i < num_fields_; i++) {
       if (!bind[i].buffer_type) {
-        std::stringstream ss;
+        std::ostringstream ss;
         ss << "Error while binding the mysql request to a SIO object: " << std::endl
            << "   Field " << fields_[i].name << " could not be bound." << std::endl;
         throw std::runtime_error(ss.str());
@@ -1424,7 +1424,7 @@ struct mysql_connection {
   inline std::string type_to_string(const sql_blob&) { return "BLOB"; }
   template <unsigned S>
   inline std::string type_to_string(const sql_varchar<S>) { 
-    std::stringstream ss;
+    std::ostringstream ss;
     ss << "VARCHAR(" << S << ')'; return ss.str(); }
 
   std::unordered_map<std::string, mysql_statement> stm_cache_;
@@ -1632,7 +1632,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
   }
 
   inline auto create_table_if_not_exists() {
-    std::stringstream ss;
+    std::ostringstream ss;
     ss << "CREATE TABLE if not exists " << schema_.table_name() << " (";
 
     bool first = true;
@@ -1684,7 +1684,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
   }
 
   template <typename W>
-  void where_clause(W&& cond, std::stringstream& ss)
+  void where_clause(W&& cond, std::ostringstream& ss)
   {
     ss << " WHERE ";
     bool first = true;
@@ -1698,7 +1698,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
   }
 
   template <typename... W, typename... A> auto find_one(metamap<W...> where, A&&... cb_args) {
-    std::stringstream ss;
+    std::ostringstream ss;
     O o;
     ss << "SELECT ";
     bool first = true;
@@ -1732,7 +1732,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
   template <typename W>
   bool exists(W&& cond)
   {
-    std::stringstream ss;
+    std::ostringstream ss;
     O o;
     ss << "SELECT count(*) FROM " << schema_.table_name();
     where_clause(cond, ss);
@@ -1750,8 +1750,8 @@ template <typename SCHEMA, typename C> struct sql_orm {
   // Save a ll fields except auto increment.
   // The db will automatically fill auto increment keys.
   template <typename N, typename... A> long long int insert(N&& o, A&&... cb_args) {
-    std::stringstream ss;
-    std::stringstream vs;
+    std::ostringstream ss;
+    std::ostringstream vs;
 
     auto values = schema_.without_auto_increment();
     map(o, [&](auto k, auto& v) { values[k] = o[k]; });
@@ -1798,7 +1798,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
   // Iterate on all the rows of the table.
   template <typename F> void forall(F f) {
-    std::stringstream ss;
+    std::ostringstream ss;
     ss << "SELECT * from " << schema_.table_name();
     con_(ss.str()).map([&](decltype(schema_.all_fields()) o) { f(o); });
   }
@@ -1818,7 +1818,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     auto pk = intersection(o, schema_.primary_key());
     static_assert(metamap_size<decltype(pk)>() > 0,
                   "You must provide at least one primary key to update an object.");
-    std::stringstream ss;
+    std::ostringstream ss;
     ss << "UPDATE " << schema_.table_name() << " SET ";
 
     bool first = true;
@@ -1856,7 +1856,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
     call_callback(s::before_remove, o, args...);
 
-    std::stringstream ss;
+    std::ostringstream ss;
     ss << "DELETE from " << schema_.table_name() << " WHERE ";
 
     bool first = true;

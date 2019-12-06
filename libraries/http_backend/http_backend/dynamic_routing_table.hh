@@ -37,7 +37,7 @@ namespace li {
         while (c < r.size() and r[c] != '/') c++;
         std::string_view k = r.substr(s, c - s);
 
-        auto& v = childs[k].find_or_create(r, c);
+        auto& v = children[k].find_or_create(r, c);
 
         return v;
       }
@@ -45,13 +45,13 @@ namespace li {
       template <typename F>
       void for_all_routes(F f, std::string prefix = "") const
       {
-        if (childs.size() == 0)
+        if (children.size() == 0)
           f(prefix, v);
         else
         {
           if (prefix.size() && prefix.back() != '/')
             prefix += '/';
-          for (auto it : childs)
+          for (auto it : children)
             it.second.for_all_routes(f, prefix + std::string(it.first));
         }
       } 
@@ -59,7 +59,7 @@ namespace li {
       {
         // We found the route r.
         if ((c == r.size() and v.handler != nullptr) or
-            (childs.size() == 0))
+            (children.size() == 0))
           return iterator{this, r, v};
 
         // r does not match any route.
@@ -76,9 +76,9 @@ namespace li {
         // k is the string between the 2 /.
         std::string_view k(&r[s], c - s);
         
-        // look for k in the childs.
-        auto it = childs.find(k);
-        if (it != childs.end())
+        // look for k in the children.
+        auto it = children.find(k);
+        if (it != children.end())
         {
           auto it2 = it->second.find(r, c); // search in the corresponding child.
           if (it2 != it->second.end()) return it2;
@@ -87,7 +87,7 @@ namespace li {
 
         {
           // if one child is a url param {{param_name}}, choose it
-          for (auto& kv : childs)
+          for (auto& kv : children)
           {
             auto name = kv.first;
             if (name.size() > 4 and 
@@ -102,7 +102,7 @@ namespace li {
       }
 
       V v;
-      std::map<std::string_view, drt_node> childs;
+      std::map<std::string_view, drt_node> children;
     };
   }
   

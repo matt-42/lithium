@@ -262,7 +262,7 @@ struct mysql_statement {
 
     for (int i = 0; i < num_fields_; i++) {
       if (!bind[i].buffer_type) {
-        std::stringstream ss;
+        std::ostringstream ss;
         ss << "Error while binding the mysql request to a SIO object: " << std::endl
            << "   Field " << fields_[i].name << " could not be bound." << std::endl;
         throw std::runtime_error(ss.str());
@@ -374,7 +374,7 @@ struct mysql_connection {
   inline std::string type_to_string(const sql_blob&) { return "BLOB"; }
   template <unsigned S>
   inline std::string type_to_string(const sql_varchar<S>) { 
-    std::stringstream ss;
+    std::ostringstream ss;
     ss << "VARCHAR(" << S << ')'; return ss.str(); }
 
   std::unordered_map<std::string, mysql_statement> stm_cache_;

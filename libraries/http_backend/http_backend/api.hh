@@ -9,7 +9,6 @@
 
 namespace li {
 
-enum { ANY, GET, POST, PUT, HTTP_DELETE };
 
 template <typename T, typename F> struct delayed_assignator {
   delayed_assignator(T& t, F f = [](T& t, auto u) { t = u; })
@@ -23,6 +22,8 @@ template <typename T, typename F> struct delayed_assignator {
 
 template <typename Req, typename Resp> struct api {
 
+  enum { ANY, GET, POST, PUT, HTTP_DELETE };
+
   typedef api<Req, Resp> self;
 
   using H = std::function<void(Req&, Resp&)>;
@@ -32,11 +33,11 @@ template <typename Req, typename Resp> struct api {
     std::string url_spec;
   };
 
-  H& operator()(const std::string_view& r) 
+  H& operator()(std::string_view& route) 
   { 
-    auto& vh = routes_map_[r];
+    auto& vh = routes_map_[route];
     vh.verb = ANY;
-    vh.url_spec = r;
+    vh.url_spec = route;
     return vh.handler;
   }
 
@@ -63,10 +64,10 @@ template <typename Req, typename Resp> struct api {
   void add_subapi(std::string prefix, const self& subapi)
   {
     subapi.routes_map_.for_all_routes([this, prefix] (auto r, VH h) {
-      if (r.back() == '/')
+      if (!r.empty() && r.back() == '/')
         h.url_spec = prefix + r;
       else
-        h.url_spec = prefix + "/" + r;
+        h.url_spec = prefix + '/' + r;
 
       this->routes_map_[h.url_spec] = h;
 
@@ -76,11 +77,10 @@ template <typename Req, typename Resp> struct api {
 
   void print_routes()
   {
-    std::cout << "=====================" << std::endl;
     routes_map_.for_all_routes([this] (auto r, auto h) {
-      std::cout << r << std::endl;
+      std::cout << r << '\n';
     });
-    std::cout << "=====================" << std::endl;
+    std::cout << std::endl;
   }
   auto call(const char* method, std::string route, Req& request,
             Resp& response) {

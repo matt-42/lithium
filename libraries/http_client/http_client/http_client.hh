@@ -61,7 +61,7 @@ struct http_client {
     constexpr bool fetch_headers = has_key<decltype(arguments)>(s::fetch_headers);
 
     // Generate url.
-    std::stringstream url_ss;
+    std::ostringstream url_ss;
     url_ss << url_prefix_ << url;
 
     // Get params
@@ -72,7 +72,7 @@ struct http_client {
         url_ss << '?';
       else
         url_ss << "&";
-      std::stringstream value_ss;
+      std::ostringstream value_ss;
       value_ss << v;
       char* escaped = curl_easy_escape(curl_, value_ss.str().c_str(), value_ss.str().size());
       url_ss << li::symbol_string(k) << '=' << escaped;
@@ -86,7 +86,7 @@ struct http_client {
 
     // HTTP_POST parameters.
     bool is_urlencoded = not li::has_key(arguments, s::json_encoded);
-    std::stringstream post_stream;
+    std::ostringstream post_stream;
     std::string rq_body;
     if (is_urlencoded) { // urlencoded
       req_body_buffer_.str("");
@@ -97,7 +97,7 @@ struct http_client {
         if (!first)
           post_stream << "&";
         post_stream << li::symbol_string(k) << "=";
-        std::stringstream value_str;
+        std::ostringstream value_str;
         value_str << v;
         char* escaped = curl_easy_escape(curl_, value_str.str().c_str(), value_str.str().size());
         first = false;
@@ -162,7 +162,7 @@ struct http_client {
     char errbuf[CURL_ERROR_SIZE];
     curl_easy_setopt(curl_, CURLOPT_ERRORBUFFER, errbuf);
     if (curl_easy_perform(curl_) != CURLE_OK) {
-      std::stringstream errss;
+      std::ostringstream errss;
       errss << "Libcurl error when sending request: " << errbuf;
       throw std::runtime_error(errss.str());
     }

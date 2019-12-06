@@ -43,7 +43,7 @@ auto serve_file(const std::string& root, std::string path, http_response& respon
 };
 
 inline auto serve_directory(std::string root) {
-  api<http_request, http_response> api;
+  http_api api;
 
   api.get("/{{path...}}") = [root](http_request& request, http_response& response) {
     auto path = request.url_parameters(s::path = std::string()).path;

@@ -17,7 +17,7 @@ int main()
     auto enc = json_encode(obj);
     assert(enc == input);
 
-    std::stringstream ss;
+    std::ostringstream ss;
     json_encode(ss, obj);
     assert(ss.str() == input);
   

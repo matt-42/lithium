@@ -223,7 +223,7 @@ namespace li {
       std::ifstream in(path);
       if (!in.good())
       {
-        std::stringstream err_ss;
+        std::ostringstream err_ss;
 #if defined (_MSC_VER)
         err_ss << "Cannot read " << path;
 #else

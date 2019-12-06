@@ -21,7 +21,7 @@ namespace li {
     return mmm(s::append = [&s] (char c) { s << c; });
   }
   
-  inline decltype(auto) wrap_json_output_stream(std::stringstream& s)
+  inline decltype(auto) wrap_json_output_stream(std::ostringstream& s)
   {
     return mmm(s::append = [&s] (char c) { s << c; });
   }
@@ -32,15 +32,17 @@ namespace li {
   }
 
   inline decltype(auto)
+  wrap_json_input_stream(std::istringstream& s) { return s; }
+  inline decltype(auto)
   wrap_json_input_stream(std::stringstream& s) { return s; }
   inline decltype(auto)
   wrap_json_input_stream(decode_stringstream& s) { return s; }
   inline decltype(auto)
-  wrap_json_input_stream(const std::string& s) { return std::stringstream(s); }
+  wrap_json_input_stream(const std::string& s) { return std::istringstream(s); }
   inline decltype(auto)
-  wrap_json_input_stream(const char* s) { return std::stringstream(std::string(s)); }
+  wrap_json_input_stream(const char* s) { return std::istringstream(std::string(s)); }
   inline decltype(auto)
-  wrap_json_input_stream(const std::string_view& s) { return std::stringstream(std::string(s)); }
+  wrap_json_input_stream(const std::string_view& s) { return std::istringstream(std::string(s)); }
 
   namespace unicode_impl
   {

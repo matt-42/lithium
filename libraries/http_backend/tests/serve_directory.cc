@@ -17,7 +17,7 @@ int main() {
     o << "hello world.";
   }
 
-  api<http_request, http_response> my_api;
+  http_api my_api;
 
   my_api.add_subapi("/test", serve_directory(root.string()));
   auto ctx = http_serve(my_api, 12352, s::non_blocking);

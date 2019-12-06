@@ -12,7 +12,7 @@ using namespace li;
 
 int main() {
 
-  api<http_request, http_response> api;
+  http_api api;
 
   auto db = sqlite_database("./sl_test_crud.sqlite", s::synchronous = 1); // sqlite middleware.
 

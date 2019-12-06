@@ -9,7 +9,7 @@ using namespace li;
 
 int main() {
 
-  api<http_request, http_response> my_api;
+  http_api my_api;
 
   // Session.
   hashmap_http_session session("test_cookie", s::user_id = -1);

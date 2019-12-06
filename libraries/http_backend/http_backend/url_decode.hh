@@ -176,7 +176,7 @@ namespace li
     //   std::string missing = url_decode_check_missing_fields(found, obj[i]);
     //   if (missing.size())
     //   {
-    //     std::stringstream ss;
+    //     std::ostringstream ss;
     //     ss << '[' << i << "]" << missing;
     //     return ss.str();
     //   }

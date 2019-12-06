@@ -1,7 +1,7 @@
-#include <li/http_client/http_client.hh>
 #include <li/http_backend/http_backend.hh>
-#include <li/sql/sqlite.hh>
+#include <li/http_client/http_client.hh>
 #include <li/sql/mysql.hh>
+#include <li/sql/sqlite.hh>
 
 #include "symbols.hh"
 #include "test.hh"
@@ -10,12 +10,13 @@ using namespace li;
 
 int main() {
 
-  auto test_with_db = [] (auto& db) {
-    api<http_request, http_response> my_api;
+  auto test_with_db = [](auto& db) {
+    http_api my_api;
 
     // Users table
-    auto user_orm = sql_orm_schema<decltype(db)>(db, "users_to_test_session").fields(s::id(s::auto_increment, s::primary_key) = int(), s::login = std::string(),
-                              s::password = std::string());
+    auto user_orm = sql_orm_schema<decltype(db)>(db, "users_to_test_session")
+                        .fields(s::id(s::auto_increment, s::primary_key) = int(),
+                                s::login = std::string(), s::password = std::string());
     user_orm.connect().drop_table_if_exists().create_table_if_not_exists();
 
     // Session.
@@ -25,41 +26,38 @@ int main() {
     my_api.get("/who_am_i") = [&](http_request& request, http_response& response) {
       auto sess = session.connect(request, response);
       std::cout << sess.values().user_id << std::endl;
-      if (sess.values().user_id != -1)
-      {
+      if (sess.values().user_id != -1) {
         if (auto u = user_orm.connect().find_one(s::id = sess.values().user_id))
           response.write(u->login);
         else
-          throw http_error::internal_server_error("Id in session does not match database...");   
-      }
-      else
-        throw http_error::unauthorized("Please login.");   
+          throw http_error::internal_server_error("Id in session does not match database...");
+      } else
+        throw http_error::unauthorized("Please login.");
     };
 
     my_api.post("/login") = [&](http_request& request, http_response& response) {
       auto lp = request.post_parameters(s::login = std::string(), s::password = std::string());
-      if (auto user = user_orm.connect().find_one(lp))
-      {
+      if (auto user = user_orm.connect().find_one(lp)) {
         session.connect(request, response).store(s::user_id = user->id);
         response.write("login success");
-      }
-      else throw http_error::unauthorized("Bad login or password.");
+      } else
+        throw http_error::unauthorized("Bad login or password.");
     };
 
     my_api.post("/signup") = [&](http_request& request, http_response& response) {
-      auto new_user = request.post_parameters(s::login = std::string(), s::password = std::string());
+      auto new_user =
+          request.post_parameters(s::login = std::string(), s::password = std::string());
       auto user_db = user_orm.connect();
       if (user_db.exists(s::login = new_user.login))
         throw http_error::bad_request("User already exists.");
-      else user_db.insert(new_user);
+      else
+        user_db.insert(new_user);
     };
 
     my_api.get("/logout") = [&](http_request& request, http_response& response) {
-        session.connect(request, response).logout();
+      session.connect(request, response).logout();
     };
 
-
-  
     auto ctx = http_serve(my_api, 12350, s::non_blocking);
     auto c = http_client("http://localhost:12350");
 
@@ -93,26 +91,21 @@ int main() {
     std::cout << json_encode(r5) << std::endl;
     CHECK_EQUAL("read session", r5.body, "john");
     CHECK_EQUAL("read session", r5.status, 200);
-  
+
     // Logout
     c.get("/logout");
     auto r6 = c.get("/who_am_i");
     std::cout << json_encode(r6) << std::endl;
     CHECK_EQUAL("read session", r6.status, 401);
     CHECK_EQUAL("read session", r6.body, "Please login.");
-    //assert(http_get("http://localhost:12345/hello_world").body == "hello world.");
+    // assert(http_get("http://localhost:12345/hello_world").body == "hello world.");
   };
-
 
   auto sqlite_db = sqlite_database("iod_sqlite_orm_test.db");
   test_with_db(sqlite_db);
 
-  auto mysql_db = mysql_database(s::host = "127.0.0.1",
-                                s::database = "silicon_test",
-                                s::user = "root",
-                                s::password = "sl_test_password",
-                                s::port = 14550,
-                                s::charset = "utf8");
+  auto mysql_db =
+      mysql_database(s::host = "127.0.0.1", s::database = "silicon_test", s::user = "root",
+                     s::password = "sl_test_password", s::port = 14550, s::charset = "utf8");
   test_with_db(mysql_db);
-
 }

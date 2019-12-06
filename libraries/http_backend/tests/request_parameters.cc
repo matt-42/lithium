@@ -6,7 +6,7 @@ using namespace li;
 
 int main() {
 
-  api<http_request, http_response> my_api;
+  http_api my_api;
 
   my_api.get("/get") = [&](http_request& request, http_response& response) {
     response.write(json_encode(request.get_parameters(s::id = int())));

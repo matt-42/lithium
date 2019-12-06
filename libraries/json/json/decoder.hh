@@ -65,7 +65,7 @@ namespace li {
       inline json_error_code make_json_error(T&&... t)
       {
         if (!error_stream)
-          error_stream = new std::stringstream();
+          error_stream = new std::ostringstream();
         *error_stream << "json error: ";
         auto add = [this] (auto w) { *error_stream << w; };
         apply_each(add, t...);
@@ -142,7 +142,7 @@ namespace li {
       }
       
       S& ss;
-      std::stringstream* error_stream = nullptr;
+      std::ostringstream* error_stream = nullptr;
     };
 
     template <typename P, typename O, typename S>

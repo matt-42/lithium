@@ -71,7 +71,7 @@ int main() {
                                throw http_error::unauthorized("This post does not belong to you.");
                            });
 
-  api<http_request, http_response> my_api;
+  http_api my_api;
 
   // Generate /auth/[login|logout|signup]
   my_api.add_subapi("/auth", http_authentication_api(auth));

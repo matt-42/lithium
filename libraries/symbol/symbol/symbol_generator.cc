@@ -107,7 +107,7 @@ void write_symbol_file(std::vector<std::string> symbols, std::ostream& os) {
   if (!symbols.empty())
   {
     os <<  FIRST_LINE_COMMENT << std::endl;
-    std::stringstream symbols_content;
+    std::ostringstream symbols_content;
     os << "#include <li/symbol/symbol.hh>" << std::endl;
     for (std::string s : symbols)
     {
@@ -172,7 +172,7 @@ int main(int argc, char* argv[])
         if (!symbols.empty())
         {
           auto symbol_file = p / fs::path("symbols.hh");
-          std::stringstream ss;
+          std::ostringstream ss;
           write_symbol_file(symbols, ss);
 
           if (fs::is_regular_file(symbol_file) && ss.str() == get_file_contents(symbol_file.string()))

@@ -64,7 +64,7 @@ struct sqlite_statement {
   template <typename... A> void row_to_tuple(std::tuple<A...>& o) {
     int ncols = sqlite3_column_count(stmt_);
     if (ncols != sizeof...(A)) {
-      std::stringstream ss;
+      std::ostringstream ss;
       ss << "Invalid number of parameters: SQL request has " << ncols
          << " fields but the function to process it has " << sizeof...(A)
          << " parameters.";
@@ -308,7 +308,7 @@ struct sqlite_connection {
   inline std::string type_to_string(const sql_blob&) { return "BLOB"; }
   template <unsigned SIZE>
   inline std::string type_to_string(const sql_varchar<SIZE>&) { 
-    std::stringstream ss;
+    std::ostringstream ss;
     ss << "VARCHAR(" << SIZE << ')'; return ss.str(); }
 
   mutex_ptr cache_mutex_;
@@ -330,7 +330,7 @@ struct sqlite_database {
     con_.connect(path, SQLITE_OPEN_FULLMUTEX | SQLITE_OPEN_READWRITE |
                            SQLITE_OPEN_CREATE);
     if (has_key(options, s::synchronous)) {
-      std::stringstream ss;
+      std::ostringstream ss;
       ss << "PRAGMA synchronous=" << li::get_or(options, s::synchronous, 2);
       con_(ss.str())();
     }

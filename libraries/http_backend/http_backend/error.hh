@@ -8,13 +8,13 @@ namespace li {
 template <typename E> inline void format_error_(E&) {}
 
 template <typename E, typename T1, typename... T>
-inline void format_error_(E& err, T1 a, T... args) {
+inline void format_error_(E& err, T1&& a, T&&... args) {
   err << a;
   format_error_(err, std::forward<T>(args)...);
 }
 
 template <typename... T> inline std::string format_error(T&&... args) {
-  std::stringstream ss;
+  std::ostringstream ss;
   format_error_(ss, std::forward<T>(args)...);
   return ss.str();
 }
@@ -23,8 +23,8 @@ struct http_error {
 public:
   http_error(int status, const std::string& what) : status_(status), what_(what) {}
   http_error(int status, const char* what) : status_(status), what_(what) {}
-  auto status() const { return status_; }
-  auto what() const { return what_; }
+  int status() const { return status_; }
+  const std::string& what() const { return what_; }
 
 
 #define LI_HTTP_ERROR(CODE, ERR)                                          \

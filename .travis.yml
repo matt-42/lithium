@@ -23,26 +23,26 @@ matrix:
         - sudo apt-get install -qq mariadb-server
 
 
-    - compiler: clang++
-      env:
-        - LOCAL_CC=clang-9
-        - LOCAL_CXX=clang++-9
-        - JOBNAME=clang
-        - CXXFLAGS=--stdlib=libc++
-      before_install:
-        - wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | sudo apt-key add -
-        - sudo apt-add-repository -y 'deb https://apt.kitware.com/ubuntu/ bionic main'
-        - wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key|sudo apt-key add -;
-        - sudo echo deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-9 main >> /etc/apt/sources.list;
-        - sudo apt-get update -qq;
-        - sudo apt-get install -qq clang-9 libc++-9-dev libc++abi-9-dev libclang-9-dev;
-        - sudo apt-get install -qq libboost-all-dev libssl-dev lcov libsqlite3-dev libmicrohttpd-dev cmake
+    # - compiler: clang++
+    #   env:
+    #     - LOCAL_CC=clang-9
+    #     - LOCAL_CXX=clang++-9
+    #     - JOBNAME=clang
+    #     - CXXFLAGS=--stdlib=libc++
+    #   before_install:
+    #     - wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | sudo apt-key add -
+    #     - sudo apt-add-repository -y 'deb https://apt.kitware.com/ubuntu/ bionic main'
+    #     - wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key|sudo apt-key add -;
+    #     - sudo echo deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-9 main >> /etc/apt/sources.list;
+    #     - sudo apt-get update -qq;
+    #     - sudo apt-get install -qq clang-9 libc++-9-dev libc++abi-9-dev libclang-9-dev;
+    #     - sudo apt-get install -qq libboost-all-dev libssl-dev lcov libsqlite3-dev libmicrohttpd-dev cmake
 
-        - sudo apt-get install software-properties-common
-        - sudo apt-key adv --recv-keys --keyserver hkp://keyserver.ubuntu.com:80 0xF1656F24C74CD1D8
-        - sudo add-apt-repository 'deb [arch=amd64,arm64,ppc64el] http://mirror.netcologne.de/mariadb/repo/10.4/ubuntu bionic main'
-        - sudo apt-get update -qq;
-        - sudo apt-get install -qq mariadb-server
+    #     - sudo apt-get install software-properties-common
+    #     - sudo apt-key adv --recv-keys --keyserver hkp://keyserver.ubuntu.com:80 0xF1656F24C74CD1D8
+    #     - sudo add-apt-repository 'deb [arch=amd64,arm64,ppc64el] http://mirror.netcologne.de/mariadb/repo/10.4/ubuntu bionic main'
+    #     - sudo apt-get update -qq;
+    #     - sudo apt-get install -qq mariadb-server
 
     # std::filesystem Need macos 10.15. Not yet on travis.
     # - os: osx

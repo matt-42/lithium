@@ -1243,7 +1243,7 @@ namespace li {
     return mmm(s::append = [&s] (char c) { s << c; });
   }
   
-  inline decltype(auto) wrap_json_output_stream(std::stringstream& s)
+  inline decltype(auto) wrap_json_output_stream(std::ostringstream& s)
   {
     return mmm(s::append = [&s] (char c) { s << c; });
   }
@@ -1254,15 +1254,15 @@ namespace li {
   }
 
   inline decltype(auto)
-  wrap_json_input_stream(std::stringstream& s) { return s; }
+  wrap_json_input_stream(std::ostringstream& s) { return s; }
   inline decltype(auto)
   wrap_json_input_stream(decode_stringstream& s) { return s; }
   inline decltype(auto)
-  wrap_json_input_stream(const std::string& s) { return std::stringstream(s); }
+  wrap_json_input_stream(const std::string& s) { return std::ostringstream(s); }
   inline decltype(auto)
-  wrap_json_input_stream(const char* s) { return std::stringstream(std::string(s)); }
+  wrap_json_input_stream(const char* s) { return std::ostringstream(std::string(s)); }
   inline decltype(auto)
-  wrap_json_input_stream(const std::string_view& s) { return std::stringstream(std::string(s)); }
+  wrap_json_input_stream(const std::string_view& s) { return std::ostringstream(std::string(s)); }
 
   namespace unicode_impl
   {
@@ -1622,7 +1622,7 @@ namespace li {
       inline json_error_code make_json_error(T&&... t)
       {
         if (!error_stream)
-          error_stream = new std::stringstream();
+          error_stream = new std::ostringstream();
         *error_stream << "json error: ";
         auto add = [this] (auto w) { *error_stream << w; };
         apply_each(add, t...);
@@ -1699,7 +1699,7 @@ namespace li {
       }
       
       S& ss;
-      std::stringstream* error_stream = nullptr;
+      std::ostringstream* error_stream = nullptr;
     };
 
     template <typename P, typename O, typename S>
@@ -2059,13 +2059,13 @@ public:
   }
 
   template <typename O> std::string encode(O obj) const {
-    std::stringstream ss;
+    std::ostringstream ss;
     impl::json_encode(ss, std::forward<O>(obj), *downcast());
     return ss.str();
   }
 
   template <typename... M> std::string encode(const metamap<M...>& obj) const {
-    std::stringstream ss;
+    std::ostringstream ss;
     impl::json_encode(ss, obj, *downcast());
     return ss.str();
   }

@@ -147,14 +147,14 @@ int main()
   
   { // Mix 7bits, 11bits, 16bits and 20bits (surrogate pair) codepoints.
     std::string out;
-    std::stringstream stream("abc\xC2\xA2\xE2\x82\xAC\xF0\x90\x80\x81");    
+    std::istringstream stream("abc\xC2\xA2\xE2\x82\xAC\xF0\x90\x80\x81");    
     auto err = utf8_to_json(stream, out);
     //FIXNE assert(out == R"("abc\u00A2\u20AC\uD800\uDC01")");
   }
   
   { // Empty string.
     std::string out;
-    std::stringstream stream("");
+    std::istringstream stream("");
     auto err = utf8_to_json(stream, out);
     assert(out == "\"\"");
   }
@@ -162,7 +162,7 @@ int main()
 
   { // Empty string.
     std::string out;
-    std::stringstream stream(R"("")");
+    std::istringstream stream(R"("")");
     auto err = json_to_utf8(stream, out);
     assert(out == "");
   }
@@ -170,7 +170,7 @@ int main()
   // lowercase in unicode sequences.
   {
     std::string out;
-    std::stringstream stream(R"("\u000a")");
+    std::istringstream stream(R"("\u000a")");
     auto err = json_to_utf8(stream, out);
     assert(err == 0);
     assert(out == "\x0a");
@@ -179,7 +179,7 @@ int main()
   // uppercase in unicode sequences.
   {
     std::string out;
-    std::stringstream stream(R"("\u000A")");
+    std::istringstream stream(R"("\u000A")");
     auto err = json_to_utf8(stream, out);
     assert(err == 0);
     assert(out == "\x0a");
