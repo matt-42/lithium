@@ -82,13 +82,18 @@ before_install:
         sudo apt-get install -qq gcc-9 g++-9;
       fi
     - if [ "${JOBNAME}" == clang ]; then
-        sudo wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key|sudo apt-key add -;
+        wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key|sudo apt-key add -;
         sudo deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-9 main;
         sudo apt-get update -qq;
         sudo apt-get install -qq clang-9 libc++-9-dev libc++abi-9-dev;
       fi
-    - sudo apt-get install -qq libboost-all-dev libssl-dev lcov libsqlite3-dev libmicrohttpd-dev
+    - wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | sudo apt-key add -
+    - sudo apt-add-repository -y 'deb https://apt.kitware.com/ubuntu/ bionic main'
+    - sudo apt-get update -q
 
+    - sudo apt-get install -qq libboost-all-dev libssl-dev lcov libsqlite3-dev libmicrohttpd-dev cmake
+
+    
 install:
     - cd $HOME/build/$TRAVIS_REPO_SLUG
     - mkdir -p build 
