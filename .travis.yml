@@ -7,8 +7,8 @@ matrix:
   include:
     - compiler: g++
       env:
-        - LOCAL_CC=g++
-        - LOCAL_CXX=g++
+        - LOCAL_CC=gcc-9
+        - LOCAL_CXX=g++-9
     # - compiler: gcc
     #   addons:
     #     apt:
@@ -70,10 +70,10 @@ before_install:
     #- $LOCAL_CXX --version
     #- $LOCAL_GCOV --version
     # Install deps
+    - sudo apt-add-repository -y 'deb https://apt.kitware.com/ubuntu/ bionic main'
     - sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
     - sudo apt-get update -qq
     - sudo apt-get install -qq gcc-9 libboost-all-dev libssl-dev lcov libsqlite3-dev libmicrohttpd-dev cmake
-
 install:
     - cd $HOME/build/$TRAVIS_REPO_SLUG
     - mkdir -p build 
@@ -90,7 +90,7 @@ before_script:
 
 script:
     - cd $HOME/build/$TRAVIS_REPO_SLUG/tests/build 
-    - ./libraries/sql/tests/mysql_test_server.sh
+    - bash ./libraries/sql/tests/mysql_test_server.sh
     - make all test
 
 after_success:

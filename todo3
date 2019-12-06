@@ -1,0 +1,140 @@
+
+
+X write methods
+X handle different methods.
+X update decode_url_arguments to handle {{param}} syntax. + test
+x update libcurl client api + test
+X include metamap & json
+X update sqlite client + test
+X go back to one namespace only if needed :/
+X orm callbacks
+
+X update sql_orm + test
+X update sql_crud 
+X get parameters
+X request parameters,
+X missing urlencode params.
+
+X test request parameters.
+X test sql_crud
+
+X compilation on windows/mac.
+X session/cookie
+X sql_session
+
+X json post parameters
+X hashmap_session
+
+X update mysql client
+X test orm with mysql.
+X test sql session with mysql.
+
+X implement the ...path in url.
+
+X fix subapi with url parameter.
+X make the file server api.
+
+X access to http headers.
+
+X test optional.
+
+X new name ?
+  values: 
+  
+    simplicity,
+    no templates,
+    modern,
+    last c++ features
+    expressivity
+    metamap (core concept)
+    symbol (core concept)
+
+    symaps
+    
+    iodine
+    lithium
+
+X check compilation on mac.
+X check compilation on windows.
+
+brainstorm about docs:
+  ideas:
+    website ?
+      readthedoc
+      doxygen
+    readmes
+      problem
+      solution
+      small tutorials
+      examples
+
+X make install
+X fix symbols def
+
+single headers
+  make_single_header.py library_name, file1.hh, ...
+  change namespace li to li_library_name.
+  to generate:
+    li_json.hh
+    li_metamap.hh
+    li_http_client.hh
+    li_http_backend.hh
+    li_mysql.hh
+    li_sqlite.hh
+
+
+test mysql/sqlite 
+X blog example.
+X http_authenticator
+
+X problem:
+  sql_crud need all fields to be set.
+  Sometime we don't need all fields, some of them are computed.
+  ok we just need the computed flag.
+
+X password hashing.
+
+readmes:
+  X sql
+  X json
+  X metamap
+  X symbols
+  X http_client
+  X http_backend
+  X lithium
+  (calable_traits).
+
+X test compilation on mac and windows.
+
+logo
+setup donations
+first release.
+
+write docs
+
+
+parse_command_line
+travis
+RMQ
+
+
+Tutorial secret_key
+
+  // auto password_hash = [&] (auto& user) {
+  //   auto orm = users.connect();
+  //   auto u = orm.find(s::login = user.login);
+  //   if (!u) throw http_error::bad_request("Bad login");
+  //   else 
+  //     user.password = hash_sha3_512(user.password + u->secret_key);
+  // };
+
+  // auto update_secret_key = [&] (auto& user) {
+  //   std::ostringstream os;
+  //   std::random_device rd;
+  //   os << std::hex << rd() << rd() << rd() << rd();
+
+  //   // You shoud better store secret keys in a separate db for more security.
+  //   user.secret_key = os.str();
+  //   user.password = hash_sha3_512(user.password + user.secret_key);
+  //   users.connect().update(user);
+  // };
