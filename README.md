@@ -18,7 +18,7 @@ A set of tools to interact with SQL databases.
 
 ### [li::http_client](https://github.com/matt-42/lithium/tree/master/libraries/http_client)
 
-An http_client built around the libcurl library.
+A http_client built around the libcurl library.
 
 ### [li::http_backend](https://github.com/matt-42/lithium/tree/master/libraries/http_backend)
 
