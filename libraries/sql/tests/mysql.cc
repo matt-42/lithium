@@ -1,8 +1,8 @@
 
-#include <iostream>
-#include <cassert>
-#include <li/sql/mysql.hh>
 #include "symbols.hh"
+#include <cassert>
+#include <iostream>
+#include <li/sql/mysql.hh>
 
 using namespace s;
 
@@ -25,18 +25,13 @@ INSERT into users(id, name, age) values (2, "Bob", 24);
 //   return double(ts.tv_sec) + double(ts.tv_nsec) / 1000000000.;
 // }
 
-int main()
-{
+int main() {
   using namespace li;
 
-  //try
+  // try
   {
-    auto m = mysql_database(s::host = "127.0.0.1",
-                                  s::database = "silicon_test",
-                                  s::user = "root",
-                                  s::password = "sl_test_password",
-                                  s::port = 14550,
-                                  s::charset = "utf8");
+    auto m = mysql_database(s::host = "127.0.0.1", s::database = "silicon_test", s::user = "root",
+                            s::password = "sl_test_password", s::port = 14550, s::charset = "utf8");
 
     auto c = m.connect();
 
@@ -46,16 +41,14 @@ int main()
     // Prepared statement.
     auto insert_user = c.prepare("INSERT into users_test_mysql(id, name, age) values (?,?,?);");
 
-    insert_user
-      (1, "John", 42)
-      (2, "Bob", 24); // Send two queries.
+    insert_user(1, "John", 42)(2, "Bob", 24); // Send two queries.
 
     int count = c("SELECT count(*) from users_test_mysql").template read<int>();
     std::cout << count << std::endl;
     assert(count == 2);
     // // multiple inserts.
     // //c("INSERT into users(id, name, age) values", users);
-    
+
     // typedef decltype(mmm(s::id = int(), s::age = uint32_t(),  s::name = std::string())) User;
 
     // auto print = [] (User res) {
@@ -89,21 +82,21 @@ int main()
     //   c("SELECT * from users where name = ? and age = ? LIMIT 1")("Bob", 24) >> res;
 
     // std::cout << (1000 * (get_time_in_seconds() - t)) / K << std::endl;
-    
+
     // if (!(c("SELECT * from users where name = ? and age = ?")("Bob", 24) >> res))
     //   throw http_error::not_found("User not found.");
 
     // int age;
     // std::string name;
-    // if (!(c("SELECT age, name from users where name = ? and age = ?")("Bob", 24) >> std::tie(age, name)))
+    // if (!(c("SELECT age, name from users where name = ? and age = ?")("Bob", 24) >> std::tie(age,
+    // name)))
     //   throw http_error::not_found("User not found.");
     // std::cout << name << " " << age  << std::endl;
 
-    
     // print(res);
 
     // // Print the list of users
-    // c("SELECT * from users") | print;    
+    // c("SELECT * from users") | print;
 
     // c("SELECT name, age from users") | [] (std::tuple<std::string, int>& r)
     // {

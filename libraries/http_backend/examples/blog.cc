@@ -29,18 +29,17 @@ int main() {
   // to the login HTTP route.
   // For the signup, the module will ask for every fields (login, password) except the auto
   // increment field (i.e. the id field).
-  auto auth = http_authentication(sessions, users,
-                                  s::login, s::password);
+  auto auth = http_authentication(sessions, users, s::login, s::password);
 
   // The posts ORM will handle the blog_posts table in the sqlite database.
   // We use the ORM callbacks to check if needed the user priviledges or the validity of post.
-  // 
+  //
   auto posts = sql_orm_schema(db, "blog_posts")
-                   .fields(s::id(s::auto_increment, s::primary_key) = int(), 
+                   .fields(s::id(s::auto_increment, s::primary_key) = int(),
                            // We mark the user_id as computed so the CRUD api does not
                            // require it in the create and update methods.
-                           s::user_id(s::computed) = int(),
-                           s::title = std::string(), s::body = std::string())
+                           s::user_id(s::computed) = int(), s::title = std::string(),
+                           s::body = std::string())
 
                    .callbacks(
                        // This callback is called before insertion of a new post
@@ -53,8 +52,9 @@ int main() {
                            },
 
                        // Only logged users are allowed to post. We check it everytime someone tries
-                       // to create a post. 
-                       // We also use this callback to set the user_id of the new post before the ORM saves it in the database.
+                       // to create a post.
+                       // We also use this callback to set the user_id of the new post before the
+                       // ORM saves it in the database.
                        s::before_insert =
                            [&](auto& post, http_request& req, http_response& resp) {
                              auto u = auth.current_user(req, resp);

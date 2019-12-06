@@ -5,6 +5,4 @@
 #include <lithium_mysql.hh>
 #include <lithium_sqlite.hh>
 
-int main()
-{
-}
+int main() {}

@@ -7,43 +7,43 @@
 
 #pragma once
 
-#include <sqlite3.h>
 #include <cstring>
-#include <sstream>
-#include <variant>
-#include <microhttpd.h>
-#include <string>
-#include <tuple>
-#include <random>
-#include <fstream>
-#include <mysql.h>
-#include <map>
-#include <vector>
-#include <set>
-#include <sys/stat.h>
-#include <boost/lexical_cast.hpp>
-#include <stdio.h>
 #include <utility>
-#include <iostream>
-#include <string.h>
-#include <functional>
-#include <memory>
 #include <unordered_map>
-#include <thread>
-#include <string_view>
-#include <fcntl.h>
-#include <cmath>
-#include <unistd.h>
-#include <stdlib.h>
 #include <mutex>
-#include <cassert>
-#include <optional>
+#include <sqlite3.h>
+#include <memory>
+#include <fcntl.h>
+#include <stdlib.h>
+#include <mysql.h>
 #include <deque>
+#include <cmath>
+#include <string.h>
+#include <string>
+#include <iostream>
+#include <random>
+#include <tuple>
+#include <boost/lexical_cast.hpp>
+#include <functional>
+#include <string_view>
+#include <map>
+#include <stdio.h>
+#include <thread>
+#include <optional>
+#include <cassert>
+#include <fstream>
+#include <microhttpd.h>
+#include <vector>
+#include <sys/stat.h>
+#include <sstream>
+#include <unistd.h>
+#include <variant>
+#include <set>
 
 #if defined(_MSC_VER)
+#include <ciso646>
 #include <io.h>
 #include <windows.h>
-#include <ciso646>
 #endif // _MSC_VER
 
 
@@ -59,119 +59,95 @@
 
 namespace li {
 
-  template <typename ...T>
-  struct typelist {};
+template <typename... T> struct typelist {};
 
-  namespace internal
-  {
-    template <typename T>
-    struct has_parenthesis_operator
-    {
-      template<typename C> 
-      static char test(decltype(&C::operator()));
-      template<typename C>
-      static int test(...);
-      static const bool value = sizeof(test<T>(0)) == 1;
-    };
+namespace internal {
+template <typename T> struct has_parenthesis_operator {
+  template <typename C> static char test(decltype(&C::operator()));
+  template <typename C> static int test(...);
+  static const bool value = sizeof(test<T>(0)) == 1;
+};
 
-  }
+} // namespace internal
 
-  // Traits on callable (function, functors and lambda functions).
+// Traits on callable (function, functors and lambda functions).
 
-  // callable_traits<F>::is_callable = true_type if F is callable.
-  // callable_traits<F>::arity = N if F takes N arguments.
-  // callable_traits<F>::arguments_tuple_type = tuple<Arg1, ..., ArgN>
+// callable_traits<F>::is_callable = true_type if F is callable.
+// callable_traits<F>::arity = N if F takes N arguments.
+// callable_traits<F>::arguments_tuple_type = tuple<Arg1, ..., ArgN>
 
-  template <typename F, typename X = void>
-  struct callable_traits
-  {
-    typedef std::false_type is_callable;
-    static const int arity = 0;
-    typedef std::tuple<> arguments_tuple;
-    typedef typelist<> arguments_list;
-    typedef void return_type;
-  };
+template <typename F, typename X = void> struct callable_traits {
+  typedef std::false_type is_callable;
+  static const int arity = 0;
+  typedef std::tuple<> arguments_tuple;
+  typedef typelist<> arguments_list;
+  typedef void return_type;
+};
 
-  template <typename F, typename X>
-  struct callable_traits<F&, X> : public callable_traits<F, X> {};
-  template <typename F, typename X>
-  struct callable_traits<F&&, X> : public callable_traits<F, X> {};
-  template <typename F, typename X>
-  struct callable_traits<const F&, X> : public callable_traits<F, X> {};
-  
-  template <typename F>
-  struct callable_traits<F, std::enable_if_t<internal::has_parenthesis_operator<F>::value>>
-  {
-    typedef callable_traits<decltype(&F::operator())> super;
-    typedef std::true_type is_callable;
-    static const int arity = super::arity;
-    typedef typename super::arguments_tuple arguments_tuple;
-    typedef typename super::arguments_list arguments_list;
-    typedef typename super::return_type return_type;
-  };
+template <typename F, typename X> struct callable_traits<F&, X> : public callable_traits<F, X> {};
+template <typename F, typename X> struct callable_traits<F&&, X> : public callable_traits<F, X> {};
+template <typename F, typename X>
+struct callable_traits<const F&, X> : public callable_traits<F, X> {};
 
-  template <typename C, typename R, typename... ARGS>
-  struct callable_traits<R (C::*)(ARGS...) const>
-  {
-    typedef std::true_type is_callable;
-    static const int arity = sizeof...(ARGS);
-    typedef std::tuple<ARGS...> arguments_tuple;
-    typedef typelist<ARGS...> arguments_list;
-    typedef R return_type;
-  };
+template <typename F>
+struct callable_traits<F, std::enable_if_t<internal::has_parenthesis_operator<F>::value>> {
+  typedef callable_traits<decltype(&F::operator())> super;
+  typedef std::true_type is_callable;
+  static const int arity = super::arity;
+  typedef typename super::arguments_tuple arguments_tuple;
+  typedef typename super::arguments_list arguments_list;
+  typedef typename super::return_type return_type;
+};
 
-  template <typename C, typename R, typename... ARGS>
-  struct callable_traits<R (C::*)(ARGS...)>
-  {
-    typedef std::true_type is_callable;
-    static const int arity = sizeof...(ARGS);
-    typedef std::tuple<ARGS...> arguments_tuple;
-    typedef typelist<ARGS...> arguments_list;
-    typedef R return_type;
-  };
-  
-  template <typename R, typename... ARGS>
-  struct callable_traits<R(ARGS...)>
-  {
-    typedef std::true_type is_callable;
-    static const int arity = sizeof...(ARGS);
-    typedef std::tuple<ARGS...> arguments_tuple;
-    typedef typelist<ARGS...> arguments_list;
-    typedef R return_type;
-  };
+template <typename C, typename R, typename... ARGS>
+struct callable_traits<R (C::*)(ARGS...) const> {
+  typedef std::true_type is_callable;
+  static const int arity = sizeof...(ARGS);
+  typedef std::tuple<ARGS...> arguments_tuple;
+  typedef typelist<ARGS...> arguments_list;
+  typedef R return_type;
+};
 
-  
-  template <typename R, typename... ARGS>
-  struct callable_traits<R(*)(ARGS...)>
-  {
-    typedef std::true_type is_callable;
-    static const int arity = sizeof...(ARGS);
-    typedef std::tuple<ARGS...> arguments_tuple;
-    typedef typelist<ARGS...> arguments_list;
-    typedef R return_type;
-  };
+template <typename C, typename R, typename... ARGS> struct callable_traits<R (C::*)(ARGS...)> {
+  typedef std::true_type is_callable;
+  static const int arity = sizeof...(ARGS);
+  typedef std::tuple<ARGS...> arguments_tuple;
+  typedef typelist<ARGS...> arguments_list;
+  typedef R return_type;
+};
 
-  template <typename F>
-  using callable_arguments_tuple_t = typename callable_traits<F>::arguments_tuple;
-  template <typename F>
-  using callable_arguments_list_t = typename callable_traits<F>::arguments_list;
-  template <typename F>
-  using callable_return_type_t = typename callable_traits<F>::return_type;
+template <typename R, typename... ARGS> struct callable_traits<R(ARGS...)> {
+  typedef std::true_type is_callable;
+  static const int arity = sizeof...(ARGS);
+  typedef std::tuple<ARGS...> arguments_tuple;
+  typedef typelist<ARGS...> arguments_list;
+  typedef R return_type;
+};
 
-  template <typename F>
-  struct is_callable : public callable_traits<F>::is_callable {};
-  
-  template <typename F, typename... A>
-  struct callable_with
-  {
-    template<typename G, typename... B> 
-    static char test(int x, std::remove_reference_t<decltype(std::declval<G>()(std::declval<B>()...))>* = 0);
-    template<typename G, typename... B> 
-    static int test(...);
-    static const bool value = sizeof(test<F, A...>(0)) == 1;    
-  };
+template <typename R, typename... ARGS> struct callable_traits<R (*)(ARGS...)> {
+  typedef std::true_type is_callable;
+  static const int arity = sizeof...(ARGS);
+  typedef std::tuple<ARGS...> arguments_tuple;
+  typedef typelist<ARGS...> arguments_list;
+  typedef R return_type;
+};
 
-}
+template <typename F>
+using callable_arguments_tuple_t = typename callable_traits<F>::arguments_tuple;
+template <typename F> using callable_arguments_list_t = typename callable_traits<F>::arguments_list;
+template <typename F> using callable_return_type_t = typename callable_traits<F>::return_type;
+
+template <typename F> struct is_callable : public callable_traits<F>::is_callable {};
+
+template <typename F, typename... A> struct callable_with {
+  template <typename G, typename... B>
+  static char test(int x,
+                   std::remove_reference_t<decltype(std::declval<G>()(std::declval<B>()...))>* = 0);
+  template <typename G, typename... B> static int test(...);
+  static const bool value = sizeof(test<F, A...>(0)) == 1;
+};
+
+} // namespace li
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_CALLABLE_TRAITS_CALLABLE_TRAITS
 
@@ -181,161 +157,133 @@ namespace li {
 
 namespace li {
 
-  namespace internal
-  {
-    struct {
-      template <typename A, typename... B>
-      constexpr auto operator()(A&& a, B&&... b)
-      {
-        auto result = a;
-        using expand_variadic_pack  = int[];
-        (void)expand_variadic_pack{0, ((result += b), 0)... };
-        return result;
-      }
-    } reduce_add;
-
+namespace internal {
+struct {
+  template <typename A, typename... B> constexpr auto operator()(A&& a, B&&... b) {
+    auto result = a;
+    using expand_variadic_pack = int[];
+    (void)expand_variadic_pack{0, ((result += b), 0)...};
+    return result;
   }
+} reduce_add;
 
-  
-  template <typename... Ms>
-  struct metamap;
-  
-  template <typename F, typename... M>
-  decltype(auto) find_first(metamap<M...>&& map, F fun);
+} // namespace internal
 
-  template <typename ...Ms>
-  struct metamap;
+template <typename... Ms> struct metamap;
 
-  template <typename M1, typename ...Ms>
-  struct metamap<M1, Ms...> : public M1, public Ms...
-  {
-    typedef metamap<M1, Ms...> self;
-    // Constructors.
-    inline metamap() = default;
-    //inline metamap(self&&) = default;
-    inline metamap(const self&) = default;
-    self& operator=(const self&) = default;
+template <typename F, typename... M> decltype(auto) find_first(metamap<M...>&& map, F fun);
 
-    //metamap(self& other)
-    //  : metamap(const_cast<const self&>(other)) {}
+template <typename... Ms> struct metamap;
 
-    inline metamap(M1&& m1, Ms&&... members) : M1(m1), Ms(std::forward<Ms>(members))... {}
-    inline metamap(const M1& m1, const Ms&... members) : M1(m1), Ms((members))... {}
+template <typename M1, typename... Ms> struct metamap<M1, Ms...> : public M1, public Ms... {
+  typedef metamap<M1, Ms...> self;
+  // Constructors.
+  inline metamap() = default;
+  // inline metamap(self&&) = default;
+  inline metamap(const self&) = default;
+  self& operator=(const self&) = default;
 
-    // Assignemnt ?
+  // metamap(self& other)
+  //  : metamap(const_cast<const self&>(other)) {}
 
-    // Retrive a value.
-    template <typename K>
-    decltype(auto) operator[](K k)
-    {
-      return symbol_member_access(*this, k);
-    }
+  inline metamap(M1&& m1, Ms&&... members) : M1(m1), Ms(std::forward<Ms>(members))... {}
+  inline metamap(const M1& m1, const Ms&... members) : M1(m1), Ms((members))... {}
 
-    template <typename K>
-    decltype(auto) operator[](K k) const
-    {
-      return symbol_member_access(*this, k);
-    }
+  // Assignemnt ?
 
-  };
+  // Retrive a value.
+  template <typename K> decltype(auto) operator[](K k) { return symbol_member_access(*this, k); }
 
-  template <>
-  struct metamap<>
-  {
-    typedef metamap<> self;
-    // Constructors.
-    inline metamap() = default;
-    //inline metamap(self&&) = default;
-    inline metamap(const self&) = default;
-    //self& operator=(const self&) = default;
-
-    //metamap(self& other)
-    //  : metamap(const_cast<const self&>(other)) {}
-
-    // Assignemnt ?
-
-    // Retrive a value.
-    template <typename K>
-    decltype(auto) operator[](K k)
-    {
-      return symbol_member_access(*this, k);
-    }
-
-    template <typename K>
-    decltype(auto) operator[](K k) const
-    {
-      return symbol_member_access(*this, k);
-    }
-
-  };
-
-  template <typename... Ms>
-  constexpr auto size(metamap<Ms...>)
-  {
-    return sizeof...(Ms);
+  template <typename K> decltype(auto) operator[](K k) const {
+    return symbol_member_access(*this, k);
   }
-  
-  template <typename M>
-  struct metamap_size_t
-  {
-  };
-  template <typename... Ms>
-  struct metamap_size_t<metamap<Ms...>>
-  {
-    enum { value = sizeof...(Ms) };
-  };
-  template <typename M>
-  constexpr int metamap_size()
-  {
-    return metamap_size_t<std::decay_t<M>>::value;
-  }
+};
 
-  template <typename... Ks>
-  decltype(auto) metamap_values(const metamap<Ks...>& map)
-  {
-    return std::forward_as_tuple(map[typename Ks::_iod_symbol_type()]...);
-  }
+template <> struct metamap<> {
+  typedef metamap<> self;
+  // Constructors.
+  inline metamap() = default;
+  // inline metamap(self&&) = default;
+  inline metamap(const self&) = default;
+  // self& operator=(const self&) = default;
 
-  template <typename K, typename M>
-  constexpr auto has_key(M&& map, K k)
-  {
-    return decltype(has_member(map, k)){};
-  }
+  // metamap(self& other)
+  //  : metamap(const_cast<const self&>(other)) {}
 
-  template <typename M, typename K>
-  constexpr auto has_key(K k)
-  {
-    return decltype(has_member(std::declval<M>(), std::declval<K>())){};
-  }
+  // Assignemnt ?
 
-  template <typename M, typename K>
-  constexpr auto has_key()
-  {
-    return decltype(has_member(std::declval<M>(), std::declval<K>())){};
-  }
+  // Retrive a value.
+  template <typename K> decltype(auto) operator[](K k) { return symbol_member_access(*this, k); }
 
-  template <typename K, typename M, typename O>
-  constexpr auto get_or(M&& map, K k, O default_)
-  {
-    if constexpr(has_key<M, decltype(k)>()) {
-        return map[k];
-      }
-    else
-      return default_;
+  template <typename K> decltype(auto) operator[](K k) const {
+    return symbol_member_access(*this, k);
   }
-  
-  template <typename X>
-  struct is_metamap { enum { ret = false }; };
-  template <typename... M>
-  struct is_metamap<metamap<M...>> { enum { ret = true }; };
-  
+};
+
+template <typename... Ms> constexpr auto size(metamap<Ms...>) { return sizeof...(Ms); }
+
+template <typename M> struct metamap_size_t {};
+template <typename... Ms> struct metamap_size_t<metamap<Ms...>> {
+  enum { value = sizeof...(Ms) };
+};
+template <typename M> constexpr int metamap_size() {
+  return metamap_size_t<std::decay_t<M>>::value;
 }
+
+template <typename... Ks> decltype(auto) metamap_values(const metamap<Ks...>& map) {
+  return std::forward_as_tuple(map[typename Ks::_iod_symbol_type()]...);
+}
+
+template <typename K, typename M> constexpr auto has_key(M&& map, K k) {
+  return decltype(has_member(map, k)){};
+}
+
+template <typename M, typename K> constexpr auto has_key(K k) {
+  return decltype(has_member(std::declval<M>(), std::declval<K>())){};
+}
+
+template <typename M, typename K> constexpr auto has_key() {
+  return decltype(has_member(std::declval<M>(), std::declval<K>())){};
+}
+
+template <typename K, typename M, typename O> constexpr auto get_or(M&& map, K k, O default_) {
+  if constexpr (has_key<M, decltype(k)>()) {
+    return map[k];
+  } else
+    return default_;
+}
+
+template <typename X> struct is_metamap {
+  enum { ret = false };
+};
+template <typename... M> struct is_metamap<metamap<M...>> {
+  enum { ret = true };
+};
+
+} // namespace li
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_CAT
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_CAT
+
+namespace li {
+
+template <typename... T, typename... U>
+inline decltype(auto) cat(const metamap<T...>& a, const metamap<U...>& b) {
+  return metamap<T..., U...>(*static_cast<const T*>(&a)..., *static_cast<const U*>(&b)...);
+}
+
+} // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_CAT
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_INTERSECTION
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_INTERSECTION
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_MAKE_METAMAP_SKIP
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_MAKE_METAMAP_SKIP
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_MAKE
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_MAKE
-
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SYMBOL_SYMBOL
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_SYMBOL_SYMBOL
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SYMBOL_AST
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_SYMBOL_AST
@@ -343,361 +291,321 @@ namespace li {
 
 namespace li {
 
-  template <typename E>
-  struct Exp {};
+template <typename E> struct Exp {};
 
-  template <typename E>
-  struct array_subscriptable;
+template <typename E> struct array_subscriptable;
 
-  template <typename E>
-  struct callable;
+template <typename E> struct callable;
 
-  template <typename E>
-  struct assignable;
+template <typename E> struct assignable;
 
-  template <typename E>
-  struct array_subscriptable;
+template <typename E> struct array_subscriptable;
 
+template <typename M, typename... A>
+struct function_call_exp : public array_subscriptable<function_call_exp<M, A...>>,
+                           public callable<function_call_exp<M, A...>>,
+                           public assignable<function_call_exp<M, A...>>,
+                           public Exp<function_call_exp<M, A...>> {
+  using assignable<function_call_exp<M, A...>>::operator=;
 
-  template <typename M, typename... A>
-  struct function_call_exp :
-    public array_subscriptable<function_call_exp<M, A...>>,
-    public callable<function_call_exp<M, A...>>,
-    public assignable<function_call_exp<M, A...>>,
-    public Exp<function_call_exp<M, A...>>
-  {
-    using assignable<function_call_exp<M, A...>>::operator=;
+  function_call_exp(const M& m, A&&... a) : method(m), args(std::forward<A>(a)...) {}
 
-    function_call_exp(const M& m, A&&... a)
-      : method(m), args(std::forward<A>(a)...) {}
+  M method;
+  std::tuple<A...> args;
+};
 
-    M method;
-    std::tuple<A...> args;
-  };
+template <typename O, typename M>
+struct array_subscript_exp : public array_subscriptable<array_subscript_exp<O, M>>,
+                             public callable<array_subscript_exp<O, M>>,
+                             public assignable<array_subscript_exp<O, M>>,
+                             public Exp<array_subscript_exp<O, M>> {
+  using assignable<array_subscript_exp<O, M>>::operator=;
 
-  template <typename O, typename M>
-  struct array_subscript_exp :
-    public array_subscriptable<array_subscript_exp<O, M>>,
-    public callable<array_subscript_exp<O, M>>,
-    public assignable<array_subscript_exp<O, M>>,
-    public Exp<array_subscript_exp<O, M>>
-  {
-    using assignable<array_subscript_exp<O, M>>::operator=;
+  array_subscript_exp(const O& o, const M& m) : object(o), member(m) {}
 
-    array_subscript_exp(const O& o, const M& m) : object(o), member(m) {}
-    
-    O object;
-    M member;
-  };
+  O object;
+  M member;
+};
 
-  template <typename L, typename R>
-  struct assign_exp : public Exp<assign_exp<L, R>>
-  {
-    typedef L left_t;
-    typedef R right_t;
+template <typename L, typename R> struct assign_exp : public Exp<assign_exp<L, R>> {
+  typedef L left_t;
+  typedef R right_t;
 
-    //template <typename V>
-    //assign_exp(L l, V&& r) : left(l), right(std::forward<V>(r)) {}
-    //template <typename V>
-    inline assign_exp(L l, R r) : left(l), right(r) {}
-    //template <typename V>
-    //inline assign_exp(L l, const V& r) : left(l), right(r) {}
- 
-    L left;
-    R right;
-  };
-  
-  template <typename E>
-  struct array_subscriptable
-  {
-  public:
-    // Member accessor
-    template <typename S>
-    constexpr auto operator[](S&& s) const
-    {
-      return array_subscript_exp<E, S>(*static_cast<const E*>(this), std::forward<S>(s));
-    }
+  // template <typename V>
+  // assign_exp(L l, V&& r) : left(l), right(std::forward<V>(r)) {}
+  // template <typename V>
+  inline assign_exp(L l, R r) : left(l), right(r) {}
+  // template <typename V>
+  // inline assign_exp(L l, const V& r) : left(l), right(r) {}
 
-  };
+  L left;
+  R right;
+};
 
-  template <typename E>
-  struct callable
-  {
-  public:
-    // Direct call.
-    template <typename... A>
-    constexpr auto operator()(A&&... args) const
-    {
-      return function_call_exp<E, A...>(*static_cast<const E*>(this),
-                                        std::forward<A>(args)...);
-    }
+template <typename E> struct array_subscriptable {
+public:
+  // Member accessor
+  template <typename S> constexpr auto operator[](S&& s) const {
+    return array_subscript_exp<E, S>(*static_cast<const E*>(this), std::forward<S>(s));
+  }
+};
 
-  };
- 
-  template <typename E>
-  struct assignable
-  {
-  public:
+template <typename E> struct callable {
+public:
+  // Direct call.
+  template <typename... A> constexpr auto operator()(A&&... args) const {
+    return function_call_exp<E, A...>(*static_cast<const E*>(this), std::forward<A>(args)...);
+  }
+};
 
-    template <typename L>
-    auto operator=(L&& l) const
-    {
-      return assign_exp<E, L>(static_cast<const E&>(*this), std::forward<L>(l));
-    }
+template <typename E> struct assignable {
+public:
+  template <typename L> auto operator=(L&& l) const {
+    return assign_exp<E, L>(static_cast<const E&>(*this), std::forward<L>(l));
+  }
 
-    template <typename L>
-    auto operator=(L&& l)
-    {
-      return assign_exp<E, L>(static_cast<E&>(*this), std::forward<L>(l));
-    }
-    
-    template <typename T>
-    auto operator=(const std::initializer_list<T>& l) const
-    {
-      return assign_exp<E, std::vector<T>>(static_cast<const E&>(*this), std::vector<T>(l));
-    }
+  template <typename L> auto operator=(L&& l) {
+    return assign_exp<E, L>(static_cast<E&>(*this), std::forward<L>(l));
+  }
 
-  };
+  template <typename T> auto operator=(const std::initializer_list<T>& l) const {
+    return assign_exp<E, std::vector<T>>(static_cast<const E&>(*this), std::vector<T>(l));
+  }
+};
 
-#define iod_query_declare_binary_op(OP, NAME)                           \
-  template <typename A, typename B>                                     \
-  struct NAME##_exp :                                                   \
-   public assignable<NAME##_exp<A, B>>,                                 \
-  public Exp<NAME##_exp<A, B>>                                          \
-  {                                                                     \
-    using assignable<NAME##_exp<A, B>>::operator=; \
-    NAME##_exp()  {}                                                    \
-    NAME##_exp(A&& a, B&& b) : lhs(std::forward<A>(a)), rhs(std::forward<B>(b)) {} \
-    typedef A lhs_type;                                                 \
-    typedef B rhs_type;                                                 \
-    lhs_type lhs;                                                       \
-    rhs_type rhs;                                                       \
-  };                                                                    \
-  template <typename A, typename B>                                     \
-  inline                                                                \
-  std::enable_if_t<std::is_base_of<Exp<A>, A>::value || \
-                   std::is_base_of<Exp<B>, B>::value,\
-                   NAME##_exp<A, B >>                                                    \
-  operator OP (const A& b, const B& a)                                \
-  { return NAME##_exp<std::decay_t<A>, std::decay_t<B>>{b, a}; }
+#define iod_query_declare_binary_op(OP, NAME)                                                      \
+  template <typename A, typename B>                                                                \
+  struct NAME##_exp : public assignable<NAME##_exp<A, B>>, public Exp<NAME##_exp<A, B>> {          \
+    using assignable<NAME##_exp<A, B>>::operator=;                                                 \
+    NAME##_exp() {}                                                                                \
+    NAME##_exp(A&& a, B&& b) : lhs(std::forward<A>(a)), rhs(std::forward<B>(b)) {}                 \
+    typedef A lhs_type;                                                                            \
+    typedef B rhs_type;                                                                            \
+    lhs_type lhs;                                                                                  \
+    rhs_type rhs;                                                                                  \
+  };                                                                                               \
+  template <typename A, typename B>                                                                \
+  inline std::enable_if_t<std::is_base_of<Exp<A>, A>::value || std::is_base_of<Exp<B>, B>::value,  \
+                          NAME##_exp<A, B>>                                                        \
+  operator OP(const A& b, const B& a) {                                                            \
+    return NAME##_exp<std::decay_t<A>, std::decay_t<B>>{b, a};                                     \
+  }
 
-  iod_query_declare_binary_op(+, plus);
-  iod_query_declare_binary_op(-, minus);
-  iod_query_declare_binary_op(*, mult);
-  iod_query_declare_binary_op(/, div);
-  iod_query_declare_binary_op(<<, shiftl);
-  iod_query_declare_binary_op(>>, shiftr);
-  iod_query_declare_binary_op(<, inf);
-  iod_query_declare_binary_op(<=, inf_eq);
-  iod_query_declare_binary_op(>, sup);
-  iod_query_declare_binary_op(>=, sup_eq);
-  iod_query_declare_binary_op(==, eq);
-  iod_query_declare_binary_op(!=, neq);
-  iod_query_declare_binary_op(&, logical_and);
-  iod_query_declare_binary_op(^, logical_xor);
-  iod_query_declare_binary_op(|, logical_or);
-  iod_query_declare_binary_op(&&, and);
-  iod_query_declare_binary_op(||, or);
+iod_query_declare_binary_op(+, plus);
+iod_query_declare_binary_op(-, minus);
+iod_query_declare_binary_op(*, mult);
+iod_query_declare_binary_op(/, div);
+iod_query_declare_binary_op(<<, shiftl);
+iod_query_declare_binary_op(>>, shiftr);
+iod_query_declare_binary_op(<, inf);
+iod_query_declare_binary_op(<=, inf_eq);
+iod_query_declare_binary_op(>, sup);
+iod_query_declare_binary_op(>=, sup_eq);
+iod_query_declare_binary_op(==, eq);
+iod_query_declare_binary_op(!=, neq);
+iod_query_declare_binary_op(&, logical_and);
+iod_query_declare_binary_op (^, logical_xor);
+iod_query_declare_binary_op(|, logical_or);
+iod_query_declare_binary_op(&&, and);
+iod_query_declare_binary_op(||, or);
 
-# undef iod_query_declare_binary_op
+#undef iod_query_declare_binary_op
 
-}
+} // namespace li
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SYMBOL_AST
 
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SYMBOL_SYMBOL
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_SYMBOL_SYMBOL
+
 
 namespace li {
 
-  template <typename S>
-  class symbol : public assignable<S>,
-                 public array_subscriptable<S>,
-                 public callable<S>,
-                 public Exp<S>
-  {};
-}
+template <typename S>
+class symbol : public assignable<S>,
+               public array_subscriptable<S>,
+               public callable<S>,
+               public Exp<S> {};
+} // namespace li
 
 #ifdef LI_SYMBOL
-# undef LI_SYMBOL
+#undef LI_SYMBOL
 #endif
 
-#define LI_SYMBOL(NAME)                                                \
-namespace s {                                                           \
-struct NAME##_t : li::symbol<NAME##_t> {                         \
-                                                                        \
-using assignable<NAME##_t>::operator=;                               \
-                                                                        \
-inline constexpr bool operator==(NAME##_t) { return true; }          \
-  template <typename T>                                                 \
-  inline constexpr bool operator==(T) { return false; }                 \
-                                                                        \
-template <typename V>                                                   \
-  struct variable_t {                                                   \
-    typedef NAME##_t _iod_symbol_type;                            \
-    typedef V _iod_value_type;                                          \
-    V NAME;                                                             \
-  };                                                                   \
-                                                                        \
-  template <typename T, typename... A>                                  \
-  static inline decltype(auto) symbol_method_call(T&& o, A... args) { return o.NAME(args...); } \
-  template <typename T, typename... A>                                  \
-  static inline auto& symbol_member_access(T&& o) { return o.NAME; } \
-  template <typename T>                                                \
-  static constexpr auto has_getter(int) -> decltype(std::declval<T>().NAME(), std::true_type{}) { return {}; } \
-  template <typename T>                                                \
-  static constexpr auto has_getter(long) { return std::false_type{}; }     \
-  template <typename T>                                                \
-  static constexpr auto has_member(int) -> decltype(std::declval<T>().NAME, std::true_type{}) { return {}; } \
-  template <typename T>                                                \
-  static constexpr auto has_member(long) { return std::false_type{}; }        \
-                                                                        \
-  static inline auto symbol_string()                                    \
-  {                                                                     \
-    return #NAME;                                                       \
-  }                                                                     \
-                                                                        \
-};                                                                      \
-static constexpr  NAME##_t NAME;                                    \
-}
-
+#define LI_SYMBOL(NAME)                                                                            \
+  namespace s {                                                                                    \
+  struct NAME##_t : li::symbol<NAME##_t> {                                                         \
+                                                                                                   \
+    using assignable<NAME##_t>::operator=;                                                         \
+                                                                                                   \
+    inline constexpr bool operator==(NAME##_t) { return true; }                                    \
+    template <typename T> inline constexpr bool operator==(T) { return false; }                    \
+                                                                                                   \
+    template <typename V> struct variable_t {                                                      \
+      typedef NAME##_t _iod_symbol_type;                                                           \
+      typedef V _iod_value_type;                                                                   \
+      V NAME;                                                                                      \
+    };                                                                                             \
+                                                                                                   \
+    template <typename T, typename... A>                                                           \
+    static inline decltype(auto) symbol_method_call(T&& o, A... args) {                            \
+      return o.NAME(args...);                                                                      \
+    }                                                                                              \
+    template <typename T, typename... A> static inline auto& symbol_member_access(T&& o) {         \
+      return o.NAME;                                                                               \
+    }                                                                                              \
+    template <typename T>                                                                          \
+    static constexpr auto has_getter(int)                                                          \
+        -> decltype(std::declval<T>().NAME(), std::true_type{}) {                                  \
+      return {};                                                                                   \
+    }                                                                                              \
+    template <typename T> static constexpr auto has_getter(long) { return std::false_type{}; }     \
+    template <typename T>                                                                          \
+    static constexpr auto has_member(int) -> decltype(std::declval<T>().NAME, std::true_type{}) {  \
+      return {};                                                                                   \
+    }                                                                                              \
+    template <typename T> static constexpr auto has_member(long) { return std::false_type{}; }     \
+                                                                                                   \
+    static inline auto symbol_string() { return #NAME; }                                           \
+  };                                                                                               \
+  static constexpr NAME##_t NAME;                                                                  \
+  }
 
 namespace li {
 
-  template <typename S>
-  inline decltype(auto) make_variable(S s, char const v[])
-  {
-    typedef typename S::template variable_t<const char*> ret;
-    return ret{v};
-  }
+template <typename S> inline decltype(auto) make_variable(S s, char const v[]) {
+  typedef typename S::template variable_t<const char*> ret;
+  return ret{v};
+}
 
-  template <typename V, typename S>
-  inline decltype(auto) make_variable(S s, V v)
-  {
-    typedef typename S::template variable_t<std::remove_const_t<std::remove_reference_t<V>>> ret;
-    return ret{v};
-  }
-  
-  template <typename K, typename V>
-  inline decltype(auto) make_variable_reference(K s, V&& v)
-  {
-    typedef typename K::template variable_t<V> ret;
-    return ret{v};
-  }
+template <typename V, typename S> inline decltype(auto) make_variable(S s, V v) {
+  typedef typename S::template variable_t<std::remove_const_t<std::remove_reference_t<V>>> ret;
+  return ret{v};
+}
 
-  template <typename T, typename S, typename... A>
-  static inline decltype(auto) symbol_method_call(T&& o, S, A... args)
-  {
-    return S::symbol_method_call(o, std::forward<A>(args)...);
-  }
+template <typename K, typename V> inline decltype(auto) make_variable_reference(K s, V&& v) {
+  typedef typename K::template variable_t<V> ret;
+  return ret{v};
+}
 
-  template <typename T, typename S>
-  static inline decltype(auto) symbol_member_access(T&& o, S)
-  {
-    return S::symbol_member_access(o);
-  }
-  
-  template <typename T, typename S>
-  constexpr auto has_member(T&& o, S) { return S::template has_member<T>(0); }
-  template <typename T, typename S>
-  constexpr auto has_member() { return S::template has_member<T>(0); }
+template <typename T, typename S, typename... A>
+static inline decltype(auto) symbol_method_call(T&& o, S, A... args) {
+  return S::symbol_method_call(o, std::forward<A>(args)...);
+}
 
-  template <typename T, typename S>
-  constexpr auto has_getter(T&& o, S) { return decltype(S::template has_getter<T>(0)){}; }
-  template <typename T, typename S>
-  constexpr auto has_getter() { return decltype(S::template has_getter<T>(0)){}; }
-  
-  template <typename S, typename T>
-  struct CANNOT_FIND_REQUESTED_MEMBER_IN_TYPE {};
-  
-  template <typename T, typename S>
-  decltype(auto) symbol_member_or_getter_access(T&&o, S)
-  {
-    if constexpr(has_getter<T, S>()) {
-        return symbol_method_call(o, S{});
-      }
-    else if constexpr(has_member<T, S>()) {
-        return symbol_member_access(o, S{});
-      }
-    else
-    {
-      return CANNOT_FIND_REQUESTED_MEMBER_IN_TYPE<S, T>::error;
-    }
-                   
-  }
-  
-  template <typename S>
-  auto symbol_string(symbol<S> v)
-  {
-    return S::symbol_string();
-  }
+template <typename T, typename S> static inline decltype(auto) symbol_member_access(T&& o, S) {
+  return S::symbol_member_access(o);
+}
 
-  template <typename V>
-  auto symbol_string(V v, typename V::_iod_symbol_type* = 0)
-  {
-    return V::_iod_symbol_type::symbol_string();
+template <typename T, typename S> constexpr auto has_member(T&& o, S) {
+  return S::template has_member<T>(0);
+}
+template <typename T, typename S> constexpr auto has_member() {
+  return S::template has_member<T>(0);
+}
+
+template <typename T, typename S> constexpr auto has_getter(T&& o, S) {
+  return decltype(S::template has_getter<T>(0)){};
+}
+template <typename T, typename S> constexpr auto has_getter() {
+  return decltype(S::template has_getter<T>(0)){};
+}
+
+template <typename S, typename T> struct CANNOT_FIND_REQUESTED_MEMBER_IN_TYPE {};
+
+template <typename T, typename S> decltype(auto) symbol_member_or_getter_access(T&& o, S) {
+  if constexpr (has_getter<T, S>()) {
+    return symbol_method_call(o, S{});
+  } else if constexpr (has_member<T, S>()) {
+    return symbol_member_access(o, S{});
+  } else {
+    return CANNOT_FIND_REQUESTED_MEMBER_IN_TYPE<S, T>::error;
   }
 }
 
+template <typename S> auto symbol_string(symbol<S> v) { return S::symbol_string(); }
+
+template <typename V> auto symbol_string(V v, typename V::_iod_symbol_type* = 0) {
+  return V::_iod_symbol_type::symbol_string();
+}
+} // namespace li
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SYMBOL_SYMBOL
 
 
 namespace li {
 
-  
-  template <typename ...Ms>
-  struct metamap;
+template <typename... Ms> struct metamap;
 
-  namespace internal
-  {
-    
-    template <typename S, typename V>
-    decltype(auto) exp_to_variable_ref(const assign_exp<S, V>& e)
-    {
-      return make_variable_reference(S{}, e.right);
-    }
+namespace internal {
 
-    template <typename S, typename V>
-    decltype(auto) exp_to_variable(const assign_exp<S, V>& e)
-    {
-      typedef std::remove_const_t<std::remove_reference_t<V>> vtype;
-      return make_variable(S{}, e.right);
-    }
-
-    template <typename S>
-    decltype(auto) exp_to_variable(const symbol<S>& e)
-    {
-      return exp_to_variable(S() = int());
-    }
-    
-    template <typename ...T>
-    inline decltype(auto) make_metamap_helper(T&&... args)
-    {
-      return metamap<T...>(std::forward<T>(args)...);
-    }
-    
-  }
-  
-  // Store copies of values in the map
-  static struct {
-    template <typename ...T>
-    inline decltype(auto) operator()(T&&... args) const
-    {
-      // Copy values.
-      return internal::make_metamap_helper(internal::exp_to_variable(std::forward<T>(args))...);
-    }
-  } mmm;
-  
-  // Store references of values in the map
-  template <typename ...T>
-  inline decltype(auto) make_metamap_reference(T&&... args)
-  {
-    // Keep references.
-    return internal::make_metamap_helper(internal::exp_to_variable_ref(std::forward<T>(args))...);
-  }
-  
+template <typename S, typename V> decltype(auto) exp_to_variable_ref(const assign_exp<S, V>& e) {
+  return make_variable_reference(S{}, e.right);
 }
 
+template <typename S, typename V> decltype(auto) exp_to_variable(const assign_exp<S, V>& e) {
+  typedef std::remove_const_t<std::remove_reference_t<V>> vtype;
+  return make_variable(S{}, e.right);
+}
+
+template <typename S> decltype(auto) exp_to_variable(const symbol<S>& e) {
+  return exp_to_variable(S() = int());
+}
+
+template <typename... T> inline decltype(auto) make_metamap_helper(T&&... args) {
+  return metamap<T...>(std::forward<T>(args)...);
+}
+
+} // namespace internal
+
+// Store copies of values in the map
+static struct {
+  template <typename... T> inline decltype(auto) operator()(T&&... args) const {
+    // Copy values.
+    return internal::make_metamap_helper(internal::exp_to_variable(std::forward<T>(args))...);
+  }
+} mmm;
+
+// Store references of values in the map
+template <typename... T> inline decltype(auto) make_metamap_reference(T&&... args) {
+  // Keep references.
+  return internal::make_metamap_helper(internal::exp_to_variable_ref(std::forward<T>(args))...);
+}
+
+} // namespace li
+
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_MAKE
+
+
+namespace li {
+
+struct skip {};
+static struct {
+
+  template <typename... M, typename... T>
+  inline decltype(auto) run(metamap<M...> map, skip, T&&... args) const {
+    return run(map, std::forward<T>(args)...);
+  }
+
+  template <typename T1, typename... M, typename... T>
+  inline decltype(auto) run(metamap<M...> map, T1&& a, T&&... args) const {
+    return run(
+        cat(map, internal::make_metamap_helper(internal::exp_to_variable(std::forward<T1>(a)))),
+        std::forward<T>(args)...);
+  }
+
+  template <typename... M> inline decltype(auto) run(metamap<M...> map) const { return map; }
+
+  template <typename... T> inline decltype(auto) operator()(T&&... args) const {
+    // Copy values.
+    return run(metamap<>{}, std::forward<T>(args)...);
+  }
+
+} make_metamap_skip;
+
+} // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_MAKE_METAMAP_SKIP
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_MAP_REDUCE
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_MAP_REDUCE
@@ -708,230 +616,138 @@ namespace li {
 
 namespace li {
 
-
-  template <typename... E, typename F>
-  void apply_each(F&& f, E&&... e)
-  {
-    (void)std::initializer_list<int>{
-      ((void)f(std::forward<E>(e)), 0)...};
-  }
-
-  template <typename... E, typename F, typename R>
-  auto tuple_map_reduce_impl(F&& f, R&& reduce, E&&... e)
-  {
-    return reduce(f(std::forward<E>(e))...);
-  }
-
-  template <typename T, typename F>
-  void tuple_map(T&& t, F&& f)
-  {
-    return std::apply([&] (auto&&... e) { apply_each(f, std::forward<decltype(e)>(e)...); },
-                                    std::forward<T>(t));
-  }
-
-  template <typename T, typename F>
-  auto tuple_reduce(T&& t, F&& f)
-  {
-    return std::apply(std::forward<F>(f), std::forward<T>(t));
-  }
-
-  template <typename T, typename F, typename R>
-  decltype(auto) tuple_map_reduce(T&& m, F map, R reduce)
-  {
-    auto fun = [&] (auto... e) {
-      return tuple_map_reduce_impl(map, reduce, e...);
-    };
-    return std::apply(fun, m);
-  }
-
-  template <typename F>
-  inline std::tuple<> tuple_filter_impl() { return std::make_tuple(); }
-
-  template <typename F, typename... M, typename M1>
-  auto tuple_filter_impl(M1 m1, M... m) {
-    if constexpr (std::is_same<M1, F>::value)
-      return tuple_filter_impl<F>(m...);
-    else
-      return std::tuple_cat(std::make_tuple(m1), tuple_filter_impl<F>(m...));
-  }
-
-  template <typename F, typename... M>
-  auto tuple_filter(const std::tuple<M...>& m) {
-
-    auto fun = [] (auto... e) { return tuple_filter_impl<F>(e...); };
-    return std::apply(fun, m);
-  
-  }
-  
+template <typename... E, typename F> void apply_each(F&& f, E&&... e) {
+  (void)std::initializer_list<int>{((void)f(std::forward<E>(e)), 0)...};
 }
+
+template <typename... E, typename F, typename R>
+auto tuple_map_reduce_impl(F&& f, R&& reduce, E&&... e) {
+  return reduce(f(std::forward<E>(e))...);
+}
+
+template <typename T, typename F> void tuple_map(T&& t, F&& f) {
+  return std::apply([&](auto&&... e) { apply_each(f, std::forward<decltype(e)>(e)...); },
+                    std::forward<T>(t));
+}
+
+template <typename T, typename F> auto tuple_reduce(T&& t, F&& f) {
+  return std::apply(std::forward<F>(f), std::forward<T>(t));
+}
+
+template <typename T, typename F, typename R>
+decltype(auto) tuple_map_reduce(T&& m, F map, R reduce) {
+  auto fun = [&](auto... e) { return tuple_map_reduce_impl(map, reduce, e...); };
+  return std::apply(fun, m);
+}
+
+template <typename F> inline std::tuple<> tuple_filter_impl() { return std::make_tuple(); }
+
+template <typename F, typename... M, typename M1> auto tuple_filter_impl(M1 m1, M... m) {
+  if constexpr (std::is_same<M1, F>::value)
+    return tuple_filter_impl<F>(m...);
+  else
+    return std::tuple_cat(std::make_tuple(m1), tuple_filter_impl<F>(m...));
+}
+
+template <typename F, typename... M> auto tuple_filter(const std::tuple<M...>& m) {
+
+  auto fun = [](auto... e) { return tuple_filter_impl<F>(e...); };
+  return std::apply(fun, m);
+}
+
+} // namespace li
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS
 
 
 namespace li {
 
-  // Map a function(key, value) on all kv pair
-  template <typename... M, typename F>
-  void map(const metamap<M...>& m, F fun)
-  {
-    auto apply = [&] (auto key) -> decltype(auto)
-      {
-        return fun(key, m[key]);
-      };
+// Map a function(key, value) on all kv pair
+template <typename... M, typename F> void map(const metamap<M...>& m, F fun) {
+  auto apply = [&](auto key) -> decltype(auto) { return fun(key, m[key]); };
 
-    apply_each(apply, typename M::_iod_symbol_type{}...);
-  }
-
-  // Map a function(key, value) on all kv pair. Ensure that the calling order
-  // is kept.
-  // template <typename O, typename F>
-  // void map_sequential2(F fun, O& obj)
-  // {}
-  // template <typename O, typename M1, typename... M, typename F>
-  // void map_sequential2(F fun, O& obj, M1 m1, M... ms)
-  // {
-  //   auto apply = [&] (auto key) -> decltype(auto)
-  //     {
-  //       return fun(key, obj[key]);
-  //     };
-
-  //   apply(m1);
-  //   map_sequential2(fun, obj, ms...);
-  // }
-  // template <typename... M, typename F>
-  // void map_sequential(const metamap<M...>& m, F fun)
-  // {
-  //   auto apply = [&] (auto key) -> decltype(auto)
-  //     {
-  //       return fun(key, m[key]);
-  //     };
-
-  //   map_sequential2(fun, m, typename M::_iod_symbol_type{}...);
-  // }
-
-  // Map a function(key, value) on all kv pair (non const).
-  template <typename... M, typename F>
-  void map(metamap<M...>& m, F fun)
-  {
-    auto apply = [&] (auto key) -> decltype(auto)
-      {
-        return fun(key, m[key]);
-      };
-
-    apply_each(apply, typename M::_iod_symbol_type{}...);
-  }
-
-  template <typename... E, typename F, typename R>
-  auto apply_each2(F&& f, R&& r, E&&... e)
-  {
-    return r(f(std::forward<E>(e))...);
-    //(void)std::initializer_list<int>{
-    //  ((void)f(std::forward<E>(e)), 0)...};
-  }
-
-  // Map a function(key, value) on all kv pair an reduce
-  // all the results value with the reduce(r1, r2, ...) function.
-  template <typename... M, typename F, typename R>
-  decltype(auto) map_reduce(const metamap<M...>& m, F map, R reduce)
-  {
-    auto apply = [&] (auto key) -> decltype(auto)
-      {
-        //return map(key, std::forward<decltype(m[key])>(m[key]));
-        return map(key, m[key]);
-      };
-
-    return apply_each2(apply, reduce, typename M::_iod_symbol_type{}...);
-    //return reduce(apply(typename M::_iod_symbol_type{})...);
-  }
-
-  // Map a function(key, value) on all kv pair an reduce
-  // all the results value with the reduce(r1, r2, ...) function.
-  template <typename... M, typename R>
-  decltype(auto) reduce(const metamap<M...>& m, R reduce)
-  {
-    return reduce(m[typename M::_iod_symbol_type{}]...);
-  }
-
+  apply_each(apply, typename M::_iod_symbol_type{}...);
 }
+
+// Map a function(key, value) on all kv pair. Ensure that the calling order
+// is kept.
+// template <typename O, typename F>
+// void map_sequential2(F fun, O& obj)
+// {}
+// template <typename O, typename M1, typename... M, typename F>
+// void map_sequential2(F fun, O& obj, M1 m1, M... ms)
+// {
+//   auto apply = [&] (auto key) -> decltype(auto)
+//     {
+//       return fun(key, obj[key]);
+//     };
+
+//   apply(m1);
+//   map_sequential2(fun, obj, ms...);
+// }
+// template <typename... M, typename F>
+// void map_sequential(const metamap<M...>& m, F fun)
+// {
+//   auto apply = [&] (auto key) -> decltype(auto)
+//     {
+//       return fun(key, m[key]);
+//     };
+
+//   map_sequential2(fun, m, typename M::_iod_symbol_type{}...);
+// }
+
+// Map a function(key, value) on all kv pair (non const).
+template <typename... M, typename F> void map(metamap<M...>& m, F fun) {
+  auto apply = [&](auto key) -> decltype(auto) { return fun(key, m[key]); };
+
+  apply_each(apply, typename M::_iod_symbol_type{}...);
+}
+
+template <typename... E, typename F, typename R> auto apply_each2(F&& f, R&& r, E&&... e) {
+  return r(f(std::forward<E>(e))...);
+  //(void)std::initializer_list<int>{
+  //  ((void)f(std::forward<E>(e)), 0)...};
+}
+
+// Map a function(key, value) on all kv pair an reduce
+// all the results value with the reduce(r1, r2, ...) function.
+template <typename... M, typename F, typename R>
+decltype(auto) map_reduce(const metamap<M...>& m, F map, R reduce) {
+  auto apply = [&](auto key) -> decltype(auto) {
+    // return map(key, std::forward<decltype(m[key])>(m[key]));
+    return map(key, m[key]);
+  };
+
+  return apply_each2(apply, reduce, typename M::_iod_symbol_type{}...);
+  // return reduce(apply(typename M::_iod_symbol_type{})...);
+}
+
+// Map a function(key, value) on all kv pair an reduce
+// all the results value with the reduce(r1, r2, ...) function.
+template <typename... M, typename R> decltype(auto) reduce(const metamap<M...>& m, R reduce) {
+  return reduce(m[typename M::_iod_symbol_type{}]...);
+}
+
+} // namespace li
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_MAP_REDUCE
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_INTERSECTION
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_INTERSECTION
-
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_MAKE_METAMAP_SKIP
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_MAKE_METAMAP_SKIP
-
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_CAT
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_CAT
 
 
 namespace li {
 
-
-  template <typename ...T, typename ...U>
-  inline decltype(auto) cat(const metamap<T...>& a,
-                            const metamap<U...>& b)
-  {
-    return metamap<T..., U...>(*static_cast<const T*>(&a)...,
-                               *static_cast<const U*>(&b)...);
-  }
-  
+template <typename... T, typename... U>
+inline decltype(auto) intersection(const metamap<T...>& a, const metamap<U...>& b) {
+  return map_reduce(a,
+                    [&](auto k, auto&& v) -> decltype(auto) {
+                      if constexpr (has_key<metamap<U...>, decltype(k)>()) {
+                        return k = std::forward<decltype(v)>(v);
+                      } else
+                        return skip{};
+                    },
+                    make_metamap_skip);
 }
 
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_CAT
-
-
-namespace li {
-
-  
-  struct skip {};
-  static struct {
-
-    template <typename... M, typename ...T>
-    inline decltype(auto) run(metamap<M...> map, skip, T&&... args) const
-    {
-      return run(map, std::forward<T>(args)...);
-    }
-    
-    template <typename T1, typename... M, typename ...T>
-    inline decltype(auto) run(metamap<M...> map, T1&& a, T&&... args) const
-    {
-      return run(cat(map,
-                     internal::make_metamap_helper(internal::exp_to_variable(std::forward<T1>(a)))),
-                 std::forward<T>(args)...);
-    }
-
-    template <typename... M>
-    inline decltype(auto) run(metamap<M...> map) const { return map; }
-    
-    template <typename... T>
-    inline decltype(auto) operator()(T&&... args) const
-    {
-      // Copy values.
-      return run(metamap<>{}, std::forward<T>(args)...);
-    }
-
-  } make_metamap_skip;
-
-}
-
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_MAKE_METAMAP_SKIP
-
-
-namespace li {
-
-  template <typename ...T, typename ...U>
-  inline decltype(auto) intersection(const metamap<T...>& a,
-                           const metamap<U...>& b)
-  {
-    return map_reduce(a, [&] (auto k, auto&& v) -> decltype(auto) {
-        if constexpr(has_key<metamap<U...>, decltype(k)>()) {
-            return k = std::forward<decltype(v)>(v);
-          }
-        else return skip{}; }, make_metamap_skip);
-  }
-
-}
+} // namespace li
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_INTERSECTION
 
@@ -941,23 +757,48 @@ namespace li {
 
 namespace li {
 
-  template <typename ...T, typename ...U>
-  inline auto substract(const metamap<T...>& a,
-                        const metamap<U...>& b)
-  {
-    return map_reduce(a, [&] (auto k, auto&& v) {
-        if constexpr(!has_key<metamap<U...>, decltype(k)>()) {
-            return k = std::forward<decltype(v)>(v);
-          }
-        else return skip{}; }, make_metamap_skip);
-  }
-
+template <typename... T, typename... U>
+inline auto substract(const metamap<T...>& a, const metamap<U...>& b) {
+  return map_reduce(a,
+                    [&](auto k, auto&& v) {
+                      if constexpr (!has_key<metamap<U...>, decltype(k)>()) {
+                        return k = std::forward<decltype(v)>(v);
+                      } else
+                        return skip{};
+                    },
+                    make_metamap_skip);
 }
+
+} // namespace li
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_SUBSTRACT
 
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_METAMAP
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_COMMON
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_COMMON
+
+
+namespace li {
+struct sql_blob : public std::string {
+  using std::string::string;
+  using std::string::operator=;
+
+  sql_blob() : std::string() {}
+};
+
+struct sql_null_t {};
+static sql_null_t null;
+
+template <unsigned SIZE> struct sql_varchar : public std::string {
+  using std::string::string;
+  using std::string::operator=;
+
+  sql_varchar() : std::string() {}
+};
+} // namespace li
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_COMMON
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SYMBOLS
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SYMBOLS
@@ -1065,44 +906,16 @@ namespace li {
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SYMBOLS
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_COMMON
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_COMMON
-
-
-namespace li
-{
-  struct sql_blob : public std::string {
-    using std::string::string;
-    using std::string::operator=;
-
-    sql_blob() : std::string() {}
-  };
-
-  struct sql_null_t {};
-  static sql_null_t null;
-
-  template <unsigned SIZE>
-  struct sql_varchar : public std::string {
-    using std::string::string;
-    using std::string::operator=;
-
-    sql_varchar() : std::string() {}
-  };
-}
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_COMMON
-
 
 namespace li {
 
 template <typename T> struct tuple_remove_references_and_const;
-template <typename... T>
-struct tuple_remove_references_and_const<std::tuple<T...>> {
+template <typename... T> struct tuple_remove_references_and_const<std::tuple<T...>> {
   typedef std::tuple<std::remove_const_t<std::remove_reference_t<T>>...> type;
 };
 
 template <typename T>
-using tuple_remove_references_and_const_t =
-    typename tuple_remove_references_and_const<T>::type;
+using tuple_remove_references_and_const_t = typename tuple_remove_references_and_const<T>::type;
 
 void free_sqlite3_statement(void* s) { sqlite3_finalize((sqlite3_stmt*)s); }
 
@@ -1140,8 +953,7 @@ struct sqlite_statement {
     if (ncols != sizeof...(A)) {
       std::ostringstream ss;
       ss << "Invalid number of parameters: SQL request has " << ncols
-         << " fields but the function to process it has " << sizeof...(A)
-         << " parameters.";
+         << " fields but the function to process it has " << sizeof...(A) << " parameters.";
       throw std::runtime_error(ss.str());
     }
     int i = 0;
@@ -1152,22 +964,19 @@ struct sqlite_statement {
     ::li::tuple_map(o, read_elt);
   }
 
-
   // Bind arguments to the request unknowns (marked with ?)
   template <typename... T> auto& operator()(T&&... args) {
     ready_for_reading_ = true;
     sqlite3_reset(stmt_);
     sqlite3_clear_bindings(stmt_);
     int i = 1;
-    li::tuple_map(std::forward_as_tuple(args...),
-        [&](auto& m) {
-          int err;
-          if ((err = this->bind(stmt_, i, m)) != SQLITE_OK)
-            throw std::runtime_error(
-                std::string("Sqlite error during binding: ") +
-                sqlite3_errmsg(db_));
-          i++;
-        });
+    li::tuple_map(std::forward_as_tuple(args...), [&](auto& m) {
+      int err;
+      if ((err = this->bind(stmt_, i, m)) != SQLITE_OK)
+        throw std::runtime_error(std::string("Sqlite error during binding: ") +
+                                 sqlite3_errmsg(db_));
+      i++;
+    });
 
     last_step_ret_ = sqlite3_step(stmt_);
     if (last_step_ret_ != SQLITE_ROW and last_step_ret_ != SQLITE_DONE)
@@ -1241,8 +1050,7 @@ struct sqlite_statement {
         f(o);
         last_step_ret_ = sqlite3_step(stmt_);
       } else {
-        typedef tuple_remove_references_and_const_t<std::remove_pointer_t<tp>>
-            T;
+        typedef tuple_remove_references_and_const_t<std::remove_pointer_t<tp>> T;
         T o;
         row_to_tuple(o);
         std::apply(f, o);
@@ -1258,12 +1066,8 @@ struct sqlite_statement {
 
   void read_column(int pos, int& v) { v = sqlite3_column_int(stmt_, pos); }
   void read_column(int pos, float& v) { v = float(sqlite3_column_double(stmt_, pos)); }
-  void read_column(int pos, double& v) {
-    v = sqlite3_column_double(stmt_, pos);
-  }
-  void read_column(int pos, int64_t& v) {
-    v = sqlite3_column_int64(stmt_, pos);
-  }
+  void read_column(int pos, double& v) { v = sqlite3_column_double(stmt_, pos); }
+  void read_column(int pos, int64_t& v) { v = sqlite3_column_int64(stmt_, pos); }
   void read_column(int pos, std::string& v) {
     auto str = sqlite3_column_text(stmt_, pos);
     auto n = sqlite3_column_bytes(stmt_, pos);
@@ -1280,18 +1084,14 @@ struct sqlite_statement {
     return sqlite3_bind_double(stmt, pos, d);
   }
 
-  int bind(sqlite3_stmt* stmt, int pos, int d) const {
-    return sqlite3_bind_int(stmt, pos, d);
-  }
+  int bind(sqlite3_stmt* stmt, int pos, int d) const { return sqlite3_bind_int(stmt, pos, d); }
   int bind(sqlite3_stmt* stmt, int pos, long int d) const {
     return sqlite3_bind_int64(stmt, pos, d);
   }
   int bind(sqlite3_stmt* stmt, int pos, long long int d) const {
     return sqlite3_bind_int64(stmt, pos, d);
   }
-  void bind(sqlite3_stmt* stmt, int pos, sql_null_t) {
-    sqlite3_bind_null(stmt, pos);
-  }
+  void bind(sqlite3_stmt* stmt, int pos, sql_null_t) { sqlite3_bind_null(stmt, pos); }
   int bind(sqlite3_stmt* stmt, int pos, const char* s) const {
     return sqlite3_bind_text(stmt, pos, s, strlen(s), nullptr);
   }
@@ -1317,21 +1117,19 @@ void free_sqlite3_db(void* db) { sqlite3_close_v2((sqlite3*)db); }
 struct sqlite_connection {
   typedef std::shared_ptr<sqlite3> db_sptr;
   typedef std::unordered_map<std::string, sqlite_statement> stmt_map;
-  typedef std::shared_ptr<std::unordered_map<std::string, sqlite_statement>>
-      stmt_map_ptr;
+  typedef std::shared_ptr<std::unordered_map<std::string, sqlite_statement>> stmt_map_ptr;
   typedef std::shared_ptr<std::mutex> mutex_ptr;
 
   sqlite_connection()
-      : db_(nullptr), stm_cache_(new stmt_map()),
-        cache_mutex_(new std::mutex()) // FIXME
+      : db_(nullptr), stm_cache_(new stmt_map()), cache_mutex_(new std::mutex()) // FIXME
   {}
 
   void connect(const std::string& filename,
                int flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE) {
     int r = sqlite3_open_v2(filename.c_str(), &db_, flags, nullptr);
     if (r != SQLITE_OK)
-      throw std::runtime_error(std::string("Cannot open database ") + filename +
-                               " " + sqlite3_errstr(r));
+      throw std::runtime_error(std::string("Cannot open database ") + filename + " " +
+                               sqlite3_errstr(r));
 
     db_sptr_ = db_sptr(db_, free_sqlite3_db);
   }
@@ -1354,36 +1152,32 @@ struct sqlite_connection {
 
     int err = sqlite3_prepare_v2(db_, req.c_str(), req.size(), &stmt, nullptr);
     if (err != SQLITE_OK)
-      throw std::runtime_error(std::string("Sqlite error during prepare: ") +
-                               sqlite3_errmsg(db_) + " statement was: " + req);
+      throw std::runtime_error(std::string("Sqlite error during prepare: ") + sqlite3_errmsg(db_) +
+                               " statement was: " + req);
 
     cache_mutex_->lock();
-    auto it2 = stm_cache_->insert(
-        it, std::make_pair(req, sqlite_statement(db_, stmt)));
+    auto it2 = stm_cache_->insert(it, std::make_pair(req, sqlite_statement(db_, stmt)));
     cache_mutex_->unlock();
     return it2->second;
   }
-  sqlite_statement operator()(const std::string& req) {
-    return prepare(req)();
-  }
+  sqlite_statement operator()(const std::string& req) { return prepare(req)(); }
 
   template <typename T>
-  inline std::string
-  type_to_string(const T&, std::enable_if_t<std::is_integral<T>::value>* = 0) {
+  inline std::string type_to_string(const T&, std::enable_if_t<std::is_integral<T>::value>* = 0) {
     return "INTEGER";
   }
   template <typename T>
-  inline std::string
-  type_to_string(const T&,
-                 std::enable_if_t<std::is_floating_point<T>::value>* = 0) {
+  inline std::string type_to_string(const T&,
+                                    std::enable_if_t<std::is_floating_point<T>::value>* = 0) {
     return "REAL";
   }
   inline std::string type_to_string(const std::string&) { return "TEXT"; }
   inline std::string type_to_string(const sql_blob&) { return "BLOB"; }
-  template <unsigned SIZE>
-  inline std::string type_to_string(const sql_varchar<SIZE>&) { 
+  template <unsigned SIZE> inline std::string type_to_string(const sql_varchar<SIZE>&) {
     std::ostringstream ss;
-    ss << "VARCHAR(" << SIZE << ')'; return ss.str(); }
+    ss << "VARCHAR(" << SIZE << ')';
+    return ss.str();
+  }
 
   mutex_ptr cache_mutex_;
   sqlite3* db_;
@@ -1393,16 +1187,14 @@ struct sqlite_connection {
 
 struct sqlite_database {
   typedef sqlite_connection connection_type;
-  
+
   sqlite_database() {}
 
-  template <typename... O>
-  sqlite_database(const std::string& path, O... options_) {
+  template <typename... O> sqlite_database(const std::string& path, O... options_) {
     auto options = mmm(options_...);
 
     path_ = path;
-    con_.connect(path, SQLITE_OPEN_FULLMUTEX | SQLITE_OPEN_READWRITE |
-                           SQLITE_OPEN_CREATE);
+    con_.connect(path, SQLITE_OPEN_FULLMUTEX | SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE);
     if (has_key(options, s::synchronous)) {
       std::ostringstream ss;
       ss << "PRAGMA synchronous=" << li::get_or(options, s::synchronous, 2);
@@ -1538,7 +1330,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
   sql_orm(SCHEMA& schema, C con) : schema_(schema), con_(con) {}
 
   template <typename S, typename... A> void call_callback(S s, A&&... args) {
-    if constexpr(has_key<decltype(schema_.get_callbacks())>(S{}))
+    if constexpr (has_key<decltype(schema_.get_callbacks())>(S{}))
       return schema_.get_callbacks()[s](args...);
   }
 
@@ -1599,9 +1391,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     return *this;
   }
 
-  template <typename W>
-  void where_clause(W&& cond, std::ostringstream& ss)
-  {
+  template <typename W> void where_clause(W&& cond, std::ostringstream& ss) {
     ss << " WHERE ";
     bool first = true;
     map(cond, [&](auto k, auto v) {
@@ -1640,14 +1430,11 @@ template <typename SCHEMA, typename C> struct sql_orm {
   auto find_one(metamap<O...>&& o, assign_exp<A, B> w1, W... ws) {
     return find_one(cat(o, mmm(w1)), ws...);
   }
-  template <typename A, typename B, typename... W>
-  auto find_one(assign_exp<A, B> w1, W... ws) {
+  template <typename A, typename B, typename... W> auto find_one(assign_exp<A, B> w1, W... ws) {
     return find_one(mmm(w1), ws...);
   }
 
-  template <typename W>
-  bool exists(W&& cond)
-  {
+  template <typename W> bool exists(W&& cond) {
     std::ostringstream ss;
     O o;
     ss << "SELECT count(*) FROM " << schema_.table_name();
@@ -1659,8 +1446,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     return li::tuple_reduce(metamap_values(cond), stmt).template read<int>();
   }
 
-  template <typename A, typename B, typename... W>
-  auto exists(assign_exp<A, B> w1, W... ws) {
+  template <typename A, typename B, typename... W> auto exists(assign_exp<A, B> w1, W... ws) {
     return exists(mmm(w1, ws...));
   }
   // Save a ll fields except auto increment.
@@ -1672,7 +1458,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     auto values = schema_.without_auto_increment();
     map(o, [&](auto k, auto& v) { values[k] = o[k]; });
     // auto values = intersection(o, schema_.without_auto_increment());
-    
+
     call_callback(s::validate, values, cb_args...);
     call_callback(s::before_insert, values, cb_args...);
     ss << "INSERT into " << schema_.table_name() << "(";
@@ -1687,7 +1473,6 @@ template <typename SCHEMA, typename C> struct sql_orm {
       ss << li::symbol_string(k);
       vs << "?";
     });
-
 
     ss << ") VALUES (" << vs.str() << ")";
     auto req = con_.prepare(ss.str());
@@ -1759,8 +1544,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
   void update(metamap<O...>&& o, assign_exp<A, B> w1, W... ws) {
     return update(cat(o, mmm(w1)), ws...);
   }
-  template <typename A, typename B, typename... W>
-  void update(assign_exp<A, B> w1, W... ws) {
+  template <typename A, typename B, typename... W> void update(assign_exp<A, B> w1, W... ws) {
     return update(mmm(w1), ws...);
   }
 
@@ -1792,8 +1576,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
   void remove(metamap<O...>&& o, assign_exp<A, B> w1, W... ws) {
     return remove(cat(o, mmm(w1)), ws...);
   }
-  template <typename A, typename B, typename... W>
-  void remove(assign_exp<A, B> w1, W... ws) {
+  template <typename A, typename B, typename... W> void remove(assign_exp<A, B> w1, W... ws) {
     return remove(mmm(w1), ws...);
   }
 
@@ -1813,10 +1596,11 @@ template <typename... F> struct orm_fields {
 
   // Field extractor.
   template <typename M> auto get_field(M m) { return m; }
-  template <typename M, typename T> 
-  auto get_field(assign_exp<M, T> e) { return e; }
-  template <typename M, typename T, typename... A> 
-  auto get_field(assign_exp<function_call_exp<M, A...>, T> e) { return assign_exp<M, T>{M{}, e.right}; }
+  template <typename M, typename T> auto get_field(assign_exp<M, T> e) { return e; }
+  template <typename M, typename T, typename... A>
+  auto get_field(assign_exp<function_call_exp<M, A...>, T> e) {
+    return assign_exp<M, T>{M{}, e.right};
+  }
 
   // template <typename M> struct get_field { typedef M ret; };
   // template <typename M, typename T> struct get_field<assign_exp<M, T>> {
@@ -1824,10 +1608,11 @@ template <typename... F> struct orm_fields {
   //   static auto ctor() { return assign_exp<M, T>{M{}, T()}; }
   // };
   // template <typename M, typename T, typename... A>
-  // struct get_field<assign_exp<function_call_exp<M, A...>, T>> : public get_field<assign_exp<M, T>> {
+  // struct get_field<assign_exp<function_call_exp<M, A...>, T>> : public get_field<assign_exp<M,
+  // T>> {
   // };
 
-//get_field<E>::ctor();
+// get_field<E>::ctor();
 // field attributes checks.
 #define CHECK_FIELD_ATTR(ATTR)                                                                     \
   template <typename M> struct is_##ATTR : std::false_type {};                                     \
@@ -1837,24 +1622,24 @@ template <typename... F> struct orm_fields {
                                                                                                    \
   auto ATTR() {                                                                                    \
     return tuple_map_reduce(fields_,                                                               \
-                            [this](auto e) {                                                           \
+                            [this](auto e) {                                                       \
                               typedef std::remove_reference_t<decltype(e)> E;                      \
                               if constexpr (is_##ATTR<E>::value)                                   \
-                                return get_field(e);                                       \
+                                return get_field(e);                                               \
                               else                                                                 \
                                 return skip{};                                                     \
                             },                                                                     \
                             make_metamap_skip);                                                    \
   }
 
-  CHECK_FIELD_ATTR(primary_key); 
+  CHECK_FIELD_ATTR(primary_key);
   CHECK_FIELD_ATTR(read_only);
   CHECK_FIELD_ATTR(auto_increment);
   CHECK_FIELD_ATTR(computed);
 #undef CHECK_FIELD_ATTR
 
   // Do not remove this comment, this is used by the symbol generation.
-  // s::primary_key s::read_only s::auto_increment s::computed 
+  // s::primary_key s::read_only s::auto_increment s::computed
 
   auto all_info() { return fields_; }
 
@@ -1862,15 +1647,16 @@ template <typename... F> struct orm_fields {
 
     return tuple_map_reduce(fields_,
                             [this](auto e) {
-                              //typedef std::remove_reference_t<decltype(e)> E;
+                              // typedef std::remove_reference_t<decltype(e)> E;
                               return get_field(e);
                             },
                             [](auto... e) { return mmm(e...); });
   }
 
   auto without_auto_increment() { return substract(all_fields(), auto_increment()); }
-  auto all_fields_except_computed() { return substract(substract(all_fields(), computed()),
-                                                       auto_increment()); }
+  auto all_fields_except_computed() {
+    return substract(substract(all_fields(), computed()), auto_increment());
+  }
 
   std::tuple<F...> fields_;
 };
@@ -1891,14 +1677,17 @@ struct sql_orm_schema : public MD {
     auto allowed_callbacks = mmm(s::before_insert, s::before_remove, s::before_update,
                                  s::after_insert, s::after_remove, s::after_update, s::validate);
 
-    static_assert(metamap_size<decltype(substract(cbs, allowed_callbacks))>() == 0, 
-    "The only supported callbacks are: s::before_insert, s::before_remove, s::before_update,"
-    " s::after_insert, s::after_remove, s::after_update, s::validate");
-    return sql_orm_schema<DB, MD, decltype(cbs)>(database_, table_name_, cbs, *static_cast<const MD*>(this));
+    static_assert(
+        metamap_size<decltype(substract(cbs, allowed_callbacks))>() == 0,
+        "The only supported callbacks are: s::before_insert, s::before_remove, s::before_update,"
+        " s::after_insert, s::after_remove, s::after_update, s::validate");
+    return sql_orm_schema<DB, MD, decltype(cbs)>(database_, table_name_, cbs,
+                                                 *static_cast<const MD*>(this));
   }
 
   template <typename... P> auto fields(P... p) const {
-    return sql_orm_schema<DB, orm_fields<P...>, CB>(database_, table_name_, callbacks_, orm_fields<P...>(p...));
+    return sql_orm_schema<DB, orm_fields<P...>, CB>(database_, table_name_, callbacks_,
+                                                    orm_fields<P...>(p...));
   }
 
   DB& database_;
@@ -1939,8 +1728,9 @@ auto type_to_mysql_statement_buffer_type(const float&) { return MYSQL_TYPE_FLOAT
 auto type_to_mysql_statement_buffer_type(const double&) { return MYSQL_TYPE_DOUBLE; }
 auto type_to_mysql_statement_buffer_type(const sql_blob&) { return MYSQL_TYPE_BLOB; }
 auto type_to_mysql_statement_buffer_type(const char*) { return MYSQL_TYPE_STRING; }
-template <unsigned S>
-auto type_to_mysql_statement_buffer_type(const sql_varchar<S>) { return MYSQL_TYPE_STRING; }
+template <unsigned S> auto type_to_mysql_statement_buffer_type(const sql_varchar<S>) {
+  return MYSQL_TYPE_STRING;
+}
 
 auto type_to_mysql_statement_buffer_type(const unsigned char&) { return MYSQL_TYPE_TINY; }
 auto type_to_mysql_statement_buffer_type(const unsigned short int&) { return MYSQL_TYPE_SHORT; }
@@ -1971,7 +1761,7 @@ struct mysql_statement {
   }
 
   auto& operator()() {
-  if (mysql_stmt_execute(stmt_) != 0)
+    if (mysql_stmt_execute(stmt_) != 0)
       throw std::runtime_error(std::string("mysql_stmt_execute error: ") + mysql_stmt_error(stmt_));
     return *this;
   }
@@ -2010,8 +1800,9 @@ struct mysql_statement {
     b.buffer_length = s.size();
   }
   void bind(MYSQL_BIND& b, const std::string& s) { bind(b, *const_cast<std::string*>(&s)); }
-  template <unsigned SIZE>
-  void bind(MYSQL_BIND& b, const sql_varchar<SIZE>& s) { bind(b, *const_cast<std::string*>(static_cast<const std::string*>(&s))); }
+  template <unsigned SIZE> void bind(MYSQL_BIND& b, const sql_varchar<SIZE>& s) {
+    bind(b, *const_cast<std::string*>(static_cast<const std::string*>(&s)));
+  }
 
   void bind(MYSQL_BIND& b, char* s) {
     b.buffer = s;
@@ -2229,7 +2020,7 @@ struct mysql_statement {
 struct mysql_database;
 
 struct mysql_connection {
-  //mysql_connection(MYSQL* con) : con_(con) {}
+  // mysql_connection(MYSQL* con) : con_(con) {}
 
   // template <typename... OPTS> inline mysql_connection(OPTS&&... opts) :
   // con_(impl::open_mysql_connection(opts...)) {}
@@ -2238,12 +2029,10 @@ struct mysql_connection {
 
   long long int last_insert_rowid() { return mysql_insert_id(con_); }
 
-  mysql_statement& operator()(std::string rq) {
-    return prepare(rq)();
-  }
+  mysql_statement& operator()(std::string rq) { return prepare(rq)(); }
 
   mysql_statement& prepare(std::string rq) {
-    std::cout << rq << std::endl;
+    //std::cout << rq << std::endl;
     auto it = stm_cache_.find(rq);
     if (it != stm_cache_.end())
       return it->second;
@@ -2270,10 +2059,11 @@ struct mysql_connection {
   }
   inline std::string type_to_string(const std::string&) { return "MEDIUMTEXT"; }
   inline std::string type_to_string(const sql_blob&) { return "BLOB"; }
-  template <unsigned S>
-  inline std::string type_to_string(const sql_varchar<S>) { 
+  template <unsigned S> inline std::string type_to_string(const sql_varchar<S>) {
     std::ostringstream ss;
-    ss << "VARCHAR(" << S << ')'; return ss.str(); }
+    ss << "VARCHAR(" << S << ')';
+    return ss.str();
+  }
 
   std::unordered_map<std::string, mysql_statement> stm_cache_;
   MYSQL* con_;
@@ -2298,7 +2088,7 @@ struct mysql_database : std::enable_shared_from_this<mysql_database> {
     user_ = options.user;
     passwd_ = options.password;
     port_ = get_or(options, s::port, 0);
- 
+
     character_set_ = get_or(options, s::charset, "utf8");
 
     if (mysql_library_init(0, NULL, NULL))
@@ -2362,8 +2152,218 @@ inline mysql_connection::mysql_connection(MYSQL* con, mysql_database& pool)
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_DECODER
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_DECODER
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_UTILS
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_UTILS
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_DECODE_STRINGSTREAM
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_DECODE_STRINGSTREAM
+
+
+namespace li {
+
+using std::string_view;
+
+namespace internal {
+template <typename I> void parse_uint(I* val_, const char* str, const char** end) {
+  I& val = *val_;
+  val = 0;
+  int i = 0;
+  while (i < 40) {
+    char c = *str;
+    if (c < '0' or c > '9')
+      break;
+    val = val * 10 + c - '0';
+    str++;
+    i++;
+  }
+  if (end)
+    *end = str;
+}
+
+template <typename I> void parse_int(I* val, const char* str, const char** end) {
+  bool neg = false;
+
+  if (str[0] == '-') {
+    neg = true;
+    str++;
+  }
+  parse_uint(val, str, end);
+  if constexpr (!std::is_same<I, bool>::value) {
+    if (neg)
+      *val = -(*val);
+  }
+}
+
+inline unsigned long long pow10(unsigned int e) {
+  unsigned long long pows[] = {1,
+                               10,
+                               100,
+                               1000,
+                               10000,
+                               100000,
+                               1000000,
+                               10000000,
+                               100000000,
+                               1000000000,
+                               10000000000,
+                               100000000000,
+                               1000000000000,
+                               10000000000000,
+                               100000000000000,
+                               1000000000000000,
+                               10000000000000000,
+                               100000000000000000};
+
+  if (e < 18)
+    return pows[e];
+  else
+    return 0;
+}
+
+template <typename F> void parse_float(F* f, const char* str, const char** end) {
+  // 1.234e-10
+  // [sign][int][decimal_part][exp]
+
+  const char* it = str;
+  int integer_part;
+  parse_int(&integer_part, it, &it);
+  int sign = integer_part >= 0 ? 1 : -1;
+  *f = integer_part;
+  if (*it == '.') {
+    it++;
+    unsigned long long decimal_part;
+    const char* dec_end;
+    parse_uint(&decimal_part, it, &dec_end);
+
+    if (dec_end > it)
+      *f += (F(decimal_part) / pow10(dec_end - it)) * sign;
+
+    it = dec_end;
+  }
+
+  if (*it == 'e' || *it == 'E') {
+    it++;
+    bool neg = false;
+    if (*it == '-') {
+      neg = true;
+      it++;
+    }
+
+    unsigned int exp = 0;
+    parse_uint(&exp, it, &it);
+    if (neg)
+      *f = *f / pow10(exp);
+    else
+      *f = *f * pow10(exp);
+  }
+
+  if (end)
+    *end = it;
+}
+
+} // namespace internal
+
+class decode_stringstream {
+public:
+  inline decode_stringstream(string_view buffer_)
+      : cur(buffer_.data()), bad_(false), buffer(buffer_) {}
+
+  inline bool eof() const { return cur >= &buffer.back(); }
+  inline const char peek() const { return *cur; }
+  inline int get() { return *(cur++); }
+  inline int bad() const { return bad_; }
+
+  template <typename T> void operator>>(T& value) {
+    eat_spaces();
+    if constexpr (std::is_floating_point<T>::value) {
+      // Decode floating point.
+      eat_spaces();
+      const char* end = nullptr;
+      internal::parse_float(&value, cur, &end);
+      if (end == cur)
+        bad_ = true;
+      cur = end;
+    } else if constexpr (std::is_integral<T>::value) {
+      // Decode integer.
+      const char* end = nullptr;
+      internal::parse_int(&value, cur, &end);
+      if (end == cur)
+        bad_ = true;
+      cur = end;
+    } else if constexpr (std::is_same<T, std::string>::value) {
+      // Decode UTF8 string.
+      json_to_utf8(*this, value);
+    } else if constexpr (std::is_same<T, string_view>::value) {
+      // Decoding to stringview does not decode utf8.
+
+      if (get() != '"') {
+        bad_ = true;
+        return;
+      }
+
+      const char* start = cur;
+      bool escaped = false;
+
+      while (peek() != '\0' and (escaped or peek() != '"')) {
+        int nb = 0;
+        while (peek() == '\\')
+          nb++;
+
+        escaped = nb % 2;
+        cur++;
+      }
+      const char* end = cur;
+      value = string_view(start, end - start);
+
+      if (get() != '"') {
+        bad_ = true;
+        return;
+      }
+    }
+  }
+
+private:
+  inline void eat_spaces() {
+    while (peek() < 33)
+      ++cur;
+  }
+
+  int bad_;
+  const char* cur;
+  string_view buffer; //
+};
+
+} // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_DECODE_STRINGSTREAM
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_ERROR
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_ERROR
+
+
+namespace li {
+
+enum json_error_code { JSON_OK = 0, JSON_KO = 1 };
+
+struct json_error {
+  json_error& operator=(const json_error&) = default;
+  operator bool() { return code != 0; }
+  bool good() { return code == 0; }
+  bool bad() { return code != 0; }
+  int code;
+  std::string what;
+};
+
+int make_json_error(const char* what) { return 1; }
+int json_no_error() { return 0; }
+
+static int json_ok = json_no_error();
+
+} // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_ERROR
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_UNICODE
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_UNICODE
+
+
 
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_SYMBOLS
@@ -2395,1035 +2395,745 @@ inline mysql_connection::mysql_connection(MYSQL* con, mysql_database& pool)
 
 namespace li {
 
-
-  
-  
-  
-  
-  
-  template <typename T>
-  struct json_object_base;
-  
-  template <typename T>    struct json_object_;
-  template <typename T>    struct json_vector_;
-  template <typename V>    struct json_value_;
-  template <typename... T> struct json_tuple_;
-  struct json_key;
-  
-  namespace impl
-  {
-    template <typename S, typename... A>
-    auto make_json_object_member(const function_call_exp<S, A...>& e);
-    template <typename S>
-    auto make_json_object_member(const li::symbol<S>&);
-
-    template <typename S, typename T>
-    auto make_json_object_member(const assign_exp<S, T>& e)
-    {
-      return cat(make_json_object_member(e.left),
-                 mmm(s::type = e.right));
-    }
-
-    template <typename S>
-    auto make_json_object_member(const li::symbol<S>&)
-    {
-      return mmm(s::name = S{});
-    }
-
-    template <typename V>
-    auto to_json_schema(V v)
-    {
-      return json_value_<V>{};
-    }
-
-    template <typename... M>
-    auto to_json_schema(const metamap<M...>& m);
-    
-    template <typename V>
-    auto to_json_schema(const std::vector<V>& arr)
-    {
-      auto elt = to_json_schema(decltype(arr[0]){});
-      return json_vector_<decltype(elt)>{elt};
-    }
-    
-    template <typename... V>
-    auto to_json_schema(const std::tuple<V...>& arr)
-    {
-      return json_tuple_<decltype(to_json_schema(V{}))...>(to_json_schema(V{})...);
-    }
-
-    template <typename... M>
-    auto to_json_schema(const metamap<M...>& m)
-    {
-      auto tuple_maker = [] (auto&&... t) { return std::make_tuple(std::forward<decltype(t)>(t)...); };
-
-      auto entities = map_reduce(m, [] (auto k, auto v) {
-          return mmm(s::name = k, s::type = to_json_schema(v));
-        }, tuple_maker);
-
-
-      return json_object_<decltype(entities)>(entities);
-    }
-
-    
-    template <typename... E>
-    auto json_object_to_metamap(const json_object_<std::tuple<E...>>& s)
-    {
-      auto make_kvs = [] (auto... elt)
-        {
-          return std::make_tuple((elt.name = elt.type)...);
-        };
-
-      auto kvs = std::apply(make_kvs, s.entities);
-      return std::apply(mmm, kvs);
-    }
-
-    template <typename S, typename... A>
-    auto make_json_object_member(const function_call_exp<S, A...>& e)
-    {
-      auto res = mmm(s::name = e.method, s::json_key = symbol_string(e.method));
-
-      auto parse = [&] (auto a)
-        {
-          if constexpr(std::is_same<decltype(a), json_key>::value) {
-              res.json_key = a.key;
-            }
-        };
-
-      ::li::tuple_map(e.args, parse);
-      return res;
-    }
-    
-  }
-
-  template <typename T>
-  struct json_object_;
-
-  template <typename O>
-  struct json_vector_;
-  
-
-  template <typename E> constexpr auto json_is_vector(json_vector_<E>) ->  std::true_type { return {}; }
-  template <typename E> constexpr auto json_is_vector(E) ->  std::false_type { return {}; }
-
-  template <typename... E> constexpr auto json_is_tuple(json_tuple_<E...>) ->  std::true_type { return {}; }
-  template <typename E> constexpr auto json_is_tuple(E) ->  std::false_type { return {}; }
-  
-  template <typename E> constexpr auto json_is_object(json_object_<E>) ->  std::true_type { return {}; }
-  template <typename E> constexpr auto json_is_object(E) ->  std::false_type { return {}; }
-
-  template <typename E> constexpr auto json_is_value(json_object_<E>) ->  std::false_type { return {}; }
-  template <typename E> constexpr auto json_is_value(json_vector_<E>) ->  std::false_type { return {}; }
-  template <typename... E> constexpr auto json_is_value(json_tuple_<E...>) ->  std::false_type { return {}; }
-  template <typename E> constexpr auto json_is_value(E) ->  std::true_type { return {}; }
-
-
-  template <typename T>
-  constexpr auto is_std_optional(std::optional<T>) -> std::true_type;
-  template <typename T>
-  constexpr auto is_std_optional(T) -> std::false_type;
-  
+template <typename O> inline decltype(auto) wrap_json_output_stream(O&& s) {
+  return mmm(s::append = [&s](char c) { s << c; });
 }
 
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_UTILS
-
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_UNICODE
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_UNICODE
-
-
-
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_DECODE_STRINGSTREAM
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_DECODE_STRINGSTREAM
-
-
-namespace li {
-
-  using std::string_view;
-  
-  namespace internal
-  {
-    template <typename I>
-    void parse_uint(I* val_, const char* str, const char** end)
-    {
-      I& val = *val_;
-      val = 0;
-      int i = 0;
-      while (i < 40)
-      {
-        char c = *str;
-        if (c < '0' or c > '9') break;
-        val = val * 10 + c - '0';
-        str++;
-        i++;
-      }
-      if (end)
-        *end = str;
-    }
-
-    template <typename I>
-    void parse_int(I* val, const char* str, const char** end)
-    {
-      bool neg = false;
-
-      if (str[0] == '-')
-      {
-        neg = true;
-        str++;
-      }
-      parse_uint(val, str, end);
-      if constexpr (!std::is_same<I, bool>::value)
-      {
-        if (neg)
-          *val = -(*val);
-      }
-    }
-
-    inline unsigned long long pow10(unsigned int e)
-    {
-      unsigned long long pows[] = {
-        1,
-        10,
-        100,
-        1000,
-        10000,
-        100000,
-        1000000,
-        10000000,
-        100000000,
-        1000000000,
-        10000000000,
-        100000000000,
-        1000000000000,
-        10000000000000,
-        100000000000000,
-        1000000000000000,
-        10000000000000000,
-        100000000000000000
-      };
-
-      if (e < 18)
-        return pows[e];
-      else
-        return 0;
-    }
-    
-    template <typename F>
-    void parse_float(F* f, const char* str, const char** end)
-    {
-      // 1.234e-10
-      // [sign][int][decimal_part][exp]
-
-      const char* it = str;
-      int integer_part;
-      parse_int(&integer_part, it, &it);
-      int sign = integer_part >= 0 ? 1 : -1;
-      *f = integer_part;
-      if (*it == '.')
-      {
-        it++;
-        unsigned long long decimal_part;
-        const char* dec_end;
-        parse_uint(&decimal_part, it, &dec_end);
-
-        if (dec_end > it)
-          *f += (F(decimal_part) / pow10(dec_end - it)) * sign;
-
-        it = dec_end;
-      }
-
-      if (*it == 'e' || *it == 'E')
-      {
-        it++;
-        bool neg = false;
-        if (*it == '-')
-        {
-          neg = true;
-          it++;
-        }
-
-        unsigned int exp = 0;
-        parse_uint(&exp, it, &it);
-        if (neg)
-          *f = *f / pow10(exp);
-        else
-          *f = *f * pow10(exp);
-      }
-      
-      if (end)
-        *end = it;
-
-    }
-    
-  }
-
-  class decode_stringstream
-  {
-  public:
-
-    inline decode_stringstream(string_view buffer_)
-      : cur(buffer_.data()),
-        bad_(false),
-        buffer(buffer_) {}
-    
-    inline bool eof() const { return cur >= &buffer.back(); }
-    inline const char peek() const { return *cur; }
-    inline int get()        { return *(cur++); }
-    inline int bad() const  { return bad_; }
-
-    template <typename T>
-    void operator>>(T& value)
-      {
-        eat_spaces();
-        if constexpr(std::is_floating_point<T>::value) {
-            // Decode floating point.
-            eat_spaces();
-            const char* end = nullptr;
-            internal::parse_float(&value, cur, &end);
-            if (end == cur)
-              bad_ = true;
-            cur = end;
-          }
-        else if constexpr (std::is_integral<T>::value) {
-            // Decode integer.
-            const char* end = nullptr;
-            internal::parse_int(&value, cur, &end);
-            if (end == cur)
-              bad_ = true;
-            cur = end;
-          }
-        else if constexpr (std::is_same<T, std::string>::value) {
-            // Decode UTF8 string.
-            json_to_utf8(*this, value);
-          }
-        else if constexpr (std::is_same<T, string_view>::value) {
-            // Decoding to stringview does not decode utf8.
-
-            if (get() != '"')
-            {
-              bad_ = true;
-              return;
-            }
-
-            const char* start = cur;
-            bool escaped = false;
-            
-            while (peek() != '\0' and (escaped or peek() != '"'))
-            {
-              int nb = 0;
-              while (peek() == '\\')
-                nb++;
-
-              escaped = nb % 2;
-              cur++;
-            }
-            const char* end = cur;
-            value = string_view(start, end - start);
-
-            if (get() != '"')
-            {
-              bad_ = true;
-              return;
-            }
-            
-          }
-      }
-
-  private:
-
-    inline void eat_spaces()
-      {
-        while (peek() < 33) ++cur;
-      }
-    
-    int bad_;
-    const char* cur;
-    string_view buffer; //
-  };
-
+inline decltype(auto) wrap_json_output_stream(std::ostringstream& s) {
+  return mmm(s::append = [&s](char c) { s << c; });
 }
 
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_DECODE_STRINGSTREAM
-
-
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_ERROR
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_ERROR
-
-
-namespace li {
-
-
-  enum json_error_code
-  {
-    JSON_OK = 0,
-    JSON_KO = 1
-  };
-    
-  struct json_error
-  {
-    json_error& operator=(const json_error&) = default;
-    operator bool() { return code != 0; }
-    bool good() { return code == 0; }
-    bool bad() { return code != 0; }
-    int code;
-    std::string what;
-  };
-
-  int make_json_error(const char* what) { return 1; }
-  int json_no_error() { return 0; }
-
-  static int json_ok = json_no_error();
-
+inline decltype(auto) wrap_json_output_stream(std::string& s) {
+  return mmm(s::append = [&s](char c) { s.append(1, c); });
 }
 
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_ERROR
+inline decltype(auto) wrap_json_input_stream(std::istringstream& s) { return s; }
+inline decltype(auto) wrap_json_input_stream(std::stringstream& s) { return s; }
+inline decltype(auto) wrap_json_input_stream(decode_stringstream& s) { return s; }
+inline decltype(auto) wrap_json_input_stream(const std::string& s) { return std::istringstream(s); }
+inline decltype(auto) wrap_json_input_stream(const char* s) {
+  return std::istringstream(std::string(s));
+}
+inline decltype(auto) wrap_json_input_stream(const std::string_view& s) {
+  return std::istringstream(std::string(s));
+}
 
+namespace unicode_impl {
+template <typename S, typename T> auto json_to_utf8(S&& s, T&& o);
 
-namespace li {
+template <typename S, typename T> auto utf8_to_json(S&& s, T&& o);
+} // namespace unicode_impl
 
-  
-  
-  template <typename O>
-  inline decltype(auto) wrap_json_output_stream(O&& s)
-  {
-    return mmm(s::append = [&s] (char c) { s << c; });
-  }
-  
-  inline decltype(auto) wrap_json_output_stream(std::ostringstream& s)
-  {
-    return mmm(s::append = [&s] (char c) { s << c; });
-  }
+template <typename I, typename O> auto json_to_utf8(I&& i, O&& o) {
+  return unicode_impl::json_to_utf8(wrap_json_input_stream(std::forward<I>(i)),
+                                    wrap_json_output_stream(std::forward<O>(o)));
+}
 
-  inline decltype(auto) wrap_json_output_stream(std::string& s)
-  {
-    return mmm(s::append = [&s] (char c) { s.append(1, c); });
-  }
+template <typename I, typename O> auto utf8_to_json(I&& i, O&& o) {
+  return unicode_impl::utf8_to_json(wrap_json_input_stream(std::forward<I>(i)),
+                                    wrap_json_output_stream(std::forward<O>(o)));
+}
 
-  inline decltype(auto)
-  wrap_json_input_stream(std::ostringstream& s) { return s; }
-  inline decltype(auto)
-  wrap_json_input_stream(decode_stringstream& s) { return s; }
-  inline decltype(auto)
-  wrap_json_input_stream(const std::string& s) { return std::ostringstream(s); }
-  inline decltype(auto)
-  wrap_json_input_stream(const char* s) { return std::ostringstream(std::string(s)); }
-  inline decltype(auto)
-  wrap_json_input_stream(const std::string_view& s) { return std::ostringstream(std::string(s)); }
+enum json_encodings { UTF32BE, UTF32LE, UTF16BE, UTF16LE, UTF8 };
 
-  namespace unicode_impl
-  {
-    template <typename S, typename T>
-    auto json_to_utf8(S&& s, T&& o);
+// Detection of encoding depending on the pattern of the
+// first fourth characters.
+auto detect_encoding(char a, char b, char c, char d) {
+  // 00 00 00 xx  UTF-32BE
+  // xx 00 00 00  UTF-32LE
+  // 00 xx 00 xx  UTF-16BE
+  // xx 00 xx 00  UTF-16LE
+  // xx xx xx xx  UTF-8
 
-    template <typename S, typename T>
-    auto utf8_to_json(S&& s, T&& o);
-  }
-  
-  template <typename I, typename O>
-  auto json_to_utf8(I&& i, O&& o)
-  {
-    return unicode_impl::json_to_utf8(wrap_json_input_stream(std::forward<I>(i)),
-                                      wrap_json_output_stream(std::forward<O>(o)));
-  }
+  if (a == 0 and b == 0)
+    return UTF32BE;
+  else if (c == 0 and d == 0)
+    return UTF32LE;
+  else if (a == 0)
+    return UTF16BE;
+  else if (b == 0)
+    return UTF16LE;
+  else
+    return UTF8;
+}
 
-  template <typename I, typename O>
-  auto utf8_to_json(I&& i, O&& o)
-  {
-    return unicode_impl::utf8_to_json(wrap_json_input_stream(std::forward<I>(i)),
-                              wrap_json_output_stream(std::forward<O>(o)));
-  }
-  
-  enum json_encodings
-    {
-      UTF32BE,
-      UTF32LE,
-      UTF16BE,
-      UTF16LE,
-      UTF8
-    };
+// The JSON RFC escapes character codepoints prefixed with a \uXXXX (7-11 bits codepoints)
+// or \uXXXX\uXXXX (20 bits codepoints)
 
-  // Detection of encoding depending on the pattern of the
-  // first fourth characters.
-  auto detect_encoding(char a, char b, char c, char d)
-  {
-    // 00 00 00 xx  UTF-32BE
-    // xx 00 00 00  UTF-32LE
-    // 00 xx 00 xx  UTF-16BE
-    // xx 00 xx 00  UTF-16LE
-    // xx xx xx xx  UTF-8
+// uft8 string have 4 kinds of character representation encoding the codepoint of the character.
 
-    if (a == 0 and b == 0) return UTF32BE;
-    else if (c == 0 and d == 0) return UTF32LE;
-    else if (a == 0) return UTF16BE;
-    else if (b == 0) return UTF16LE;
-    else return UTF8;
-  }
+// 1 byte : 0xxxxxxx  -> 7 bits codepoint ASCII chars from 0x00 to 0x7F
+// 2 bytes: 110xxxxx 10xxxxxx -> 11 bits codepoint
+// 3 bytes: 1110xxxx 10xxxxxx 10xxxxxx -> 11 bits codepoint
 
-  // The JSON RFC escapes character codepoints prefixed with a \uXXXX (7-11 bits codepoints)
-  // or \uXXXX\uXXXX (20 bits codepoints)
+// 1 and 3 bytes representation are escaped as \uXXXX with X a char in the 0-9A-F range. It
+// is possible since the codepoint is less than 16 bits.
 
-  // uft8 string have 4 kinds of character representation encoding the codepoint of the character.
-    
-  // 1 byte : 0xxxxxxx  -> 7 bits codepoint ASCII chars from 0x00 to 0x7F
-  // 2 bytes: 110xxxxx 10xxxxxx -> 11 bits codepoint
-  // 3 bytes: 1110xxxx 10xxxxxx 10xxxxxx -> 11 bits codepoint
+// the 4 bytes representation uses the UTF-16 surrogate pair (high and low surrogate).
 
-  // 1 and 3 bytes representation are escaped as \uXXXX with X a char in the 0-9A-F range. It
-  // is possible since the codepoint is less than 16 bits.
+// The high surrogate is in the 0xD800..0xDBFF range (HR) and
+// the low surrogate is in the 0xDC00..0xDFFF range (LR).
 
-  // the 4 bytes representation uses the UTF-16 surrogate pair (high and low surrogate).
+// to encode a given 20bits codepoint c to the surrogate pair.
+//  - substract 0x10000 to c
+//  - separate the result in a high (first 10 bits) and low (last 10bits) surrogate.
+//  - Add 0xD800 to the high surrogate
+//  - Add 0xDC00 to the low surrogate
+//  - the 32 bits code is (high << 16) + low.
 
-  // The high surrogate is in the 0xD800..0xDBFF range (HR) and
-  // the low surrogate is in the 0xDC00..0xDFFF range (LR).
+// and to json-escape the high-low(H-L) surrogates representation (16+16bits):
+//  - Check that H and L are respectively in the HR and LR ranges.
+//  - add to H-L 0x0001_0000 - 0xD800_DC00 to get the 20bits codepoint c.
+//  - Encode the codepoint in a string of \uXXXX\uYYYY with X and Y the respective hex digits
+//    of the high and low sequence of 10 bits.
 
-  // to encode a given 20bits codepoint c to the surrogate pair.
-  //  - substract 0x10000 to c
-  //  - separate the result in a high (first 10 bits) and low (last 10bits) surrogate.
-  //  - Add 0xD800 to the high surrogate
-  //  - Add 0xDC00 to the low surrogate
-  //  - the 32 bits code is (high << 16) + low.
+// In addition to utf8, JSON escape characters ( " \ / ) with a backslash and translate
+// \n \r \t \b \r in their matching two characters string, for example '\n' to  '\' followed by 'n'.
 
-  // and to json-escape the high-low(H-L) surrogates representation (16+16bits):
-  //  - Check that H and L are respectively in the HR and LR ranges.
-  //  - add to H-L 0x0001_0000 - 0xD800_DC00 to get the 20bits codepoint c.
-  //  - Encode the codepoint in a string of \uXXXX\uYYYY with X and Y the respective hex digits
-  //    of the high and low sequence of 10 bits.
-    
-  // In addition to utf8, JSON escape characters ( " \ / ) with a backslash and translate
-  // \n \r \t \b \r in their matching two characters string, for example '\n' to  '\' followed by 'n'.
+namespace unicode_impl {
+template <typename S, typename T> auto json_to_utf8(S&& s, T&& o) {
+  // Convert a JSON string into an UTF-8 string.
+  if (s.get() != '"')
+    return JSON_KO; // make_json_error("json_to_utf8: JSON strings should start with a double
+                    // quote.");
 
-  namespace unicode_impl
-  {
-    template <typename S, typename T>
-    auto json_to_utf8(S&& s, T&& o)
-    {
-      // Convert a JSON string into an UTF-8 string.
-      if (s.get() != '"')
-        return JSON_KO;//make_json_error("json_to_utf8: JSON strings should start with a double quote.");
-      
-      while (true)
-      {
-        // Copy until we find the escaping backslash or the end of the string (double quote).
-        while (s.peek() != EOF and s.peek() != '"' and s.peek() != '\\')
-          o.append(s.get());
+  while (true) {
+    // Copy until we find the escaping backslash or the end of the string (double quote).
+    while (s.peek() != EOF and s.peek() != '"' and s.peek() != '\\')
+      o.append(s.get());
 
-        // If eof found before the end of the string, return an error.
-        if (s.eof()) return JSON_KO;// make_json_error("json_to_utf8: Unexpected end of string when parsing a string.");
+    // If eof found before the end of the string, return an error.
+    if (s.eof())
+      return JSON_KO; // make_json_error("json_to_utf8: Unexpected end of string when parsing a
+                      // string.");
 
-        // If end of json string, return
-        if (s.peek() == '"')
-        {
-          break;
-          return JSON_OK;
-        }
-
-        // Get the '\'.
-        assert(s.peek() ==  '\\');
-        s.get();
-
-        switch (s.get())
-        {
-          // List of escaped char from http://www.json.org/ 
-        default:
-          return JSON_KO;//make_json_error("json_to_utf8: Bad JSON escaped character.");
-        case '"': o.append('"'); break;
-        case '\\': o.append('\\'); break;
-        case '/': o.append('/'); break;
-        case 'n': o.append('\n'); break;
-        case 'r': o.append('\r'); break;
-        case 't': o.append('\t'); break;
-        case 'b': o.append('\b'); break;
-        case 'f': o.append('\f'); break;
-        case 'u':
-          char a,b,c,d;
-
-          a = s.get();
-          b = s.get();
-          c = s.get();
-          d = s.get();
-
-          if (s.eof())
-            return JSON_KO;//make_json_error("json_to_utf8: Unexpected end of string when decoding an utf8 character");
-
-          auto decode_hex_c = [] (char c) {
-            if (c >= '0' and c <= '9') return c - '0';
-            else return (10 + std::toupper(c) - 'A');
-          };
-              
-          uint16_t x =
-            (decode_hex_c(a) << 12) +
-            (decode_hex_c(b) << 8) +
-            (decode_hex_c(c) << 4) +
-            decode_hex_c(d);
-
-          // If x in the  0xD800..0xDBFF range -> decode a surrogate pair \uXXXX\uYYYY -> 20 bits codepoint.
-          if (x >= 0xD800 and x <= 0xDBFF)
-          {
-            if (s.get() != '\\' or s.get() != 'u')
-              return JSON_KO;//make_json_error("json_to_utf8: Missing low surrogate.");
-          
-            uint16_t y =
-              (decode_hex_c(s.get()) << 12) +
-              (decode_hex_c(s.get()) << 8) +
-              (decode_hex_c(s.get()) << 4) +
-              decode_hex_c(s.get());
-
-            if (s.eof())
-              return JSON_KO;//make_json_error("json_to_utf8: Unexpected end of string when decoding an utf8 character");
-
-            x -= 0xD800;
-            y -= 0xDC00;
-
-            int cp = (x << 10) + y + 0x10000;
-
-            o.append(0b11110000 | (cp >> 18));
-            o.append(0b10000000 | ((cp & 0x3F000) >> 12));
-            o.append(0b10000000 | ((cp & 0x00FC0) >> 6));
-            o.append(0b10000000 | (cp & 0x003F));
-          
-          }
-          // else encode the codepoint with the 1-2, or 3 bytes utf8 representation.
-          else
-          {
-            if (x <= 0x007F) // 7bits codepoints, ASCII 0xxxxxxx.
-            {
-              o.append(uint8_t(x));
-            }
-            else if (x >= 0x0080 and x <= 0x07FF) // 11bits codepoint -> 110xxxxx 10xxxxxx
-            {
-              o.append(0b11000000 | (x >> 6));
-              o.append(0b10000000 | (x & 0x003F));
-            }
-            else if (x >= 0x0800 and x <= 0xFFFF) //16bits codepoint -> 1110xxxx 10xxxxxx 10xxxxxx
-            {
-              o.append(0b11100000 | (x >> 12));
-              o.append(0b10000000 | ((x & 0x0FC0) >> 6));
-              o.append(0b10000000 | (x & 0x003F));
-            }
-            else
-              return JSON_KO;//make_json_error("json_to_utf8: Bad UTF8 codepoint.");            
-          }
-          break;
-        }
-      }
-
-      if (s.get() != '"')
-        return JSON_KO;//make_json_error("JSON strings must end with a double quote.");
-    
-      return JSON_OK;//json_no_error();
-    }
-
-    template <typename S, typename T>
-    auto utf8_to_json(S&& s, T&& o)
-    {
-      o.append('"');
-
-      auto encode_16bits = [&] (uint16_t b)
-        {
-          const char lt[] = "0123456789ABCDEF";
-          o.append(lt[b >> 12]);
-          o.append(lt[(b & 0x0F00) >> 8]);
-          o.append(lt[(b & 0x00F0) >> 4]);
-          o.append(lt[b & 0x000F]);
-        };
-
-      while (!s.eof())
-      {
-        // 7-bits codepoint
-        while (s.good() and s.peek() <= 0x7F and s.peek() != EOF)
-        {
-          switch (s.peek())
-          {
-          case '"': o.append('\\'); o.append('"'); break;
-          case '\\': o.append('\\'); o.append('\\'); break;
-            //case '/': o.append('/'); break; Do not escape /
-          case '\n': o.append('\\'); o.append('n'); break;
-          case '\r': o.append('\\'); o.append('r'); break;
-          case '\t': o.append('\\'); o.append('t'); break;
-          case '\b': o.append('\\'); o.append('b'); break;
-          case '\f': o.append('\\'); o.append('f'); break;
-          default:
-            o.append(s.peek());
-          }
-          s.get();
-        }
-      
-        if (s.eof()) break;
-
-        // uft8 prefix \u.
-        o.append('\\');
-        o.append('u');
-
-        uint8_t c1 = s.get();
-        uint8_t c2 = s.get();
-        {        
-          // extract codepoints.
-          if (c1 < 0b11100000) // 11bits - 2 char: 110xxxxx	10xxxxxx
-          {
-            uint16_t cp = ((c1 & 0b00011111) << 6) +
-              (c2 & 0b00111111);
-            if (cp >= 0x0080 and cp <= 0x07FF)
-              encode_16bits(cp);
-            else
-              return JSON_KO;//make_json_error("utf8_to_json: Bad UTF8 codepoint.");
-          }
-          else if (c1 < 0b11110000) // 16 bits - 3 char: 1110xxxx	10xxxxxx	10xxxxxx
-          {
-            uint16_t cp = ((c1 & 0b00001111) << 12) +
-              ((c2 & 0b00111111) << 6) +
-              (s.get() & 0b00111111);
-
-            if (cp >= 0x0800 and cp <= 0xFFFF)
-              encode_16bits(cp);
-            else
-              return JSON_KO;//make_json_error("utf8_to_json: Bad UTF8 codepoint.");          
-          }
-          else // 21 bits - 4 chars: 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
-          {
-            int cp =
-              ((c1 & 0b00000111) << 18) +
-              ((c2 & 0b00111111) << 12) +
-              ((s.get() & 0b00111111) << 6) +
-              (s.get() & 0b00111111);
-
-            cp -= 0x10000;
-
-            uint16_t H = (cp >> 10) + 0xD800;
-            uint16_t L = (cp & 0x03FF) + 0xDC00;
-
-            // check if we are in the right range.
-            // The high surrogate is in the 0xD800..0xDBFF range (HR) and
-            // the low surrogate is in the 0xDC00..0xDFFF range (LR).
-            assert(H >= 0xD800 and H <= 0xDBFF and
-                   L >= 0xDC00 and L <= 0xDFFF);
-
-            encode_16bits(H);
-            o.append('\\');
-            o.append('u');
-            encode_16bits(L);
-          }
-          
-        }
-      }
-      o.append('"');
+    // If end of json string, return
+    if (s.peek() == '"') {
+      break;
       return JSON_OK;
     }
+
+    // Get the '\'.
+    assert(s.peek() == '\\');
+    s.get();
+
+    switch (s.get()) {
+      // List of escaped char from http://www.json.org/
+    default:
+      return JSON_KO; // make_json_error("json_to_utf8: Bad JSON escaped character.");
+    case '"':
+      o.append('"');
+      break;
+    case '\\':
+      o.append('\\');
+      break;
+    case '/':
+      o.append('/');
+      break;
+    case 'n':
+      o.append('\n');
+      break;
+    case 'r':
+      o.append('\r');
+      break;
+    case 't':
+      o.append('\t');
+      break;
+    case 'b':
+      o.append('\b');
+      break;
+    case 'f':
+      o.append('\f');
+      break;
+    case 'u':
+      char a, b, c, d;
+
+      a = s.get();
+      b = s.get();
+      c = s.get();
+      d = s.get();
+
+      if (s.eof())
+        return JSON_KO; // make_json_error("json_to_utf8: Unexpected end of string when decoding an
+                        // utf8 character");
+
+      auto decode_hex_c = [](char c) {
+        if (c >= '0' and c <= '9')
+          return c - '0';
+        else
+          return (10 + std::toupper(c) - 'A');
+      };
+
+      uint16_t x = (decode_hex_c(a) << 12) + (decode_hex_c(b) << 8) + (decode_hex_c(c) << 4) +
+                   decode_hex_c(d);
+
+      // If x in the  0xD800..0xDBFF range -> decode a surrogate pair \uXXXX\uYYYY -> 20 bits
+      // codepoint.
+      if (x >= 0xD800 and x <= 0xDBFF) {
+        if (s.get() != '\\' or s.get() != 'u')
+          return JSON_KO; // make_json_error("json_to_utf8: Missing low surrogate.");
+
+        uint16_t y = (decode_hex_c(s.get()) << 12) + (decode_hex_c(s.get()) << 8) +
+                     (decode_hex_c(s.get()) << 4) + decode_hex_c(s.get());
+
+        if (s.eof())
+          return JSON_KO; // make_json_error("json_to_utf8: Unexpected end of string when decoding
+                          // an utf8 character");
+
+        x -= 0xD800;
+        y -= 0xDC00;
+
+        int cp = (x << 10) + y + 0x10000;
+
+        o.append(0b11110000 | (cp >> 18));
+        o.append(0b10000000 | ((cp & 0x3F000) >> 12));
+        o.append(0b10000000 | ((cp & 0x00FC0) >> 6));
+        o.append(0b10000000 | (cp & 0x003F));
+
+      }
+      // else encode the codepoint with the 1-2, or 3 bytes utf8 representation.
+      else {
+        if (x <= 0x007F) // 7bits codepoints, ASCII 0xxxxxxx.
+        {
+          o.append(uint8_t(x));
+        } else if (x >= 0x0080 and x <= 0x07FF) // 11bits codepoint -> 110xxxxx 10xxxxxx
+        {
+          o.append(0b11000000 | (x >> 6));
+          o.append(0b10000000 | (x & 0x003F));
+        } else if (x >= 0x0800 and x <= 0xFFFF) // 16bits codepoint -> 1110xxxx 10xxxxxx 10xxxxxx
+        {
+          o.append(0b11100000 | (x >> 12));
+          o.append(0b10000000 | ((x & 0x0FC0) >> 6));
+          o.append(0b10000000 | (x & 0x003F));
+        } else
+          return JSON_KO; // make_json_error("json_to_utf8: Bad UTF8 codepoint.");
+      }
+      break;
+    }
   }
+
+  if (s.get() != '"')
+    return JSON_KO; // make_json_error("JSON strings must end with a double quote.");
+
+  return JSON_OK; // json_no_error();
 }
+
+template <typename S, typename T> auto utf8_to_json(S&& s, T&& o) {
+  o.append('"');
+
+  auto encode_16bits = [&](uint16_t b) {
+    const char lt[] = "0123456789ABCDEF";
+    o.append(lt[b >> 12]);
+    o.append(lt[(b & 0x0F00) >> 8]);
+    o.append(lt[(b & 0x00F0) >> 4]);
+    o.append(lt[b & 0x000F]);
+  };
+
+  while (!s.eof()) {
+    // 7-bits codepoint
+    while (s.good() and s.peek() <= 0x7F and s.peek() != EOF) {
+      switch (s.peek()) {
+      case '"':
+        o.append('\\');
+        o.append('"');
+        break;
+      case '\\':
+        o.append('\\');
+        o.append('\\');
+        break;
+        // case '/': o.append('/'); break; Do not escape /
+      case '\n':
+        o.append('\\');
+        o.append('n');
+        break;
+      case '\r':
+        o.append('\\');
+        o.append('r');
+        break;
+      case '\t':
+        o.append('\\');
+        o.append('t');
+        break;
+      case '\b':
+        o.append('\\');
+        o.append('b');
+        break;
+      case '\f':
+        o.append('\\');
+        o.append('f');
+        break;
+      default:
+        o.append(s.peek());
+      }
+      s.get();
+    }
+
+    if (s.eof())
+      break;
+
+    // uft8 prefix \u.
+    o.append('\\');
+    o.append('u');
+
+    uint8_t c1 = s.get();
+    uint8_t c2 = s.get();
+    {
+      // extract codepoints.
+      if (c1 < 0b11100000) // 11bits - 2 char: 110xxxxx	10xxxxxx
+      {
+        uint16_t cp = ((c1 & 0b00011111) << 6) + (c2 & 0b00111111);
+        if (cp >= 0x0080 and cp <= 0x07FF)
+          encode_16bits(cp);
+        else
+          return JSON_KO;         // make_json_error("utf8_to_json: Bad UTF8 codepoint.");
+      } else if (c1 < 0b11110000) // 16 bits - 3 char: 1110xxxx	10xxxxxx	10xxxxxx
+      {
+        uint16_t cp = ((c1 & 0b00001111) << 12) + ((c2 & 0b00111111) << 6) + (s.get() & 0b00111111);
+
+        if (cp >= 0x0800 and cp <= 0xFFFF)
+          encode_16bits(cp);
+        else
+          return JSON_KO; // make_json_error("utf8_to_json: Bad UTF8 codepoint.");
+      } else              // 21 bits - 4 chars: 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+      {
+        int cp = ((c1 & 0b00000111) << 18) + ((c2 & 0b00111111) << 12) +
+                 ((s.get() & 0b00111111) << 6) + (s.get() & 0b00111111);
+
+        cp -= 0x10000;
+
+        uint16_t H = (cp >> 10) + 0xD800;
+        uint16_t L = (cp & 0x03FF) + 0xDC00;
+
+        // check if we are in the right range.
+        // The high surrogate is in the 0xD800..0xDBFF range (HR) and
+        // the low surrogate is in the 0xDC00..0xDFFF range (LR).
+        assert(H >= 0xD800 and H <= 0xDBFF and L >= 0xDC00 and L <= 0xDFFF);
+
+        encode_16bits(H);
+        o.append('\\');
+        o.append('u');
+        encode_16bits(L);
+      }
+    }
+  }
+  o.append('"');
+  return JSON_OK;
+}
+} // namespace unicode_impl
+} // namespace li
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_UNICODE
 
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_UTILS
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_UTILS
+
+
 
 namespace li {
 
-  namespace impl
-  {
+template <typename T> struct json_object_base;
 
-    template <typename S>
-    struct json_parser
-    {
-      inline json_parser(S&& s) : ss(s) {}
-      inline json_parser(S& s) : ss(s) {}
+template <typename T> struct json_object_;
+template <typename T> struct json_vector_;
+template <typename V> struct json_value_;
+template <typename... T> struct json_tuple_;
+struct json_key;
 
-      inline decltype(auto) peek() {
-        return ss.peek();
-      }
-      inline decltype(auto) get() {
-        return ss.get();
-      }
+namespace impl {
+template <typename S, typename... A>
+auto make_json_object_member(const function_call_exp<S, A...>& e);
+template <typename S> auto make_json_object_member(const li::symbol<S>&);
 
-
-      inline void skip_one() {
-        ss.get();
-      }
-      
-      inline bool eof() { return ss.eof(); }
-      inline json_error_code eat(char c, bool skip_spaces = true) {
-        if (skip_spaces)
-          eat_spaces();
-
-        char g = ss.get();
-        if (g != c)
-          return make_json_error("Unexpected char. Got '", char(g), "' expected ", c);
-        return JSON_OK;
-      }
-
-      inline json_error_code eat(const char* str, bool skip_spaces = true) {
-        if (skip_spaces)
-          eat_spaces();
-
-        const char* str_it = str;
-        while (*str_it)
-        {
-          char g = ss.get();
-          if (g != *str_it)
-            return make_json_error("Unexpected char. Got '", char(g), "' expected '",
-                                   *str_it, "' when parsing string ", str);
-          str_it++;
-        }
-        return JSON_OK;
-      }
-      
-      template <typename... T>
-      inline json_error_code make_json_error(T&&... t)
-      {
-        if (!error_stream)
-          error_stream = new std::ostringstream();
-        *error_stream << "json error: ";
-        auto add = [this] (auto w) { *error_stream << w; };
-        apply_each(add, t...);
-        return JSON_KO;
-      }
-      inline void eat_spaces()
-      {
-        while (ss.peek() >= 0 and ss.peek() < 33) ss.get();
-      }
-
-      template <typename X>
-      struct JSON_INVALID_TYPE;
-
-      // Integers and floating points.
-      template <typename T>
-      json_error_code fill(T& t) {
-
-        if constexpr(std::is_floating_point<T>::value or
-                     std::is_integral<T>::value or
-                     std::is_same<T, std::string_view>::value
-          ) {
-            ss >> t;
-            if (ss.bad())
-              return make_json_error("Ill-formated value.");
-            return JSON_OK;
-          }
-        else
-          // The JSON decoder only parses floating-point, integral and string types.
-          return JSON_INVALID_TYPE<T>::error;
-      }
-
-      // Strings
-      inline json_error_code fill(std::string& str)
-      {
-        eat_spaces();
-        str.clear();
-        return json_to_utf8(ss, str);
-      }
-
-      template <typename T>
-      inline json_error_code fill(std::optional<T>& opt)
-      {
-        opt.emplace();
-        return fill(opt.value());
-      }
-
-      template <typename... T>
-      inline json_error_code fill(std::variant<T...>& v)
-      {
-        if (auto err = eat('{')) return err;
-        if (auto err = eat("\"idx\"")) return err;
-        if (auto err = eat(':')) return err;
-
-        int idx = 0;
-        fill(idx);
-        if (auto err = eat(',')) return err;
-        if (auto err = eat("\"value\"")) return err;
-        if (auto err = eat(':')) return err;
-
-        int cpt = 0;
-        apply_each([&] (auto* x) {
-            if (cpt == idx)
-            {
-              std::remove_pointer_t<decltype(x)> value{};
-              fill(value);
-              v = std::move(value);
-            }
-            cpt++;
-          },
-          (T*)nullptr...);
-
-        if (auto err = eat('}')) return err;
-        return JSON_OK;
-      }
-      
-      S& ss;
-      std::ostringstream* error_stream = nullptr;
-    };
-
-    template <typename P, typename O, typename S>
-    json_error_code json_decode2(P& p, O& obj, S)
-    {
-      auto err = p.fill(obj);
-      if (err) return err;
-      else
-        return JSON_OK;
-    }
-    
-    template <typename P, typename O, typename S>
-    json_error_code json_decode2(P& p, O& obj, json_vector_<S> schema)
-    {
-      obj.clear();
-      bool first = true;
-      auto err = p.eat('[');
-      if (err) return err;
-
-      p.eat_spaces();
-      while (p.peek() != ']')
-      {
-        if (!first)
-        {
-          if ((err = p.eat(','))) return err;
-        }
-        first = false;
-
-        obj.resize(obj.size() + 1);
-        if ((err = json_decode2(p, obj.back(), S{}))) return err;
-        p.eat_spaces();
-      }
-      
-      if ((err = p.eat(']'))) return err;
-      else
-        return JSON_OK;
-    }
-
-    template <typename F, typename... E, typename... T, std::size_t... I>
-    inline void json_decode_tuple_elements(F& decode_fun,
-                                           std::tuple<T...>& tu,
-                                           const std::tuple<E...>& schema,
-                                           std::index_sequence<I...>)
-    {
-      (void)std::initializer_list<int>{
-        ((void)decode_fun(std::get<I>(tu), std::get<I>(schema)), 0)...};
-    }
-    
-    template <typename P, typename... O, typename... S>
-    json_error_code json_decode2(P& p, std::tuple<O...>& tu, json_tuple_<S...> schema)
-    {
-      bool first = true;
-      auto err = p.eat('[');
-      if (err) return err;
-
-      auto decode_one_element = [&first,&p,&err] (auto& value, auto value_schema) {
-        if (!first)
-        {
-          if ((err = p.eat(','))) return err;
-        }
-        first = false;
-        if ((err = json_decode2(p, value, value_schema))) return err;
-        p.eat_spaces();
-        return JSON_OK;
-      };
-      
-      json_decode_tuple_elements(decode_one_element, tu, schema.elements, std::make_index_sequence<sizeof...(O)>{});
-
-      if ((err = p.eat(']'))) return err;
-      else
-        return JSON_OK;
-    }
-    
-    template <typename P, typename O, typename S>
-    json_error_code json_decode2(P& p, O& obj, json_object_<S> schema)
-    {
-      json_error_code err;
-      if ((err = p.eat('{'))) return err;
-
-      struct attr_info { bool filled; bool required; const char* name; int name_len; std::function<json_error_code(P&)> parse_value; };
-      constexpr int n_members = std::tuple_size<decltype(schema.schema)>();
-      attr_info A[n_members];
-      int i = 0;
-      auto prepare = [&] (auto m) {
-        A[i].filled = false;
-        A[i].required = true;
-        A[i].name = symbol_string(m.name);
-        A[i].name_len = strlen(symbol_string(m.name));
-
-        if constexpr(has_key(m, s::json_key)) {
-            A[i].name = m.json_key;
-          }
-
-        if constexpr(decltype(is_std_optional(symbol_member_or_getter_access(obj, m.name))){}) {
-            A[i].required = false;
-          }
-
-        A[i].parse_value = [m,&obj] (P& p) {
-          
-          using V = decltype(symbol_member_or_getter_access(obj, m.name));
-          using VS = decltype(get_or(m, s::type, json_value_<V>{}));
-          
-          if constexpr(decltype(json_is_value(VS{})){}) {
-            if (auto err = p.fill(symbol_member_or_getter_access(obj, m.name))) return err;
-            else return JSON_OK;
-            }
-          else {
-              if (auto err = json_decode2(p, symbol_member_or_getter_access(obj, m.name), m.type)) return err;
-              else return JSON_OK;
-          }
-        };
-
-        i++;
-      };
-
-      std::apply([&] (auto... m) { apply_each(prepare, m...); },
-                               schema.schema);
-
-      while (p.peek() != '}')
-      {
-
-        bool found = false;
-        if ((err = p.eat('"'))) return err;
-        char symbol[50];
-        int symbol_size = 0;
-        while (!p.eof() and p.peek() != '"' and symbol_size < 50)
-          symbol[symbol_size++] = p.get();
-        symbol[symbol_size] = 0;
-        if ((err = p.eat('"', false))) return err;
-  
-        for (int i = 0; i < n_members; i++)
-        {
-          int len = A[i].name_len;
-          if (!strncmp(symbol, A[i].name, len))
-          {
-            if ((err = p.eat(':'))) return err;
-            if (A[i].filled)
-              return p.make_json_error("Duplicate json key: ", A[i].name);
-            
-            if ((err = A[i].parse_value(p))) return err;
-            A[i].filled = true;
-            found = true;
-            break;
-          }
-        }
-        
-        if (!found)
-          return p.make_json_error("Unknown json key");
-        p.eat_spaces();
-        if (p.peek() == ',')
-        {
-          if ((err = p.eat(','))) return err;
-        }
-      }
-      if ((err = p.eat('}'))) return err;
-
-      for (int i = 0; i < n_members; i++)
-      {
-        if (A[i].required and !A[i].filled)
-          return p.make_json_error("Missing json key ", A[i].name);
-      }
-      return JSON_OK;
-    }
-
-    template <typename C, typename O, typename S>
-    json_error json_decode(C& input, O& obj, S schema)
-    {
-      auto stream = decode_stringstream(input);
-      json_parser<decode_stringstream> p(stream);
-      if (json_decode2(p, obj, schema))
-        return json_error{1, p.error_stream ? p.error_stream->str() : "Json error"};
-      else
-        return json_error{0};
-    }
-
-  }
-
+template <typename S, typename T> auto make_json_object_member(const assign_exp<S, T>& e) {
+  return cat(make_json_object_member(e.left), mmm(s::type = e.right));
 }
 
+template <typename S> auto make_json_object_member(const li::symbol<S>&) {
+  return mmm(s::name = S{});
+}
+
+template <typename V> auto to_json_schema(V v) { return json_value_<V>{}; }
+
+template <typename... M> auto to_json_schema(const metamap<M...>& m);
+
+template <typename V> auto to_json_schema(const std::vector<V>& arr) {
+  auto elt = to_json_schema(decltype(arr[0]){});
+  return json_vector_<decltype(elt)>{elt};
+}
+
+template <typename... V> auto to_json_schema(const std::tuple<V...>& arr) {
+  return json_tuple_<decltype(to_json_schema(V{}))...>(to_json_schema(V{})...);
+}
+
+template <typename... M> auto to_json_schema(const metamap<M...>& m) {
+  auto tuple_maker = [](auto&&... t) { return std::make_tuple(std::forward<decltype(t)>(t)...); };
+
+  auto entities = map_reduce(
+      m, [](auto k, auto v) { return mmm(s::name = k, s::type = to_json_schema(v)); }, tuple_maker);
+
+  return json_object_<decltype(entities)>(entities);
+}
+
+template <typename... E> auto json_object_to_metamap(const json_object_<std::tuple<E...>>& s) {
+  auto make_kvs = [](auto... elt) { return std::make_tuple((elt.name = elt.type)...); };
+
+  auto kvs = std::apply(make_kvs, s.entities);
+  return std::apply(mmm, kvs);
+}
+
+template <typename S, typename... A>
+auto make_json_object_member(const function_call_exp<S, A...>& e) {
+  auto res = mmm(s::name = e.method, s::json_key = symbol_string(e.method));
+
+  auto parse = [&](auto a) {
+    if constexpr (std::is_same<decltype(a), json_key>::value) {
+      res.json_key = a.key;
+    }
+  };
+
+  ::li::tuple_map(e.args, parse);
+  return res;
+}
+
+} // namespace impl
+
+template <typename T> struct json_object_;
+
+template <typename O> struct json_vector_;
+
+template <typename E> constexpr auto json_is_vector(json_vector_<E>) -> std::true_type {
+  return {};
+}
+template <typename E> constexpr auto json_is_vector(E) -> std::false_type { return {}; }
+
+template <typename... E> constexpr auto json_is_tuple(json_tuple_<E...>) -> std::true_type {
+  return {};
+}
+template <typename E> constexpr auto json_is_tuple(E) -> std::false_type { return {}; }
+
+template <typename E> constexpr auto json_is_object(json_object_<E>) -> std::true_type {
+  return {};
+}
+template <typename E> constexpr auto json_is_object(E) -> std::false_type { return {}; }
+
+template <typename E> constexpr auto json_is_value(json_object_<E>) -> std::false_type {
+  return {};
+}
+template <typename E> constexpr auto json_is_value(json_vector_<E>) -> std::false_type {
+  return {};
+}
+template <typename... E> constexpr auto json_is_value(json_tuple_<E...>) -> std::false_type {
+  return {};
+}
+template <typename E> constexpr auto json_is_value(E) -> std::true_type { return {}; }
+
+template <typename T> constexpr auto is_std_optional(std::optional<T>) -> std::true_type;
+template <typename T> constexpr auto is_std_optional(T) -> std::false_type;
+
+} // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_UTILS
+
+
+namespace li {
+
+namespace impl {
+
+template <typename S> struct json_parser {
+  inline json_parser(S&& s) : ss(s) {}
+  inline json_parser(S& s) : ss(s) {}
+
+  inline decltype(auto) peek() { return ss.peek(); }
+  inline decltype(auto) get() { return ss.get(); }
+
+  inline void skip_one() { ss.get(); }
+
+  inline bool eof() { return ss.eof(); }
+  inline json_error_code eat(char c, bool skip_spaces = true) {
+    if (skip_spaces)
+      eat_spaces();
+
+    char g = ss.get();
+    if (g != c)
+      return make_json_error("Unexpected char. Got '", char(g), "' expected ", c);
+    return JSON_OK;
+  }
+
+  inline json_error_code eat(const char* str, bool skip_spaces = true) {
+    if (skip_spaces)
+      eat_spaces();
+
+    const char* str_it = str;
+    while (*str_it) {
+      char g = ss.get();
+      if (g != *str_it)
+        return make_json_error("Unexpected char. Got '", char(g), "' expected '", *str_it,
+                               "' when parsing string ", str);
+      str_it++;
+    }
+    return JSON_OK;
+  }
+
+  template <typename... T> inline json_error_code make_json_error(T&&... t) {
+    if (!error_stream)
+      error_stream = new std::ostringstream();
+    *error_stream << "json error: ";
+    auto add = [this](auto w) { *error_stream << w; };
+    apply_each(add, t...);
+    return JSON_KO;
+  }
+  inline void eat_spaces() {
+    while (ss.peek() >= 0 and ss.peek() < 33)
+      ss.get();
+  }
+
+  template <typename X> struct JSON_INVALID_TYPE;
+
+  // Integers and floating points.
+  template <typename T> json_error_code fill(T& t) {
+
+    if constexpr (std::is_floating_point<T>::value or std::is_integral<T>::value or
+                  std::is_same<T, std::string_view>::value) {
+      ss >> t;
+      if (ss.bad())
+        return make_json_error("Ill-formated value.");
+      return JSON_OK;
+    } else
+      // The JSON decoder only parses floating-point, integral and string types.
+      return JSON_INVALID_TYPE<T>::error;
+  }
+
+  // Strings
+  inline json_error_code fill(std::string& str) {
+    eat_spaces();
+    str.clear();
+    return json_to_utf8(ss, str);
+  }
+
+  template <typename T> inline json_error_code fill(std::optional<T>& opt) {
+    opt.emplace();
+    return fill(opt.value());
+  }
+
+  template <typename... T> inline json_error_code fill(std::variant<T...>& v) {
+    if (auto err = eat('{'))
+      return err;
+    if (auto err = eat("\"idx\""))
+      return err;
+    if (auto err = eat(':'))
+      return err;
+
+    int idx = 0;
+    fill(idx);
+    if (auto err = eat(','))
+      return err;
+    if (auto err = eat("\"value\""))
+      return err;
+    if (auto err = eat(':'))
+      return err;
+
+    int cpt = 0;
+    apply_each(
+        [&](auto* x) {
+          if (cpt == idx) {
+            std::remove_pointer_t<decltype(x)> value{};
+            fill(value);
+            v = std::move(value);
+          }
+          cpt++;
+        },
+        (T*)nullptr...);
+
+    if (auto err = eat('}'))
+      return err;
+    return JSON_OK;
+  }
+
+  S& ss;
+  std::ostringstream* error_stream = nullptr;
+};
+
+template <typename P, typename O, typename S> json_error_code json_decode2(P& p, O& obj, S) {
+  auto err = p.fill(obj);
+  if (err)
+    return err;
+  else
+    return JSON_OK;
+}
+
+template <typename P, typename O, typename S>
+json_error_code json_decode2(P& p, O& obj, json_vector_<S> schema) {
+  obj.clear();
+  bool first = true;
+  auto err = p.eat('[');
+  if (err)
+    return err;
+
+  p.eat_spaces();
+  while (p.peek() != ']') {
+    if (!first) {
+      if ((err = p.eat(',')))
+        return err;
+    }
+    first = false;
+
+    obj.resize(obj.size() + 1);
+    if ((err = json_decode2(p, obj.back(), S{})))
+      return err;
+    p.eat_spaces();
+  }
+
+  if ((err = p.eat(']')))
+    return err;
+  else
+    return JSON_OK;
+}
+
+template <typename F, typename... E, typename... T, std::size_t... I>
+inline void json_decode_tuple_elements(F& decode_fun, std::tuple<T...>& tu,
+                                       const std::tuple<E...>& schema, std::index_sequence<I...>) {
+  (void)std::initializer_list<int>{((void)decode_fun(std::get<I>(tu), std::get<I>(schema)), 0)...};
+}
+
+template <typename P, typename... O, typename... S>
+json_error_code json_decode2(P& p, std::tuple<O...>& tu, json_tuple_<S...> schema) {
+  bool first = true;
+  auto err = p.eat('[');
+  if (err)
+    return err;
+
+  auto decode_one_element = [&first, &p, &err](auto& value, auto value_schema) {
+    if (!first) {
+      if ((err = p.eat(',')))
+        return err;
+    }
+    first = false;
+    if ((err = json_decode2(p, value, value_schema)))
+      return err;
+    p.eat_spaces();
+    return JSON_OK;
+  };
+
+  json_decode_tuple_elements(decode_one_element, tu, schema.elements,
+                             std::make_index_sequence<sizeof...(O)>{});
+
+  if ((err = p.eat(']')))
+    return err;
+  else
+    return JSON_OK;
+}
+
+template <typename P, typename O, typename S>
+json_error_code json_decode2(P& p, O& obj, json_object_<S> schema) {
+  json_error_code err;
+  if ((err = p.eat('{')))
+    return err;
+
+  struct attr_info {
+    bool filled;
+    bool required;
+    const char* name;
+    int name_len;
+    std::function<json_error_code(P&)> parse_value;
+  };
+  constexpr int n_members = std::tuple_size<decltype(schema.schema)>();
+  attr_info A[n_members];
+  int i = 0;
+  auto prepare = [&](auto m) {
+    A[i].filled = false;
+    A[i].required = true;
+    A[i].name = symbol_string(m.name);
+    A[i].name_len = strlen(symbol_string(m.name));
+
+    if constexpr (has_key(m, s::json_key)) {
+      A[i].name = m.json_key;
+    }
+
+    if constexpr (decltype(is_std_optional(symbol_member_or_getter_access(obj, m.name))){}) {
+      A[i].required = false;
+    }
+
+    A[i].parse_value = [m, &obj](P& p) {
+      using V = decltype(symbol_member_or_getter_access(obj, m.name));
+      using VS = decltype(get_or(m, s::type, json_value_<V>{}));
+
+      if constexpr (decltype(json_is_value(VS{})){}) {
+        if (auto err = p.fill(symbol_member_or_getter_access(obj, m.name)))
+          return err;
+        else
+          return JSON_OK;
+      } else {
+        if (auto err = json_decode2(p, symbol_member_or_getter_access(obj, m.name), m.type))
+          return err;
+        else
+          return JSON_OK;
+      }
+    };
+
+    i++;
+  };
+
+  std::apply([&](auto... m) { apply_each(prepare, m...); }, schema.schema);
+
+  while (p.peek() != '}') {
+
+    bool found = false;
+    if ((err = p.eat('"')))
+      return err;
+    char symbol[50];
+    int symbol_size = 0;
+    while (!p.eof() and p.peek() != '"' and symbol_size < 50)
+      symbol[symbol_size++] = p.get();
+    symbol[symbol_size] = 0;
+    if ((err = p.eat('"', false)))
+      return err;
+
+    for (int i = 0; i < n_members; i++) {
+      int len = A[i].name_len;
+      if (!strncmp(symbol, A[i].name, len)) {
+        if ((err = p.eat(':')))
+          return err;
+        if (A[i].filled)
+          return p.make_json_error("Duplicate json key: ", A[i].name);
+
+        if ((err = A[i].parse_value(p)))
+          return err;
+        A[i].filled = true;
+        found = true;
+        break;
+      }
+    }
+
+    if (!found)
+      return p.make_json_error("Unknown json key");
+    p.eat_spaces();
+    if (p.peek() == ',') {
+      if ((err = p.eat(',')))
+        return err;
+    }
+  }
+  if ((err = p.eat('}')))
+    return err;
+
+  for (int i = 0; i < n_members; i++) {
+    if (A[i].required and !A[i].filled)
+      return p.make_json_error("Missing json key ", A[i].name);
+  }
+  return JSON_OK;
+}
+
+template <typename C, typename O, typename S> json_error json_decode(C& input, O& obj, S schema) {
+  auto stream = decode_stringstream(input);
+  json_parser<decode_stringstream> p(stream);
+  if (json_decode2(p, obj, schema))
+    return json_error{1, p.error_stream ? p.error_stream->str() : "Json error"};
+  else
+    return json_error{0};
+}
+
+} // namespace impl
+
+} // namespace li
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_DECODER
 
@@ -3433,161 +3143,142 @@ namespace li {
 
 namespace li {
 
-  using std::string_view;
+using std::string_view;
 
-  template <typename... T>
-  struct json_tuple_;
-  template <typename T>
-  struct json_object_;
-  
-  namespace impl
-  {
+template <typename... T> struct json_tuple_;
+template <typename T> struct json_object_;
 
-    // Json encoder.
-    // =============================================
+namespace impl {
 
-    template <typename C, typename O, typename E>
-    inline void json_encode(C& ss, O obj, const json_object_<E>& schema);
-    template <typename C, typename... E, typename... T>
-    inline void json_encode(C& ss, const std::tuple<T...>& tu, const json_tuple_<E...>& schema);
-    template <typename T, typename C, typename E>
-    inline void json_encode(C& ss, const T& value, const E& schema);
-    template <typename T, typename C, typename E>
-    inline void json_encode(C& ss, const std::vector<T>& array, const json_vector_<E>& schema);
+// Json encoder.
+// =============================================
 
+template <typename C, typename O, typename E>
+inline void json_encode(C& ss, O obj, const json_object_<E>& schema);
+template <typename C, typename... E, typename... T>
+inline void json_encode(C& ss, const std::tuple<T...>& tu, const json_tuple_<E...>& schema);
+template <typename T, typename C, typename E>
+inline void json_encode(C& ss, const T& value, const E& schema);
+template <typename T, typename C, typename E>
+inline void json_encode(C& ss, const std::vector<T>& array, const json_vector_<E>& schema);
 
-    template <typename T, typename C>
-    inline void json_encode_value(C& ss, const T& t) { ss << t; }
-    
-    template <typename C>
-    inline void json_encode_value(C& ss, const char* s) { utf8_to_json(s, ss); }
+template <typename T, typename C> inline void json_encode_value(C& ss, const T& t) { ss << t; }
 
-    template <typename C>
-    inline void json_encode_value(C& ss, const string_view& s) { utf8_to_json(s, ss); }
-    
-    template <typename C>
-    inline void json_encode_value(C& ss, const std::string& s) { utf8_to_json(s, ss); }
+template <typename C> inline void json_encode_value(C& ss, const char* s) { utf8_to_json(s, ss); }
 
-    template <typename C, typename... T>
-    inline void json_encode_value(C& ss, const metamap<T...>& s) { json_encode(ss, s, to_json_schema(s)); }
-
-    template <typename T, typename C>
-    inline void json_encode_value(C& ss, const std::optional<T>& t) {
-      if (t.has_value())
-        json_encode_value(ss, t.value());
-    }
-
-    template <typename C, typename... T>
-    inline void json_encode_value(C& ss, const std::variant<T...>& t) {
-      ss << "{\"idx\":" << t.index() << ",\"value\":";
-      std::visit([&] (auto&& value) { json_encode_value(ss, value); },
-                 t);      
-      ss << '}';
-    }
-    
-    template <typename C, typename O, typename E>
-    inline void json_encode(C& ss, O obj, const json_object_<E>& schema);
-
-    template <typename T, typename C, typename E>
-    inline void json_encode(C& ss, const T& value, const E& schema)
-    {
-      json_encode_value(ss, value);
-    }
-    
-    template <typename T, typename C, typename E>
-    inline void json_encode(C& ss, const std::vector<T>& array, const json_vector_<E>& schema)
-    {
-      ss << '[';
-      for (const auto& t : array)
-      {
-        if constexpr(decltype(json_is_vector(E{})){} or decltype(json_is_object(E{})){}) {
-            json_encode(ss, t, schema.schema);
-          }
-        else
-          json_encode_value(ss, t);
-          
-        if (&t != &array.back())
-          ss << ',';
-      }
-      ss << ']';
-    }
-
-    template <typename F, typename... E, typename... T, std::size_t... I>
-    inline void json_encode_tuple_elements(F& encode_fun,
-                                           const std::tuple<T...>& tu,
-                                           const std::tuple<E...>& schema,
-                                           std::index_sequence<I...>)
-    {
-      (void)std::initializer_list<int>{
-        ((void)encode_fun(std::get<I>(tu), std::get<I>(schema)), 0)...};
-    }
-
-    template <typename C, typename... E, typename... T>
-    inline void json_encode(C& ss, const std::tuple<T...>& tu, const json_tuple_<E...>& schema)
-    {
-      ss << '[';
-      bool first = true;
-      auto encode_one_element = [&first,&ss] (auto value, auto value_schema) {
-        if (!first)
-          ss << ',';
-        first = false;
-        if constexpr(decltype(json_is_value(value_schema)){}) {
-            json_encode_value(ss, value);
-          }
-        else
-          json_encode(ss, value, value_schema);
-      };
-
-      json_encode_tuple_elements(encode_one_element, tu, schema.elements, std::make_index_sequence<sizeof...(T)>{});
-      ss << ']';
-    }
-    
-    template <typename C, typename O, typename E>
-    inline void json_encode(C& ss, O obj, const json_object_<E>& schema)
-    {
-      ss << '{';
-      bool first = true;
-
-      auto encode_one_entity = [&] (auto e)
-        {
-
-          if constexpr(decltype(is_std_optional(symbol_member_or_getter_access(obj, e.name))){}) {
-              if (!symbol_member_or_getter_access(obj, e.name).has_value()) return;
-            }
-
-          if (!first) { ss << ','; }
-          first = false; 
-          if constexpr(has_key(e, s::json_key)) {
-              json_encode_value(ss, e.json_key);
-            }
-          else
-            json_encode_value(ss, symbol_string(e.name));
-          ss << ':';
-
-          if constexpr(has_key(e, s::type)) {
-              if constexpr(decltype(json_is_vector(e.type)){} or decltype(json_is_object(e.type)){}) {
-                  return json_encode(ss, symbol_member_or_getter_access(obj, e.name), e.type);
-                }
-              else
-                json_encode_value(ss, symbol_member_or_getter_access(obj, e.name));
-            }
-          else
-            json_encode_value(ss, symbol_member_or_getter_access(obj, e.name));
-        };
-
-      tuple_map(schema.schema, encode_one_entity);
-      ss << '}';
-    }
-  }
-
+template <typename C> inline void json_encode_value(C& ss, const string_view& s) {
+  utf8_to_json(s, ss);
 }
+
+template <typename C> inline void json_encode_value(C& ss, const std::string& s) {
+  utf8_to_json(s, ss);
+}
+
+template <typename C, typename... T> inline void json_encode_value(C& ss, const metamap<T...>& s) {
+  json_encode(ss, s, to_json_schema(s));
+}
+
+template <typename T, typename C> inline void json_encode_value(C& ss, const std::optional<T>& t) {
+  if (t.has_value())
+    json_encode_value(ss, t.value());
+}
+
+template <typename C, typename... T>
+inline void json_encode_value(C& ss, const std::variant<T...>& t) {
+  ss << "{\"idx\":" << t.index() << ",\"value\":";
+  std::visit([&](auto&& value) { json_encode_value(ss, value); }, t);
+  ss << '}';
+}
+
+template <typename C, typename O, typename E>
+inline void json_encode(C& ss, O obj, const json_object_<E>& schema);
+
+template <typename T, typename C, typename E>
+inline void json_encode(C& ss, const T& value, const E& schema) {
+  json_encode_value(ss, value);
+}
+
+template <typename T, typename C, typename E>
+inline void json_encode(C& ss, const std::vector<T>& array, const json_vector_<E>& schema) {
+  ss << '[';
+  for (const auto& t : array) {
+    if constexpr (decltype(json_is_vector(E{})){} or decltype(json_is_object(E{})){}) {
+      json_encode(ss, t, schema.schema);
+    } else
+      json_encode_value(ss, t);
+
+    if (&t != &array.back())
+      ss << ',';
+  }
+  ss << ']';
+}
+
+template <typename F, typename... E, typename... T, std::size_t... I>
+inline void json_encode_tuple_elements(F& encode_fun, const std::tuple<T...>& tu,
+                                       const std::tuple<E...>& schema, std::index_sequence<I...>) {
+  (void)std::initializer_list<int>{((void)encode_fun(std::get<I>(tu), std::get<I>(schema)), 0)...};
+}
+
+template <typename C, typename... E, typename... T>
+inline void json_encode(C& ss, const std::tuple<T...>& tu, const json_tuple_<E...>& schema) {
+  ss << '[';
+  bool first = true;
+  auto encode_one_element = [&first, &ss](auto value, auto value_schema) {
+    if (!first)
+      ss << ',';
+    first = false;
+    if constexpr (decltype(json_is_value(value_schema)){}) {
+      json_encode_value(ss, value);
+    } else
+      json_encode(ss, value, value_schema);
+  };
+
+  json_encode_tuple_elements(encode_one_element, tu, schema.elements,
+                             std::make_index_sequence<sizeof...(T)>{});
+  ss << ']';
+}
+
+template <typename C, typename O, typename E>
+inline void json_encode(C& ss, O obj, const json_object_<E>& schema) {
+  ss << '{';
+  bool first = true;
+
+  auto encode_one_entity = [&](auto e) {
+    if constexpr (decltype(is_std_optional(symbol_member_or_getter_access(obj, e.name))){}) {
+      if (!symbol_member_or_getter_access(obj, e.name).has_value())
+        return;
+    }
+
+    if (!first) {
+      ss << ',';
+    }
+    first = false;
+    if constexpr (has_key(e, s::json_key)) {
+      json_encode_value(ss, e.json_key);
+    } else
+      json_encode_value(ss, symbol_string(e.name));
+    ss << ':';
+
+    if constexpr (has_key(e, s::type)) {
+      if constexpr (decltype(json_is_vector(e.type)){} or decltype(json_is_object(e.type)){}) {
+        return json_encode(ss, symbol_member_or_getter_access(obj, e.name), e.type);
+      } else
+        json_encode_value(ss, symbol_member_or_getter_access(obj, e.name));
+    } else
+      json_encode_value(ss, symbol_member_or_getter_access(obj, e.name));
+  };
+
+  tuple_map(schema.schema, encode_one_entity);
+  ss << '}';
+}
+} // namespace impl
+
+} // namespace li
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_ENCODER
 
 
 namespace li {
-
-
 
 template <typename T> struct json_object_base {
 
@@ -3598,8 +3289,7 @@ public:
     return impl::json_encode(output, std::forward<O>(obj), *downcast());
   }
 
-  template <typename C, typename... M>
-  void encode(C& output, const metamap<M...>& obj) const {
+  template <typename C, typename... M> void encode(C& output, const metamap<M...>& obj) const {
     return impl::json_encode(output, obj, *downcast());
   }
 
@@ -3626,28 +3316,24 @@ public:
   }
 };
 
-template <typename T>
-struct json_object_ : public json_object_base<json_object_<T>> {
+template <typename T> struct json_object_ : public json_object_base<json_object_<T>> {
   json_object_() = default;
   json_object_(const T& s) : schema(s) {}
   T schema;
 };
 
 template <typename... S> auto json_object(S&&... s) {
-  auto members =
-      std::make_tuple(impl::make_json_object_member(std::forward<S>(s))...);
+  auto members = std::make_tuple(impl::make_json_object_member(std::forward<S>(s))...);
   return json_object_<decltype(members)>{members};
 }
 
-template <typename V>
-struct json_value_ : public json_object_base<json_value_<V>> {
+template <typename V> struct json_value_ : public json_object_base<json_value_<V>> {
   json_value_() = default;
 };
 
 template <typename V> auto json_value(V&& v) { return json_value_<V>{}; }
 
-template <typename T>
-struct json_vector_ : public json_object_base<json_vector_<T>> {
+template <typename T> struct json_vector_ : public json_object_base<json_vector_<T>> {
   json_vector_() = default;
   json_vector_(const T& s) : schema(s) {}
   T schema;
@@ -3658,16 +3344,13 @@ template <typename... S> auto json_vector(S&&... s) {
   return json_vector_<decltype(obj)>{obj};
 }
 
-template <typename... T>
-struct json_tuple_ : public json_object_base<json_tuple_<T...>> {
+template <typename... T> struct json_tuple_ : public json_object_base<json_tuple_<T...>> {
   json_tuple_() = default;
   json_tuple_(const T&... s) : elements(s...) {}
   std::tuple<T...> elements;
 };
 
-template <typename... S> auto json_tuple(S&&... s) {
-  return json_tuple_<S...>{s...};
-}
+template <typename... S> auto json_tuple(S&&... s) { return json_tuple_<S...>{s...}; }
 
 struct json_key {
   inline json_key(const char* c) : key(c) {}
@@ -3686,7 +3369,8 @@ template <typename M> auto json_encode(const M& obj) {
   return impl::to_json_schema(obj).encode(obj);
 }
 
-template <typename A, typename B, typename... C> auto json_encode(const assign_exp<A, B>& exp, C... c) {
+template <typename A, typename B, typename... C>
+auto json_encode(const assign_exp<A, B>& exp, C... c) {
   auto obj = mmm(exp, c...);
   return impl::to_json_schema(obj).encode(obj);
 }
@@ -3694,7 +3378,6 @@ template <typename A, typename B, typename... C> auto json_encode(const assign_e
 } // namespace li
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_JSON
-
 
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_API
@@ -3706,144 +3389,119 @@ template <typename A, typename B, typename... C> auto json_encode(const assign_e
 
 namespace li {
 
-  namespace internal
-  {
+namespace internal {
 
-    template <typename V>
-    struct drt_node
-    {
+template <typename V> struct drt_node {
 
-      drt_node() : v{0, nullptr} {}
-      struct iterator
-      {
-        drt_node<V>* ptr;
-        std::string_view first;
-        V second;
+  drt_node() : v{0, nullptr} {}
+  struct iterator {
+    drt_node<V>* ptr;
+    std::string_view first;
+    V second;
 
-        auto operator->(){ return this; }
-        bool operator==(const iterator& b) { return this->ptr == b.ptr; }
-        bool operator!=(const iterator& b) { return this->ptr != b.ptr; }
-      };
-
-      auto end() { return iterator{nullptr, std::string_view(), V()}; }
-      
-      auto& find_or_create(std::string_view r, unsigned int c)
-      {
-        if (c == r.size())
-          return v;
-
-        if (r[c] == '/')
-          c++; // skip the /
-        int s = c;
-        while (c < r.size() and r[c] != '/') c++;
-        std::string_view k = r.substr(s, c - s);
-
-        auto& v = children[k].find_or_create(r, c);
-
-        return v;
-      }
-
-      template <typename F>
-      void for_all_routes(F f, std::string prefix = "") const
-      {
-        if (children.size() == 0)
-          f(prefix, v);
-        else
-        {
-          if (prefix.size() && prefix.back() != '/')
-            prefix += '/';
-          for (auto it : children)
-            it.second.for_all_routes(f, prefix + std::string(it.first));
-        }
-      } 
-      iterator find(const std::string_view& r, unsigned int c)
-      {
-        // We found the route r.
-        if ((c == r.size() and v.handler != nullptr) or
-            (children.size() == 0))
-          return iterator{this, r, v};
-
-        // r does not match any route.
-        if (c == r.size() and v.handler == nullptr)
-          return iterator{nullptr, r, v};
-
-        if (r[c] == '/')
-          c++; // skip the first /
-
-        // Find the next /.
-        int s = c;
-        while (c < r.size() and r[c] != '/') c++;
-
-        // k is the string between the 2 /.
-        std::string_view k(&r[s], c - s);
-        
-        // look for k in the children.
-        auto it = children.find(k);
-        if (it != children.end())
-        {
-          auto it2 = it->second.find(r, c); // search in the corresponding child.
-          if (it2 != it->second.end()) return it2;
-        }
-
-
-        {
-          // if one child is a url param {{param_name}}, choose it
-          for (auto& kv : children)
-          {
-            auto name = kv.first;
-            if (name.size() > 4 and 
-                name[0] == '{' and
-                name[1] == '{' and
-                name[name.size() -2] == '}' and
-                name[name.size() -1] == '}')
-              return kv.second.find(r, c);                
-          }
-          return end();
-        }
-      }
-
-      V v;
-      std::map<std::string_view, drt_node> children;
-    };
-  }
-  
-  template <typename V>
-  struct dynamic_routing_table
-  {
-
-    // Find a route and return reference to a procedure.
-    auto& operator[](const std::string_view& r)
-    {
-      strings.push_back(std::shared_ptr<std::string>(new std::string(r)));
-      std::string_view r2(*strings.back());
-      return root.find_or_create(r2, 0);
-    }
-    auto& operator[](const std::string& r)
-    {
-      strings.push_back(std::shared_ptr<std::string>(new std::string(r)));
-      std::string_view r2(*strings.back());
-      return root.find_or_create(r2, 0);
-    }
-
-    // Find a route and return an iterator.
-    auto find(const std::string_view& r)
-    {
-      return root.find(r, 0);
-    }
-
-
-    template <typename F>
-    void for_all_routes(F f) const
-    {
-      root.for_all_routes(f);
-    } 
-    auto end() { return root.end(); }
-
-    std::vector<std::shared_ptr<std::string>> strings;
-    internal::drt_node<V> root;
+    auto operator-> () { return this; }
+    bool operator==(const iterator& b) { return this->ptr == b.ptr; }
+    bool operator!=(const iterator& b) { return this->ptr != b.ptr; }
   };
 
-}
+  auto end() { return iterator{nullptr, std::string_view(), V()}; }
+
+  auto& find_or_create(std::string_view r, unsigned int c) {
+    if (c == r.size())
+      return v;
+
+    if (r[c] == '/')
+      c++; // skip the /
+    int s = c;
+    while (c < r.size() and r[c] != '/')
+      c++;
+    std::string_view k = r.substr(s, c - s);
+
+    auto& v = children[k].find_or_create(r, c);
+
+    return v;
+  }
+
+  template <typename F> void for_all_routes(F f, std::string prefix = "") const {
+    if (children.size() == 0)
+      f(prefix, v);
+    else {
+      if (prefix.size() && prefix.back() != '/')
+        prefix += '/';
+      for (auto it : children)
+        it.second.for_all_routes(f, prefix + std::string(it.first));
+    }
+  }
+  iterator find(const std::string_view& r, unsigned int c) {
+    // We found the route r.
+    if ((c == r.size() and v.handler != nullptr) or (children.size() == 0))
+      return iterator{this, r, v};
+
+    // r does not match any route.
+    if (c == r.size() and v.handler == nullptr)
+      return iterator{nullptr, r, v};
+
+    if (r[c] == '/')
+      c++; // skip the first /
+
+    // Find the next /.
+    int s = c;
+    while (c < r.size() and r[c] != '/')
+      c++;
+
+    // k is the string between the 2 /.
+    std::string_view k(&r[s], c - s);
+
+    // look for k in the children.
+    auto it = children.find(k);
+    if (it != children.end()) {
+      auto it2 = it->second.find(r, c); // search in the corresponding child.
+      if (it2 != it->second.end())
+        return it2;
+    }
+
+    {
+      // if one child is a url param {{param_name}}, choose it
+      for (auto& kv : children) {
+        auto name = kv.first;
+        if (name.size() > 4 and name[0] == '{' and name[1] == '{' and
+            name[name.size() - 2] == '}' and name[name.size() - 1] == '}')
+          return kv.second.find(r, c);
+      }
+      return end();
+    }
+  }
+
+  V v;
+  std::map<std::string_view, drt_node> children;
+};
+} // namespace internal
+
+template <typename V> struct dynamic_routing_table {
+
+  // Find a route and return reference to a procedure.
+  auto& operator[](const std::string_view& r) {
+    strings.push_back(std::shared_ptr<std::string>(new std::string(r)));
+    std::string_view r2(*strings.back());
+    return root.find_or_create(r2, 0);
+  }
+  auto& operator[](const std::string& r) {
+    strings.push_back(std::shared_ptr<std::string>(new std::string(r)));
+    std::string_view r2(*strings.back());
+    return root.find_or_create(r2, 0);
+  }
+
+  // Find a route and return an iterator.
+  auto find(const std::string_view& r) { return root.find(r, 0); }
+
+  template <typename F> void for_all_routes(F f) const { root.for_all_routes(f); }
+  auto end() { return root.end(); }
+
+  std::vector<std::shared_ptr<std::string>> strings;
+  internal::drt_node<V> root;
+};
+
+} // namespace li
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_DYNAMIC_ROUTING_TABLE
 
@@ -3856,7 +3514,7 @@ namespace li {
 template <typename E> inline void format_error_(E&) {}
 
 template <typename E, typename T1, typename... T>
-inline void format_error_(E& err, T1 a, T... args) {
+inline void format_error_(E& err, T1&& a, T&&... args) {
   err << a;
   format_error_(err, std::forward<T>(args)...);
 }
@@ -3871,26 +3529,24 @@ struct http_error {
 public:
   http_error(int status, const std::string& what) : status_(status), what_(what) {}
   http_error(int status, const char* what) : status_(status), what_(what) {}
-  auto status() const { return status_; }
-  auto what() const { return what_; }
+  int status() const { return status_; }
+  const std::string& what() const { return what_; }
 
-
-#define LI_HTTP_ERROR(CODE, ERR)                                          \
-  template <typename... A> static auto ERR(A&&... m) {                                \
-    return http_error(CODE, format_error(m...));                                    \
-  }                                                                            \
+#define LI_HTTP_ERROR(CODE, ERR)                                                                   \
+  template <typename... A> static auto ERR(A&&... m) {                                             \
+    return http_error(CODE, format_error(m...));                                                   \
+  }                                                                                                \
   static auto ERR(const char* w) { return http_error(CODE, w); }
 
-LI_HTTP_ERROR(400, bad_request)
-LI_HTTP_ERROR(401, unauthorized)
-LI_HTTP_ERROR(403, forbidden)
-LI_HTTP_ERROR(404, not_found)
+  LI_HTTP_ERROR(400, bad_request)
+  LI_HTTP_ERROR(401, unauthorized)
+  LI_HTTP_ERROR(403, forbidden)
+  LI_HTTP_ERROR(404, not_found)
 
-LI_HTTP_ERROR(500, internal_server_error)
-LI_HTTP_ERROR(501, not_implemented)
+  LI_HTTP_ERROR(500, internal_server_error)
+  LI_HTTP_ERROR(501, not_implemented)
 
 #undef LI_HTTP_ERROR
-
 
 private:
   int status_;
@@ -3904,11 +3560,8 @@ private:
 
 namespace li {
 
-enum { ANY, GET, POST, PUT, HTTP_DELETE };
-
 template <typename T, typename F> struct delayed_assignator {
-  delayed_assignator(T& t, F f = [](T& t, auto u) { t = u; })
-      : t(t), f(f) {}
+  delayed_assignator(T& t, F f = [](T& t, auto u) { t = u; }) : t(t), f(f) {}
 
   template <typename U> auto operator=(U&& u) { return f(t, u); }
 
@@ -3917,6 +3570,8 @@ template <typename T, typename F> struct delayed_assignator {
 };
 
 template <typename Req, typename Resp> struct api {
+
+  enum { ANY, GET, POST, PUT, HTTP_DELETE };
 
   typedef api<Req, Resp> self;
 
@@ -3927,11 +3582,10 @@ template <typename Req, typename Resp> struct api {
     std::string url_spec;
   };
 
-  H& operator()(const std::string_view& r) 
-  { 
-    auto& vh = routes_map_[r];
+  H& operator()(std::string_view& route) {
+    auto& vh = routes_map_[route];
     vh.verb = ANY;
-    vh.url_spec = r;
+    vh.url_spec = route;
     return vh.handler;
   }
 
@@ -3944,41 +3598,36 @@ template <typename Req, typename Resp> struct api {
   H& get(std::string_view r) { return this->operator()(GET, r); }
   H& post(std::string_view r) { return this->operator()(POST, r); }
   H& put(std::string_view r) { return this->operator()(PUT, r); }
-  H& delete_(std::string_view r) { return this->operator()(HTTP_DELETE , r); }
+  H& delete_(std::string_view r) { return this->operator()(HTTP_DELETE, r); }
 
-  int parse_verb(std::string_view method)
-  {
-    if (method == "GET") return GET;
-    if (method == "PUT") return PUT;
-    if (method == "POST") return POST;
-    if (method == "HTTP_DELETE") return HTTP_DELETE;
+  int parse_verb(std::string_view method) {
+    if (method == "GET")
+      return GET;
+    if (method == "PUT")
+      return PUT;
+    if (method == "POST")
+      return POST;
+    if (method == "HTTP_DELETE")
+      return HTTP_DELETE;
     return ANY;
   }
 
-  void add_subapi(std::string prefix, const self& subapi)
-  {
-    subapi.routes_map_.for_all_routes([this, prefix] (auto r, VH h) {
-      if (r.back() == '/')
+  void add_subapi(std::string prefix, const self& subapi) {
+    subapi.routes_map_.for_all_routes([this, prefix](auto r, VH h) {
+      if (!r.empty() && r.back() == '/')
         h.url_spec = prefix + r;
       else
-        h.url_spec = prefix + "/" + r;
+        h.url_spec = prefix + '/' + r;
 
       this->routes_map_[h.url_spec] = h;
-
     });
-
   }
 
-  void print_routes()
-  {
-    std::cout << "=====================" << std::endl;
-    routes_map_.for_all_routes([this] (auto r, auto h) {
-      std::cout << r << std::endl;
-    });
-    std::cout << "=====================" << std::endl;
+  void print_routes() {
+    routes_map_.for_all_routes([this](auto r, auto h) { std::cout << r << '\n'; });
+    std::cout << std::endl;
   }
-  auto call(const char* method, std::string route, Req& request,
-            Resp& response) {
+  auto call(const char* method, std::string route, Req& request, Resp& response) {
     // skip the last / of the url.
     std::string_view route2(route);
     if (route2.size() != 0 and route2[route2.size() - 1] == '/')
@@ -3986,14 +3635,11 @@ template <typename Req, typename Resp> struct api {
 
     auto it = routes_map_.find(route2);
     if (it != routes_map_.end()) {
-      if (it->second.verb == ANY or parse_verb(method) == it->second.verb)
-      {
+      if (it->second.verb == ANY or parse_verb(method) == it->second.verb) {
         request.url_spec = it->second.url_spec;
         it->second.handler(request, response);
-      }
-      else
-        throw http_error::not_found("Method ", method, " not implemented on route ",
-                               route2);
+      } else
+        throw http_error::not_found("Method ", method, " not implemented on route ", route2);
     } else
       throw http_error::not_found("Route ", route2, " does not exist.");
   }
@@ -4016,221 +3662,205 @@ template <typename Req, typename Resp> struct api {
 #endif
 
 
-namespace li
-{
-  // Decode a plain value.
-  template <typename O>
-  std::string_view url_decode2(std::set<void*>& found, std::string_view str, O& obj)
-  {
-    if (str.size() == 0)
-      throw std::runtime_error(format_error("url_decode error: expected key end"));
+namespace li {
+// Decode a plain value.
+template <typename O>
+std::string_view url_decode2(std::set<void*>& found, std::string_view str, O& obj) {
+  if (str.size() == 0)
+    throw std::runtime_error(format_error("url_decode error: expected key end"));
 
-    if (str[0] != '=')
-      throw std::runtime_error(format_error("url_decode error: expected =, got ", str[0]));
+  if (str[0] != '=')
+    throw std::runtime_error(format_error("url_decode error: expected =, got ", str[0]));
 
-    int start = 1;
-    int end = 1;
-    
-    while (str.size() != end && str[end] != '&') end++;
+  int start = 1;
+  int end = 1;
 
-    if (start != end)
-    {
-      std::string content(str.substr(start, end - start));
-      // Url escape.
-      content.resize(MHD_http_unescape(&content[0]));
-      obj = boost::lexical_cast<O>(content);
-      found.insert(&obj);
-    }
-    if (end == str.size())
-      return str.substr(end, 0);
-    else
-      return str.substr(end + 1, str.size() - end - 1);
+  while (str.size() != end && str[end] != '&')
+    end++;
+
+  if (start != end) {
+    std::string content(str.substr(start, end - start));
+    // Url escape.
+    content.resize(MHD_http_unescape(&content[0]));
+    obj = boost::lexical_cast<O>(content);
+    found.insert(&obj);
   }
+  if (end == str.size())
+    return str.substr(end, 0);
+  else
+    return str.substr(end + 1, str.size() - end - 1);
+}
 
-  template <typename O>
-  std::string_view url_decode2(std::set<void*>& found, std::string_view str, std::optional<O>& obj)
+template <typename O>
+std::string_view url_decode2(std::set<void*>& found, std::string_view str, std::optional<O>& obj) {
+  O o;
+  auto ret = url_decode2(found, str, o);
+  obj = o;
+  return ret;
+}
+
+template <typename... O>
+std::string_view url_decode2(std::set<void*>& found, std::string_view str, metamap<O...>& obj,
+                             bool root = false);
+
+// Decode an array element.
+template <typename O>
+std::string_view url_decode2(std::set<void*>& found, std::string_view str, std::vector<O>& obj) {
+  if (str.size() == 0)
+    throw std::runtime_error(format_error("url_decode error: expected key end", str[0]));
+
+  if (str[0] != '[')
+    throw std::runtime_error(format_error("url_decode error: expected [, got ", str[0]));
+
+  // Get the index substring.
+  int index_start = 1;
+  int index_end = 1;
+
+  while (str.size() != index_end and str[index_end] != ']')
+    index_end++;
+
+  if (str.size() == 0)
+    throw std::runtime_error(format_error("url_decode error: expected key end", str[0]));
+
+  auto next_str = str.substr(index_end + 1, str.size() - index_end - 1);
+
+  if (index_end == index_start) // [] syntax, push back a value.
   {
-    O o;
-    auto ret = url_decode2(found, str, o);
-    obj = o;
+    O x;
+    auto ret = url_decode2(found, next_str, x);
+    obj.push_back(x);
     return ret;
-  }
-
-  template <typename... O>
-  std::string_view url_decode2(std::set<void*>& found, std::string_view str, metamap<O...>& obj, bool root = false);
-  
-  // Decode an array element.
-  template <typename O>
-  std::string_view url_decode2(std::set<void*>& found, std::string_view str, std::vector<O>& obj)
+  } else // [idx] set index idx.
   {
-    if (str.size() == 0)
-      throw std::runtime_error(format_error("url_decode error: expected key end", str[0]));
+    int idx = std::strtol(str.data() + index_start, nullptr, 10);
+    if (idx >= 0 and idx <= 9999) {
+      if (int(obj.size()) <= idx)
+        obj.resize(idx + 1);
+      return url_decode2(found, next_str, obj[idx]);
+    } else
+      throw std::runtime_error(format_error("url_decode error: out of bound array subscript."));
+  }
+}
 
+// Decode an object member.
+template <typename... O>
+std::string_view url_decode2(std::set<void*>& found, std::string_view str, metamap<O...>& obj,
+                             bool root) {
+  if (str.size() == 0)
+    throw http_error::bad_request("url_decode error: expected key end", str[0]);
+
+  int key_start = 0;
+  int key_end = key_start + 1;
+
+  int next = 0;
+
+  if (!root) {
     if (str[0] != '[')
       throw std::runtime_error(format_error("url_decode error: expected [, got ", str[0]));
 
-    // Get the index substring.
-    int index_start = 1;
-    int index_end = 1;
-    
-    while (str.size() != index_end and str[index_end] != ']') index_end++;
+    key_start = 1;
+    while (key_end != str.size() && str[key_end] != ']' && str[key_end] != '=')
+      key_end++;
 
-    if (str.size() == 0)
-      throw std::runtime_error(format_error("url_decode error: expected key end", str[0]));
-    
-    auto next_str = str.substr(index_end + 1, str.size() - index_end - 1);
-
-    if (index_end == index_start) // [] syntax, push back a value.
-    {
-      O x;
-      auto ret = url_decode2(found, next_str, x);
-      obj.push_back(x);
-      return ret;
-    }
-    else // [idx] set index idx.
-    {
-      int idx = std::strtol(str.data() + index_start, nullptr, 10);
-      if (idx >= 0 and idx <= 9999)
-      {
-        if (int(obj.size()) <= idx)
-          obj.resize(idx + 1);
-        return url_decode2(found, next_str, obj[idx]);
-      }
-      else
-        throw std::runtime_error(format_error("url_decode error: out of bound array subscript."));
-    }
-    
+    if (key_end == str.size())
+      throw std::runtime_error("url_decode error: unexpected end.");
+    next = key_end + 1; // skip the ]
+  } else {
+    while (key_end != str.size() && str[key_end] != '[' && str[key_end] != '=')
+      key_end++;
+    next = key_end;
   }
 
-  // Decode an object member.
-  template <typename... O>
-  std::string_view url_decode2(std::set<void*>& found, std::string_view str, metamap<O...>& obj, bool root)
-  {
-    if (str.size() == 0)
-      throw http_error::bad_request("url_decode error: expected key end", str[0]);
-      
-    int key_start = 0;
-    int key_end = key_start + 1;
+  auto key = str.substr(key_start, key_end - key_start);
+  auto next_str = str.substr(next, str.size() - next);
 
-    int next = 0;
-
-    if (!root)
-    {
-      if (str[0] != '[')
-        throw std::runtime_error(format_error("url_decode error: expected [, got ", str[0]));
-        
-      key_start = 1;
-      while (key_end != str.size() && str[key_end] != ']' && str[key_end] != '=') key_end++;
-
-      if (key_end == str.size())
-        throw std::runtime_error("url_decode error: unexpected end.");
-      next = key_end + 1; // skip the ]
-    }
-    else
-    {
-      while (key_end != str.size() && str[key_end] != '[' && str[key_end] != '=') key_end++;
-      next = key_end;
-    }
-
-    auto key = str.substr(key_start, key_end - key_start);
-    auto next_str = str.substr(next, str.size() - next);
-
-    std::string_view ret;
-    map(obj, [&] (auto k, auto& v)
-    {
-      if (li::symbol_string(k) == key)
-      {
-      try{
+  std::string_view ret;
+  map(obj, [&](auto k, auto& v) {
+    if (li::symbol_string(k) == key) {
+      try {
         ret = url_decode2(found, next_str, v);
+      } catch (std::exception e) {
+        throw std::runtime_error(
+            format_error("url_decode error: cannot decode parameter ", li::symbol_string(k)));
       }
-      catch(std::exception e)
-      {
-        throw std::runtime_error(format_error("url_decode error: cannot decode parameter ", 
-                                  li::symbol_string(k)));
-      }
-      }
-    });
-    return ret;
-  }
-
-  template <typename O>
-  std::string url_decode_check_missing_fields(const std::set<void*>& found, std::optional<O>& obj)
-  {
-    return std::string();
-  }
-
-  template <typename O>
-  std::string url_decode_check_missing_fields(const std::set<void*>& found, O& obj)
-  {
-    if (found.find(&obj) == found.end())
-      return " ";
-    else
-      return std::string();
-  }
-
-  template <typename O>
-  std::string url_decode_check_missing_fields(const std::set<void*>& found, std::vector<O>& obj)
-  {
-    // Fixme : implement missing fields checking in std::vector<metamap<O...>>
-    // for (int i = 0; i < obj.size(); i++)
-    // {
-    //   std::string missing = url_decode_check_missing_fields(found, obj[i]);
-    //   if (missing.size())
-    //   {
-    //     std::ostringstream ss;
-    //     ss << '[' << i << "]" << missing;
-    //     return ss.str();
-    //   }
-    // }
-    return std::string();
-  }
-  
-  template <typename... O>
-  std::string url_decode_check_missing_fields(const std::set<void*>& found, metamap<O...>& obj, bool root = false)
-  {
-    std::string missing;
-    map(obj, [&] (auto k, auto& v)
-    {
-      if (missing.size()) return;
-      missing = url_decode_check_missing_fields(found, v);
-      if (missing.size())
-        missing = (root ? "" : ".") + std::string(li::symbol_string(k)) + missing;
-    });
-    return missing;
-  }
-
-  template <typename S, typename... O>
-  std::string url_decode_check_missing_fields_on_subset(const std::set<void*>& found, metamap<O...>& obj, bool root = false)
-  {
-    std::string missing;
-    map(S(), [&] (auto k, auto)
-    {
-      if (missing.size()) return;
-      auto& v = obj[k];
-      missing = url_decode_check_missing_fields(found, v);
-      if (missing.size())
-        missing = (root ? "" : ".") + std::string(li::symbol_string(k)) + missing;
-    });
-    return missing;
-  }
-  
-  // Frontend.
-  template <typename O>
-  void url_decode(std::string_view str, O& obj)
-  {
-    std::set<void*> found;
-
-    // Parse the urlencoded string
-    while (str.size() > 0)
-      str = url_decode2(found, str, obj, true);
-
-    // Check for missing fields.
-    std::string missing = url_decode_check_missing_fields(found, obj, true);
-    if (missing.size())
-      throw std::runtime_error(format_error("Missing argument ", missing));
-  }
-
+    }
+  });
+  return ret;
 }
+
+template <typename O>
+std::string url_decode_check_missing_fields(const std::set<void*>& found, std::optional<O>& obj) {
+  return std::string();
+}
+
+template <typename O>
+std::string url_decode_check_missing_fields(const std::set<void*>& found, O& obj) {
+  if (found.find(&obj) == found.end())
+    return " ";
+  else
+    return std::string();
+}
+
+template <typename O>
+std::string url_decode_check_missing_fields(const std::set<void*>& found, std::vector<O>& obj) {
+  // Fixme : implement missing fields checking in std::vector<metamap<O...>>
+  // for (int i = 0; i < obj.size(); i++)
+  // {
+  //   std::string missing = url_decode_check_missing_fields(found, obj[i]);
+  //   if (missing.size())
+  //   {
+  //     std::ostringstream ss;
+  //     ss << '[' << i << "]" << missing;
+  //     return ss.str();
+  //   }
+  // }
+  return std::string();
+}
+
+template <typename... O>
+std::string url_decode_check_missing_fields(const std::set<void*>& found, metamap<O...>& obj,
+                                            bool root = false) {
+  std::string missing;
+  map(obj, [&](auto k, auto& v) {
+    if (missing.size())
+      return;
+    missing = url_decode_check_missing_fields(found, v);
+    if (missing.size())
+      missing = (root ? "" : ".") + std::string(li::symbol_string(k)) + missing;
+  });
+  return missing;
+}
+
+template <typename S, typename... O>
+std::string url_decode_check_missing_fields_on_subset(const std::set<void*>& found,
+                                                      metamap<O...>& obj, bool root = false) {
+  std::string missing;
+  map(S(), [&](auto k, auto) {
+    if (missing.size())
+      return;
+    auto& v = obj[k];
+    missing = url_decode_check_missing_fields(found, v);
+    if (missing.size())
+      missing = (root ? "" : ".") + std::string(li::symbol_string(k)) + missing;
+  });
+  return missing;
+}
+
+// Frontend.
+template <typename O> void url_decode(std::string_view str, O& obj) {
+  std::set<void*> found;
+
+  // Parse the urlencoded string
+  while (str.size() > 0)
+    str = url_decode2(found, str, obj, true);
+
+  // Check for missing fields.
+  std::string missing = url_decode_check_missing_fields(found, obj, true);
+  if (missing.size())
+    throw std::runtime_error(format_error("Missing argument ", missing));
+}
+
+} // namespace li
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_URL_DECODE
 
@@ -4278,7 +3908,10 @@ int mhd_keyvalue_iterator(void* cls, enum MHD_ValueKind kind, const char* key, c
   return MHD_YES;
 }
 
-struct url_parser_info_node { int slash_pos; bool is_path; };
+struct url_parser_info_node {
+  int slash_pos;
+  bool is_path;
+};
 using url_parser_info = std::unordered_map<std::string, url_parser_info_node>;
 
 auto make_url_parser_info(const std::string_view url) {
@@ -4302,8 +3935,8 @@ auto make_url_parser_info(const std::string_view url) {
       if (param_name_end != param_name_start and check_pattern(param_name_end, '}')) {
         int size = param_name_end - param_name_start;
         bool is_path = false;
-        if (size > 3 and param_name_end[-1] == '.' and param_name_end[-2] == '.' and param_name_end[-3] == '.')
-        {
+        if (size > 3 and param_name_end[-1] == '.' and param_name_end[-2] == '.' and
+            param_name_end[-3] == '.') {
           is_path = true;
           param_name_end -= 3;
         }
@@ -4340,19 +3973,17 @@ auto parse_url_parameters(const url_parser_info& fmt, const std::string_view url
         throw http_error::bad_request("Missing url parameter ", symbol_str);
 
       int param_start = slashes[param_slash] + 1;
-      if (it->second.is_path)
-      {
-        if constexpr(std::is_same<std::decay_t<decltype(obj[k])>, std::string>::value or
-                     std::is_same<std::decay_t<decltype(obj[k])>, std::string_view>::value) {
-          obj[k] = std::string_view(url.data() + param_start - 1, url.size() - param_start + 1); // -1 to include the first /.
-        }
-        else {
-          throw std::runtime_error("{{path...}} parameters only accept std::string or std::string_view types.");
+      if (it->second.is_path) {
+        if constexpr (std::is_same<std::decay_t<decltype(obj[k])>, std::string>::value or
+                      std::is_same<std::decay_t<decltype(obj[k])>, std::string_view>::value) {
+          obj[k] = std::string_view(url.data() + param_start - 1,
+                                    url.size() - param_start + 1); // -1 to include the first /.
+        } else {
+          throw std::runtime_error(
+              "{{path...}} parameters only accept std::string or std::string_view types.");
         }
 
-      }
-      else
-      {
+      } else {
         int param_end = param_start;
         while (int(url.size()) > (param_end) and url[param_end] != '/')
           param_end++;
@@ -4434,8 +4065,8 @@ template <typename O> auto http_request::post_parameters(O& res) const {
   try {
     const char* encoding = this->header("Content-Type");
     if (!encoding)
-      throw http_error::bad_request(std::string(
-          "Content-Type is required to decode the POST parameters"));
+      throw http_error::bad_request(
+          std::string("Content-Type is required to decode the POST parameters"));
 
     if (encoding == std::string_view("application/x-www-form-urlencoded"))
       url_decode(body, res);
@@ -4456,6 +4087,7 @@ template <typename O> auto http_request::post_parameters(O& res) const {
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_RESPONSE
 
 
+
 //#include <stdlib.h>
 
 #if defined(_MSC_VER)
@@ -4472,12 +4104,14 @@ struct http_response {
   inline void set_cookie(std::string k, std::string v) { cookies[k] = v; }
 
   inline void write() {}
-  template <typename A1, typename... A>
-  inline void write(A1 a1, A&&... a) { body += boost::lexical_cast<std::string>(a1); write(a...); }
+  template <typename A1, typename... A> inline void write(A1 a1, A&&... a) {
+    body += boost::lexical_cast<std::string>(a1);
+    write(a...);
+  }
   inline void write_file(const std::string path) {
 
 #if defined(_MSC_VER)
-    int fd; 
+    int fd;
     _sopen_s(&fd, path.c_str(), O_RDONLY, _SH_DENYRW, _S_IREAD);
 #else
     int fd = open(path.c_str(), O_RDONLY);
@@ -4499,375 +4133,13 @@ struct http_response {
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_RESPONSE
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SQL_CRUD_API
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SQL_CRUD_API
-
-
 
 namespace li {
-  
-template <typename A, typename B, typename C> auto sql_crud_api(sql_orm_schema<A, B, C>& orm_schema) {
-
-  api<http_request, http_response> api;
-
-  api(POST, "/find_by_id") = [&](http_request& request, http_response& response) {
-    auto params = request.post_parameters(s::id = int());
-    if (auto obj = orm_schema.connect().find_one(s::id = params.id, request, response))
-      response.write(json_encode(obj));
-    else
-      throw http_error::not_found(orm_schema.table_name(), " with id ", params.id, " does not exist.");
-  };
-
-  api(POST, "/create") = [&](http_request& request, http_response& response) {
-    auto insert_fields = orm_schema.all_fields_except_computed();
-    auto obj = request.post_parameters(insert_fields);
-    long long int id = orm_schema.connect().insert(obj, request, response);
-    response.write(json_encode(s::id = id));
-  };
-
-  api(POST, "/update") = [&](http_request& request, http_response& response) {
-    auto obj = request.post_parameters(orm_schema.all_fields());
-    orm_schema.connect().update(obj, request, response);
-  };
-
-  api(POST, "/remove") = [&](http_request& request, http_response& response) {
-    auto obj = request.post_parameters(orm_schema.primary_key());
-    orm_schema.connect().remove(obj, request, response);
-  };
-
-  return api;
+using http_api = api<http_request, http_response>;
 }
 
-} // namespace li
-
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SQL_CRUD_API
-
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_MHD
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_MHD
-
-
-
-#if defined(__GNUC__) && defined(__MINGW32__)
-#endif
-
-#if defined(_MSC_VER)
-void usleep(__int64 usec) 
-{ 
-    HANDLE timer; 
-    LARGE_INTEGER ft; 
-
-    ft.QuadPart = -(10*usec); // Convert to 100 nanosecond interval, negative value indicates relative time
-
-    timer = CreateWaitableTimer(NULL, TRUE, NULL); 
-    SetWaitableTimer(timer, &ft, 0, NULL, NULL, 0); 
-    WaitForSingleObject(timer, INFINITE); 
-    CloseHandle(timer); 
-}
-#endif
-
-
-//#include <li/http_backend/file.hh>
-//#include <li/http_backend/url_decode.hh>
-
-namespace li {
-  using namespace li;
-    
-  template <typename S>
-  int mhd_handler(void * cls,
-                  struct MHD_Connection * connection,
-                  const char * url,
-                  const char * method,
-                  const char * version,
-                  const char * upload_data,
-                  size_t * upload_data_size,
-                  void ** ptr)
-  {
-
-    MHD_Response* response = nullptr;
-    int ret = 0;
-
-    std::string* pp = (std::string*)*ptr;
-    if (!pp)
-    {
-      pp = new std::string;
-      *ptr = pp;
-      return MHD_YES;
-    }
-    if (*upload_data_size)
-    {
-      pp->append(std::string(upload_data, *upload_data_size));
-      *upload_data_size = 0;
-      return MHD_YES;
-    }
-
-    http_request rq{connection, *pp, url};
-    http_response resp;
-
-    try
-    {
-      auto& api = * (S*)cls;
-      //api(std::string("/") + std::string(method) + url, &rq, &resp, connection);      
-      api.call(method, url, rq, resp);
-
-      if (resp.file_descriptor > -1)
-      {
-        struct stat st;
-        if (fstat(resp.file_descriptor, &st) != 0)
-          throw http_error::not_found("Cannot fstat this file");
-        response = MHD_create_response_from_fd(st.st_size, resp.file_descriptor);
-      }
-      
-    }
-    catch(const http_error& e)
-    {
-      resp.status = e.status();
-      std::string m = e.what();
-      resp.body = m.data();
-    }
-    catch(const std::runtime_error& e)
-    {
-      std::cout << e.what() << std::endl;
-      resp.status = 500;
-      resp.body = "Internal server error.";
-    }
-
-
-
-    if (resp.file_descriptor == -1)
-    {
-      const std::string& str = resp.body;
-      response = MHD_create_response_from_buffer(str.size(),
-                                                 (void*) str.c_str(),
-                                                 MHD_RESPMEM_MUST_COPY);
-    }
-
-    if (!response)
-    {
-      resp.status = 500;
-      resp.body = "Failed to create response object.";
-    }
-    else
-    {
-      for(auto kv : resp.headers)
-      {
-        if (kv.first.size() != 0 and kv.second.size() != 0)
-          if (MHD_NO == MHD_add_response_header (response,
-                                                 kv.first.c_str(),
-                                                 kv.second.c_str()))
-            std::cerr << "Failed to set header" << std::endl;
-      }
-
-      // Set cookies.
-      for(auto kv : resp.cookies)
-        if (kv.first.size() != 0 and kv.second.size() != 0)
-        {
-          std::string set_cookie_string = kv.first + '=' + kv.second + "; Path=/";
-          if (MHD_NO == MHD_add_response_header (response,
-                                                 MHD_HTTP_HEADER_SET_COOKIE,
-                                                 set_cookie_string.c_str()))
-            std::cerr << "Failed to set cookie" << std::endl;
-        }
-
-      if (resp.headers.find(MHD_HTTP_HEADER_SERVER) == resp.headers.end())
-        MHD_add_response_header (response,
-                                 MHD_HTTP_HEADER_SERVER,
-                                 "silicon");
-
-      ret = MHD_queue_response(connection,
-                               resp.status,
-                               response);
-
-      MHD_destroy_response(response);
-    }
-
-    delete pp;
-    return ret;
-  }
-
-  struct silicon_mhd_ctx
-  {
-    silicon_mhd_ctx(MHD_Daemon* d, char* cert, char* key)
-      : daemon_(d),
-        cert_(cert),
-        key_(key) {}
-
-    ~silicon_mhd_ctx()
-    {
-      MHD_stop_daemon(daemon_);
-      if (cert_)
-        free(cert_);
-      if (key_)
-        free(key_);
-    }
-
-    MHD_Daemon* daemon_;
-
-    char* cert_, *key_;
-  };
-
-  /*! 
-  ** Start the microhttpd json backend. This function is by default blocking.
-  ** 
-  ** @param api The api
-  ** @param port the port
-  ** @param opts Available options are:
-  **         s::one_thread_per_connection: Spans one thread per connection.
-  **         s::linux_epoll: One thread per CPU core with epoll.
-  **         s::select: select instead of epoll (active by default).
-  **         s::nthreads: Set the number of thread. Default: The numbers of CPU cores.
-  **         s::non_blocking: Run the server in a thread and return in a non blocking way.
-  **         s::blocking: (Active by default) Blocking call.
-  **         s::https_key: path to the https key file.
-  **         s::https_cert: path to the https cert file.
-  ** 
-  ** @return If set as non_blocking, this function returns a
-  ** silicon_mhd_ctx that will stop and cleanup the server at the end
-  ** of its lifetime. If set as blocking (default), never returns
-  ** except if an error prevents or stops the execution of the server.
-  **
-  */
-  template <typename A, typename... O>
-  auto http_serve(A& api, int port, O... opts)
-  {
-
-    int flags = MHD_USE_SELECT_INTERNALLY;
-    auto options = mmm(opts...);
-    if (has_key(options, s::one_thread_per_connection))
-      flags = MHD_USE_THREAD_PER_CONNECTION;
-    else if (has_key(options, s::select))
-      flags = MHD_USE_SELECT_INTERNALLY;
-    else if (has_key(options, s::linux_epoll))
-    {
-#if MHD_VERSION >= 0x00095100
-      flags = MHD_USE_EPOLL_INTERNALLY;
-#else
-      flags = MHD_USE_EPOLL_INTERNALLY_LINUX_ONLY;
-#endif
-    }
-
-    auto read_file = [] (std::string path) {
-      std::ifstream in(path);
-      if (!in.good())
-      {
-        std::ostringstream err_ss;
-#if defined (_MSC_VER)
-        err_ss << "Cannot read " << path;
-#else
-        err_ss << "Cannot read " << path << " " << strerror(errno);
-#endif
-        throw std::runtime_error(err_ss.str());
-      }
-      std::ostringstream ss{};
-      ss << in.rdbuf();
-      return ss.str();
-    };
-
-    std::string https_cert, https_key;
-    if (has_key(options, s::https_cert) || has_key(options, s::https_key))
-    {
-      std::string cert_file = get_or(options, s::https_cert, "");
-      std::string key_file = get_or(options, s::https_key, "");
-#ifdef MHD_USE_TLS
-      flags |= MHD_USE_TLS;
-#else
-      flags |= MHD_USE_SSL;
-#endif
-      
-      if (cert_file.size() == 0) throw std::runtime_error("Missing HTTPS certificate file"); 
-      if (key_file.size() == 0) throw std::runtime_error("Missing HTTPS key file");
-
-      https_key = std::move(read_file(key_file));
-      https_cert = std::move(read_file(cert_file));
-      
-    }
-
-#if defined (_MSC_VER)
-  #define strdup _strdup
-#endif
-    char* https_cert_buffer = https_cert.size() ? strdup(https_cert.c_str()) : 0;
-    char* https_key_buffer = https_key.size() ? strdup(https_key.c_str()) : 0;
-#if defined (_MSC_VER)
-  #undef strdup
-#endif
-  
-    int thread_pool_size = get_or(options, s::nthreads, std::thread::hardware_concurrency());
-    
-    using api_t = std::decay_t<decltype(api)>;
-    
-    MHD_Daemon* d;
-
-    void* cls = (void*)  &api;
-    if (https_key.size() > 0)
-    {
-      if (MHD_is_feature_supported(MHD_FEATURE_SSL) == MHD_NO)
-        throw std::runtime_error("microhttpd has not been compiled with SSL support.");
-        
-      if ((flags & MHD_USE_THREAD_PER_CONNECTION) != MHD_USE_THREAD_PER_CONNECTION)
-        d = MHD_start_daemon(
-                             flags,
-                             port,
-                             NULL,
-                             NULL,
-                             &mhd_handler<api_t>,
-                             cls,
-                             MHD_OPTION_THREAD_POOL_SIZE, thread_pool_size,
-                             MHD_OPTION_HTTPS_MEM_KEY, https_key_buffer,
-                             MHD_OPTION_HTTPS_MEM_CERT, https_cert_buffer,
-                             MHD_OPTION_END);
-      else
-        d = MHD_start_daemon(
-                             flags,
-                             port,
-                             NULL,
-                             NULL,
-                             &mhd_handler<api_t>,
-                             cls,
-                             MHD_OPTION_HTTPS_MEM_KEY, https_key_buffer,
-                             MHD_OPTION_HTTPS_MEM_CERT, https_cert_buffer,
-                             MHD_OPTION_END);
-      
-    }
-    else // Without SSL
-    {
-      if ((flags & MHD_USE_THREAD_PER_CONNECTION) != MHD_USE_THREAD_PER_CONNECTION)
-        d = MHD_start_daemon(
-                             flags,
-                             port,
-                             NULL,
-                             NULL,
-                             &mhd_handler<api_t>,
-                             cls,
-                             MHD_OPTION_THREAD_POOL_SIZE, thread_pool_size,
-                             MHD_OPTION_END);
-      else
-        d = MHD_start_daemon(
-                             flags,
-                             port,
-                             NULL,
-                             NULL,
-                             &mhd_handler<api_t>,
-                             cls,
-                             MHD_OPTION_END);
-    }
-
-    if (d == NULL)
-      throw std::runtime_error("Cannot start the microhttpd daemon");
-
-    if (!has_key(options, s::non_blocking))
-    {
-      while (true) usleep(1000000);
-    }
-
-    return silicon_mhd_ctx(d, https_cert_buffer, https_key_buffer);
-  }
-  
-
-}
-
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_MHD
-
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SQL_HTTP_SESSION
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SQL_HTTP_SESSION
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_HASHMAP_HTTP_SESSION
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_HASHMAP_HTTP_SESSION
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_RANDOM_COOKIE
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_RANDOM_COOKIE
@@ -4875,118 +4147,30 @@ namespace li {
 
 namespace li {
 
-  std::string generate_secret_tracking_id()
-  {
-    std::ostringstream os;
-    std::random_device rd;
-    os << std::hex << rd() << rd() << rd() << rd();
-    return os.str();
-  }
-  
-  inline std::string random_cookie(http_request& request,
-				    http_response& response,
-				    const char* key = "silicon_token")
-  {
-    std::string token;
-    const char* token_ = request.cookie(key);
-    if (!token_)
-      {
-        token = generate_secret_tracking_id();
-        response.set_cookie(key, token);
-      }
-    else
-      {
-        token = token_;
-      }
-
-    return token;
-  }
-
+std::string generate_secret_tracking_id() {
+  std::ostringstream os;
+  std::random_device rd;
+  os << std::hex << rd() << rd() << rd() << rd();
+  return os.str();
 }
 
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_RANDOM_COOKIE
-
-
-namespace li {
-
-template <typename ORM> struct connected_sql_http_session {
-
-  // Construct the session.
-  // Retrive the cookie
-  // Retrieve it from the database.
-  // Insert it if it does not exists.
-  connected_sql_http_session(typename ORM::object_type& defaults, ORM orm,
-                             const std::string& session_id)
-      : loaded_(false), session_id_(session_id), orm_(orm), values_(defaults) {}
-
-  // Store fiels into the session
-  template <typename... F> auto store(F... fields) {
-    map(mmm(fields...), [this](auto k, auto v) { values_[k] = v; });
-    if (!orm_.exists(s::session_id = session_id_))
-      orm_.insert(s::session_id = session_id_, fields...);
-    else
-      orm_.update(s::session_id = session_id_, fields...);
+inline std::string random_cookie(http_request& request, http_response& response,
+                                 const char* key = "silicon_token") {
+  std::string token;
+  const char* token_ = request.cookie(key);
+  if (!token_) {
+    token = generate_secret_tracking_id();
+    response.set_cookie(key, token);
+  } else {
+    token = token_;
   }
 
-  // Access values of the session.
-  const auto values() {
-    load();
-    return values_;
-  }
-
-  // Delete the session from the database.
-  void logout() { orm_.remove(s::session_id = session_id_); }
-
-private:
-  auto load() {
-    if (loaded_)
-      return;
-    if (auto new_values_ = orm_.find_one(s::session_id = session_id_))
-      values_ = *new_values_;
-    loaded_ = true;
-  }
-
-  bool loaded_;
-  std::string session_id_;
-  ORM orm_;
-  typename ORM::object_type values_;
-};
-
-template <typename DB, typename... F>
-decltype(auto) create_session_orm(DB& db, std::string table_name,
-                                  F... fields) {
-  return sql_orm_schema<DB>(db, table_name)
-      .fields(s::session_id(s::read_only, s::primary_key) = sql_varchar<32>(), fields...);
+  return token;
 }
-
-template <typename DB, typename... F> struct sql_http_session {
-
-  sql_http_session(DB& db, std::string table_name, std::string cookie_name, F... fields)
-      : cookie_name_(cookie_name),
-        default_values_(mmm(s::session_id = sql_varchar<32>(), fields...)),
-        session_table_(create_session_orm(db, table_name, fields...)) {}
-
-  auto connect(http_request& request, http_response& response) {
-    return connected_sql_http_session(default_values_, session_table_.connect(),
-                                      random_cookie(request, response, cookie_name_.c_str()));
-  }
-
-  auto orm() { return session_table_; }
-
-  std::string cookie_name_;
-  std::decay_t<decltype(mmm(s::session_id = sql_varchar<32>(), std::declval<F>()...))>
-      default_values_;
-  std::decay_t<decltype(
-      create_session_orm(std::declval<DB&>(), std::string(), std::declval<F>()...))>
-      session_table_;
-};
 
 } // namespace li
 
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SQL_HTTP_SESSION
-
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_HASHMAP_HTTP_SESSION
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_HASHMAP_HTTP_SESSION
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_RANDOM_COOKIE
 
 
 namespace li {
@@ -5045,6 +4229,451 @@ template <typename... F> struct hashmap_http_session {
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_HASHMAP_HTTP_SESSION
 
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_HTTP_AUTHENTICATION
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_HTTP_AUTHENTICATION
+
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SQL_HTTP_SESSION
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SQL_HTTP_SESSION
+
+
+namespace li {
+
+template <typename ORM> struct connected_sql_http_session {
+
+  // Construct the session.
+  // Retrive the cookie
+  // Retrieve it from the database.
+  // Insert it if it does not exists.
+  connected_sql_http_session(typename ORM::object_type& defaults, ORM orm,
+                             const std::string& session_id)
+      : loaded_(false), session_id_(session_id), orm_(orm), values_(defaults) {}
+
+  // Store fiels into the session
+  template <typename... F> auto store(F... fields) {
+    map(mmm(fields...), [this](auto k, auto v) { values_[k] = v; });
+    if (!orm_.exists(s::session_id = session_id_))
+      orm_.insert(s::session_id = session_id_, fields...);
+    else
+      orm_.update(s::session_id = session_id_, fields...);
+  }
+
+  // Access values of the session.
+  const auto values() {
+    load();
+    return values_;
+  }
+
+  // Delete the session from the database.
+  void logout() { orm_.remove(s::session_id = session_id_); }
+
+private:
+  auto load() {
+    if (loaded_)
+      return;
+    if (auto new_values_ = orm_.find_one(s::session_id = session_id_))
+      values_ = *new_values_;
+    loaded_ = true;
+  }
+
+  bool loaded_;
+  std::string session_id_;
+  ORM orm_;
+  typename ORM::object_type values_;
+};
+
+template <typename DB, typename... F>
+decltype(auto) create_session_orm(DB& db, std::string table_name, F... fields) {
+  return sql_orm_schema<DB>(db, table_name)
+      .fields(s::session_id(s::read_only, s::primary_key) = sql_varchar<32>(), fields...);
+}
+
+template <typename DB, typename... F> struct sql_http_session {
+
+  sql_http_session(DB& db, std::string table_name, std::string cookie_name, F... fields)
+      : cookie_name_(cookie_name),
+        default_values_(mmm(s::session_id = sql_varchar<32>(), fields...)),
+        session_table_(create_session_orm(db, table_name, fields...)) {}
+
+  auto connect(http_request& request, http_response& response) {
+    return connected_sql_http_session(default_values_, session_table_.connect(),
+                                      random_cookie(request, response, cookie_name_.c_str()));
+  }
+
+  auto orm() { return session_table_; }
+
+  std::string cookie_name_;
+  std::decay_t<decltype(mmm(s::session_id = sql_varchar<32>(), std::declval<F>()...))>
+      default_values_;
+  std::decay_t<decltype(
+      create_session_orm(std::declval<DB&>(), std::string(), std::declval<F>()...))>
+      session_table_;
+};
+
+} // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SQL_HTTP_SESSION
+
+
+namespace li {
+
+template <typename S, typename U, typename L, typename P, typename... CB>
+struct http_authentication {
+  http_authentication(S& session, U& users, L login_field, P password_field, CB... callbacks)
+      : sessions_(session), users_(users), login_field_(login_field),
+        password_field_(password_field), callbacks_(mmm(callbacks...)) {
+
+    auto allowed_callbacks = mmm(s::hash_password, s::create_secret_key);
+
+    static_assert(metamap_size<decltype(substract(callbacks_, allowed_callbacks))>() == 0,
+                  "The only supported callbacks for http_authentication are: s::hash_password, "
+                  "s::create_secret_key");
+  }
+
+  template <typename SS, typename... A> void call_callback(SS s, A&&... args) {
+    if constexpr (has_key<decltype(callbacks_)>(s))
+      return callbacks_[s](std::forward<A>(args)...);
+  }
+
+  bool login(http_request& req, http_response& resp) {
+    auto lp = req.post_parameters(login_field_ = users_.all_fields()[login_field_],
+                                  password_field_ = users_.all_fields()[password_field_]);
+
+    if constexpr (has_key<decltype(callbacks_)>(s::hash_password))
+      lp[password_field_] = callbacks_[s::hash_password](lp[login_field_], lp[password_field_]);
+
+    if (auto user = users_.connect().find_one(lp)) {
+      sessions_.connect(req, resp).store(s::user_id = user->id);
+      return true;
+    } else
+      return false;
+  }
+
+  auto current_user(http_request& req, http_response& resp) {
+    auto sess = sessions_.connect(req, resp);
+    if (sess.values().user_id != -1)
+      return users_.connect().find_one(s::id = sess.values().user_id);
+    else
+      return decltype(users_.connect().find_one(s::id = sess.values().user_id)){};
+  }
+
+  void logout(http_request& req, http_response& resp) { sessions_.connect(req, resp).logout(); }
+
+  bool signup(http_request& req, http_response& resp) {
+    auto new_user = req.post_parameters(users_.all_fields_except_computed());
+    auto users = users_.connect();
+
+    if (users.exists(login_field_ = new_user[login_field_]))
+      return false;
+    else {
+      if constexpr (has_key<decltype(callbacks_)>(s::update_secret_key))
+        callbacks_[s::update_secret_key](new_user[login_field_], new_user[password_field_]);
+      if constexpr (has_key<decltype(callbacks_)>(s::hash_password))
+        new_user[password_field_] =
+            callbacks_[s::hash_password](new_user[login_field_], new_user[password_field_]);
+      users.insert(new_user);
+      return true;
+    }
+  }
+
+  S& sessions_;
+  U& users_;
+  L login_field_;
+  P password_field_;
+  decltype(mmm(std::declval<CB>()...)) callbacks_;
+};
+
+template <typename... A> http_api http_authentication_api(http_authentication<A...>& auth) {
+
+  http_api api;
+
+  api.post("/login") = [&](http_request& request, http_response& response) {
+    if (!auth.login(request, response))
+      throw http_error::unauthorized("Bad login.");
+  };
+
+  api.get("/logout") = [&](http_request& request, http_response& response) {
+    auth.logout(request, response);
+  };
+
+  api.get("/signup") = [&](http_request& request, http_response& response) {
+    if (!auth.signup(request, response))
+      throw http_error::bad_request("User already exists.");
+  };
+
+  return api;
+}
+
+// Disable this for now. (No time to install nettle on windows.)
+// #include <nettle/sha3.h>
+// inline std::string hash_sha3_512(const std::string& str)
+// {
+//   struct sha3_512_ctx ctx;
+//   sha3_512_init(&ctx);
+//   sha3_512_update(&ctx, str.size(), (const uint8_t*) str.data());
+//   uint8_t h[SHA3_512_DIGEST_SIZE];
+//   sha3_512_digest(&ctx, sizeof(h), h);
+//   return std::string((const char*)h, sizeof(h));
+// }
+
+} // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_HTTP_AUTHENTICATION
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_MHD
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_MHD
+
+
+
+#if defined(__GNUC__) && defined(__MINGW32__)
+#endif
+
+#if defined(_MSC_VER)
+void usleep(__int64 usec) {
+  HANDLE timer;
+  LARGE_INTEGER ft;
+
+  ft.QuadPart =
+      -(10 * usec); // Convert to 100 nanosecond interval, negative value indicates relative time
+
+  timer = CreateWaitableTimer(NULL, TRUE, NULL);
+  SetWaitableTimer(timer, &ft, 0, NULL, NULL, 0);
+  WaitForSingleObject(timer, INFINITE);
+  CloseHandle(timer);
+}
+#endif
+
+
+//#include <li/http_backend/file.hh>
+//#include <li/http_backend/url_decode.hh>
+
+namespace li {
+using namespace li;
+
+template <typename S>
+int mhd_handler(void* cls, struct MHD_Connection* connection, const char* url, const char* method,
+                const char* version, const char* upload_data, size_t* upload_data_size,
+                void** ptr) {
+
+  MHD_Response* response = nullptr;
+  int ret = 0;
+
+  std::string* pp = (std::string*)*ptr;
+  if (!pp) {
+    pp = new std::string;
+    *ptr = pp;
+    return MHD_YES;
+  }
+  if (*upload_data_size) {
+    pp->append(std::string(upload_data, *upload_data_size));
+    *upload_data_size = 0;
+    return MHD_YES;
+  }
+
+  http_request rq{connection, *pp, url};
+  http_response resp;
+
+  try {
+    auto& api = *(S*)cls;
+    // api(std::string("/") + std::string(method) + url, &rq, &resp, connection);
+    api.call(method, url, rq, resp);
+
+    if (resp.file_descriptor > -1) {
+      struct stat st;
+      if (fstat(resp.file_descriptor, &st) != 0)
+        throw http_error::not_found("Cannot fstat this file");
+      response = MHD_create_response_from_fd(st.st_size, resp.file_descriptor);
+    }
+
+  } catch (const http_error& e) {
+    resp.status = e.status();
+    std::string m = e.what();
+    resp.body = m.data();
+  } catch (const std::runtime_error& e) {
+    std::cout << e.what() << std::endl;
+    resp.status = 500;
+    resp.body = "Internal server error.";
+  }
+
+  if (resp.file_descriptor == -1) {
+    const std::string& str = resp.body;
+    response =
+        MHD_create_response_from_buffer(str.size(), (void*)str.c_str(), MHD_RESPMEM_MUST_COPY);
+  }
+
+  if (!response) {
+    resp.status = 500;
+    resp.body = "Failed to create response object.";
+  } else {
+    for (auto kv : resp.headers) {
+      if (kv.first.size() != 0 and kv.second.size() != 0)
+        if (MHD_NO == MHD_add_response_header(response, kv.first.c_str(), kv.second.c_str()))
+          std::cerr << "Failed to set header" << std::endl;
+    }
+
+    // Set cookies.
+    for (auto kv : resp.cookies)
+      if (kv.first.size() != 0 and kv.second.size() != 0) {
+        std::string set_cookie_string = kv.first + '=' + kv.second + "; Path=/";
+        if (MHD_NO == MHD_add_response_header(response, MHD_HTTP_HEADER_SET_COOKIE,
+                                              set_cookie_string.c_str()))
+          std::cerr << "Failed to set cookie" << std::endl;
+      }
+
+    if (resp.headers.find(MHD_HTTP_HEADER_SERVER) == resp.headers.end())
+      MHD_add_response_header(response, MHD_HTTP_HEADER_SERVER, "silicon");
+
+    ret = MHD_queue_response(connection, resp.status, response);
+
+    MHD_destroy_response(response);
+  }
+
+  delete pp;
+  return ret;
+}
+
+struct silicon_mhd_ctx {
+  silicon_mhd_ctx(MHD_Daemon* d, char* cert, char* key) : daemon_(d), cert_(cert), key_(key) {}
+
+  ~silicon_mhd_ctx() {
+    MHD_stop_daemon(daemon_);
+    if (cert_)
+      free(cert_);
+    if (key_)
+      free(key_);
+  }
+
+  MHD_Daemon* daemon_;
+
+  char *cert_, *key_;
+};
+
+/*!
+** Start the microhttpd json backend. This function is by default blocking.
+**
+** @param api The api
+** @param port the port
+** @param opts Available options are:
+**         s::one_thread_per_connection: Spans one thread per connection.
+**         s::linux_epoll: One thread per CPU core with epoll.
+**         s::select: select instead of epoll (active by default).
+**         s::nthreads: Set the number of thread. Default: The numbers of CPU cores.
+**         s::non_blocking: Run the server in a thread and return in a non blocking way.
+**         s::blocking: (Active by default) Blocking call.
+**         s::https_key: path to the https key file.
+**         s::https_cert: path to the https cert file.
+**
+** @return If set as non_blocking, this function returns a
+** silicon_mhd_ctx that will stop and cleanup the server at the end
+** of its lifetime. If set as blocking (default), never returns
+** except if an error prevents or stops the execution of the server.
+**
+*/
+template <typename A, typename... O> auto http_serve(A& api, int port, O... opts) {
+
+  int flags = MHD_USE_SELECT_INTERNALLY;
+  auto options = mmm(opts...);
+  if (has_key(options, s::one_thread_per_connection))
+    flags = MHD_USE_THREAD_PER_CONNECTION;
+  else if (has_key(options, s::select))
+    flags = MHD_USE_SELECT_INTERNALLY;
+  else if (has_key(options, s::linux_epoll)) {
+#if MHD_VERSION >= 0x00095100
+    flags = MHD_USE_EPOLL_INTERNALLY;
+#else
+    flags = MHD_USE_EPOLL_INTERNALLY_LINUX_ONLY;
+#endif
+  }
+
+  auto read_file = [](std::string path) {
+    std::ifstream in(path);
+    if (!in.good()) {
+      std::ostringstream err_ss;
+#if defined(_MSC_VER)
+      err_ss << "Cannot read " << path;
+#else
+      err_ss << "Cannot read " << path << " " << strerror(errno);
+#endif
+      throw std::runtime_error(err_ss.str());
+    }
+    std::ostringstream ss{};
+    ss << in.rdbuf();
+    return ss.str();
+  };
+
+  std::string https_cert, https_key;
+  if (has_key(options, s::https_cert) || has_key(options, s::https_key)) {
+    std::string cert_file = get_or(options, s::https_cert, "");
+    std::string key_file = get_or(options, s::https_key, "");
+#ifdef MHD_USE_TLS
+    flags |= MHD_USE_TLS;
+#else
+    flags |= MHD_USE_SSL;
+#endif
+
+    if (cert_file.size() == 0)
+      throw std::runtime_error("Missing HTTPS certificate file");
+    if (key_file.size() == 0)
+      throw std::runtime_error("Missing HTTPS key file");
+
+    https_key = std::move(read_file(key_file));
+    https_cert = std::move(read_file(cert_file));
+  }
+
+#if defined(_MSC_VER)
+#define strdup _strdup
+#endif
+  char* https_cert_buffer = https_cert.size() ? strdup(https_cert.c_str()) : 0;
+  char* https_key_buffer = https_key.size() ? strdup(https_key.c_str()) : 0;
+#if defined(_MSC_VER)
+#undef strdup
+#endif
+
+  int thread_pool_size = get_or(options, s::nthreads, std::thread::hardware_concurrency());
+
+  using api_t = std::decay_t<decltype(api)>;
+
+  MHD_Daemon* d;
+
+  void* cls = (void*)&api;
+  if (https_key.size() > 0) {
+    if (MHD_is_feature_supported(MHD_FEATURE_SSL) == MHD_NO)
+      throw std::runtime_error("microhttpd has not been compiled with SSL support.");
+
+    if ((flags & MHD_USE_THREAD_PER_CONNECTION) != MHD_USE_THREAD_PER_CONNECTION)
+      d = MHD_start_daemon(flags, port, NULL, NULL, &mhd_handler<api_t>, cls,
+                           MHD_OPTION_THREAD_POOL_SIZE, thread_pool_size, MHD_OPTION_HTTPS_MEM_KEY,
+                           https_key_buffer, MHD_OPTION_HTTPS_MEM_CERT, https_cert_buffer,
+                           MHD_OPTION_END);
+    else
+      d = MHD_start_daemon(flags, port, NULL, NULL, &mhd_handler<api_t>, cls,
+                           MHD_OPTION_HTTPS_MEM_KEY, https_key_buffer, MHD_OPTION_HTTPS_MEM_CERT,
+                           https_cert_buffer, MHD_OPTION_END);
+
+  } else // Without SSL
+  {
+    if ((flags & MHD_USE_THREAD_PER_CONNECTION) != MHD_USE_THREAD_PER_CONNECTION)
+      d = MHD_start_daemon(flags, port, NULL, NULL, &mhd_handler<api_t>, cls,
+                           MHD_OPTION_THREAD_POOL_SIZE, thread_pool_size, MHD_OPTION_END);
+    else
+      d = MHD_start_daemon(flags, port, NULL, NULL, &mhd_handler<api_t>, cls, MHD_OPTION_END);
+  }
+
+  if (d == NULL)
+    throw std::runtime_error("Cannot start the microhttpd daemon");
+
+  if (!has_key(options, s::non_blocking)) {
+    while (true)
+      usleep(1000000);
+  }
+
+  return silicon_mhd_ctx(d, https_cert_buffer, https_key_buffer);
+}
+
+} // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_MHD
+
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SERVE_DIRECTORY
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SERVE_DIRECTORY
 
@@ -5060,7 +4689,8 @@ auto serve_file(const std::string& root, std::string path, http_response& respon
   static char dot = '.', slash = '/';
 
   // remove first slahs if needed.
-  //std::string path(r->url.substr(prefix.string().size(), r->url.size() - prefix.string().size()));
+  // std::string path(r->url.substr(prefix.string().size(), r->url.size() -
+  // prefix.string().size()));
   size_t len = path.size();
   if (!path.empty() && path[0] == slash) {
     path.erase(0, 1);
@@ -5089,7 +4719,7 @@ auto serve_file(const std::string& root, std::string path, http_response& respon
 };
 
 inline auto serve_directory(std::string root) {
-  api<http_request, http_response> api;
+  http_api api;
 
   api.get("/{{path...}}") = [root](http_request& request, http_response& response) {
     auto path = request.url_parameters(s::path = std::string()).path;
@@ -5102,129 +4732,50 @@ inline auto serve_directory(std::string root) {
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SERVE_DIRECTORY
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_HTTP_AUTHENTICATION
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_HTTP_AUTHENTICATION
-
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SQL_CRUD_API
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SQL_CRUD_API
 
 
 namespace li {
 
-template <typename S, typename U, typename L, typename P, typename... CB>
-struct http_authentication {
-  http_authentication(S& session, U& users, L login_field, P password_field,
-                      CB... callbacks)
-      : sessions_(session),
-        users_(users),
-        login_field_(login_field),
-        password_field_(password_field),
-        callbacks_(mmm(callbacks...))
-        {
+template <typename A, typename B, typename C>
+auto sql_crud_api(sql_orm_schema<A, B, C>& orm_schema) {
 
-    auto allowed_callbacks = mmm(s::hash_password, s::create_secret_key);
+  http_api api;
 
-    static_assert(metamap_size<decltype(substract(callbacks_, allowed_callbacks))>() == 0, 
-    "The only supported callbacks for http_authentication are: s::hash_password, s::create_secret_key");
-        }
-
-
-  template <typename SS, typename... A> void call_callback(SS s, A&&... args) {
-    if constexpr(has_key<decltype(callbacks_)>(s))
-      return callbacks_[s](std::forward<A>(args)...);
-  }
-  
- bool login(http_request& req, http_response& resp) {
-    auto lp = req.post_parameters(login_field_ = users_.all_fields()[login_field_],
-                                  password_field_ = users_.all_fields()[password_field_]);
-
-    if constexpr(has_key<decltype(callbacks_)>(s::hash_password))
-      lp[password_field_] = callbacks_[s::hash_password](lp[login_field_], lp[password_field_]);
-
-    if (auto user = users_.connect().find_one(lp)) {
-      sessions_.connect(req, resp).store(s::user_id = user->id);
-      return true;
-    } else
-      return false;
-  }
-
-  auto current_user(http_request& req, http_response& resp) {
-    auto sess = sessions_.connect(req, resp);
-    if (sess.values().user_id != -1)
-      return users_.connect().find_one(s::id = sess.values().user_id);
+  api.post("/find_by_id") = [&](http_request& request, http_response& response) {
+    auto params = request.post_parameters(s::id = int());
+    if (auto obj = orm_schema.connect().find_one(s::id = params.id, request, response))
+      response.write(json_encode(obj));
     else
-      return decltype(users_.connect().find_one(s::id = sess.values().user_id)){};
-  }
-
-  void logout(http_request& req, http_response& resp) {
-    sessions_.connect(req, resp).logout();
-  }
-
-  bool signup(http_request& req, http_response& resp) {
-      auto new_user = req.post_parameters(users_.all_fields_except_computed());
-      auto users = users_.connect();
-
-      if (users.exists(login_field_ = new_user[login_field_]))
-        return false;
-      else 
-      {
-        if constexpr(has_key<decltype(callbacks_)>(s::update_secret_key))
-          callbacks_[s::update_secret_key](new_user[login_field_], new_user[password_field_]);        
-        if constexpr(has_key<decltype(callbacks_)>(s::hash_password))
-          new_user[password_field_] = callbacks_[s::hash_password](new_user[login_field_], new_user[password_field_]);        
-        users.insert(new_user);
-        return true;
-      }
-  }
-
-  S& sessions_;
-  U& users_;
-  L login_field_;
-  P password_field_;
-  decltype(mmm(std::declval<CB>()...)) callbacks_;
-};
-
-template <typename... A>
-api<http_request, http_response> http_authentication_api(http_authentication<A...>& auth) {
-
-  api<http_request, http_response> api;
-
-  api.post("/login") = [&] (http_request& request, http_response& response) {
-    if (!auth.login(request, response))
-      throw http_error::unauthorized("Bad login.");
+      throw http_error::not_found(orm_schema.table_name(), " with id ", params.id,
+                                  " does not exist.");
   };
 
-  api.get("/logout") = [&] (http_request& request, http_response& response) {
-    auth.logout(request, response);
+  api.post("/create") = [&](http_request& request, http_response& response) {
+    auto insert_fields = orm_schema.all_fields_except_computed();
+    auto obj = request.post_parameters(insert_fields);
+    long long int id = orm_schema.connect().insert(obj, request, response);
+    response.write(json_encode(s::id = id));
   };
 
-  api.get("/signup") = [&] (http_request& request, http_response& response) {
-    if (!auth.signup(request, response))
-      throw http_error::bad_request("User already exists.");
+  api.post("/update") = [&](http_request& request, http_response& response) {
+    auto obj = request.post_parameters(orm_schema.all_fields());
+    orm_schema.connect().update(obj, request, response);
   };
 
+  api.post("/remove") = [&](http_request& request, http_response& response) {
+    auto obj = request.post_parameters(orm_schema.primary_key());
+    orm_schema.connect().remove(obj, request, response);
+  };
 
   return api;
 }
 
-// Disable this for now. (No time to install nettle on windows.)
-// #include <nettle/sha3.h>
-// inline std::string hash_sha3_512(const std::string& str)
-// {
-//   struct sha3_512_ctx ctx;
-//   sha3_512_init(&ctx);
-//   sha3_512_update(&ctx, str.size(), (const uint8_t*) str.data());
-//   uint8_t h[SHA3_512_DIGEST_SIZE];
-//   sha3_512_digest(&ctx, sizeof(h), h);
-//   return std::string((const char*)h, sizeof(h));
-// }
-
 } // namespace li
 
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_HTTP_AUTHENTICATION
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SQL_CRUD_API
 
-
-namespace li {
-  using http_api = api<http_request, http_response>;
-}
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_HTTP_BACKEND
 

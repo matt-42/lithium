@@ -8,8 +8,6 @@
 
 namespace li {
 
-
-
 template <typename T> struct json_object_base {
 
 public:
@@ -19,8 +17,7 @@ public:
     return impl::json_encode(output, std::forward<O>(obj), *downcast());
   }
 
-  template <typename C, typename... M>
-  void encode(C& output, const metamap<M...>& obj) const {
+  template <typename C, typename... M> void encode(C& output, const metamap<M...>& obj) const {
     return impl::json_encode(output, obj, *downcast());
   }
 
@@ -47,28 +44,24 @@ public:
   }
 };
 
-template <typename T>
-struct json_object_ : public json_object_base<json_object_<T>> {
+template <typename T> struct json_object_ : public json_object_base<json_object_<T>> {
   json_object_() = default;
   json_object_(const T& s) : schema(s) {}
   T schema;
 };
 
 template <typename... S> auto json_object(S&&... s) {
-  auto members =
-      std::make_tuple(impl::make_json_object_member(std::forward<S>(s))...);
+  auto members = std::make_tuple(impl::make_json_object_member(std::forward<S>(s))...);
   return json_object_<decltype(members)>{members};
 }
 
-template <typename V>
-struct json_value_ : public json_object_base<json_value_<V>> {
+template <typename V> struct json_value_ : public json_object_base<json_value_<V>> {
   json_value_() = default;
 };
 
 template <typename V> auto json_value(V&& v) { return json_value_<V>{}; }
 
-template <typename T>
-struct json_vector_ : public json_object_base<json_vector_<T>> {
+template <typename T> struct json_vector_ : public json_object_base<json_vector_<T>> {
   json_vector_() = default;
   json_vector_(const T& s) : schema(s) {}
   T schema;
@@ -79,16 +72,13 @@ template <typename... S> auto json_vector(S&&... s) {
   return json_vector_<decltype(obj)>{obj};
 }
 
-template <typename... T>
-struct json_tuple_ : public json_object_base<json_tuple_<T...>> {
+template <typename... T> struct json_tuple_ : public json_object_base<json_tuple_<T...>> {
   json_tuple_() = default;
   json_tuple_(const T&... s) : elements(s...) {}
   std::tuple<T...> elements;
 };
 
-template <typename... S> auto json_tuple(S&&... s) {
-  return json_tuple_<S...>{s...};
-}
+template <typename... S> auto json_tuple(S&&... s) { return json_tuple_<S...>{s...}; }
 
 struct json_key {
   inline json_key(const char* c) : key(c) {}
@@ -107,7 +97,8 @@ template <typename M> auto json_encode(const M& obj) {
   return impl::to_json_schema(obj).encode(obj);
 }
 
-template <typename A, typename B, typename... C> auto json_encode(const assign_exp<A, B>& exp, C... c) {
+template <typename A, typename B, typename... C>
+auto json_encode(const assign_exp<A, B>& exp, C... c) {
   auto obj = mmm(exp, c...);
   return impl::to_json_schema(obj).encode(obj);
 }

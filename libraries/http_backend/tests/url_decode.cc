@@ -1,38 +1,29 @@
+#include "symbols.hh"
 #include <iostream>
 #include <li/http_backend/url_decode.hh>
-#include "symbols.hh"
 
 using namespace li;
 
-template <typename O>
-bool is_error(std::string s, O& obj)
-{
+template <typename O> bool is_error(std::string s, O& obj) {
   bool err = false;
-  try
-  {
+  try {
     std::cout << "Test " << s << std::endl;
     url_decode(s, obj);
-  }
-  catch (http_error e)
-  {
-    std::cout << "url_decode_error "  << e.what() << std::endl;
+  } catch (http_error e) {
+    std::cout << "url_decode_error " << e.what() << std::endl;
     err = true;
-  }
-  catch (std::exception& e)
-  {
+  } catch (std::exception& e) {
     std::cout << "url_decode_error " << e.what() << std::endl;
     err = true;
   }
   return err;
 }
 
-int main()
-{
+int main() {
   { // Simple object
     const std::string s = "name=John&age=42";
 
-    auto obj = mmm(s::name = std::string(),
-                 s::age = int());
+    auto obj = mmm(s::name = std::string(), s::age = int());
 
     url_decode(std::string_view(s), obj);
     assert(obj.name == "John");
@@ -45,7 +36,7 @@ int main()
     url_decode(std::string_view(s), obj);
     assert(obj.name == "Jo hn");
   }
-  
+
   { // Simple Array.
     const std::string s = "age[0]=42&age[1]=22";
 
@@ -69,14 +60,12 @@ int main()
     assert(obj.age[0] == 42);
     assert(obj.age[1] == 22);
   }
-  
+
   { // Nested objects
     const std::string s = "test1[name]=John&test1[age]=42&test2[name]=Bob&test2[age]=12";
 
-    auto obj = mmm(s::test1 = mmm(s::name = std::string(),
-                               s::age = int()),
-                 s::test2 = mmm(s::name = std::string(),
-                               s::age = int()));
+    auto obj = mmm(s::test1 = mmm(s::name = std::string(), s::age = int()),
+                   s::test2 = mmm(s::name = std::string(), s::age = int()));
 
     url_decode(std::string_view(s), obj);
 
@@ -103,12 +92,11 @@ int main()
     url_decode(std::string_view(s), obj);
     assert(obj.test1[0].test2 == "John");
   }
-  
+
   { // Missing field
     const std::string s = "name=John";
 
-    auto obj = mmm(s::name = std::string(),
-                 s::age = int());
+    auto obj = mmm(s::name = std::string(), s::age = int());
 
     assert(is_error(s, obj));
   }
@@ -138,12 +126,10 @@ int main()
     assert(is_error(s, obj));
   }
 
-
   { // Missing =
     auto obj = mmm(s::age = int());
     assert(is_error("age", obj));
     assert(is_error("age&&", obj));
     assert(is_error("", obj));
   }
-  
 }

@@ -26,23 +26,21 @@ public:
   int status() const { return status_; }
   const std::string& what() const { return what_; }
 
-
-#define LI_HTTP_ERROR(CODE, ERR)                                          \
-  template <typename... A> static auto ERR(A&&... m) {                                \
-    return http_error(CODE, format_error(m...));                                    \
-  }                                                                            \
+#define LI_HTTP_ERROR(CODE, ERR)                                                                   \
+  template <typename... A> static auto ERR(A&&... m) {                                             \
+    return http_error(CODE, format_error(m...));                                                   \
+  }                                                                                                \
   static auto ERR(const char* w) { return http_error(CODE, w); }
 
-LI_HTTP_ERROR(400, bad_request)
-LI_HTTP_ERROR(401, unauthorized)
-LI_HTTP_ERROR(403, forbidden)
-LI_HTTP_ERROR(404, not_found)
+  LI_HTTP_ERROR(400, bad_request)
+  LI_HTTP_ERROR(401, unauthorized)
+  LI_HTTP_ERROR(403, forbidden)
+  LI_HTTP_ERROR(404, not_found)
 
-LI_HTTP_ERROR(500, internal_server_error)
-LI_HTTP_ERROR(501, not_implemented)
+  LI_HTTP_ERROR(500, internal_server_error)
+  LI_HTTP_ERROR(501, not_implemented)
 
 #undef LI_HTTP_ERROR
-
 
 private:
   int status_;

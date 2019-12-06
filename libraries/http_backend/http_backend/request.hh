@@ -9,9 +9,9 @@
 #include <unordered_map>
 #include <vector>
 
-#include <li/metamap/metamap.hh>
 #include <li/http_backend/error.hh>
 #include <li/http_backend/url_decode.hh>
+#include <li/metamap/metamap.hh>
 
 namespace li {
 
@@ -56,7 +56,10 @@ int mhd_keyvalue_iterator(void* cls, enum MHD_ValueKind kind, const char* key, c
   return MHD_YES;
 }
 
-struct url_parser_info_node { int slash_pos; bool is_path; };
+struct url_parser_info_node {
+  int slash_pos;
+  bool is_path;
+};
 using url_parser_info = std::unordered_map<std::string, url_parser_info_node>;
 
 auto make_url_parser_info(const std::string_view url) {
@@ -80,8 +83,8 @@ auto make_url_parser_info(const std::string_view url) {
       if (param_name_end != param_name_start and check_pattern(param_name_end, '}')) {
         int size = param_name_end - param_name_start;
         bool is_path = false;
-        if (size > 3 and param_name_end[-1] == '.' and param_name_end[-2] == '.' and param_name_end[-3] == '.')
-        {
+        if (size > 3 and param_name_end[-1] == '.' and param_name_end[-2] == '.' and
+            param_name_end[-3] == '.') {
           is_path = true;
           param_name_end -= 3;
         }
@@ -118,19 +121,17 @@ auto parse_url_parameters(const url_parser_info& fmt, const std::string_view url
         throw http_error::bad_request("Missing url parameter ", symbol_str);
 
       int param_start = slashes[param_slash] + 1;
-      if (it->second.is_path)
-      {
-        if constexpr(std::is_same<std::decay_t<decltype(obj[k])>, std::string>::value or
-                     std::is_same<std::decay_t<decltype(obj[k])>, std::string_view>::value) {
-          obj[k] = std::string_view(url.data() + param_start - 1, url.size() - param_start + 1); // -1 to include the first /.
-        }
-        else {
-          throw std::runtime_error("{{path...}} parameters only accept std::string or std::string_view types.");
+      if (it->second.is_path) {
+        if constexpr (std::is_same<std::decay_t<decltype(obj[k])>, std::string>::value or
+                      std::is_same<std::decay_t<decltype(obj[k])>, std::string_view>::value) {
+          obj[k] = std::string_view(url.data() + param_start - 1,
+                                    url.size() - param_start + 1); // -1 to include the first /.
+        } else {
+          throw std::runtime_error(
+              "{{path...}} parameters only accept std::string or std::string_view types.");
         }
 
-      }
-      else
-      {
+      } else {
         int param_end = param_start;
         while (int(url.size()) > (param_end) and url[param_end] != '/')
           param_end++;
@@ -212,8 +213,8 @@ template <typename O> auto http_request::post_parameters(O& res) const {
   try {
     const char* encoding = this->header("Content-Type");
     if (!encoding)
-      throw http_error::bad_request(std::string(
-          "Content-Type is required to decode the POST parameters"));
+      throw http_error::bad_request(
+          std::string("Content-Type is required to decode the POST parameters"));
 
     if (encoding == std::string_view("application/x-www-form-urlencoded"))
       url_decode(body, res);

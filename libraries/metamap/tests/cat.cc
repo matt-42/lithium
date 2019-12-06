@@ -1,12 +1,10 @@
-#include <li/metamap/make.hh>
-#include <li/metamap/algorithms/cat.hh>
-#include <cassert>
 #include "symbols.hh"
+#include <cassert>
+#include <li/metamap/metamap.hh>
 
 using namespace li;
 
-int main()
-{
+int main() {
 
   auto a = mmm(s::test1 = 12, s::test2 = 13);
   auto b = mmm(s::test3 = 14);

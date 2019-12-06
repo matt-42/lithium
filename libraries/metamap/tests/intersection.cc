@@ -1,13 +1,11 @@
-#include <li/metamap/make.hh>
-#include <li/metamap/algorithms/intersection.hh>
 #include <cassert>
+#include <li/metamap/metamap.hh>
 #include <string>
 
 #include "symbols.hh"
 using namespace li;
 
-int main()
-{
+int main() {
   auto a = mmm(s::test1 = 12, s::test2 = 13, s::test4 = 14, s::test5 = std::string("test"));
 
   auto b = mmm(s::test2 = 12, s::test3 = 14, s::test5 = 16);

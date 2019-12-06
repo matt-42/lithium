@@ -1,7 +1,9 @@
 #pragma once
 
-#include <string_view>
+#include <boost/lexical_cast.hpp>
+
 #include <microhttpd.h>
+#include <string_view>
 
 //#include <stdlib.h>
 #include <fcntl.h>
@@ -21,12 +23,14 @@ struct http_response {
   inline void set_cookie(std::string k, std::string v) { cookies[k] = v; }
 
   inline void write() {}
-  template <typename A1, typename... A>
-  inline void write(A1 a1, A&&... a) { body += boost::lexical_cast<std::string>(a1); write(a...); }
+  template <typename A1, typename... A> inline void write(A1 a1, A&&... a) {
+    body += boost::lexical_cast<std::string>(a1);
+    write(a...);
+  }
   inline void write_file(const std::string path) {
 
 #if defined(_MSC_VER)
-    int fd; 
+    int fd;
     _sopen_s(&fd, path.c_str(), O_RDONLY, _SH_DENYRW, _S_IREAD);
 #else
     int fd = open(path.c_str(), O_RDONLY);

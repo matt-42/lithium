@@ -1,6 +1,6 @@
-#include <li/http_client/http_client.hh>
 #include <li/http_backend/http_backend.hh>
 #include <li/http_backend/sql_http_session.hh>
+#include <li/http_client/http_client.hh>
 
 #include "symbols.hh"
 #include "test.hh"
@@ -44,7 +44,6 @@ int main() {
     CHECK_EQUAL("id", sess.values().user_id, -1);
   };
 
- 
   auto ctx = http_serve(my_api, 12351, s::non_blocking);
   auto c = http_client("http://localhost:12351");
 

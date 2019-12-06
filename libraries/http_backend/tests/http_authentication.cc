@@ -1,6 +1,5 @@
 #include <cassert>
 
-#include <li/http_backend/http_authentication.hh>
 #include <li/http_backend/http_backend.hh>
 #include <li/http_client/http_client.hh>
 #include <li/sql/sqlite.hh>

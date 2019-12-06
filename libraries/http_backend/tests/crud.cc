@@ -1,12 +1,12 @@
 #include <iostream>
 #include <thread>
 
-#include <li/http_client/http_client.hh>
 #include <li/http_backend/http_backend.hh>
+#include <li/http_client/http_client.hh>
 #include <li/sql/sqlite.hh>
 
-#include "test.hh"
 #include "symbols.hh"
+#include "test.hh"
 
 using namespace li;
 
@@ -16,23 +16,22 @@ int main() {
 
   auto db = sqlite_database("./sl_test_crud.sqlite", s::synchronous = 1); // sqlite middleware.
 
-  auto user_schema = sql_orm_schema(db, "users")
-                      .fields(s::id(s::auto_increment, s::primary_key) = int(), 
-                              s::name = std::string(),
-                              s::age = int(),
-                              s::address = std::string(),
-                              s::city = std::string())
-                      .callbacks(s::before_insert = [](auto& user, http_request&, http_response&) { user.city = "Paris"; });
+  auto user_schema =
+      sql_orm_schema(db, "users")
+          .fields(s::id(s::auto_increment, s::primary_key) = int(), s::name = std::string(),
+                  s::age = int(), s::address = std::string(), s::city = std::string())
+          .callbacks(s::before_insert = [](auto& user, http_request&, http_response&) {
+            user.city = "Paris";
+          });
 
   auto orm = user_schema.connect();
   orm.drop_table_if_exists();
   orm.create_table_if_not_exists();
 
-
   // Crud for the User object.
   api.add_subapi("/user", sql_crud_api(user_schema));
 
-  api.print_routes(); 
+  api.print_routes();
   // std::cout << api_description(api) << std::endl;
 
   // Start server.
@@ -71,8 +70,8 @@ int main() {
 
   // // Update
   auto update_r =
-      c.post("/user/update",
-        s::post_parameters = mmm(s::id = id, s::name = "john", s::age = 42, s::address = "Canad a", s::city = "xxx"));
+      c.post("/user/update", s::post_parameters = mmm(s::id = id, s::name = "john", s::age = 42,
+                                                      s::address = "Canad a", s::city = "xxx"));
   auto get_r3 = c.post("/user/find_by_id", s::post_parameters = mmm(s::id = id));
   std::cout << json_encode(get_r3) << std::endl;
   assert(get_r3.status == 200);

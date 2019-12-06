@@ -1,7 +1,7 @@
 #pragma once
 
-#include <string>
 #include <li/http_backend/response.hh>
+#include <string>
 
 namespace li {
 
@@ -14,7 +14,8 @@ auto serve_file(const std::string& root, std::string path, http_response& respon
   static char dot = '.', slash = '/';
 
   // remove first slahs if needed.
-  //std::string path(r->url.substr(prefix.string().size(), r->url.size() - prefix.string().size()));
+  // std::string path(r->url.substr(prefix.string().size(), r->url.size() -
+  // prefix.string().size()));
   size_t len = path.size();
   if (!path.empty() && path[0] == slash) {
     path.erase(0, 1);

@@ -1,9 +1,8 @@
-#include <li/metamap/metamap.hh>
 #include <cassert>
 #include <iostream>
+#include <li/metamap/metamap.hh>
 
-int main()
-{
+int main() {
   std::tuple<int, float, int> x{2, 3.2f, 1};
 
   assert(std::get<0>(li::tuple_filter<float>(x)) == 2);

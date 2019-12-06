@@ -1,14 +1,9 @@
-#include <li/json/json.hh>
 #include <cassert>
-#include <iostream>
 #include <iomanip>
+#include <iostream>
+#include <li/json/json.hh>
 
-
-
-
-
-int test_integer(const char* str)
-{
+int test_integer(const char* str) {
   int f;
   const char* end;
   li::internal::parse_int(&f, str, &end);
@@ -18,12 +13,12 @@ int test_integer(const char* str)
   return f;
 }
 
-double test_float(const char* str)
-{
+double test_float(const char* str) {
   double f;
   const char* end;
   li::internal::parse_float(&f, str, &end);
-  std::cout << std::string(str, end) << " -> " << std::setprecision(20)  << std::fixed << f << std::endl;
+  std::cout << std::string(str, end) << " -> " << std::setprecision(20) << std::fixed << f
+            << std::endl;
   assert((end - str) == strlen(str));
   return f;
 }
@@ -31,8 +26,7 @@ double test_float(const char* str)
 #define TEST(N) assert(test_integer(#N) == N);
 #define TESTF(N) assert(std::abs(test_float(#N) - N) < 1e-5);
 
-int main()
-{
+int main() {
   TEST(0);
   TEST(1);
   TEST(-1);
@@ -53,6 +47,6 @@ int main()
   TESTF(1.21e-10);
   TESTF(1234567890.1234567890);
   TESTF(-1234567890.1234567890);
-  
+
   assert(test_float("1E-10") == test_float("1e-10"));
 }

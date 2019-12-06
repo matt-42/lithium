@@ -1,7 +1,7 @@
-#include <boost/filesystem.hpp>
-#include <li/http_client/http_client.hh>
-#include <li/http_backend/http_backend.hh>
 #include "test.hh"
+#include <boost/filesystem.hpp>
+#include <li/http_backend/http_backend.hh>
+#include <li/http_client/http_client.hh>
 
 using namespace li;
 
@@ -22,8 +22,10 @@ int main() {
   my_api.add_subapi("/test", serve_directory(root.string()));
   auto ctx = http_serve(my_api, 12352, s::non_blocking);
 
-  CHECK_EQUAL("serve_file not found", http_get("http://localhost:12352/test/subdir/xxx").status, 404);
-  CHECK_EQUAL("serve_file", http_get("http://localhost:12352/test/subdir/hello.txt").body, "hello world.");
+  CHECK_EQUAL("serve_file not found", http_get("http://localhost:12352/test/subdir/xxx").status,
+              404);
+  CHECK_EQUAL("serve_file", http_get("http://localhost:12352/test/subdir/hello.txt").body,
+              "hello world.");
 
   fs::remove_all(root);
 }

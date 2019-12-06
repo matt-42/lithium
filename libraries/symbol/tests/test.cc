@@ -1,13 +1,11 @@
-#include <li/symbol/symbol.hh>
+#include "symbols.hh"
 #include <cassert>
 #include <cstring>
-#include "symbols.hh"
+#include <li/symbol/symbol.hh>
 
 using namespace li;
 
-int main()
-{
-  
+int main() {
 
   // Simple variable.
   auto v = make_variable(s::my_symbol, 42);
@@ -15,8 +13,7 @@ int main()
   assert(!strcmp(symbol_string(v), "my_symbol"));
 
   // Member access.
-  assert(symbol_member_access(v, s::my_symbol) == 42);  
-
+  assert(symbol_member_access(v, s::my_symbol) == 42);
 
   // Ref
   int x = 23;
@@ -29,7 +26,6 @@ int main()
   auto v3 = make_variable<int>(s::my_symbol, y);
   y++;
   assert(v3.my_symbol == 23);
-
 
   // Method call
   struct {

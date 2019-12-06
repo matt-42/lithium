@@ -1,13 +1,13 @@
 #pragma once
 
-#include <li/json/json.hh>
 #include <li/http_backend/error.hh>
+#include <li/json/json.hh>
 #include <li/sql/sql_orm.hh>
 
-
 namespace li {
-  
-template <typename A, typename B, typename C> auto sql_crud_api(sql_orm_schema<A, B, C>& orm_schema) {
+
+template <typename A, typename B, typename C>
+auto sql_crud_api(sql_orm_schema<A, B, C>& orm_schema) {
 
   http_api api;
 
@@ -16,7 +16,8 @@ template <typename A, typename B, typename C> auto sql_crud_api(sql_orm_schema<A
     if (auto obj = orm_schema.connect().find_one(s::id = params.id, request, response))
       response.write(json_encode(obj));
     else
-      throw http_error::not_found(orm_schema.table_name(), " with id ", params.id, " does not exist.");
+      throw http_error::not_found(orm_schema.table_name(), " with id ", params.id,
+                                  " does not exist.");
   };
 
   api.post("/create") = [&](http_request& request, http_response& response) {

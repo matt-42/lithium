@@ -1,13 +1,11 @@
-#include <li/metamap/metamap.hh>
-#include <cassert>
-#include <string>
 #include "symbols.hh"
+#include <cassert>
+#include <li/metamap/metamap.hh>
+#include <string>
 
 using namespace li;
 
-
-int main()
-{
+int main() {
 
   // Simple map.
   auto m = mmm(s::test1 = 12, s::test2 = 13);
@@ -17,10 +15,15 @@ int main()
   assert(m.test2 == 13);
   assert(m[s::test2] == 13);
 
-  if constexpr(has_key(m, s::test3)) { assert(0); }
-  if constexpr(!has_key(m, s::test1)) { assert(0); }
-  if constexpr(!has_key(m, s::test2)) { assert(0); }
-
+  if constexpr (has_key(m, s::test3)) {
+    assert(0);
+  }
+  if constexpr (!has_key(m, s::test1)) {
+    assert(0);
+  }
+  if constexpr (!has_key(m, s::test2)) {
+    assert(0);
+  }
 
   // References.
   int x = 41;

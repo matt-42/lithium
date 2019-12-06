@@ -6,10 +6,10 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <sstream>
 #include <thread>
 #include <unordered_map>
-#include <optional>
 
 #include <mysql.h>
 
@@ -41,8 +41,9 @@ auto type_to_mysql_statement_buffer_type(const float&) { return MYSQL_TYPE_FLOAT
 auto type_to_mysql_statement_buffer_type(const double&) { return MYSQL_TYPE_DOUBLE; }
 auto type_to_mysql_statement_buffer_type(const sql_blob&) { return MYSQL_TYPE_BLOB; }
 auto type_to_mysql_statement_buffer_type(const char*) { return MYSQL_TYPE_STRING; }
-template <unsigned S>
-auto type_to_mysql_statement_buffer_type(const sql_varchar<S>) { return MYSQL_TYPE_STRING; }
+template <unsigned S> auto type_to_mysql_statement_buffer_type(const sql_varchar<S>) {
+  return MYSQL_TYPE_STRING;
+}
 
 auto type_to_mysql_statement_buffer_type(const unsigned char&) { return MYSQL_TYPE_TINY; }
 auto type_to_mysql_statement_buffer_type(const unsigned short int&) { return MYSQL_TYPE_SHORT; }
@@ -73,7 +74,7 @@ struct mysql_statement {
   }
 
   auto& operator()() {
-  if (mysql_stmt_execute(stmt_) != 0)
+    if (mysql_stmt_execute(stmt_) != 0)
       throw std::runtime_error(std::string("mysql_stmt_execute error: ") + mysql_stmt_error(stmt_));
     return *this;
   }
@@ -112,8 +113,9 @@ struct mysql_statement {
     b.buffer_length = s.size();
   }
   void bind(MYSQL_BIND& b, const std::string& s) { bind(b, *const_cast<std::string*>(&s)); }
-  template <unsigned SIZE>
-  void bind(MYSQL_BIND& b, const sql_varchar<SIZE>& s) { bind(b, *const_cast<std::string*>(static_cast<const std::string*>(&s))); }
+  template <unsigned SIZE> void bind(MYSQL_BIND& b, const sql_varchar<SIZE>& s) {
+    bind(b, *const_cast<std::string*>(static_cast<const std::string*>(&s)));
+  }
 
   void bind(MYSQL_BIND& b, char* s) {
     b.buffer = s;
@@ -331,7 +333,7 @@ struct mysql_statement {
 struct mysql_database;
 
 struct mysql_connection {
-  //mysql_connection(MYSQL* con) : con_(con) {}
+  // mysql_connection(MYSQL* con) : con_(con) {}
 
   // template <typename... OPTS> inline mysql_connection(OPTS&&... opts) :
   // con_(impl::open_mysql_connection(opts...)) {}
@@ -340,12 +342,10 @@ struct mysql_connection {
 
   long long int last_insert_rowid() { return mysql_insert_id(con_); }
 
-  mysql_statement& operator()(std::string rq) {
-    return prepare(rq)();
-  }
+  mysql_statement& operator()(std::string rq) { return prepare(rq)(); }
 
   mysql_statement& prepare(std::string rq) {
-    std::cout << rq << std::endl;
+    //std::cout << rq << std::endl;
     auto it = stm_cache_.find(rq);
     if (it != stm_cache_.end())
       return it->second;
@@ -372,10 +372,11 @@ struct mysql_connection {
   }
   inline std::string type_to_string(const std::string&) { return "MEDIUMTEXT"; }
   inline std::string type_to_string(const sql_blob&) { return "BLOB"; }
-  template <unsigned S>
-  inline std::string type_to_string(const sql_varchar<S>) { 
+  template <unsigned S> inline std::string type_to_string(const sql_varchar<S>) {
     std::ostringstream ss;
-    ss << "VARCHAR(" << S << ')'; return ss.str(); }
+    ss << "VARCHAR(" << S << ')';
+    return ss.str();
+  }
 
   std::unordered_map<std::string, mysql_statement> stm_cache_;
   MYSQL* con_;
@@ -400,7 +401,7 @@ struct mysql_database : std::enable_shared_from_this<mysql_database> {
     user_ = options.user;
     passwd_ = options.password;
     port_ = get_or(options, s::port, 0);
- 
+
     character_set_ = get_or(options, s::charset, "utf8");
 
     if (mysql_library_init(0, NULL, NULL))

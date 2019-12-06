@@ -8,27 +8,25 @@
 #include <iostream>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <sstream>
 #include <unordered_map>
-#include <optional>
 
 #include <li/callable_traits/callable_traits.hh>
 #include <li/metamap/metamap.hh>
-#include <li/sql/symbols.hh>
 #include <li/sql/sql_common.hh>
+#include <li/sql/symbols.hh>
 #include <sqlite3.h>
 
 namespace li {
 
 template <typename T> struct tuple_remove_references_and_const;
-template <typename... T>
-struct tuple_remove_references_and_const<std::tuple<T...>> {
+template <typename... T> struct tuple_remove_references_and_const<std::tuple<T...>> {
   typedef std::tuple<std::remove_const_t<std::remove_reference_t<T>>...> type;
 };
 
 template <typename T>
-using tuple_remove_references_and_const_t =
-    typename tuple_remove_references_and_const<T>::type;
+using tuple_remove_references_and_const_t = typename tuple_remove_references_and_const<T>::type;
 
 void free_sqlite3_statement(void* s) { sqlite3_finalize((sqlite3_stmt*)s); }
 
@@ -66,8 +64,7 @@ struct sqlite_statement {
     if (ncols != sizeof...(A)) {
       std::ostringstream ss;
       ss << "Invalid number of parameters: SQL request has " << ncols
-         << " fields but the function to process it has " << sizeof...(A)
-         << " parameters.";
+         << " fields but the function to process it has " << sizeof...(A) << " parameters.";
       throw std::runtime_error(ss.str());
     }
     int i = 0;
@@ -78,22 +75,19 @@ struct sqlite_statement {
     ::li::tuple_map(o, read_elt);
   }
 
-
   // Bind arguments to the request unknowns (marked with ?)
   template <typename... T> auto& operator()(T&&... args) {
     ready_for_reading_ = true;
     sqlite3_reset(stmt_);
     sqlite3_clear_bindings(stmt_);
     int i = 1;
-    li::tuple_map(std::forward_as_tuple(args...),
-        [&](auto& m) {
-          int err;
-          if ((err = this->bind(stmt_, i, m)) != SQLITE_OK)
-            throw std::runtime_error(
-                std::string("Sqlite error during binding: ") +
-                sqlite3_errmsg(db_));
-          i++;
-        });
+    li::tuple_map(std::forward_as_tuple(args...), [&](auto& m) {
+      int err;
+      if ((err = this->bind(stmt_, i, m)) != SQLITE_OK)
+        throw std::runtime_error(std::string("Sqlite error during binding: ") +
+                                 sqlite3_errmsg(db_));
+      i++;
+    });
 
     last_step_ret_ = sqlite3_step(stmt_);
     if (last_step_ret_ != SQLITE_ROW and last_step_ret_ != SQLITE_DONE)
@@ -167,8 +161,7 @@ struct sqlite_statement {
         f(o);
         last_step_ret_ = sqlite3_step(stmt_);
       } else {
-        typedef tuple_remove_references_and_const_t<std::remove_pointer_t<tp>>
-            T;
+        typedef tuple_remove_references_and_const_t<std::remove_pointer_t<tp>> T;
         T o;
         row_to_tuple(o);
         std::apply(f, o);
@@ -184,12 +177,8 @@ struct sqlite_statement {
 
   void read_column(int pos, int& v) { v = sqlite3_column_int(stmt_, pos); }
   void read_column(int pos, float& v) { v = float(sqlite3_column_double(stmt_, pos)); }
-  void read_column(int pos, double& v) {
-    v = sqlite3_column_double(stmt_, pos);
-  }
-  void read_column(int pos, int64_t& v) {
-    v = sqlite3_column_int64(stmt_, pos);
-  }
+  void read_column(int pos, double& v) { v = sqlite3_column_double(stmt_, pos); }
+  void read_column(int pos, int64_t& v) { v = sqlite3_column_int64(stmt_, pos); }
   void read_column(int pos, std::string& v) {
     auto str = sqlite3_column_text(stmt_, pos);
     auto n = sqlite3_column_bytes(stmt_, pos);
@@ -206,18 +195,14 @@ struct sqlite_statement {
     return sqlite3_bind_double(stmt, pos, d);
   }
 
-  int bind(sqlite3_stmt* stmt, int pos, int d) const {
-    return sqlite3_bind_int(stmt, pos, d);
-  }
+  int bind(sqlite3_stmt* stmt, int pos, int d) const { return sqlite3_bind_int(stmt, pos, d); }
   int bind(sqlite3_stmt* stmt, int pos, long int d) const {
     return sqlite3_bind_int64(stmt, pos, d);
   }
   int bind(sqlite3_stmt* stmt, int pos, long long int d) const {
     return sqlite3_bind_int64(stmt, pos, d);
   }
-  void bind(sqlite3_stmt* stmt, int pos, sql_null_t) {
-    sqlite3_bind_null(stmt, pos);
-  }
+  void bind(sqlite3_stmt* stmt, int pos, sql_null_t) { sqlite3_bind_null(stmt, pos); }
   int bind(sqlite3_stmt* stmt, int pos, const char* s) const {
     return sqlite3_bind_text(stmt, pos, s, strlen(s), nullptr);
   }
@@ -243,21 +228,19 @@ void free_sqlite3_db(void* db) { sqlite3_close_v2((sqlite3*)db); }
 struct sqlite_connection {
   typedef std::shared_ptr<sqlite3> db_sptr;
   typedef std::unordered_map<std::string, sqlite_statement> stmt_map;
-  typedef std::shared_ptr<std::unordered_map<std::string, sqlite_statement>>
-      stmt_map_ptr;
+  typedef std::shared_ptr<std::unordered_map<std::string, sqlite_statement>> stmt_map_ptr;
   typedef std::shared_ptr<std::mutex> mutex_ptr;
 
   sqlite_connection()
-      : db_(nullptr), stm_cache_(new stmt_map()),
-        cache_mutex_(new std::mutex()) // FIXME
+      : db_(nullptr), stm_cache_(new stmt_map()), cache_mutex_(new std::mutex()) // FIXME
   {}
 
   void connect(const std::string& filename,
                int flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE) {
     int r = sqlite3_open_v2(filename.c_str(), &db_, flags, nullptr);
     if (r != SQLITE_OK)
-      throw std::runtime_error(std::string("Cannot open database ") + filename +
-                               " " + sqlite3_errstr(r));
+      throw std::runtime_error(std::string("Cannot open database ") + filename + " " +
+                               sqlite3_errstr(r));
 
     db_sptr_ = db_sptr(db_, free_sqlite3_db);
   }
@@ -280,36 +263,32 @@ struct sqlite_connection {
 
     int err = sqlite3_prepare_v2(db_, req.c_str(), req.size(), &stmt, nullptr);
     if (err != SQLITE_OK)
-      throw std::runtime_error(std::string("Sqlite error during prepare: ") +
-                               sqlite3_errmsg(db_) + " statement was: " + req);
+      throw std::runtime_error(std::string("Sqlite error during prepare: ") + sqlite3_errmsg(db_) +
+                               " statement was: " + req);
 
     cache_mutex_->lock();
-    auto it2 = stm_cache_->insert(
-        it, std::make_pair(req, sqlite_statement(db_, stmt)));
+    auto it2 = stm_cache_->insert(it, std::make_pair(req, sqlite_statement(db_, stmt)));
     cache_mutex_->unlock();
     return it2->second;
   }
-  sqlite_statement operator()(const std::string& req) {
-    return prepare(req)();
-  }
+  sqlite_statement operator()(const std::string& req) { return prepare(req)(); }
 
   template <typename T>
-  inline std::string
-  type_to_string(const T&, std::enable_if_t<std::is_integral<T>::value>* = 0) {
+  inline std::string type_to_string(const T&, std::enable_if_t<std::is_integral<T>::value>* = 0) {
     return "INTEGER";
   }
   template <typename T>
-  inline std::string
-  type_to_string(const T&,
-                 std::enable_if_t<std::is_floating_point<T>::value>* = 0) {
+  inline std::string type_to_string(const T&,
+                                    std::enable_if_t<std::is_floating_point<T>::value>* = 0) {
     return "REAL";
   }
   inline std::string type_to_string(const std::string&) { return "TEXT"; }
   inline std::string type_to_string(const sql_blob&) { return "BLOB"; }
-  template <unsigned SIZE>
-  inline std::string type_to_string(const sql_varchar<SIZE>&) { 
+  template <unsigned SIZE> inline std::string type_to_string(const sql_varchar<SIZE>&) {
     std::ostringstream ss;
-    ss << "VARCHAR(" << SIZE << ')'; return ss.str(); }
+    ss << "VARCHAR(" << SIZE << ')';
+    return ss.str();
+  }
 
   mutex_ptr cache_mutex_;
   sqlite3* db_;
@@ -319,16 +298,14 @@ struct sqlite_connection {
 
 struct sqlite_database {
   typedef sqlite_connection connection_type;
-  
+
   sqlite_database() {}
 
-  template <typename... O>
-  sqlite_database(const std::string& path, O... options_) {
+  template <typename... O> sqlite_database(const std::string& path, O... options_) {
     auto options = mmm(options_...);
 
     path_ = path;
-    con_.connect(path, SQLITE_OPEN_FULLMUTEX | SQLITE_OPEN_READWRITE |
-                           SQLITE_OPEN_CREATE);
+    con_.connect(path, SQLITE_OPEN_FULLMUTEX | SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE);
     if (has_key(options, s::synchronous)) {
       std::ostringstream ss;
       ss << "PRAGMA synchronous=" << li::get_or(options, s::synchronous, 2);

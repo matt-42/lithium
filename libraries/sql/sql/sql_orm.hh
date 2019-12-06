@@ -1,8 +1,8 @@
 #pragma once
 
-#include <li/metamap/metamap.hh>
-#include <li/http_backend/symbols.hh>
 #include <iostream>
+#include <li/http_backend/symbols.hh>
+#include <li/metamap/metamap.hh>
 #include <sstream>
 
 #include <li/sql/symbols.hh>
@@ -24,7 +24,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
   sql_orm(SCHEMA& schema, C con) : schema_(schema), con_(con) {}
 
   template <typename S, typename... A> void call_callback(S s, A&&... args) {
-    if constexpr(has_key<decltype(schema_.get_callbacks())>(S{}))
+    if constexpr (has_key<decltype(schema_.get_callbacks())>(S{}))
       return schema_.get_callbacks()[s](args...);
   }
 
@@ -85,9 +85,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     return *this;
   }
 
-  template <typename W>
-  void where_clause(W&& cond, std::ostringstream& ss)
-  {
+  template <typename W> void where_clause(W&& cond, std::ostringstream& ss) {
     ss << " WHERE ";
     bool first = true;
     map(cond, [&](auto k, auto v) {
@@ -126,14 +124,11 @@ template <typename SCHEMA, typename C> struct sql_orm {
   auto find_one(metamap<O...>&& o, assign_exp<A, B> w1, W... ws) {
     return find_one(cat(o, mmm(w1)), ws...);
   }
-  template <typename A, typename B, typename... W>
-  auto find_one(assign_exp<A, B> w1, W... ws) {
+  template <typename A, typename B, typename... W> auto find_one(assign_exp<A, B> w1, W... ws) {
     return find_one(mmm(w1), ws...);
   }
 
-  template <typename W>
-  bool exists(W&& cond)
-  {
+  template <typename W> bool exists(W&& cond) {
     std::ostringstream ss;
     O o;
     ss << "SELECT count(*) FROM " << schema_.table_name();
@@ -145,8 +140,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     return li::tuple_reduce(metamap_values(cond), stmt).template read<int>();
   }
 
-  template <typename A, typename B, typename... W>
-  auto exists(assign_exp<A, B> w1, W... ws) {
+  template <typename A, typename B, typename... W> auto exists(assign_exp<A, B> w1, W... ws) {
     return exists(mmm(w1, ws...));
   }
   // Save a ll fields except auto increment.
@@ -158,7 +152,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     auto values = schema_.without_auto_increment();
     map(o, [&](auto k, auto& v) { values[k] = o[k]; });
     // auto values = intersection(o, schema_.without_auto_increment());
-    
+
     call_callback(s::validate, values, cb_args...);
     call_callback(s::before_insert, values, cb_args...);
     ss << "INSERT into " << schema_.table_name() << "(";
@@ -173,7 +167,6 @@ template <typename SCHEMA, typename C> struct sql_orm {
       ss << li::symbol_string(k);
       vs << "?";
     });
-
 
     ss << ") VALUES (" << vs.str() << ")";
     auto req = con_.prepare(ss.str());
@@ -245,8 +238,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
   void update(metamap<O...>&& o, assign_exp<A, B> w1, W... ws) {
     return update(cat(o, mmm(w1)), ws...);
   }
-  template <typename A, typename B, typename... W>
-  void update(assign_exp<A, B> w1, W... ws) {
+  template <typename A, typename B, typename... W> void update(assign_exp<A, B> w1, W... ws) {
     return update(mmm(w1), ws...);
   }
 
@@ -278,8 +270,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
   void remove(metamap<O...>&& o, assign_exp<A, B> w1, W... ws) {
     return remove(cat(o, mmm(w1)), ws...);
   }
-  template <typename A, typename B, typename... W>
-  void remove(assign_exp<A, B> w1, W... ws) {
+  template <typename A, typename B, typename... W> void remove(assign_exp<A, B> w1, W... ws) {
     return remove(mmm(w1), ws...);
   }
 
@@ -299,10 +290,11 @@ template <typename... F> struct orm_fields {
 
   // Field extractor.
   template <typename M> auto get_field(M m) { return m; }
-  template <typename M, typename T> 
-  auto get_field(assign_exp<M, T> e) { return e; }
-  template <typename M, typename T, typename... A> 
-  auto get_field(assign_exp<function_call_exp<M, A...>, T> e) { return assign_exp<M, T>{M{}, e.right}; }
+  template <typename M, typename T> auto get_field(assign_exp<M, T> e) { return e; }
+  template <typename M, typename T, typename... A>
+  auto get_field(assign_exp<function_call_exp<M, A...>, T> e) {
+    return assign_exp<M, T>{M{}, e.right};
+  }
 
   // template <typename M> struct get_field { typedef M ret; };
   // template <typename M, typename T> struct get_field<assign_exp<M, T>> {
@@ -310,10 +302,11 @@ template <typename... F> struct orm_fields {
   //   static auto ctor() { return assign_exp<M, T>{M{}, T()}; }
   // };
   // template <typename M, typename T, typename... A>
-  // struct get_field<assign_exp<function_call_exp<M, A...>, T>> : public get_field<assign_exp<M, T>> {
+  // struct get_field<assign_exp<function_call_exp<M, A...>, T>> : public get_field<assign_exp<M,
+  // T>> {
   // };
 
-//get_field<E>::ctor();
+// get_field<E>::ctor();
 // field attributes checks.
 #define CHECK_FIELD_ATTR(ATTR)                                                                     \
   template <typename M> struct is_##ATTR : std::false_type {};                                     \
@@ -323,24 +316,24 @@ template <typename... F> struct orm_fields {
                                                                                                    \
   auto ATTR() {                                                                                    \
     return tuple_map_reduce(fields_,                                                               \
-                            [this](auto e) {                                                           \
+                            [this](auto e) {                                                       \
                               typedef std::remove_reference_t<decltype(e)> E;                      \
                               if constexpr (is_##ATTR<E>::value)                                   \
-                                return get_field(e);                                       \
+                                return get_field(e);                                               \
                               else                                                                 \
                                 return skip{};                                                     \
                             },                                                                     \
                             make_metamap_skip);                                                    \
   }
 
-  CHECK_FIELD_ATTR(primary_key); 
+  CHECK_FIELD_ATTR(primary_key);
   CHECK_FIELD_ATTR(read_only);
   CHECK_FIELD_ATTR(auto_increment);
   CHECK_FIELD_ATTR(computed);
 #undef CHECK_FIELD_ATTR
 
   // Do not remove this comment, this is used by the symbol generation.
-  // s::primary_key s::read_only s::auto_increment s::computed 
+  // s::primary_key s::read_only s::auto_increment s::computed
 
   auto all_info() { return fields_; }
 
@@ -348,15 +341,16 @@ template <typename... F> struct orm_fields {
 
     return tuple_map_reduce(fields_,
                             [this](auto e) {
-                              //typedef std::remove_reference_t<decltype(e)> E;
+                              // typedef std::remove_reference_t<decltype(e)> E;
                               return get_field(e);
                             },
                             [](auto... e) { return mmm(e...); });
   }
 
   auto without_auto_increment() { return substract(all_fields(), auto_increment()); }
-  auto all_fields_except_computed() { return substract(substract(all_fields(), computed()),
-                                                       auto_increment()); }
+  auto all_fields_except_computed() {
+    return substract(substract(all_fields(), computed()), auto_increment());
+  }
 
   std::tuple<F...> fields_;
 };
@@ -377,14 +371,17 @@ struct sql_orm_schema : public MD {
     auto allowed_callbacks = mmm(s::before_insert, s::before_remove, s::before_update,
                                  s::after_insert, s::after_remove, s::after_update, s::validate);
 
-    static_assert(metamap_size<decltype(substract(cbs, allowed_callbacks))>() == 0, 
-    "The only supported callbacks are: s::before_insert, s::before_remove, s::before_update,"
-    " s::after_insert, s::after_remove, s::after_update, s::validate");
-    return sql_orm_schema<DB, MD, decltype(cbs)>(database_, table_name_, cbs, *static_cast<const MD*>(this));
+    static_assert(
+        metamap_size<decltype(substract(cbs, allowed_callbacks))>() == 0,
+        "The only supported callbacks are: s::before_insert, s::before_remove, s::before_update,"
+        " s::after_insert, s::after_remove, s::after_update, s::validate");
+    return sql_orm_schema<DB, MD, decltype(cbs)>(database_, table_name_, cbs,
+                                                 *static_cast<const MD*>(this));
   }
 
   template <typename... P> auto fields(P... p) const {
-    return sql_orm_schema<DB, orm_fields<P...>, CB>(database_, table_name_, callbacks_, orm_fields<P...>(p...));
+    return sql_orm_schema<DB, orm_fields<P...>, CB>(database_, table_name_, callbacks_,
+                                                    orm_fields<P...>(p...));
   }
 
   DB& database_;

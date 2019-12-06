@@ -22,21 +22,22 @@ inline size_t curl_write_callback(char* ptr, size_t size, size_t nmemb, void* us
 
 inline std::streamsize curl_read_callback(void* ptr, size_t size, size_t nmemb, void* stream);
 
-inline size_t curl_header_callback(char *buffer,   size_t size,   size_t nitems,   void *userdata)
-{
+inline size_t curl_header_callback(char* buffer, size_t size, size_t nitems, void* userdata) {
   auto& headers_map = *(std::unordered_map<std::string, std::string>*)userdata;
 
   size_t split = 0;
   size_t total_size = size * nitems;
-  while(split < total_size && buffer[split] != ':') split++;
+  while (split < total_size && buffer[split] != ':')
+    split++;
 
   if (split == total_size)
     return total_size;
-  //throw std::runtime_error("Header line does not contains a colon (:)");
+  // throw std::runtime_error("Header line does not contains a colon (:)");
 
   int skip_nl = (buffer[total_size - 1] == '\n');
   int skip_space = (buffer[split + 1] == ' ');
-  headers_map[std::string(buffer, split)] = std::string(buffer + split + 1 + skip_space, total_size - split - 1 - skip_nl - skip_space);
+  headers_map[std::string(buffer, split)] =
+      std::string(buffer + split + 1 + skip_space, total_size - split - 1 - skip_nl - skip_space);
   return total_size;
 }
 
@@ -53,7 +54,8 @@ struct http_client {
 
   inline http_client& operator=(const http_client&) = delete;
 
-  template <typename... A> inline auto operator()(int http_method, const std::string_view& url, const A&... args) {
+  template <typename... A>
+  inline auto operator()(int http_method, const std::string_view& url, const A&... args) {
 
     struct curl_slist* headers_list = NULL;
 
@@ -80,7 +82,7 @@ struct http_client {
       curl_free(escaped);
     });
 
-    //std::cout << url_ss.str() << std::endl;
+    // std::cout << url_ss.str() << std::endl;
     // Pass the url to libcurl.
     curl_easy_setopt(curl_, CURLOPT_URL, url_ss.str().c_str());
 
@@ -127,8 +129,7 @@ struct http_client {
       curl_easy_setopt(curl_, CURLOPT_READDATA, this);
     }
 
-    if (http_method == HTTP_PUT or http_method == HTTP_POST)
-    {
+    if (http_method == HTTP_PUT or http_method == HTTP_POST) {
       if (is_urlencoded)
         headers_list =
             curl_slist_append(headers_list, "Content-Type: application/x-www-form-urlencoded");
@@ -152,10 +153,9 @@ struct http_client {
 
     // Setup response header parsing.
     std::unordered_map<std::string, std::string> response_headers_map;
-    if (fetch_headers)
-    {
-      curl_easy_setopt(curl_, CURLOPT_HEADERDATA, &response_headers_map); 
-      curl_easy_setopt(curl_, CURLOPT_HEADERFUNCTION, curl_header_callback); 
+    if (fetch_headers) {
+      curl_easy_setopt(curl_, CURLOPT_HEADERDATA, &response_headers_map);
+      curl_easy_setopt(curl_, CURLOPT_HEADERFUNCTION, curl_header_callback);
     }
 
     // Send the request.
@@ -173,19 +173,24 @@ struct http_client {
 
     // Return response object.
     if constexpr (fetch_headers)
-      return mmm(s::status = response_code, s::body = body_buffer_, s::headers = response_headers_map);
+      return mmm(s::status = response_code, s::body = body_buffer_,
+                 s::headers = response_headers_map);
     else
       return mmm(s::status = response_code, s::body = body_buffer_);
   }
 
-  template <typename... P>
-  auto get(const std::string& url, P... params) { return this->operator()(HTTP_GET, url, params...); }
-  template <typename... P>
-  auto put(const std::string& url, P... params) { return this->operator()(HTTP_PUT, url, params...); }
-  template <typename... P>
-  auto post(const std::string& url, P... params) { return this->operator()(HTTP_POST, url, params...); }
-  template <typename... P>
-  auto delete_(const std::string& url, P... params) { return this->operator()(HTTP_DELETE, url, params...); }
+  template <typename... P> auto get(const std::string& url, P... params) {
+    return this->operator()(HTTP_GET, url, params...);
+  }
+  template <typename... P> auto put(const std::string& url, P... params) {
+    return this->operator()(HTTP_PUT, url, params...);
+  }
+  template <typename... P> auto post(const std::string& url, P... params) {
+    return this->operator()(HTTP_POST, url, params...);
+  }
+  template <typename... P> auto delete_(const std::string& url, P... params) {
+    return this->operator()(HTTP_DELETE, url, params...);
+  }
 
   inline void read(char* ptr, int size) { body_buffer_.append(ptr, size); }
 
