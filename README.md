@@ -1,4 +1,4 @@
-The Lithium C++ Libraries
+The Lithium C++ Libraries ![Travis](https://travis-ci.com/matt-42/lithium.svg?branch=master)
 ========================
 
 Lithium provides a set of free C++17 multi-platform libraries including:
