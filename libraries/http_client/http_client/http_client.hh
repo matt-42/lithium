@@ -43,7 +43,7 @@ inline size_t curl_header_callback(char* buffer, size_t size, size_t nitems, voi
 
 struct http_client {
 
-  enum method_verb { HTTP_GET, HTTP_POST, HTTP_PUT, HTTP_DELETE };
+  enum http_method { HTTP_GET, HTTP_POST, HTTP_PUT, HTTP_DELETE };
 
   inline http_client(const std::string& prefix = "") : url_prefix_(prefix) {
     curl_global_init(CURL_GLOBAL_ALL);
@@ -55,7 +55,7 @@ struct http_client {
   inline http_client& operator=(const http_client&) = delete;
 
   template <typename... A>
-  inline auto operator()(int http_method, const std::string_view& url, const A&... args) {
+  inline auto operator()(http_method http_method, const std::string_view& url, const A&... args) {
 
     struct curl_slist* headers_list = NULL;
 
