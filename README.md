@@ -1,7 +1,7 @@
 The Lithium C++ Libraries ![Travis](https://travis-ci.com/matt-42/lithium.svg?branch=master)
 ========================
 
-Lithium provides a set of free C++17 multi-platform libraries including:
+Lithium provides a set of free C++17 multi-platform libraries based on the metamap paradigm including:
 
 ### [li::metamap](https://github.com/matt-42/lithium/tree/master/libraries/metamap)
 
