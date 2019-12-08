@@ -1,5 +1,9 @@
 #pragma once
 
+#if defined(_MSC_VER)
+#include <ciso646>
+#endif
+
 #include <cmath>
 #include <string_view>
 
