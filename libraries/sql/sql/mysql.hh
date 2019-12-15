@@ -333,24 +333,34 @@ struct mysql_statement {
 
 struct mysql_database;
 
+struct mysql_connection_data {
+  MYSQL* connection;
+  std::unordered_map<std::string, mysql_statement> statements;
+};
+
 struct mysql_connection {
   // mysql_connection(MYSQL* con) : con_(con) {}
 
   // template <typename... OPTS> inline mysql_connection(OPTS&&... opts) :
   // con_(impl::open_mysql_connection(opts...)) {}
 
-  inline mysql_connection(MYSQL* con, mysql_database& pool);
+  inline mysql_connection(std::shared_ptr<mysql_connection_data> data,
+                          mysql_database& pool);
 
   long long int last_insert_rowid() { return mysql_insert_id(con_); }
 
-  mysql_statement& operator()(std::string rq) { return prepare(rq)(); }
+  mysql_statement& operator()(const std::string& rq) { return prepare(rq)(); }
 
-  mysql_statement& prepare(std::string rq) {
-    //std::cout << rq << std::endl;
+  mysql_statement& prepare(const std::string& rq) {
+    //std::cout << this << " " << rq << std::endl;
     auto it = stm_cache_.find(rq);
+    //std::cout << "cache : " << &stm_cache_ << std::endl;
+    //for (auto pair : stm_cache_)
+    //  std::cout << pair.first << std::endl;
     if (it != stm_cache_.end())
       return it->second;
 
+    std::cout << "init stmt" << std::endl;
     MYSQL_STMT* stmt = mysql_stmt_init(con_);
     if (!stmt)
       throw std::runtime_error(std::string("mysql_stmt_init error: ") + mysql_error(con_));
@@ -358,8 +368,9 @@ struct mysql_connection {
     if (mysql_stmt_prepare(stmt, rq.data(), rq.size()))
       throw std::runtime_error(std::string("mysql_stmt_prepare error: ") + mysql_error(con_));
 
-    stm_cache_[rq] = mysql_statement(stmt);
-    return stm_cache_[rq];
+    auto pair = stm_cache_.emplace(rq, stmt);
+    //std::cout << "new cache size : " << stm_cache_.size() << std::endl;
+    return pair.first->second;
   }
 
   template <typename T>
@@ -379,13 +390,14 @@ struct mysql_connection {
     return ss.str();
   }
 
-  std::unordered_map<std::string, mysql_statement> stm_cache_;
+  std::shared_ptr<mysql_connection_data> data_;
+  std::unordered_map<std::string, mysql_statement>& stm_cache_;
   MYSQL* con_;
   std::shared_ptr<int> sptr_;
   mysql_database& pool_;
 };
 
-thread_local std::deque<MYSQL*> pool_;
+thread_local std::deque<std::shared_ptr<mysql_connection_data>> pool_;
 
 struct mysql_database : std::enable_shared_from_this<mysql_database> {
 
@@ -415,43 +427,44 @@ struct mysql_database : std::enable_shared_from_this<mysql_database> {
 
   ~mysql_database() { mysql_library_end(); }
 
-  inline void free_connection(MYSQL* c) {
+  inline void free_connection(std::shared_ptr<mysql_connection_data> c) {
     //std::unique_lock<std::mutex> l(mutex_);
     //mysql_close(c);
     pool_.push_back(c);
-    //std::cout << pool_.size() << " connections available." << std::endl;
+    //std::cout << "free_connection" << pool_.size() << " connections available." << std::endl;
   }
 
   inline mysql_connection connect() {
-    MYSQL* con_ = nullptr;
+    std::shared_ptr<mysql_connection_data> data = nullptr;
     {
       //std::unique_lock<std::mutex> l(mutex_);
       if (!pool_.empty()) {
-        con_ = pool_.back();
+        data = pool_.back();
         pool_.pop_back();
         //std::cout << pool_.size() << " connections available." << std::endl;
         //std::cout << "reuse" << std::endl;
       }
     }
 
-    if (!con_) {
+    if (!data) {
       //std::unique_lock<std::mutex> l(mutex_);
-      connections_count++;
+      //connections_count++;
       //std::cout << connections_count << " connections created." << std::endl;
-      con_ = mysql_init(con_);
+      MYSQL* con_ = mysql_init(con_);
       con_ = mysql_real_connect(con_, host_.c_str(), user_.c_str(), passwd_.c_str(),
                                 database_.c_str(), port_, NULL, 0);
       if (!con_)
         throw std::runtime_error("Cannot connect to the database");
 
       mysql_set_character_set(con_, character_set_.c_str());
+      data = std::shared_ptr<mysql_connection_data>(new mysql_connection_data{con_});
     }
 
-    assert(con_);
-    return mysql_connection(con_, *this);
+    assert(data);
+    return mysql_connection(data, *this);
   }
 
-  int connections_count = 0;
+  //int connections_count = 0;
   std::mutex mutex_;
   std::string host_, user_, passwd_, database_;
   unsigned int port_;
@@ -460,9 +473,14 @@ struct mysql_database : std::enable_shared_from_this<mysql_database> {
   std::string character_set_;
 };
 
-inline mysql_connection::mysql_connection(MYSQL* con, mysql_database& pool)
-    : con_(con), pool_(pool) {
-  sptr_ = std::shared_ptr<int>((int*)42, [&pool, con](int* p) { pool.free_connection(con); });
+inline mysql_connection::mysql_connection(std::shared_ptr<mysql_connection_data> data, 
+                                          mysql_database& pool)
+    : data_(data), stm_cache_(data->statements),
+      con_(data->connection), pool_(pool) {
+
+  sptr_ = std::shared_ptr<int>((int*)42, [&pool, data](int* p) { 
+    pool.free_connection(data);
+  });
 }
 
 } // namespace li

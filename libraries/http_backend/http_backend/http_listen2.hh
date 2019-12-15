@@ -922,7 +922,7 @@ template <typename... O> auto http_serve(api<http_request, http_response> api, i
       memset(a2, 0, sizeof(a2));
       char* date_buf_tmp1 = a1;
       char* date_buf_tmp2 = a2;
-      while (true)
+      while (!moustique_exit_request)
       {
         time_t t = time(NULL);
         const tm& tm = *gmtime(&t);
@@ -936,6 +936,7 @@ template <typename... O> auto http_serve(api<http_request, http_response> api, i
 
   auto server_thread = std::make_shared<std::thread>([=] () {
     moustique_listen(port, SOCK_STREAM, 3, http_async_impl::make_http_processor(std::move(handler)));
+    date_thread->join();
   });
 
   if constexpr (has_key<decltype(options), s::non_blocking_t>())

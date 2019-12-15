@@ -129,6 +129,13 @@ int moustique_listen(int port,
   return moustique_listen_fd(moustique_impl::create_and_bind(port, socktype), nthreads, conn_handler);
 }
 
+static volatile int moustique_exit_request = 0;
+
+static void shutdown_handler(int sig) {
+  moustique_exit_request = 1;
+  std::cout << "The server will shutdown..." << std::endl;
+}
+
 template <typename H>
 int moustique_listen_fd(int listen_fd,
                         int nthreads,
@@ -141,7 +148,7 @@ int moustique_listen_fd(int listen_fd,
   MOUSTIQUE_CHECK_CALL(fcntl(listen_fd, F_SETFL, flags | O_NONBLOCK));
   MOUSTIQUE_CHECK_CALL(::listen(listen_fd, SOMAXCONN));
 
-  auto event_loop_fn = [listen_fd, conn_handler] {
+  auto event_loop_fn = [listen_fd, conn_handler] () -> int {
 
     int epoll_fd = epoll_create1(0);
 
@@ -171,30 +178,18 @@ int moustique_listen_fd(int listen_fd,
     // fibers.reserve(1000);
     // Even loop.
     epoll_event events[MAXEVENTS];
-    // sigset_t sigmask;
-    // sigemptyset(&sigmask);
-    // sigaddset(&sigmask, SIGQUIT);
-    // sigaddset(&sigmask, SIGINT);
-    // sigaddset(&sigmask, SIGKILL);
-    // sigaddset(&sigmask, SIGTERM);
-    
-    while (true)
-    {
-      //sigaddset(&set, SIGUSR1);
-      // std::cout << "wait" << std::endl;        
-      //sigfillset(&sigmask);
-      //int n_events = epoll_pwait (epoll_fd, events, MAXEVENTS, -1, &sigmask);
-      int n_events = epoll_wait(epoll_fd, events, MAXEVENTS, -1);
 
-      // std::cout << n_events << std::endl;
-      // if (n_events == -1)
-      // {
-      //   std::cout << "Shutdown server" << std::endl;        
-      //   break;
-      // }
+    while (!moustique_exit_request)
+    {
+
+      int n_events = epoll_wait (epoll_fd, events, MAXEVENTS, 1000);
+      if (moustique_exit_request) 
+        break;
+
 
       for (int i = 0; i < n_events; i++)
       {
+
         if ((events[i].events & EPOLLERR) ||
             (events[i].events & EPOLLHUP))
         {
@@ -216,26 +211,7 @@ int moustique_listen_fd(int listen_fd,
               break;
 
             MOUSTIQUE_CHECK_CALL(fcntl(infd, F_SETFL, fcntl(infd, F_GETFL, 0) | O_NONBLOCK));
-            // {
-            //   int flag = 1;
-            //   setsockopt(infd,            /* socket affected */
-            //              IPPROTO_TCP,     /* set option at TCP level */
-            //              TCP_NODELAY,     /* name of option */
-            //              (char *) &flag,  /* the cast is historical
-            //                                  cruft */
-            //              sizeof(int));    /* length of option value */
-            // }
-            // {
-            //   int flag = 1;
-            //   setsockopt(infd,            /* socket affected */
-            //              IPPROTO_TCP,     /* set option at TCP level */
-            //              TCP_CORK,     /* name of option */
-            //              (char *) &flag,  /* the cast is historical
-            //                                  cruft */
-            //              sizeof(int));    /* length of option value */
-            // }
             epoll_ctl(infd, EPOLLIN | EPOLLOUT | EPOLLET);
-            
             auto listen_to_new_fd = [original_fd=infd,epoll_ctl,&secondary_map] (int new_fd) {
               if (new_fd > secondary_map.size() || secondary_map[new_fd] == -1)
                 epoll_ctl(new_fd, EPOLLIN | EPOLLOUT | EPOLLET);
@@ -307,9 +283,18 @@ int moustique_listen_fd(int listen_fd,
         }
       }
     }
-    
+    close(epoll_fd);
+    return true;  
   };
 
+  struct sigaction act;
+    memset (&act, 0, sizeof(act));
+	  act.sa_handler = shutdown_handler;
+  
+  sigaction(SIGINT, &act, 0);
+  sigaction(SIGTERM, &act, 0);
+  sigaction(SIGQUIT, &act, 0);
+  
   std::vector<std::thread> ths;
   for (int i = 0; i < nthreads; i++)
     ths.push_back(std::thread([&] { event_loop_fn(); }));
@@ -317,7 +302,6 @@ int moustique_listen_fd(int listen_fd,
   for (auto& t : ths)
     t.join();
 
-  // std::cout << "Shutdown server" << std::endl;
   close(listen_fd);
 
   return true;
