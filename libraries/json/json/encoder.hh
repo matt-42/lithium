@@ -32,13 +32,18 @@ inline void json_encode(C& ss, const std::vector<T>& array, const json_vector_<E
 
 template <typename T, typename C> inline void json_encode_value(C& ss, const T& t) { ss << t; }
 
-template <typename C> inline void json_encode_value(C& ss, const char* s) { utf8_to_json(s, ss); }
+template <typename C> inline void json_encode_value(C& ss, const char* s) { 
+  //ss << s;
+  utf8_to_json(s, ss);
+ }
 
 template <typename C> inline void json_encode_value(C& ss, const string_view& s) {
+  //ss << s;
   utf8_to_json(s, ss);
 }
 
 template <typename C> inline void json_encode_value(C& ss, const std::string& s) {
+  //ss << s;
   utf8_to_json(s, ss);
 }
 

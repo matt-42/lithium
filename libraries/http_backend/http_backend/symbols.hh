@@ -10,6 +10,11 @@
     LI_SYMBOL(create_secret_key)
 #endif
 
+#ifndef LI_SYMBOL_date_thread
+#define LI_SYMBOL_date_thread
+    LI_SYMBOL(date_thread)
+#endif
+
 #ifndef LI_SYMBOL_hash_password
 #define LI_SYMBOL_hash_password
     LI_SYMBOL(hash_password)
@@ -73,6 +78,11 @@
 #ifndef LI_SYMBOL_select
 #define LI_SYMBOL_select
     LI_SYMBOL(select)
+#endif
+
+#ifndef LI_SYMBOL_server_thread
+#define LI_SYMBOL_server_thread
+    LI_SYMBOL(server_thread)
 #endif
 
 #ifndef LI_SYMBOL_session_id

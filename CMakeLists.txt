@@ -38,6 +38,8 @@ link_build_include("sql" "/libraries/sql/sql")
 
 include_directories(${CMAKE_BINARY_DIR}/include)
 
+#set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -march=native -mtune=native -flto") 
+
 add_custom_target(
     symbols_generation DEPENDS li_symbol_generator
     COMMAND ${CMAKE_BINARY_DIR}/libraries/symbol/li_symbol_generator ${CMAKE_CURRENT_SOURCE_DIR}/libraries)

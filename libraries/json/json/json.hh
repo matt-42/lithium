@@ -85,16 +85,16 @@ struct json_key {
   const char* key;
 };
 
-template <typename C, typename M> auto json_decode(C& input, M& obj) {
+template <typename C, typename M> decltype(auto) json_decode(C& input, M& obj) {
   return impl::to_json_schema(obj).decode(input, obj);
 }
 
-template <typename C, typename M> auto json_encode(C& output, const M& obj) {
+template <typename C, typename M> decltype(auto) json_encode(C& output, const M& obj) {
   impl::to_json_schema(obj).encode(output, obj);
 }
 
 template <typename M> auto json_encode(const M& obj) {
-  return impl::to_json_schema(obj).encode(obj);
+  return std::move(impl::to_json_schema(obj).encode(obj));
 }
 
 template <typename A, typename B, typename... C>

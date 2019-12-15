@@ -8,6 +8,7 @@ find_package(MYSQL REQUIRED)
 find_package(SQLite3 REQUIRED)
 find_package(CURL REQUIRED)
 find_package(microhttpd REQUIRED)
+find_package(Threads REQUIRED)
 
 include_directories(${SQLite3_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS} ${MICROHTTPD_INCLUDE_DIRS} ${MYSQL_INCLUDE_DIR})
 #find_package( OpenSSL )
@@ -27,7 +28,7 @@ endif (OPENSSL_FOUND)
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -g -O0")
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --coverage") # enabling coverage
 
-set(LIBS ${MICROHTTPD_LIBRARIES} ${SQLite3_LIBRARIES} ${CURL_LIBRARIES} ${MYSQL_LIBRARY} ${Boost_LIBRARIES})
+set(LIBS ${MICROHTTPD_LIBRARIES} ${SQLite3_LIBRARIES} ${CURL_LIBRARIES} ${MYSQL_LIBRARY} ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
 message(${Boost_LIBRARIES})
 li_add_executable(url_parameter url_parameter.cc)
 target_link_libraries(url_parameter ${LIBS})
@@ -64,3 +65,6 @@ add_test(hashmap_http_session hashmap_http_session)
 li_add_executable(serve_directory serve_directory.cc)
 target_link_libraries(serve_directory ${LIBS})
 add_test(serve_directory serve_directory)
+
+li_add_executable(bench bench.cc)
+target_link_libraries(bench ${LIBS})

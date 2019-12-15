@@ -254,7 +254,7 @@ struct sqlite_connection {
   }
 
   sqlite_statement prepare(const std::string& req) {
-    std::cout << req << std::endl;
+    // std::cout << req << std::endl;
     auto it = stm_cache_->find(req);
     if (it != stm_cache_->end())
       return it->second;

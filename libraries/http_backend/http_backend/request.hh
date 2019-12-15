@@ -11,14 +11,17 @@
 
 #include <li/http_backend/error.hh>
 #include <li/http_backend/url_decode.hh>
+//#include <li/http_backend/http_listen2.hh>
+
 #include <li/metamap/metamap.hh>
+
 
 namespace li {
 
 struct http_request {
 
-  inline const char* header(const char* k) const;
-  inline const char* cookie(const char* k) const;
+  inline std::string_view header(const char* k) const;
+  inline std::string_view cookie(const char* k) const;
 
   // With list of parameters: s::id = int(), s::name = string(), ...
   template <typename S, typename V, typename... T>
@@ -38,23 +41,9 @@ struct http_request {
   template <typename O> auto get_parameters(O& res) const;
   template <typename O> auto post_parameters(O& res) const;
 
-  MHD_Connection* mhd_connection;
-
-  std::string body;
-  std::string url;
+  http_async_impl::http_ctx& http_ctx;
   std::string url_spec;
 };
-
-template <typename F>
-int mhd_keyvalue_iterator(void* cls, enum MHD_ValueKind kind, const char* key, const char* value) {
-  F& f = *(F*)cls;
-  if (key and value and *key and *value) {
-    f(key, value);
-    return MHD_YES;
-  }
-  // else return MHD_NO;
-  return MHD_YES;
-}
 
 struct url_parser_info_node {
   int slash_pos;
@@ -136,11 +125,14 @@ auto parse_url_parameters(const url_parser_info& fmt, const std::string_view url
         while (int(url.size()) > (param_end) and url[param_end] != '/')
           param_end++;
 
-        std::string content(url.data() + param_start, param_end - param_start);
-        content.resize(MHD_http_unescape(&content[0]));
+        std::string_view content(url.data() + param_start, param_end - param_start);
         try {
-          obj[k] = boost::lexical_cast<decltype(v)>(content);
-        } catch (std::exception e) {
+          if constexpr(std::is_same<std::remove_reference_t<decltype(v)>, std::string>::value or
+                      std::is_same<std::remove_reference_t<decltype(v)>, std::string_view>::value)
+            obj[k] = content;
+          else
+            obj[k] = boost::lexical_cast<decltype(v)>(content);
+        } catch (const std::bad_cast& e) {
           throw http_error::bad_request("Cannot decode url parameter ", li::symbol_string(k), " : ",
                                         e.what());
         }
@@ -150,12 +142,13 @@ auto parse_url_parameters(const url_parser_info& fmt, const std::string_view url
   return obj;
 }
 
-inline const char* http_request::header(const char* k) const {
-  return MHD_lookup_connection_value(mhd_connection, MHD_HEADER_KIND, k);
+inline std::string_view http_request::header(const char* k) const {
+  return http_ctx.header(k);
 }
 
-inline const char* http_request::cookie(const char* k) const {
-  return MHD_lookup_connection_value(mhd_connection, MHD_COOKIE_KIND, k);
+inline std::string_view http_request::cookie(const char* k) const {
+  return http_ctx.cookie(k);
+  //FIXME return MHD_lookup_connection_value(mhd_connection, MHD_COOKIE_KIND, k);
 }
 
 template <typename S, typename V, typename... T>
@@ -190,34 +183,32 @@ template <typename O> auto http_request::post_parameters(const O& res) const {
 
 template <typename O> auto http_request::url_parameters(O& res) const {
   auto info = make_url_parser_info(url_spec);
-  return parse_url_parameters(info, url, res);
+  return parse_url_parameters(info, http_ctx.url(), res);
 }
 
 template <typename O> auto http_request::get_parameters(O& res) const {
-  std::set<void*> found;
-  auto add = [&](const char* k, const char* v) {
-    url_decode2(found, std::string(k) + "=" + v, res, true);
-  };
 
-  MHD_get_connection_values(mhd_connection, MHD_GET_ARGUMENT_KIND,
-                            &mhd_keyvalue_iterator<decltype(add)>, &add);
+  try {
+    url_decode(http_ctx.get_parameters_string(), res);
+  }
+   catch (const std::runtime_error& e)
+  {
+    throw http_error::bad_request("Error while decoding the GET parameter: ", e.what());
+  }
 
-  // Check for missing fields.
-  std::string missing = url_decode_check_missing_fields(found, res, true);
-  if (missing.size())
-    throw http_error::bad_request("Error while decoding the GET parameter: ", missing);
   return res;
 }
 
 template <typename O> auto http_request::post_parameters(O& res) const {
   try {
-    const char* encoding = this->header("Content-Type");
-    if (!encoding)
+    std::string_view encoding = this->header("Content-Type");
+    if (!encoding.data())
       throw http_error::bad_request(
           std::string("Content-Type is required to decode the POST parameters"));
 
+    std::string_view body = http_ctx.read_whole_body();
     if (encoding == std::string_view("application/x-www-form-urlencoded"))
-      url_decode(body, res);
+      url_decode(url_unescape(body), res);
     else if (encoding == std::string_view("application/json"))
       json_decode(body, res);
   } catch (std::exception e) {

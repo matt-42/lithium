@@ -10,7 +10,7 @@ using namespace li;
 
 int main() {
 
-  auto test_with_db = [](auto& db) {
+  auto test_with_db = [](auto& db, int port) {
     http_api my_api;
 
     // Users table
@@ -58,8 +58,8 @@ int main() {
       session.connect(request, response).logout();
     };
 
-    auto ctx = http_serve(my_api, 12350, s::non_blocking);
-    auto c = http_client("http://localhost:12350");
+    http_serve(my_api, port, s::non_blocking);
+    auto c = http_client("http://localhost:" + boost::lexical_cast<std::string>(port));
 
     // bad user -> unauthorized.
     auto r1 = c.post("/login", s::post_parameters = mmm(s::login = "x", s::password = "x"));
@@ -102,10 +102,10 @@ int main() {
   };
 
   auto sqlite_db = sqlite_database("iod_sqlite_orm_test.db");
-  test_with_db(sqlite_db);
+  test_with_db(sqlite_db, 12358);
 
   auto mysql_db =
       mysql_database(s::host = "127.0.0.1", s::database = "silicon_test", s::user = "root",
                      s::password = "sl_test_password", s::port = 14550, s::charset = "utf8");
-  test_with_db(mysql_db);
+  test_with_db(mysql_db, 12359);
 }

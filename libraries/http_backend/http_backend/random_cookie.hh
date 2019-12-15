@@ -17,11 +17,12 @@ std::string generate_secret_tracking_id() {
 inline std::string random_cookie(http_request& request, http_response& response,
                                  const char* key = "silicon_token") {
   std::string token;
-  const char* token_ = request.cookie(key);
-  if (!token_) {
+  std::string_view token_ = request.cookie(key);
+  if (!token_.data()) {
     token = generate_secret_tracking_id();
     response.set_cookie(key, token);
   } else {
+    std::cout << "got token " << token_ << std::endl;
     token = token_;
   }
 

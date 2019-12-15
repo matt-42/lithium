@@ -28,6 +28,8 @@ int main() {
   orm.drop_table_if_exists();
   orm.create_table_if_not_exists();
 
+  assert(orm.count() == 0);
+
   // Crud for the User object.
   api.add_subapi("/user", sql_crud_api(user_schema));
 
@@ -35,12 +37,12 @@ int main() {
   // std::cout << api_description(api) << std::endl;
 
   // Start server.
-  auto server = http_serve(api, 12356, s::non_blocking);
+  http_serve(api, 12389, s::non_blocking);
 
   // // // Test.
-  auto c = http_client("http://127.0.0.1:12356");
+  auto c = http_client("http://127.0.0.1:12389");
 
-  // // // Insert.
+  // Insert.
   auto to_insert = mmm(s::name = "matt", s::age = 12, s::address = "USA", s::city = "Paris");
   auto insert_r = c.post("/user/create", s::post_parameters = to_insert);
   insert_r = c.post("/user/create", s::post_parameters = to_insert);
@@ -51,6 +53,7 @@ int main() {
   auto pid = mmm(s::id = int());
   assert(json_decode(insert_r.body, pid).good());
   int id = pid.id;
+  std::cout << id << std::endl;
   // Get by id.
   auto get_r = c.post("/user/find_by_id", s::post_parameters = mmm(s::id = id));
   std::cout << get_r.body << std::endl;
@@ -64,7 +67,7 @@ int main() {
   assert(matt.address == "USA");
 
   auto get_r2 = c.post("/user/find_by_id", s::post_parameters = mmm(s::id = 42));
-  std::cout << get_r2.body << std::endl;
+  std::cout << json_encode(get_r2) << std::endl;
   ;
   assert(get_r2.status == 404);
 

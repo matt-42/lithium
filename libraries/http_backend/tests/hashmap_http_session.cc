@@ -44,7 +44,7 @@ int main() {
     CHECK_EQUAL("id", sess.values().user_id, -1);
   };
 
-  auto ctx = http_serve(my_api, 12351, s::non_blocking);
+  http_serve(my_api, 12351, s::non_blocking);
   auto c = http_client("http://localhost:12351");
 
   c.get("/test1");

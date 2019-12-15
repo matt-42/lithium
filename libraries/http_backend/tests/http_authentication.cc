@@ -46,7 +46,7 @@ int main() {
     assert(!auth.current_user(request, response));
   };
 
-  auto ctx = http_serve(my_api, 12353, s::non_blocking);
+  http_serve(my_api, 12353, s::non_blocking);
   auto c = http_client("http://localhost:12353");
 
   // Login should fail if no user in db.

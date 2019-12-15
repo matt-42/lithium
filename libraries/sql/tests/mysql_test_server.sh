@@ -36,6 +36,9 @@ if [ $1 == "start" ]; then
   fi
 
   cat > $CONF <<- EOF
+[Service]
+LimitNOFILE=8000
+
 [client]
 port                           = 14550
 socket                           = $TMPDIR/mysqld.sock
@@ -49,10 +52,12 @@ socket                           = $TMPDIR/mysqld.sock
 port                           = 14550
 
 [mysqld]
+open_files_limit =        4294967295
 socket                           = $TMPDIR/mysqld.sock
 port                           = 14550
 datadir                        = $TMPDIR/data
 log_error                      = $TMPDIR/error.log
+max_connections                = 99999
 EOF
 
 

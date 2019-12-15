@@ -249,7 +249,7 @@ https://github.com/matt-42/lithium/blob/master/libraries/http_backend/http_backe
 
 ```c++
 // Use the s::non_blocking parameters so the http_serve will run in a separate thread. 
-auto ctx = http_serve(my_api, 12344, s::non_blocking);
+http_serve(my_api, 12344, s::non_blocking);
 
 // Use li::http_client to test your API.
 auto r = http_get("http://localhost:12344/hello_world", s::get_parameters = mmm(s::name = "John")));

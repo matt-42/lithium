@@ -49,7 +49,7 @@ template <typename Req, typename Resp> struct api {
   H& put(std::string_view r) { return this->operator()(PUT, r); }
   H& delete_(std::string_view r) { return this->operator()(HTTP_DELETE, r); }
 
-  int parse_verb(std::string_view method) {
+  int parse_verb(std::string_view method) const {
     if (method == "GET")
       return GET;
     if (method == "PUT")
@@ -76,7 +76,7 @@ template <typename Req, typename Resp> struct api {
     routes_map_.for_all_routes([this](auto r, auto h) { std::cout << r << '\n'; });
     std::cout << std::endl;
   }
-  auto call(const char* method, std::string route, Req& request, Resp& response) {
+  auto call(std::string_view method, std::string_view route, Req& request, Resp& response) const {
     // skip the last / of the url.
     std::string_view route2(route);
     if (route2.size() != 0 and route2[route2.size() - 1] == '/')

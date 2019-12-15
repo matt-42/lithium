@@ -1,5 +1,6 @@
 #pragma once
 
+#include <iostream>
 #include <cassert>
 #include <cstring>
 #include <deque>
@@ -384,6 +385,8 @@ struct mysql_connection {
   mysql_database& pool_;
 };
 
+thread_local std::deque<MYSQL*> pool_;
+
 struct mysql_database : std::enable_shared_from_this<mysql_database> {
 
   template <typename... O> inline mysql_database(O... opts) {
@@ -410,22 +413,31 @@ struct mysql_database : std::enable_shared_from_this<mysql_database> {
       throw std::runtime_error("Mysql is not compiled as thread safe.");
   }
 
+  ~mysql_database() { mysql_library_end(); }
+
   inline void free_connection(MYSQL* c) {
-    std::unique_lock<std::mutex> l(mutex_);
+    //std::unique_lock<std::mutex> l(mutex_);
+    //mysql_close(c);
     pool_.push_back(c);
+    //std::cout << pool_.size() << " connections available." << std::endl;
   }
 
   inline mysql_connection connect() {
     MYSQL* con_ = nullptr;
     {
-      std::unique_lock<std::mutex> l(mutex_);
+      //std::unique_lock<std::mutex> l(mutex_);
       if (!pool_.empty()) {
         con_ = pool_.back();
         pool_.pop_back();
+        //std::cout << pool_.size() << " connections available." << std::endl;
+        //std::cout << "reuse" << std::endl;
       }
     }
 
     if (!con_) {
+      //std::unique_lock<std::mutex> l(mutex_);
+      connections_count++;
+      //std::cout << connections_count << " connections created." << std::endl;
       con_ = mysql_init(con_);
       con_ = mysql_real_connect(con_, host_.c_str(), user_.c_str(), passwd_.c_str(),
                                 database_.c_str(), port_, NULL, 0);
@@ -439,10 +451,12 @@ struct mysql_database : std::enable_shared_from_this<mysql_database> {
     return mysql_connection(con_, *this);
   }
 
+  int connections_count = 0;
   std::mutex mutex_;
   std::string host_, user_, passwd_, database_;
   unsigned int port_;
-  std::deque<MYSQL*> pool_;
+  std::deque<MYSQL*> _;
+  //std::deque<MYSQL*> pool_;
   std::string character_set_;
 };
 

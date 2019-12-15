@@ -4746,7 +4746,7 @@ auto sql_crud_api(sql_orm_schema<A, B, C>& orm_schema) {
   api.post("/find_by_id") = [&](http_request& request, http_response& response) {
     auto params = request.post_parameters(s::id = int());
     if (auto obj = orm_schema.connect().find_one(s::id = params.id, request, response))
-      response.write(json_encode(obj));
+      response.write_json(obj));
     else
       throw http_error::not_found(orm_schema.table_name(), " with id ", params.id,
                                   " does not exist.");
@@ -4756,7 +4756,7 @@ auto sql_crud_api(sql_orm_schema<A, B, C>& orm_schema) {
     auto insert_fields = orm_schema.all_fields_except_computed();
     auto obj = request.post_parameters(insert_fields);
     long long int id = orm_schema.connect().insert(obj, request, response);
-    response.write(json_encode(s::id = id));
+    response.write_json(s::id = id));
   };
 
   api.post("/update") = [&](http_request& request, http_response& response) {

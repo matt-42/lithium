@@ -5,7 +5,7 @@
 
 namespace li {
 
-auto serve_file(const std::string& root, std::string path, http_response& response) {
+auto serve_file(const std::string& root, std::string_view path, http_response& response) {
   std::string base_path = root;
   if (!base_path.empty() && base_path[base_path.size() - 1] != '/') {
     base_path.push_back('/');
@@ -18,7 +18,7 @@ auto serve_file(const std::string& root, std::string path, http_response& respon
   // prefix.string().size()));
   size_t len = path.size();
   if (!path.empty() && path[0] == slash) {
-    path.erase(0, 1);
+    path = std::string_view(path.data() + 1, path.size() - 1);//erase(0, 1);
   }
 
   if (path.empty()) {
@@ -40,14 +40,14 @@ auto serve_file(const std::string& root, std::string path, http_response& respon
     }
   }
 
-  response.write_file(base_path + path);
+  response.write_file(base_path + std::string(path));
 };
 
 inline auto serve_directory(std::string root) {
   http_api api;
 
   api.get("/{{path...}}") = [root](http_request& request, http_response& response) {
-    auto path = request.url_parameters(s::path = std::string()).path;
+    auto path = request.url_parameters(s::path = std::string_view()).path;
     return serve_file(root, path, response);
   };
   return api;

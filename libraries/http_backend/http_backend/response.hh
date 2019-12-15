@@ -18,34 +18,38 @@ namespace li {
 using namespace li;
 
 struct http_response {
-  inline http_response() : status(200), file_descriptor(-1) {}
-  inline void set_header(std::string k, std::string v) { headers[k] = v; }
-  inline void set_cookie(std::string k, std::string v) { cookies[k] = v; }
+  inline http_response(http_async_impl::http_ctx& ctx) : http_ctx(ctx) {}
 
-  inline void write() {}
-  template <typename A1, typename... A> inline void write(A1 a1, A&&... a) {
-    body += boost::lexical_cast<std::string>(a1);
-    write(a...);
+  inline void set_header(std::string_view k, std::string_view v) { http_ctx.set_header(k, v); }
+  inline void set_cookie(std::string_view k, std::string_view v) { http_ctx.set_cookie(k, v); }
+
+  template <typename O>
+  inline void write_json(O&& obj) { http_ctx.respond_json(std::forward<O>(obj)); }
+  template <typename A, typename B, typename... O>
+  void write_json(assign_exp<A, B>&& w1, O&&... ws) {
+    write_json(mmm(std::forward<assign_exp<A, B>>(w1), std::forward<O>(ws)...));
   }
+
+  inline void write() { http_ctx.respond(body); }
+
+  void set_status(int s) { http_ctx.set_status(s); }
+
+  template <typename A1, typename... A> inline void write(A1&& a1, A&&... a) {
+    body += boost::lexical_cast<std::string>(std::forward<A1>(a1));
+    write(std::forward<A>(a)...);
+  }
+  
+  template <typename A1, typename... A> inline void write(std::string_view a1) 
+  {
+    http_ctx.respond(a1); 
+  }
+
   inline void write_file(const std::string path) {
-
-#if defined(_MSC_VER)
-    int fd;
-    _sopen_s(&fd, path.c_str(), O_RDONLY, _SH_DENYRW, _S_IREAD);
-#else
-    int fd = open(path.c_str(), O_RDONLY);
-#endif
-
-    if (fd == -1)
-      throw http_error::not_found("File not found.");
-    file_descriptor = fd;
+    http_ctx.send_static_file(path.c_str());
   }
 
-  int status;
+  http_async_impl::http_ctx& http_ctx;
   std::string body;
-  int file_descriptor;
-  std::unordered_map<std::string, std::string> cookies;
-  std::unordered_map<std::string, std::string> headers;
 };
 
 } // namespace li

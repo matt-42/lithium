@@ -34,8 +34,12 @@ std::string_view url_decode2(std::set<void*>& found, std::string_view str, O& ob
   if (start != end) {
     std::string content(str.substr(start, end - start));
     // Url escape.
-    content.resize(MHD_http_unescape(&content[0]));
-    obj = boost::lexical_cast<O>(content);
+    //content.resize(MHD_http_unescape(&content[0]));
+    if constexpr(std::is_same<std::remove_reference_t<decltype(obj)>, std::string>::value or
+                std::is_same<std::remove_reference_t<decltype(obj)>, std::string_view>::value)
+      obj = content;
+    else
+      obj = boost::lexical_cast<O>(content);
     found.insert(&obj);
   }
   if (end == str.size())
@@ -119,7 +123,7 @@ std::string_view url_decode2(std::set<void*>& found, std::string_view str, metam
       throw std::runtime_error("url_decode error: unexpected end.");
     next = key_end + 1; // skip the ]
   } else {
-    while (key_end != str.size() && str[key_end] != '[' && str[key_end] != '=')
+    while (key_end < str.size() && str[key_end] != '[' && str[key_end] != '=')
       key_end++;
     next = key_end;
   }

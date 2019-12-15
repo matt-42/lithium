@@ -1,5 +1,5 @@
 #include "test.hh"
-#include <li/http_backend/request.hh>
+#include <li/http_backend/http_backend.hh>
 #include <li/metamap/metamap.hh>
 
 #include "symbols.hh"

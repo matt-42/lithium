@@ -1,6 +1,7 @@
 #include "symbols.hh"
 #include <iostream>
 #include <li/http_backend/url_decode.hh>
+#include <li/http_backend/url_unescape.hh>
 
 using namespace li;
 
@@ -31,9 +32,11 @@ int main() {
   }
 
   { // Simple object with url escaped chars
-    const std::string s = "name=Jo%20hn";
+    std::string in = "name=Jo%20hn";
+    std::string_view s = url_unescape(in);
     auto obj = mmm(s::name = std::string());
-    url_decode(std::string_view(s), obj);
+    url_decode(s, obj);
+    std::cout << obj.name << std::endl;
     assert(obj.name == "Jo hn");
   }
 
