@@ -1,5 +1,6 @@
+#include <cstdio>
 #include "test.hh"
-#include <boost/filesystem.hpp>
+#include <filesystem>
 #include <li/http_backend/http_backend.hh>
 #include <li/http_client/http_client.hh>
 
@@ -7,9 +8,9 @@ using namespace li;
 
 int main() {
 
-  namespace fs = boost::filesystem;
+  namespace fs = std::filesystem;
 
-  fs::path root = fs::unique_path();
+  fs::path root = std::tmpnam(nullptr);
   fs::create_directories(root / "subdir");
 
   {
