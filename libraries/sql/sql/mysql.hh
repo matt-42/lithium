@@ -64,7 +64,7 @@ struct mysql_connection {
     if (it != stm_cache_.end())
       return mysql_statement<B>{mysql_wrapper_, *it->second};
 
-    std::cout << "prepare " << rq << std::endl;
+    //std::cout << "prepare " << rq << std::endl;
     MYSQL_STMT* stmt = mysql_stmt_init(con_);
     if (!stmt)
       throw std::runtime_error(std::string("mysql_stmt_init error: ") + mysql_error(con_));
