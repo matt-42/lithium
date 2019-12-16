@@ -20,8 +20,8 @@ matrix:
         - sudo apt-key adv --recv-keys --keyserver hkp://keyserver.ubuntu.com:80 0xF1656F24C74CD1D8
         - sudo add-apt-repository 'deb [arch=amd64,arm64,ppc64el] http://mirror.netcologne.de/mariadb/repo/10.4/ubuntu bionic main'
         - sudo apt-get update -qq;
-        - sudo apt-get remove libmysqlclient-dev;
-        - sudo apt-get install -qq libmariadb-dev
+        - sudo apt-get remove libmysqlclient-dev mysql-server;
+        - sudo apt-get install -qq libmariadb-dev mariadb-server;
 
 
     - compiler: clang++
@@ -43,8 +43,8 @@ matrix:
         - sudo apt-key adv --recv-keys --keyserver hkp://keyserver.ubuntu.com:80 0xF1656F24C74CD1D8
         - sudo add-apt-repository 'deb [arch=amd64,arm64,ppc64el] http://mirror.netcologne.de/mariadb/repo/10.4/ubuntu bionic main'
         - sudo apt-get update -qq;
-        - sudo apt-get remove libmysqlclient-dev;
-        - sudo apt-get install -qq libmariadb-dev
+        - sudo apt-get remove libmysqlclient-dev mysql-server;
+        - sudo apt-get install -qq libmariadb-dev mariadb-server;
 
     # std::filesystem Need macos 10.15. Not yet on travis.
     # - os: osx
