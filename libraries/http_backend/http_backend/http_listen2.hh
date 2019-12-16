@@ -32,13 +32,13 @@ thread_local std::unordered_map<std::string, std::string_view> static_files;
 struct read_buffer
 {
 
-  std::array<char, 20*1024> buffer_;
-  //std::vector<char> buffer_;
+  //std::array<char, 20*1024> buffer_;
+  std::vector<char> buffer_;
   int cursor = 0; // First index of the currently used buffer area
   int end = 0; // Index of the last read character
   
   read_buffer()
-    : //buffer_(20 * 1024),
+    : buffer_(400 * 1024),
       cursor(0),
       end(0)
   {}
@@ -208,7 +208,10 @@ struct output_buffer
   output_buffer& operator<<(std::string_view s)
   {
     if (cursor_ + s.size() >= end_)
+    {
+      //std::cout << s.size() << " " << (end_ - buffer_) << std::endl;
       throw std::runtime_error("Response too long.");
+    }
     assert(cursor_ + s.size() < end_);
     memcpy(cursor_, s.data(), s.size());
     cursor_ += s.size();
@@ -252,13 +255,15 @@ struct http_ctx {
       write(_write),
       listen_to_new_fd(_listen_to_new_fd),
       headers_stream(headers_buffer_space, sizeof(headers_buffer_space)),
-      //output_buffer_space(new char[1000 * 1024]),
-      output_stream(output_buffer_space, sizeof(output_buffer_space))
+      output_buffer_space(new char[100 * 1024]),
+      output_stream(output_buffer_space, 100 * 1024)
+      //output_stream(output_buffer_space, sizeof(output_buffer_space))
+      
   {
     get_parameters_map.reserve(10);
     response_headers.reserve(20);
   }
-  //~http_ctx() { delete[] output_buffer_space; }
+  ~http_ctx() { delete[] output_buffer_space; }
 
   http_ctx& operator=(const http_ctx&) = delete;
   http_ctx(const http_ctx&) = delete;
@@ -355,7 +360,7 @@ struct http_ctx {
   {
     output_stream << "HTTP/1.1 " << status_ << "\r\n";
     output_stream << "Date: " << std::string_view(date_buf, date_buf_size) << "\r\n";
-    output_stream << "Connection: keep-alive\r\nServer: Moustique\r\n";
+    output_stream << "Connection: keep-alive\r\nServer: Lithium\r\n";
   }
   
   void prepare_request()
@@ -449,7 +454,7 @@ struct http_ctx {
   void respond_json(const O& obj)
   {
     response_written_ = true;
-    char json_buffer[10000];
+    char json_buffer[100000];
     output_buffer json_stream(json_buffer, sizeof(json_buffer));
 
     json_encode(json_stream, obj);
@@ -832,10 +837,10 @@ struct http_ctx {
   output_buffer headers_stream;
   bool response_written_ = false;
 
-  char output_buffer_space[10*1024];
-  //char* output_buffer_space;
+  //char output_buffer_space[4*1024];
+  char* output_buffer_space;
   output_buffer output_stream;
-}; 
+};  
 
 template <typename F>
 auto make_http_processor(F handler)
@@ -935,6 +940,8 @@ template <typename... O> auto http_serve(api<http_request, http_response> api, i
 
   auto options = mmm(opts...);
 
+  int nthreads = get_or(options, s::nthreads, 4);
+
 //int http_serve(int port, int nthreads, F handler)
   auto handler = [api] (http_async_impl::http_ctx& ctx) {
     http_request rq{ctx};
@@ -973,7 +980,7 @@ template <typename... O> auto http_serve(api<http_request, http_response> api, i
 
   auto server_thread = std::make_shared<std::thread>([=] () {
     std::cout << "Starting lithium::http_backend on port " << port << std::endl;
-    moustique_listen(port, SOCK_STREAM, 4, http_async_impl::make_http_processor(std::move(handler)));
+    moustique_listen(port, SOCK_STREAM, nthreads, http_async_impl::make_http_processor(std::move(handler)));
     date_thread->join();
   });
 

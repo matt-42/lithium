@@ -7,44 +7,44 @@
 
 #pragma once
 
-#include <sstream>
-#include <unistd.h>
-#include <sys/types.h>
-#include <cstring>
-#include <boost/lexical_cast.hpp>
-#include <string.h>
-#include <sys/sendfile.h>
+#include <utility>
+#include <signal.h>
 #include <tuple>
-#include <string_view>
 #include <sys/mman.h>
-#include <iostream>
-#include <sys/epoll.h>
-#include <variant>
-#include <set>
-#include <netinet/tcp.h>
-#include <netdb.h>
-#include <errno.h>
-#include <stdlib.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <optional>
 #include <random>
-#include <cassert>
+#include <stdio.h>
+#include <map>
+#include <variant>
+#include <functional>
+#include <string_view>
+#include <sys/epoll.h>
+#include <netdb.h>
+#include <sys/types.h>
+#include <string>
+#include <memory>
 #include <vector>
 #include <thread>
+#include <cassert>
 #include <sys/uio.h>
-#include <signal.h>
-#include <cmath>
-#include <utility>
-#include <optional>
-#include <unordered_map>
-#include <map>
-#include <mutex>
-#include <memory>
-#include <boost/context/continuation.hpp>
-#include <string>
+#include <set>
 #include <sys/socket.h>
-#include <fcntl.h>
-#include <stdio.h>
-#include <functional>
-#include <sys/stat.h>
+#include <sys/sendfile.h>
+#include <errno.h>
+#include <unordered_map>
+#include <sstream>
+#include <netinet/tcp.h>
+#include <mutex>
+#include <cmath>
+#include <iostream>
+#include <string.h>
+#include <boost/lexical_cast.hpp>
+#include <cstring>
+#include <boost/context/continuation.hpp>
+#include <stdlib.h>
+#include <unistd.h>
 
 #if defined(_MSC_VER)
 #include <io.h>
@@ -3008,14 +3008,27 @@ int moustique_listen_fd(int listen_fd,
     // fibers.reserve(1000);
     // Even loop.
     epoll_event events[MAXEVENTS];
+    //int nrunning = 0;
+    std::vector<int> is_running;
 
     while (!moustique_exit_request)
     {
 
-      int n_events = epoll_wait (epoll_fd, events, MAXEVENTS, 1000);
+      int n_events = epoll_wait (epoll_fd, events, MAXEVENTS, 100);
       if (moustique_exit_request) 
         break;
 
+      if (n_events == 0)
+      {
+        int cpt = 0;
+        for (int i = 0; i < fibers.size(); i++)
+          if (is_running[i])
+          {
+            cpt++;
+            fibers[i] = fibers[i].resume();
+          }
+        //std::cout << "count : " << cpt << std::endl;;
+      }
 
       for (int i = 0; i < n_events; i++)
       {
@@ -3024,7 +3037,9 @@ int moustique_listen_fd(int listen_fd,
             (events[i].events & EPOLLHUP))
         {
           close (events[i].data.fd);
-          fibers[events[i].data.fd] = fibers[events[i].data.fd].resume();
+          if (is_running[events[i].data.fd])
+            fibers[events[i].data.fd] = fibers[events[i].data.fd].resume();
+          //nrunning--;
           continue;
         }
         else if (listen_fd == events[i].data.fd) // New connection.
@@ -3040,6 +3055,7 @@ int moustique_listen_fd(int listen_fd,
             if (infd == -1)
               break;
 
+
             MOUSTIQUE_CHECK_CALL(fcntl(infd, F_SETFL, fcntl(infd, F_GETFL, 0) | O_NONBLOCK));
             epoll_ctl(infd, EPOLLIN | EPOLLOUT | EPOLLET);
             auto listen_to_new_fd = [original_fd=infd,epoll_ctl,&secondary_map] (int new_fd) {
@@ -3051,11 +3067,17 @@ int moustique_listen_fd(int listen_fd,
             };
 
             if (int(fibers.size()) < infd + 1)
+            {
               fibers.resize(infd + 10);
-
+              is_running.resize(infd + 10, false);
+            }
             struct end_of_file {};
-            fibers[infd] = ctx::callcc([fd=infd, &conn_handler, epoll_ctl_mod, listen_to_new_fd]
+            fibers[infd] = ctx::callcc([fd=infd, &conn_handler, epoll_ctl_mod, listen_to_new_fd, &is_running]
                                        (ctx::continuation&& sink) {
+                                        //nrunning++;
+                                        is_running[fd] = true;
+                                        //std::cout << "nrunning: " << nrunning << std::endl;
+
                                          //ctx::continuation sink = std::move(_sink);
                                          auto read = [fd, &sink, epoll_ctl_mod] (char* buf, int max_size) {
                                            ssize_t count = ::recv(fd, buf, max_size, 0);
@@ -3092,6 +3114,9 @@ int moustique_listen_fd(int listen_fd,
               
                                          conn_handler(fd, read, write, listen_to_new_fd);
                                          close(fd);
+                                         is_running[fd] = false;
+                                         //nrunning--;
+                                         //std::cout << "nrunning: " << nrunning << std::endl;
                                          return std::move(sink);
                                        });
           
@@ -3181,13 +3206,13 @@ thread_local std::unordered_map<std::string, std::string_view> static_files;
 struct read_buffer
 {
 
-  std::array<char, 20*1024> buffer_;
-  //std::vector<char> buffer_;
+  //std::array<char, 20*1024> buffer_;
+  std::vector<char> buffer_;
   int cursor = 0; // First index of the currently used buffer area
   int end = 0; // Index of the last read character
   
   read_buffer()
-    : //buffer_(20 * 1024),
+    : buffer_(400 * 1024),
       cursor(0),
       end(0)
   {}
@@ -3357,7 +3382,10 @@ struct output_buffer
   output_buffer& operator<<(std::string_view s)
   {
     if (cursor_ + s.size() >= end_)
+    {
+      //std::cout << s.size() << " " << (end_ - buffer_) << std::endl;
       throw std::runtime_error("Response too long.");
+    }
     assert(cursor_ + s.size() < end_);
     memcpy(cursor_, s.data(), s.size());
     cursor_ += s.size();
@@ -3401,13 +3429,15 @@ struct http_ctx {
       write(_write),
       listen_to_new_fd(_listen_to_new_fd),
       headers_stream(headers_buffer_space, sizeof(headers_buffer_space)),
-      //output_buffer_space(new char[1000 * 1024]),
-      output_stream(output_buffer_space, sizeof(output_buffer_space))
+      output_buffer_space(new char[100 * 1024]),
+      output_stream(output_buffer_space, 100 * 1024)
+      //output_stream(output_buffer_space, sizeof(output_buffer_space))
+      
   {
     get_parameters_map.reserve(10);
     response_headers.reserve(20);
   }
-  //~http_ctx() { delete[] output_buffer_space; }
+  ~http_ctx() { delete[] output_buffer_space; }
 
   http_ctx& operator=(const http_ctx&) = delete;
   http_ctx(const http_ctx&) = delete;
@@ -3504,7 +3534,7 @@ struct http_ctx {
   {
     output_stream << "HTTP/1.1 " << status_ << "\r\n";
     output_stream << "Date: " << std::string_view(date_buf, date_buf_size) << "\r\n";
-    output_stream << "Connection: keep-alive\r\nServer: Moustique\r\n";
+    output_stream << "Connection: keep-alive\r\nServer: Lithium\r\n";
   }
   
   void prepare_request()
@@ -3598,7 +3628,7 @@ struct http_ctx {
   void respond_json(const O& obj)
   {
     response_written_ = true;
-    char json_buffer[10000];
+    char json_buffer[100000];
     output_buffer json_stream(json_buffer, sizeof(json_buffer));
 
     json_encode(json_stream, obj);
@@ -3981,10 +4011,10 @@ struct http_ctx {
   output_buffer headers_stream;
   bool response_written_ = false;
 
-  char output_buffer_space[10*1024];
-  //char* output_buffer_space;
+  //char output_buffer_space[4*1024];
+  char* output_buffer_space;
   output_buffer output_stream;
-}; 
+};  
 
 template <typename F>
 auto make_http_processor(F handler)
@@ -4301,7 +4331,9 @@ namespace li {
 template <typename C>
 struct async_yield
 {
-  void operator()() { ctx.write(nullptr, 0); }
+  void operator()() { 
+    ctx.write(nullptr, 0);
+     }
   void listen_to_fd(int fd) { ctx.listen_to_new_fd(fd); }
   C& ctx;
 };
@@ -4576,6 +4608,8 @@ template <typename... O> auto http_serve(api<http_request, http_response> api, i
 
   auto options = mmm(opts...);
 
+  int nthreads = get_or(options, s::nthreads, 4);
+
 //int http_serve(int port, int nthreads, F handler)
   auto handler = [api] (http_async_impl::http_ctx& ctx) {
     http_request rq{ctx};
@@ -4614,7 +4648,7 @@ template <typename... O> auto http_serve(api<http_request, http_response> api, i
 
   auto server_thread = std::make_shared<std::thread>([=] () {
     std::cout << "Starting lithium::http_backend on port " << port << std::endl;
-    moustique_listen(port, SOCK_STREAM, 4, http_async_impl::make_http_processor(std::move(handler)));
+    moustique_listen(port, SOCK_STREAM, nthreads, http_async_impl::make_http_processor(std::move(handler)));
     date_thread->join();
   });
 

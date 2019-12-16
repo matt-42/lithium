@@ -12,6 +12,8 @@ find_package(Threads REQUIRED)
 
 include_directories(${SQLite3_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS} ${MICROHTTPD_INCLUDE_DIRS} ${MYSQL_INCLUDE_DIR})
 
+add_definitions(-march=native)
+
 set(CMAKE_VERBOSE_MAKEFILE ON)
 if (OPENSSL_FOUND)
     add_definitions(-DBOOST_NETWORK_ENABLE_HTTPS)

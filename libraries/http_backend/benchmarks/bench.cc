@@ -36,17 +36,18 @@ int main(int argc, char* argv[]) {
     s::id(s::auto_increment, s::primary_key) = int(),
     s::randomNumber = int());
 
-  // { // init.
+    { // init.
 
-  //   auto c = random_numbers.connect();
-  //   c.drop_table_if_exists().create_table_if_not_exists();
-  //   for (int i = 0; i < 10000; i++)
-  //     c.insert(s::randomNumber = i);
-  // }
+      auto c = random_numbers.connect();
+      c.drop_table_if_exists().create_table_if_not_exists();
+      for (int i = 0; i < 100; i++)
+        c.insert(s::randomNumber = i);
+    }
   http_api my_api;
 
   my_api.get("/plaintext") = [&](http_request& request, http_response& response) {
-    response.set_header("Content-Type", "text/plain");
+    throw std::runtime_error("test error");
+    //response.set_header("Content-Type", "text/plain");
     response.write("Hello world!");
   };
 
@@ -54,31 +55,35 @@ int main(int argc, char* argv[]) {
     response.write_json(s::message = "Hello world!");
   };
   my_api.get("/db") = [&](http_request& request, http_response& response) {
-    response.write_json(random_numbers.connect(request.yield).find_one(s::id = 1234).value());
+    response.write_json(random_numbers.connect(request.yield).find_one(s::id = 14).value());
   };
 
   my_api.get("/queries") = [&](http_request& request, http_response& response) {
-    int N = request.get_parameters(s::N = std::optional<int>(1)).N.value_or(1);
-    N = std::max(1, std::min(N, 500));
+    std::string N_str = request.get_parameters(s::N = std::optional<std::string>()).N.value_or("1");
+    //std::cout << N_str << std::endl;
+    int N = atoi(N_str.c_str());
     
-    auto c = random_numbers.connect(request.yield);
-    std::vector<int> numbers(N);
-    for (int i = 0; i < N; i++)
-      numbers[i] = c.find_one(s::id = 1 + rand() % 9999)->randomNumber;
-
-    response.write_json(numbers);
-  };
-
-  my_api.get("/updates") = [&](http_request& request, http_response& response) {
-    int N = request.get_parameters(s::N = std::optional<int>()).N.value_or(1);
     N = std::max(1, std::min(N, 500));
     
     auto c = random_numbers.connect(request.yield);
     std::vector<decltype(random_numbers.all_fields())> numbers(N);
     for (int i = 0; i < N; i++)
+      numbers[i] = c.find_one(s::id = 1 + rand() % 99).value();
+
+    response.write_json(numbers);
+  };
+
+  my_api.get("/updates") = [&](http_request& request, http_response& response) {
+    std::string N_str = request.get_parameters(s::N = std::optional<std::string>()).N.value_or("1");
+    //std::cout << N_str << std::endl;
+    int N = atoi(N_str.c_str());
+    
+    auto c = random_numbers.connect(request.yield);
+    std::vector<decltype(random_numbers.all_fields())> numbers(N);
+    for (int i = 0; i < N; i++)
     {
-      numbers[i] = c.find_one(s::id = 1 + rand() % 9999).value();
-      numbers[i].randomNumber = 1 + rand() % 9999;
+      numbers[i] = c.find_one(s::id = 1 + rand() % 99).value();
+      numbers[i].randomNumber = 1 + rand() % 99;
       c.update(numbers[i]);
     }
 
@@ -108,8 +113,8 @@ int main(int argc, char* argv[]) {
     response.write(ss.str());
   };
   
-  int port = 12361;
-  http_serve(my_api, port); 
+  int port = atoi(argv[1]);
+  http_serve(my_api, port, s::nthreads = 3  ); 
   
   return 0;
 

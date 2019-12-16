@@ -178,14 +178,27 @@ int moustique_listen_fd(int listen_fd,
     // fibers.reserve(1000);
     // Even loop.
     epoll_event events[MAXEVENTS];
+    //int nrunning = 0;
+    std::vector<int> is_running;
 
     while (!moustique_exit_request)
     {
 
-      int n_events = epoll_wait (epoll_fd, events, MAXEVENTS, 1000);
+      int n_events = epoll_wait (epoll_fd, events, MAXEVENTS, 100);
       if (moustique_exit_request) 
         break;
 
+      if (n_events == 0)
+      {
+        int cpt = 0;
+        for (int i = 0; i < fibers.size(); i++)
+          if (is_running[i])
+          {
+            cpt++;
+            fibers[i] = fibers[i].resume();
+          }
+        //std::cout << "count : " << cpt << std::endl;;
+      }
 
       for (int i = 0; i < n_events; i++)
       {
@@ -194,7 +207,9 @@ int moustique_listen_fd(int listen_fd,
             (events[i].events & EPOLLHUP))
         {
           close (events[i].data.fd);
-          fibers[events[i].data.fd] = fibers[events[i].data.fd].resume();
+          if (is_running[events[i].data.fd])
+            fibers[events[i].data.fd] = fibers[events[i].data.fd].resume();
+          //nrunning--;
           continue;
         }
         else if (listen_fd == events[i].data.fd) // New connection.
@@ -210,6 +225,7 @@ int moustique_listen_fd(int listen_fd,
             if (infd == -1)
               break;
 
+
             MOUSTIQUE_CHECK_CALL(fcntl(infd, F_SETFL, fcntl(infd, F_GETFL, 0) | O_NONBLOCK));
             epoll_ctl(infd, EPOLLIN | EPOLLOUT | EPOLLET);
             auto listen_to_new_fd = [original_fd=infd,epoll_ctl,&secondary_map] (int new_fd) {
@@ -221,11 +237,17 @@ int moustique_listen_fd(int listen_fd,
             };
 
             if (int(fibers.size()) < infd + 1)
+            {
               fibers.resize(infd + 10);
-
+              is_running.resize(infd + 10, false);
+            }
             struct end_of_file {};
-            fibers[infd] = ctx::callcc([fd=infd, &conn_handler, epoll_ctl_mod, listen_to_new_fd]
+            fibers[infd] = ctx::callcc([fd=infd, &conn_handler, epoll_ctl_mod, listen_to_new_fd, &is_running]
                                        (ctx::continuation&& sink) {
+                                        //nrunning++;
+                                        is_running[fd] = true;
+                                        //std::cout << "nrunning: " << nrunning << std::endl;
+
                                          //ctx::continuation sink = std::move(_sink);
                                          auto read = [fd, &sink, epoll_ctl_mod] (char* buf, int max_size) {
                                            ssize_t count = ::recv(fd, buf, max_size, 0);
@@ -262,6 +284,9 @@ int moustique_listen_fd(int listen_fd,
               
                                          conn_handler(fd, read, write, listen_to_new_fd);
                                          close(fd);
+                                         is_running[fd] = false;
+                                         //nrunning--;
+                                         //std::cout << "nrunning: " << nrunning << std::endl;
                                          return std::move(sink);
                                        });
           

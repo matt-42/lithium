@@ -58,6 +58,7 @@ port                           = 14550
 datadir                        = $TMPDIR/data
 log_error                      = $TMPDIR/error.log
 max_connections                = 99999
+max_allowed_packet            = 512M
 EOF
 
 

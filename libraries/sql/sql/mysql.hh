@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <iostream>
 #include <cassert>
 #include <cstring>
@@ -29,12 +30,18 @@ struct mysql_tag {};
 struct mysql_database;
 
 struct mysql_connection_data {
+
+  ~mysql_connection_data() {
+    // mysql_close(connection);
+     }
+
   MYSQL* connection;
   std::unordered_map<std::string, std::shared_ptr<mysql_statement_data>> statements;
 };
 
 thread_local std::deque<std::shared_ptr<mysql_connection_data>> mysql_connection_pool;
 thread_local std::deque<std::shared_ptr<mysql_connection_data>> mysql_connection_async_pool;
+std::atomic<int> total_number_of_mysql_connections = 0;
 
 template <typename B> // must be mysql_functions_blocking or mysql_functions_non_blocking
 struct mysql_connection {
@@ -43,9 +50,16 @@ struct mysql_connection {
 
   inline mysql_connection(B mysql_wrapper, std::shared_ptr<li::mysql_connection_data> data)
       : mysql_wrapper_(mysql_wrapper), data_(data), stm_cache_(data->statements),
-        con_(data->connection) {
+        con_(data->connection), broken_connection_(new bool(false)) {
 
-    sptr_ = std::shared_ptr<int>((int*)42, [data](int* p) { 
+    sptr_ = std::shared_ptr<int>((int*)42, [=](int* p) { 
+      // if (*broken_connection_) 
+      // {
+      //   total_number_of_mysql_connections--;
+      //   //std::cout << "discarding broken mysql connection." << std::endl;
+      //   return;
+      // }
+      //std::cout << mysql_connection_async_pool.size() << std::endl;
       if constexpr (B::is_blocking)
         mysql_connection_pool.push_back(data);
       else  
@@ -67,10 +81,16 @@ struct mysql_connection {
     //std::cout << "prepare " << rq << std::endl;
     MYSQL_STMT* stmt = mysql_stmt_init(con_);
     if (!stmt)
+    {
+      *broken_connection_ = true;
       throw std::runtime_error(std::string("mysql_stmt_init error: ") + mysql_error(con_));
-
+    }
     if (mysql_wrapper_.mysql_stmt_prepare(stmt, rq.data(), rq.size()))
+    {
+      std::cout << "error!!!" << std::endl;
+      *broken_connection_ = true;
       throw std::runtime_error(std::string("mysql_stmt_prepare error: ") + mysql_error(con_));
+    }
 
     auto pair = stm_cache_.emplace(rq, std::make_shared<mysql_statement_data>(stmt));
     return mysql_statement<B>{mysql_wrapper_, *pair.first->second};
@@ -98,6 +118,7 @@ struct mysql_connection {
   std::unordered_map<std::string, std::shared_ptr<mysql_statement_data>>& stm_cache_;
   MYSQL* con_;
   std::shared_ptr<int> sptr_;
+  std::shared_ptr<bool> broken_connection_;
 };
 
 
@@ -132,28 +153,70 @@ struct mysql_database : std::enable_shared_from_this<mysql_database> {
   template <typename Y>
   inline mysql_connection<mysql_functions_non_blocking<Y>> connect(Y yield) {
 
+    int ntry = 0;
     std::shared_ptr<mysql_connection_data> data = nullptr;
-    if (!mysql_connection_async_pool.empty()) {
-      data = mysql_connection_async_pool.back();
-      mysql_connection_async_pool.pop_back();
-      yield.listen_to_fd(mysql_get_socket(data->connection));
-    }
-    else
+    while (!data)
     {
-      MYSQL* mysql = new MYSQL;
-      mysql_init(mysql);
-      mysql_options(mysql, MYSQL_OPT_NONBLOCK, 0);
-      MYSQL* connection = nullptr;
-      int status = mysql_real_connect_start(&connection, mysql, host_.c_str(), user_.c_str(), passwd_.c_str(),
-                                            database_.c_str(), port_, NULL, 0);
-      yield.listen_to_fd(mysql_get_socket(mysql));
-      while (status) {
-        yield();
-        status = mysql_real_connect_cont(&connection, mysql, status);
-      }
-      data = std::shared_ptr<mysql_connection_data>(new mysql_connection_data{mysql});
-    }
+      if (ntry > 20)
+        throw std::runtime_error("Cannot connect to the database");
+      ntry++;
 
+      if (!mysql_connection_async_pool.empty()) {
+        data = mysql_connection_async_pool.back();
+        mysql_connection_async_pool.pop_back();
+        yield.listen_to_fd(mysql_get_socket(data->connection));
+      }
+      else
+      {
+        // std::cout << total_number_of_mysql_connections << " connections. "<< std::endl;
+        // if (total_number_of_mysql_connections > 400)
+        // {
+        //   std::cout << "Waiting for a free mysql connection..." << std::endl;
+        //   yield();
+        //   continue;
+        // }
+        MYSQL* mysql;
+        int mysql_fd = -1;
+        int status;
+        MYSQL* connection;
+        //while (mysql_fd == -1)
+        {
+          mysql = new MYSQL;
+          mysql_init(mysql);
+          mysql_options(mysql, MYSQL_OPT_NONBLOCK, 0);
+          connection = nullptr;
+          status = mysql_real_connect_start(&connection, mysql, host_.c_str(), user_.c_str(), passwd_.c_str(),
+                                            database_.c_str(), port_, NULL, 0);
+
+          //std::cout << "after: " << mysql_get_socket(mysql) << " " << status == MYSQL_ << std::endl;
+          mysql_fd = mysql_get_socket(mysql);
+          if (mysql_fd == -1)
+          {
+            //std::cout << "Invalid mysql connection bad mysql_get_socket " << status << " " << mysql << std::endl;
+            mysql_close(mysql);
+            //usleep(1e6);
+            yield();
+            continue;
+          }
+        }
+        if (status)
+          yield.listen_to_fd(mysql_fd);
+        while (status) {
+          yield();
+          status = mysql_real_connect_cont(&connection, mysql, status);
+        }
+        if (!connection)
+        {
+          //std::cout << "Error in mysql_real_connect_cont" << std::endl;
+          yield();
+          continue;
+        }
+          //throw std::runtime_error("Cannot connect to the database");
+        mysql_set_character_set(mysql, character_set_.c_str());
+        total_number_of_mysql_connections++;
+        data = std::shared_ptr<mysql_connection_data>(new mysql_connection_data{mysql});
+      }
+    }
     assert(data);
     return mysql_connection(mysql_functions_non_blocking<decltype(yield)>{yield}, data);
   }
@@ -172,6 +235,7 @@ struct mysql_database : std::enable_shared_from_this<mysql_database> {
       if (!con_)
         throw std::runtime_error("Cannot connect to the database");
 
+      total_number_of_mysql_connections++;
       mysql_set_character_set(con_, character_set_.c_str());
       data = std::shared_ptr<mysql_connection_data>(new mysql_connection_data{con_});
     }

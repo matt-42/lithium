@@ -20,7 +20,9 @@ namespace li {
 template <typename C>
 struct async_yield
 {
-  void operator()() { ctx.write(nullptr, 0); }
+  void operator()() { 
+    ctx.write(nullptr, 0);
+     }
   void listen_to_fd(int fd) { ctx.listen_to_new_fd(fd); }
   C& ctx;
 };
