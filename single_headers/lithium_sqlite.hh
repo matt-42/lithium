@@ -7,18 +7,18 @@
 
 #pragma once
 
-#include <memory>
-#include <sqlite3.h>
-#include <cstring>
-#include <unordered_map>
-#include <iostream>
-#include <vector>
-#include <optional>
-#include <tuple>
-#include <utility>
 #include <string>
-#include <sstream>
+#include <tuple>
+#include <unordered_map>
 #include <mutex>
+#include <cstring>
+#include <memory>
+#include <optional>
+#include <iostream>
+#include <utility>
+#include <sqlite3.h>
+#include <sstream>
+#include <vector>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -164,6 +164,7 @@ template <typename M1, typename... Ms> struct metamap<M1, Ms...> : public M1, pu
   // metamap(self& other)
   //  : metamap(const_cast<const self&>(other)) {}
 
+  inline metamap(typename M1::_iod_value_type&& m1, typename Ms::_iod_value_type&&... members) : M1{m1}, Ms{std::forward<typename Ms::_iod_value_type>(members)}... {}
   inline metamap(M1&& m1, Ms&&... members) : M1(m1), Ms(std::forward<Ms>(members))... {}
   inline metamap(const M1& m1, const Ms&... members) : M1(m1), Ms((members))... {}
 
@@ -781,6 +782,11 @@ template <unsigned SIZE> struct sql_varchar : public std::string {
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SYMBOLS
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SYMBOLS
 
+#ifndef LI_SYMBOL_ATTR
+#define LI_SYMBOL_ATTR
+    LI_SYMBOL(ATTR)
+#endif
+
 #ifndef LI_SYMBOL_after_insert
 #define LI_SYMBOL_after_insert
     LI_SYMBOL(after_insert)
@@ -886,6 +892,8 @@ template <unsigned SIZE> struct sql_varchar : public std::string {
 
 
 namespace li {
+
+struct sqlite_tag {};
 
 template <typename T> struct tuple_remove_references_and_const;
 template <typename... T> struct tuple_remove_references_and_const<std::tuple<T...>> {
@@ -1093,6 +1101,8 @@ struct sqlite_statement {
 void free_sqlite3_db(void* db) { sqlite3_close_v2((sqlite3*)db); }
 
 struct sqlite_connection {
+  typedef sqlite_tag db_tag;
+  
   typedef std::shared_ptr<sqlite3> db_sptr;
   typedef std::unordered_map<std::string, sqlite_statement> stmt_map;
   typedef std::shared_ptr<std::unordered_map<std::string, sqlite_statement>> stmt_map_ptr;
@@ -1121,7 +1131,7 @@ struct sqlite_connection {
   }
 
   sqlite_statement prepare(const std::string& req) {
-    std::cout << req << std::endl;
+    // std::cout << req << std::endl;
     auto it = stm_cache_->find(req);
     if (it != stm_cache_->end())
       return it->second;
@@ -1180,7 +1190,9 @@ struct sqlite_database {
     }
   }
 
-  sqlite_connection& connect() { return con_; }
+  template <typename Y>
+  inline sqlite_connection& connect(Y y) { return con_; }
+  inline sqlite_connection& connect() { return con_; }
 
   sqlite_connection con_;
   std::string path_;
@@ -1204,6 +1216,11 @@ struct sqlite_database {
 #ifndef LI_SYMBOL_create_secret_key
 #define LI_SYMBOL_create_secret_key
     LI_SYMBOL(create_secret_key)
+#endif
+
+#ifndef LI_SYMBOL_date_thread
+#define LI_SYMBOL_date_thread
+    LI_SYMBOL(date_thread)
 #endif
 
 #ifndef LI_SYMBOL_hash_password
@@ -1271,6 +1288,11 @@ struct sqlite_database {
     LI_SYMBOL(select)
 #endif
 
+#ifndef LI_SYMBOL_server_thread
+#define LI_SYMBOL_server_thread
+    LI_SYMBOL(server_thread)
+#endif
+
 #ifndef LI_SYMBOL_session_id
 #define LI_SYMBOL_session_id
     LI_SYMBOL(session_id)
@@ -1293,8 +1315,8 @@ struct sqlite_database {
 
 namespace li {
 
-struct sqlite_connection;
-struct mysql_connection;
+struct sqlite_tag;
+struct mysql_tag;
 
 using s::auto_increment;
 using s::primary_key;
@@ -1338,12 +1360,12 @@ template <typename SCHEMA, typename C> struct sql_orm {
         ss << ", ";
       ss << li::symbol_string(k) << " " << con_.type_to_string(v);
 
-      if (std::is_same<C, sqlite_connection>::value) {
+      if (std::is_same<typename C::db_tag, sqlite_tag>::value) {
         if (auto_increment || primary_key)
           ss << " PRIMARY KEY ";
       }
 
-      if (std::is_same<C, mysql_connection>::value) {
+      if (std::is_same<typename C::db_tag, mysql_tag>::value) {
         if (auto_increment)
           ss << " AUTO_INCREMENT NOT NULL";
         if (primary_key)
@@ -1646,6 +1668,8 @@ struct sql_orm_schema : public MD {
       : MD(md), database_(db), table_name_(table_name), callbacks_(cb) {}
 
   inline auto connect() { return sql_orm(*this, database_.connect()); }
+  template <typename Y>
+  inline auto connect(Y& y) { return sql_orm(*this, database_.connect(y)); }
 
   const std::string& table_name() const { return table_name_; }
   auto get_callbacks() const { return callbacks_; }

@@ -7,23 +7,23 @@
 
 #pragma once
 
-#include <curl/curl.h>
-#include <memory>
-#include <functional>
-#include <cstring>
-#include <unordered_map>
-#include <cassert>
-#include <iostream>
 #include <map>
-#include <vector>
-#include <tuple>
-#include <optional>
-#include <utility>
-#include <string_view>
-#include <string>
-#include <variant>
-#include <sstream>
 #include <cmath>
+#include <string>
+#include <cassert>
+#include <variant>
+#include <tuple>
+#include <unordered_map>
+#include <iostream>
+#include <memory>
+#include <cstring>
+#include <string_view>
+#include <utility>
+#include <optional>
+#include <curl/curl.h>
+#include <sstream>
+#include <vector>
+#include <functional>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -338,6 +338,9 @@ template <typename V> auto symbol_string(V v, typename V::_iod_symbol_type* = 0)
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_DECODE_STRINGSTREAM
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_DECODE_STRINGSTREAM
 
+#if defined(_MSC_VER)
+#endif
+
 
 namespace li {
 
@@ -583,6 +586,7 @@ template <typename M1, typename... Ms> struct metamap<M1, Ms...> : public M1, pu
   // metamap(self& other)
   //  : metamap(const_cast<const self&>(other)) {}
 
+  inline metamap(typename M1::_iod_value_type&& m1, typename Ms::_iod_value_type&&... members) : M1{m1}, Ms{std::forward<typename Ms::_iod_value_type>(members)}... {}
   inline metamap(M1&& m1, Ms&&... members) : M1(m1), Ms(std::forward<Ms>(members))... {}
   inline metamap(const M1& m1, const Ms&... members) : M1(m1), Ms((members))... {}
 
@@ -1725,13 +1729,18 @@ inline void json_encode(C& ss, const std::vector<T>& array, const json_vector_<E
 
 template <typename T, typename C> inline void json_encode_value(C& ss, const T& t) { ss << t; }
 
-template <typename C> inline void json_encode_value(C& ss, const char* s) { utf8_to_json(s, ss); }
+template <typename C> inline void json_encode_value(C& ss, const char* s) { 
+  //ss << s;
+  utf8_to_json(s, ss);
+ }
 
 template <typename C> inline void json_encode_value(C& ss, const string_view& s) {
+  //ss << s;
   utf8_to_json(s, ss);
 }
 
 template <typename C> inline void json_encode_value(C& ss, const std::string& s) {
+  //ss << s;
   utf8_to_json(s, ss);
 }
 
@@ -1918,16 +1927,16 @@ struct json_key {
   const char* key;
 };
 
-template <typename C, typename M> auto json_decode(C& input, M& obj) {
+template <typename C, typename M> decltype(auto) json_decode(C& input, M& obj) {
   return impl::to_json_schema(obj).decode(input, obj);
 }
 
-template <typename C, typename M> auto json_encode(C& output, const M& obj) {
+template <typename C, typename M> decltype(auto) json_encode(C& output, const M& obj) {
   impl::to_json_schema(obj).encode(output, obj);
 }
 
 template <typename M> auto json_encode(const M& obj) {
-  return impl::to_json_schema(obj).encode(obj);
+  return std::move(impl::to_json_schema(obj).encode(obj));
 }
 
 template <typename A, typename B, typename... C>
@@ -1968,7 +1977,7 @@ inline size_t curl_header_callback(char* buffer, size_t size, size_t nitems, voi
 
 struct http_client {
 
-  enum method_verb { HTTP_GET, HTTP_POST, HTTP_PUT, HTTP_DELETE };
+  enum http_method { HTTP_GET, HTTP_POST, HTTP_PUT, HTTP_DELETE };
 
   inline http_client(const std::string& prefix = "") : url_prefix_(prefix) {
     curl_global_init(CURL_GLOBAL_ALL);
@@ -1980,7 +1989,7 @@ struct http_client {
   inline http_client& operator=(const http_client&) = delete;
 
   template <typename... A>
-  inline auto operator()(int http_method, const std::string_view& url, const A&... args) {
+  inline auto operator()(http_method http_method, const std::string_view& url, const A&... args) {
 
     struct curl_slist* headers_list = NULL;
 

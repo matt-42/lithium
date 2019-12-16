@@ -7,22 +7,22 @@
 
 #pragma once
 
-#include <memory>
-#include <thread>
-#include <cstring>
-#include <unordered_map>
-#include <cassert>
 #include <deque>
-#include <iostream>
 #include <map>
-#include <vector>
-#include <optional>
-#include <tuple>
-#include <utility>
-#include <string>
+#include <thread>
 #include <mysql.h>
-#include <sstream>
+#include <cassert>
+#include <string>
+#include <tuple>
+#include <unordered_map>
 #include <mutex>
+#include <iostream>
+#include <cstring>
+#include <memory>
+#include <optional>
+#include <utility>
+#include <sstream>
+#include <vector>
 
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL
@@ -162,6 +162,7 @@ template <typename M1, typename... Ms> struct metamap<M1, Ms...> : public M1, pu
   // metamap(self& other)
   //  : metamap(const_cast<const self&>(other)) {}
 
+  inline metamap(typename M1::_iod_value_type&& m1, typename Ms::_iod_value_type&&... members) : M1{m1}, Ms{std::forward<typename Ms::_iod_value_type>(members)}... {}
   inline metamap(M1&& m1, Ms&&... members) : M1(m1), Ms(std::forward<Ms>(members))... {}
   inline metamap(const M1& m1, const Ms&... members) : M1(m1), Ms((members))... {}
 
@@ -779,6 +780,11 @@ template <unsigned SIZE> struct sql_varchar : public std::string {
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SYMBOLS
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SYMBOLS
 
+#ifndef LI_SYMBOL_ATTR
+#define LI_SYMBOL_ATTR
+    LI_SYMBOL(ATTR)
+#endif
+
 #ifndef LI_SYMBOL_after_insert
 #define LI_SYMBOL_after_insert
     LI_SYMBOL(after_insert)
@@ -882,23 +888,80 @@ template <unsigned SIZE> struct sql_varchar : public std::string {
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SYMBOLS
 
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_ASYNC_WRAPPER
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_ASYNC_WRAPPER
+
+
 
 namespace li {
 
-struct mysql_scoped_use_result {
-  inline mysql_scoped_use_result(MYSQL* con) : res_(mysql_use_result(con)) {
-    if (!res_)
-      throw std::runtime_error(std::string("Mysql error: ") + mysql_error(con));
-  }
 
-  inline ~mysql_scoped_use_result() { mysql_free_result(res_); }
-  inline operator MYSQL_RES*() { return res_; }
+// Blocking version.
+struct mysql_functions_blocking {
+  enum { is_blocking = true };
 
-private:
-  MYSQL_RES* res_;
+#define LI_MYSQL_BLOCKING_WRAPPER(FN)                     \
+  template <typename... A> auto FN(A&&... a) { return ::FN(std::forward<A>(a)...); }
+
+  LI_MYSQL_BLOCKING_WRAPPER(mysql_fetch_row)
+  LI_MYSQL_BLOCKING_WRAPPER(mysql_real_query)
+  LI_MYSQL_BLOCKING_WRAPPER(mysql_stmt_execute)
+  LI_MYSQL_BLOCKING_WRAPPER(mysql_stmt_prepare)
+  LI_MYSQL_BLOCKING_WRAPPER(mysql_stmt_fetch)
+  LI_MYSQL_BLOCKING_WRAPPER(mysql_stmt_free_result)
+
+#undef LI_MYSQL_BLOCKING_WRAPPER
 };
 
-auto type_to_mysql_statement_buffer_type(const char&) { return MYSQL_TYPE_TINY; }
+// Non blocking version.
+template <typename Y> struct mysql_functions_non_blocking {
+  enum { is_blocking = false };
+  
+  template <typename RT, typename A1, typename... A, typename B1, typename... B>
+  auto mysql_non_blocking_call(int fn_start(RT*, B1, B...), int fn_cont(RT*, B1, int),
+                        A1&& a1, A&&... args) {
+
+    RT ret;
+    int status =
+        fn_start(&ret, std::forward<A1>(a1), std::forward<A>(args)...);
+    while (status) {
+      yield_();
+      status = fn_cont(&ret, std::forward<A1>(a1), status);
+    }
+    return ret;
+  }
+
+#define LI_MYSQL_NONBLOCKING_WRAPPER(FN)                                                                 \
+  template <typename... A> auto FN(A&&... a) {                                                          \
+    return mysql_non_blocking_call(::FN##_start, ::FN##_cont, std::forward<A>(a)...);                 \
+  }
+
+  LI_MYSQL_NONBLOCKING_WRAPPER(mysql_fetch_row)
+  LI_MYSQL_NONBLOCKING_WRAPPER(mysql_real_query)
+  LI_MYSQL_NONBLOCKING_WRAPPER(mysql_stmt_execute)
+  LI_MYSQL_NONBLOCKING_WRAPPER(mysql_stmt_prepare)
+  LI_MYSQL_NONBLOCKING_WRAPPER(mysql_stmt_fetch)
+  LI_MYSQL_NONBLOCKING_WRAPPER(mysql_stmt_free_result)
+
+#undef LI_MYSQL_NONBLOCKING_WRAPPER
+
+  Y yield_;
+};
+
+
+} // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_ASYNC_WRAPPER
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_STATEMENT
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_STATEMENT
+
+
+
+
+namespace li {
+
+  auto type_to_mysql_statement_buffer_type(const char&) { return MYSQL_TYPE_TINY; }
 auto type_to_mysql_statement_buffer_type(const short int&) { return MYSQL_TYPE_SHORT; }
 auto type_to_mysql_statement_buffer_type(const int&) { return MYSQL_TYPE_LONG; }
 auto type_to_mysql_statement_buffer_type(const long long int&) { return MYSQL_TYPE_LONGLONG; }
@@ -917,30 +980,38 @@ auto type_to_mysql_statement_buffer_type(const unsigned long long int&) {
   return MYSQL_TYPE_LONGLONG;
 }
 
-struct mysql_statement {
-  mysql_statement()
-      : stmt_(nullptr), stmt_sptr_(nullptr), num_fields_(-1), metadata_(nullptr),
-        metadata_sptr_(nullptr), fields_(nullptr) {}
+struct mysql_statement_data {
 
-  mysql_statement(MYSQL_STMT* s) : stmt_(s) {
-    metadata_ = mysql_stmt_result_metadata(stmt_);
-    stmt_sptr_ = std::shared_ptr<MYSQL_STMT>(stmt_, mysql_stmt_close);
-
-    if (metadata_) {
-      metadata_sptr_ = std::shared_ptr<MYSQL_RES>(metadata_, mysql_free_result);
-      fields_ = mysql_fetch_fields(metadata_);
-      num_fields_ = mysql_num_fields(metadata_);
-    } else {
-      num_fields_ = -1;
-      metadata_ = nullptr;
-      metadata_sptr_ = nullptr;
-      fields_ = nullptr;
-    }
+  mysql_statement_data(MYSQL_STMT* stmt) {
+      stmt_ = stmt;
+      metadata_ = mysql_stmt_result_metadata(stmt_);
+      if (metadata_)
+      {
+        fields_ = mysql_fetch_fields(metadata_);
+        num_fields_ = mysql_num_fields(metadata_);
+      }
   }
 
+  ~mysql_statement_data() {
+    mysql_stmt_close(stmt_);
+    if (metadata_)
+      mysql_free_result(metadata_);
+  }
+
+  MYSQL_STMT* stmt_ = nullptr;
+  int num_fields_ = -1;
+  MYSQL_RES* metadata_ = nullptr;
+  MYSQL_FIELD* fields_ = nullptr;
+
+};
+
+
+template <typename B>
+struct mysql_statement {
+
   auto& operator()() {
-    if (mysql_stmt_execute(stmt_) != 0)
-      throw std::runtime_error(std::string("mysql_stmt_execute error: ") + mysql_stmt_error(stmt_));
+    if (mysql_wrapper_.mysql_stmt_execute(data_.stmt_) != 0)
+      throw std::runtime_error(std::string("mysql_stmt_execute error: ") + mysql_stmt_error(data_.stmt_));
     return *this;
   }
 
@@ -954,17 +1025,17 @@ struct mysql_statement {
       i++;
     });
 
-    if (mysql_stmt_bind_param(stmt_, bind) != 0)
+    if (mysql_stmt_bind_param(data_.stmt_, bind) != 0)
       throw std::runtime_error(std::string("mysql_stmt_bind_param error: ") +
-                               mysql_stmt_error(stmt_));
+                               mysql_stmt_error(data_.stmt_));
 
-    if (mysql_stmt_execute(stmt_) != 0)
-      throw std::runtime_error(std::string("mysql_stmt_execute error: ") + mysql_stmt_error(stmt_));
+    if (mysql_wrapper_.mysql_stmt_execute(data_.stmt_) != 0)
+      throw std::runtime_error(std::string("mysql_stmt_execute error: ") + mysql_stmt_error(data_.stmt_));
 
     return *this;
   }
 
-  long long int affected_rows() { return mysql_stmt_affected_rows(stmt_); }
+  long long int affected_rows() { return mysql_stmt_affected_rows(data_.stmt_); }
 
   template <typename V> void bind(MYSQL_BIND& b, V& v) {
     b.buffer = const_cast<std::remove_const_t<V>*>(&v);
@@ -1004,9 +1075,9 @@ struct mysql_statement {
     b[i].buffer_length = real_length;
     b[i].length = nullptr;
     b[i].buffer = &v[0];
-    if (mysql_stmt_fetch_column(stmt_, b + i, i, 0) != 0)
+    if (mysql_stmt_fetch_column(data_.stmt_, b + i, i, 0) != 0)
       throw std::runtime_error(std::string("mysql_stmt_fetch_column error: ") +
-                               mysql_stmt_error(stmt_));
+                               mysql_stmt_error(data_.stmt_));
   }
 
   template <typename T> void bind_output(MYSQL_BIND& b, unsigned long* real_length, T& v) {
@@ -1044,7 +1115,7 @@ struct mysql_statement {
     else
       finalize_fetch(bind, real_lengths, o);
 
-    mysql_stmt_free_result(stmt_);
+    mysql_wrapper_.mysql_stmt_free_result(data_.stmt_);
     return res;
   }
   template <typename T> void read(std::optional<T>& o) {
@@ -1084,7 +1155,7 @@ struct mysql_statement {
         this->finalize_fetch(bind, real_lengths, o);
         f(o);
       }
-      mysql_stmt_free_result(stmt_);
+      mysql_wrapper_.mysql_stmt_free_result(data_.stmt_);
     } else {
       tp o;
 
@@ -1096,52 +1167,52 @@ struct mysql_statement {
         this->finalize_fetch(bind, real_lengths, o);
         apply(o, f);
       }
-      mysql_stmt_free_result(stmt_);
+      mysql_wrapper_.mysql_stmt_free_result(data_.stmt_);
     }
   }
 
   template <typename A> void prepare_fetch(MYSQL_BIND* bind, unsigned long* real_lengths, A& o) {
-    if (num_fields_ != 1)
+    if (data_.num_fields_ != 1)
       throw std::runtime_error("mysql_statement error: The number of column in the result set "
                                "shoud be 1. Use std::tuple or li::sio to fetch several columns or "
                                "modify the request so that it returns a set of 1 column.");
 
     this->bind_output(bind[0], real_lengths, o);
-    mysql_stmt_bind_result(stmt_, bind);
+    mysql_stmt_bind_result(data_.stmt_, bind);
   }
 
   template <typename... A>
   void prepare_fetch(MYSQL_BIND* bind, unsigned long* real_lengths, metamap<A...>& o) {
-    if (num_fields_ != sizeof...(A)) {
+    if (data_.num_fields_ != sizeof...(A)) {
       throw std::runtime_error(
           "mysql_statement error: Not enough columns in the result set to fill the object.");
     }
 
     li::map(o, [&](auto k, auto& v) {
       // Find li::symbol_string(k) position.
-      for (int i = 0; i < num_fields_; i++)
-        if (!strcmp(fields_[i].name, li::symbol_string(k)))
+      for (int i = 0; i < data_.num_fields_; i++)
+        if (!strcmp(data_.fields_[i].name, li::symbol_string(k)))
         // bind the column.
         {
           this->bind_output(bind[i], real_lengths + i, v);
         }
     });
 
-    for (int i = 0; i < num_fields_; i++) {
+    for (int i = 0; i < data_.num_fields_; i++) {
       if (!bind[i].buffer_type) {
         std::ostringstream ss;
         ss << "Error while binding the mysql request to a SIO object: " << std::endl
-           << "   Field " << fields_[i].name << " could not be bound." << std::endl;
+           << "   Field " << data_.fields_[i].name << " could not be bound." << std::endl;
         throw std::runtime_error(ss.str());
       }
     }
 
-    mysql_stmt_bind_result(stmt_, bind);
+    mysql_stmt_bind_result(data_.stmt_, bind);
   }
 
   template <typename... A>
   void prepare_fetch(MYSQL_BIND* bind, unsigned long* real_lengths, std::tuple<A...>& o) {
-    if (num_fields_ != sizeof...(A))
+    if (data_.num_fields_ != sizeof...(A))
       throw std::runtime_error("mysql_statement error: The number of column in the result set does "
                                "not match the number of attributes of the tuple to bind.");
 
@@ -1151,14 +1222,14 @@ struct mysql_statement {
       i++;
     });
 
-    mysql_stmt_bind_result(stmt_, bind);
+    mysql_stmt_bind_result(data_.stmt_, bind);
   }
 
   template <typename... A>
   void finalize_fetch(MYSQL_BIND* bind, unsigned long* real_lengths, metamap<A...>& o) {
     li::map(o, [&](auto k, auto& v) {
-      for (int i = 0; i < num_fields_; i++)
-        if (!strcmp(fields_[i].name, li::symbol_string(k)))
+      for (int i = 0; i < data_.num_fields_; i++)
+        if (!strcmp(data_.fields_[i].name, li::symbol_string(k)))
           this->fetch_column(bind, real_lengths[i], v, i);
     });
   }
@@ -1177,53 +1248,78 @@ struct mysql_statement {
   }
 
   int fetch() {
-    int f = mysql_stmt_fetch(stmt_);
+    int f = mysql_wrapper_.mysql_stmt_fetch(data_.stmt_);
     if (f == 1)
-      throw std::runtime_error(std::string("mysql_stmt_fetch error: ") + mysql_stmt_error(stmt_));
+      throw std::runtime_error(std::string("mysql_stmt_fetch error: ") + mysql_stmt_error(data_.stmt_));
     return f;
   }
 
-  long long int last_insert_id() { return mysql_stmt_insert_id(stmt_); }
+  long long int last_insert_id() { return mysql_stmt_insert_id(data_.stmt_); }
 
-  bool empty() { return mysql_stmt_fetch(stmt_) == MYSQL_NO_DATA; }
+  bool empty() { return mysql_wrapper_.mysql_stmt_fetch(data_.stmt_) == MYSQL_NO_DATA; }
 
-  MYSQL_STMT* stmt_;
-  std::shared_ptr<MYSQL_STMT> stmt_sptr_;
-  int num_fields_;
-  MYSQL_RES* metadata_;
-  std::shared_ptr<MYSQL_RES> metadata_sptr_;
-  MYSQL_FIELD* fields_;
-}; // namespace li
+  B& mysql_wrapper_;
+  mysql_statement_data& data_;
+};
+
+}
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_STATEMENT
+
+
+
+namespace li {
+
+struct mysql_tag {};
 
 struct mysql_database;
 
+struct mysql_connection_data {
+  MYSQL* connection;
+  std::unordered_map<std::string, std::shared_ptr<mysql_statement_data>> statements;
+};
+
+thread_local std::deque<std::shared_ptr<mysql_connection_data>> mysql_connection_pool;
+thread_local std::deque<std::shared_ptr<mysql_connection_data>> mysql_connection_async_pool;
+
+template <typename B> // must be mysql_functions_blocking or mysql_functions_non_blocking
 struct mysql_connection {
-  // mysql_connection(MYSQL* con) : con_(con) {}
 
-  // template <typename... OPTS> inline mysql_connection(OPTS&&... opts) :
-  // con_(impl::open_mysql_connection(opts...)) {}
+  typedef mysql_tag db_tag;
 
-  inline mysql_connection(MYSQL* con, mysql_database& pool);
+  inline mysql_connection(B mysql_wrapper, std::shared_ptr<li::mysql_connection_data> data)
+      : mysql_wrapper_(mysql_wrapper), data_(data), stm_cache_(data->statements),
+        con_(data->connection) {
+
+    sptr_ = std::shared_ptr<int>((int*)42, [data](int* p) { 
+      if constexpr (B::is_blocking)
+        mysql_connection_pool.push_back(data);
+      else  
+        mysql_connection_async_pool.push_back(data);
+
+    });
+  }
+
 
   long long int last_insert_rowid() { return mysql_insert_id(con_); }
 
-  mysql_statement& operator()(std::string rq) { return prepare(rq)(); }
+  mysql_statement<B> operator()(const std::string& rq) { return prepare(rq)(); }
 
-  mysql_statement& prepare(std::string rq) {
-    //std::cout << rq << std::endl;
+  mysql_statement<B> prepare(const std::string& rq) {
     auto it = stm_cache_.find(rq);
     if (it != stm_cache_.end())
-      return it->second;
+      return mysql_statement<B>{mysql_wrapper_, *it->second};
 
+    //std::cout << "prepare " << rq << std::endl;
     MYSQL_STMT* stmt = mysql_stmt_init(con_);
     if (!stmt)
       throw std::runtime_error(std::string("mysql_stmt_init error: ") + mysql_error(con_));
 
-    if (mysql_stmt_prepare(stmt, rq.data(), rq.size()))
+    if (mysql_wrapper_.mysql_stmt_prepare(stmt, rq.data(), rq.size()))
       throw std::runtime_error(std::string("mysql_stmt_prepare error: ") + mysql_error(con_));
 
-    stm_cache_[rq] = mysql_statement(stmt);
-    return stm_cache_[rq];
+    auto pair = stm_cache_.emplace(rq, std::make_shared<mysql_statement_data>(stmt));
+    return mysql_statement<B>{mysql_wrapper_, *pair.first->second};
   }
 
   template <typename T>
@@ -1243,11 +1339,13 @@ struct mysql_connection {
     return ss.str();
   }
 
-  std::unordered_map<std::string, mysql_statement> stm_cache_;
+  B mysql_wrapper_;
+  std::shared_ptr<mysql_connection_data> data_;
+  std::unordered_map<std::string, std::shared_ptr<mysql_statement_data>>& stm_cache_;
   MYSQL* con_;
   std::shared_ptr<int> sptr_;
-  mysql_database& pool_;
 };
+
 
 struct mysql_database : std::enable_shared_from_this<mysql_database> {
 
@@ -1275,46 +1373,66 @@ struct mysql_database : std::enable_shared_from_this<mysql_database> {
       throw std::runtime_error("Mysql is not compiled as thread safe.");
   }
 
-  inline void free_connection(MYSQL* c) {
-    std::unique_lock<std::mutex> l(mutex_);
-    pool_.push_back(c);
-  }
+  ~mysql_database() { mysql_library_end(); }
 
-  inline mysql_connection connect() {
-    MYSQL* con_ = nullptr;
+  template <typename Y>
+  inline mysql_connection<mysql_functions_non_blocking<Y>> connect(Y yield) {
+
+    std::shared_ptr<mysql_connection_data> data = nullptr;
+    if (!mysql_connection_async_pool.empty()) {
+      data = mysql_connection_async_pool.back();
+      mysql_connection_async_pool.pop_back();
+      yield.listen_to_fd(mysql_get_socket(data->connection));
+    }
+    else
     {
-      std::unique_lock<std::mutex> l(mutex_);
-      if (!pool_.empty()) {
-        con_ = pool_.back();
-        pool_.pop_back();
+      MYSQL* mysql = new MYSQL;
+      mysql_init(mysql);
+      mysql_options(mysql, MYSQL_OPT_NONBLOCK, 0);
+      MYSQL* connection = nullptr;
+      int status = mysql_real_connect_start(&connection, mysql, host_.c_str(), user_.c_str(), passwd_.c_str(),
+                                            database_.c_str(), port_, NULL, 0);
+      yield.listen_to_fd(mysql_get_socket(mysql));
+      while (status) {
+        yield();
+        status = mysql_real_connect_cont(&connection, mysql, status);
       }
+      data = std::shared_ptr<mysql_connection_data>(new mysql_connection_data{mysql});
     }
 
-    if (!con_) {
-      con_ = mysql_init(con_);
+    assert(data);
+    return mysql_connection(mysql_functions_non_blocking<decltype(yield)>{yield}, data);
+  }
+
+  inline mysql_connection<mysql_functions_blocking> connect() {
+    std::shared_ptr<mysql_connection_data> data = nullptr;
+    if (!mysql_connection_pool.empty()) {
+      data = mysql_connection_pool.back();
+      mysql_connection_pool.pop_back();
+    }
+
+    if (!data) {
+      MYSQL* con_ = mysql_init(nullptr);
       con_ = mysql_real_connect(con_, host_.c_str(), user_.c_str(), passwd_.c_str(),
                                 database_.c_str(), port_, NULL, 0);
       if (!con_)
         throw std::runtime_error("Cannot connect to the database");
 
       mysql_set_character_set(con_, character_set_.c_str());
+      data = std::shared_ptr<mysql_connection_data>(new mysql_connection_data{con_});
     }
 
-    assert(con_);
-    return mysql_connection(con_, *this);
+    assert(data);
+    return mysql_connection(mysql_functions_blocking{}, data);
   }
 
   std::mutex mutex_;
   std::string host_, user_, passwd_, database_;
   unsigned int port_;
-  std::deque<MYSQL*> pool_;
+  std::deque<MYSQL*> _;
   std::string character_set_;
 };
 
-inline mysql_connection::mysql_connection(MYSQL* con, mysql_database& pool)
-    : con_(con), pool_(pool) {
-  sptr_ = std::shared_ptr<int>((int*)42, [&pool, con](int* p) { pool.free_connection(con); });
-}
 
 } // namespace li
 
@@ -1334,6 +1452,11 @@ inline mysql_connection::mysql_connection(MYSQL* con, mysql_database& pool)
 #ifndef LI_SYMBOL_create_secret_key
 #define LI_SYMBOL_create_secret_key
     LI_SYMBOL(create_secret_key)
+#endif
+
+#ifndef LI_SYMBOL_date_thread
+#define LI_SYMBOL_date_thread
+    LI_SYMBOL(date_thread)
 #endif
 
 #ifndef LI_SYMBOL_hash_password
@@ -1401,6 +1524,11 @@ inline mysql_connection::mysql_connection(MYSQL* con, mysql_database& pool)
     LI_SYMBOL(select)
 #endif
 
+#ifndef LI_SYMBOL_server_thread
+#define LI_SYMBOL_server_thread
+    LI_SYMBOL(server_thread)
+#endif
+
 #ifndef LI_SYMBOL_session_id
 #define LI_SYMBOL_session_id
     LI_SYMBOL(session_id)
@@ -1423,8 +1551,8 @@ inline mysql_connection::mysql_connection(MYSQL* con, mysql_database& pool)
 
 namespace li {
 
-struct sqlite_connection;
-struct mysql_connection;
+struct sqlite_tag;
+struct mysql_tag;
 
 using s::auto_increment;
 using s::primary_key;
@@ -1468,12 +1596,12 @@ template <typename SCHEMA, typename C> struct sql_orm {
         ss << ", ";
       ss << li::symbol_string(k) << " " << con_.type_to_string(v);
 
-      if (std::is_same<C, sqlite_connection>::value) {
+      if (std::is_same<typename C::db_tag, sqlite_tag>::value) {
         if (auto_increment || primary_key)
           ss << " PRIMARY KEY ";
       }
 
-      if (std::is_same<C, mysql_connection>::value) {
+      if (std::is_same<typename C::db_tag, mysql_tag>::value) {
         if (auto_increment)
           ss << " AUTO_INCREMENT NOT NULL";
         if (primary_key)
@@ -1776,6 +1904,8 @@ struct sql_orm_schema : public MD {
       : MD(md), database_(db), table_name_(table_name), callbacks_(cb) {}
 
   inline auto connect() { return sql_orm(*this, database_.connect()); }
+  template <typename Y>
+  inline auto connect(Y& y) { return sql_orm(*this, database_.connect(y)); }
 
   const std::string& table_name() const { return table_name_; }
   auto get_callbacks() const { return callbacks_; }

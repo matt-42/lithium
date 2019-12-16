@@ -7,43 +7,52 @@
 
 #pragma once
 
-#include <fstream>
-#include <functional>
-#include <thread>
-#include <cstring>
-#include <stdio.h>
-#include <map>
-#include <optional>
-#include <boost/lexical_cast.hpp>
-#include <sstream>
-#include <unordered_map>
-#include <cassert>
-#include <set>
-#include <stdlib.h>
-#include <variant>
+#include <sys/sendfile.h>
+#include <sys/epoll.h>
+#include <netinet/tcp.h>
 #include <cmath>
-#include <random>
-#include <memory>
+#include <stdlib.h>
+#include <boost/context/continuation.hpp>
 #include <iostream>
-#include <deque>
-#include <sys/stat.h>
-#include <tuple>
-#include <microhttpd.h>
-#include <utility>
-#include <string>
-#include <mutex>
-#include <sqlite3.h>
-#include <unistd.h>
-#include <vector>
+#include <optional>
 #include <string_view>
-#include <fcntl.h>
-#include <mysql.h>
+#include <sys/types.h>
+#include <utility>
+#include <sqlite3.h>
+#include <stdio.h>
+#include <microhttpd.h>
+#include <functional>
 #include <string.h>
+#include <sys/stat.h>
+#include <mysql.h>
+#include <thread>
+#include <errno.h>
+#include <signal.h>
+#include <sys/socket.h>
+#include <sstream>
+#include <sys/mman.h>
+#include <map>
+#include <string>
+#include <set>
+#include <tuple>
+#include <unordered_map>
+#include <mutex>
+#include <netdb.h>
+#include <unistd.h>
+#include <deque>
+#include <boost/lexical_cast.hpp>
+#include <cassert>
+#include <sys/uio.h>
+#include <variant>
+#include <cstring>
+#include <memory>
+#include <random>
+#include <fcntl.h>
+#include <vector>
 
 #if defined(_MSC_VER)
-#include <ciso646>
-#include <windows.h>
 #include <io.h>
+#include <ciso646>
 #endif // _MSC_VER
 
 
@@ -186,6 +195,7 @@ template <typename M1, typename... Ms> struct metamap<M1, Ms...> : public M1, pu
   // metamap(self& other)
   //  : metamap(const_cast<const self&>(other)) {}
 
+  inline metamap(typename M1::_iod_value_type&& m1, typename Ms::_iod_value_type&&... members) : M1{m1}, Ms{std::forward<typename Ms::_iod_value_type>(members)}... {}
   inline metamap(M1&& m1, Ms&&... members) : M1(m1), Ms(std::forward<Ms>(members))... {}
   inline metamap(const M1& m1, const Ms&... members) : M1(m1), Ms((members))... {}
 
@@ -803,6 +813,11 @@ template <unsigned SIZE> struct sql_varchar : public std::string {
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SYMBOLS
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SYMBOLS
 
+#ifndef LI_SYMBOL_ATTR
+#define LI_SYMBOL_ATTR
+    LI_SYMBOL(ATTR)
+#endif
+
 #ifndef LI_SYMBOL_after_insert
 #define LI_SYMBOL_after_insert
     LI_SYMBOL(after_insert)
@@ -908,6 +923,8 @@ template <unsigned SIZE> struct sql_varchar : public std::string {
 
 
 namespace li {
+
+struct sqlite_tag {};
 
 template <typename T> struct tuple_remove_references_and_const;
 template <typename... T> struct tuple_remove_references_and_const<std::tuple<T...>> {
@@ -1115,6 +1132,8 @@ struct sqlite_statement {
 void free_sqlite3_db(void* db) { sqlite3_close_v2((sqlite3*)db); }
 
 struct sqlite_connection {
+  typedef sqlite_tag db_tag;
+  
   typedef std::shared_ptr<sqlite3> db_sptr;
   typedef std::unordered_map<std::string, sqlite_statement> stmt_map;
   typedef std::shared_ptr<std::unordered_map<std::string, sqlite_statement>> stmt_map_ptr;
@@ -1143,7 +1162,7 @@ struct sqlite_connection {
   }
 
   sqlite_statement prepare(const std::string& req) {
-    std::cout << req << std::endl;
+    // std::cout << req << std::endl;
     auto it = stm_cache_->find(req);
     if (it != stm_cache_->end())
       return it->second;
@@ -1202,7 +1221,9 @@ struct sqlite_database {
     }
   }
 
-  sqlite_connection& connect() { return con_; }
+  template <typename Y>
+  inline sqlite_connection& connect(Y y) { return con_; }
+  inline sqlite_connection& connect() { return con_; }
 
   sqlite_connection con_;
   std::string path_;
@@ -1226,6 +1247,11 @@ struct sqlite_database {
 #ifndef LI_SYMBOL_create_secret_key
 #define LI_SYMBOL_create_secret_key
     LI_SYMBOL(create_secret_key)
+#endif
+
+#ifndef LI_SYMBOL_date_thread
+#define LI_SYMBOL_date_thread
+    LI_SYMBOL(date_thread)
 #endif
 
 #ifndef LI_SYMBOL_hash_password
@@ -1293,6 +1319,11 @@ struct sqlite_database {
     LI_SYMBOL(select)
 #endif
 
+#ifndef LI_SYMBOL_server_thread
+#define LI_SYMBOL_server_thread
+    LI_SYMBOL(server_thread)
+#endif
+
 #ifndef LI_SYMBOL_session_id
 #define LI_SYMBOL_session_id
     LI_SYMBOL(session_id)
@@ -1315,8 +1346,8 @@ struct sqlite_database {
 
 namespace li {
 
-struct sqlite_connection;
-struct mysql_connection;
+struct sqlite_tag;
+struct mysql_tag;
 
 using s::auto_increment;
 using s::primary_key;
@@ -1360,12 +1391,12 @@ template <typename SCHEMA, typename C> struct sql_orm {
         ss << ", ";
       ss << li::symbol_string(k) << " " << con_.type_to_string(v);
 
-      if (std::is_same<C, sqlite_connection>::value) {
+      if (std::is_same<typename C::db_tag, sqlite_tag>::value) {
         if (auto_increment || primary_key)
           ss << " PRIMARY KEY ";
       }
 
-      if (std::is_same<C, mysql_connection>::value) {
+      if (std::is_same<typename C::db_tag, mysql_tag>::value) {
         if (auto_increment)
           ss << " AUTO_INCREMENT NOT NULL";
         if (primary_key)
@@ -1668,6 +1699,8 @@ struct sql_orm_schema : public MD {
       : MD(md), database_(db), table_name_(table_name), callbacks_(cb) {}
 
   inline auto connect() { return sql_orm(*this, database_.connect()); }
+  template <typename Y>
+  inline auto connect(Y& y) { return sql_orm(*this, database_.connect(y)); }
 
   const std::string& table_name() const { return table_name_; }
   auto get_callbacks() const { return callbacks_; }
@@ -1704,23 +1737,80 @@ struct sql_orm_schema : public MD {
 
 
 
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_ASYNC_WRAPPER
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_ASYNC_WRAPPER
+
+
 
 namespace li {
 
-struct mysql_scoped_use_result {
-  inline mysql_scoped_use_result(MYSQL* con) : res_(mysql_use_result(con)) {
-    if (!res_)
-      throw std::runtime_error(std::string("Mysql error: ") + mysql_error(con));
-  }
 
-  inline ~mysql_scoped_use_result() { mysql_free_result(res_); }
-  inline operator MYSQL_RES*() { return res_; }
+// Blocking version.
+struct mysql_functions_blocking {
+  enum { is_blocking = true };
 
-private:
-  MYSQL_RES* res_;
+#define LI_MYSQL_BLOCKING_WRAPPER(FN)                     \
+  template <typename... A> auto FN(A&&... a) { return ::FN(std::forward<A>(a)...); }
+
+  LI_MYSQL_BLOCKING_WRAPPER(mysql_fetch_row)
+  LI_MYSQL_BLOCKING_WRAPPER(mysql_real_query)
+  LI_MYSQL_BLOCKING_WRAPPER(mysql_stmt_execute)
+  LI_MYSQL_BLOCKING_WRAPPER(mysql_stmt_prepare)
+  LI_MYSQL_BLOCKING_WRAPPER(mysql_stmt_fetch)
+  LI_MYSQL_BLOCKING_WRAPPER(mysql_stmt_free_result)
+
+#undef LI_MYSQL_BLOCKING_WRAPPER
 };
 
-auto type_to_mysql_statement_buffer_type(const char&) { return MYSQL_TYPE_TINY; }
+// Non blocking version.
+template <typename Y> struct mysql_functions_non_blocking {
+  enum { is_blocking = false };
+  
+  template <typename RT, typename A1, typename... A, typename B1, typename... B>
+  auto mysql_non_blocking_call(int fn_start(RT*, B1, B...), int fn_cont(RT*, B1, int),
+                        A1&& a1, A&&... args) {
+
+    RT ret;
+    int status =
+        fn_start(&ret, std::forward<A1>(a1), std::forward<A>(args)...);
+    while (status) {
+      yield_();
+      status = fn_cont(&ret, std::forward<A1>(a1), status);
+    }
+    return ret;
+  }
+
+#define LI_MYSQL_NONBLOCKING_WRAPPER(FN)                                                                 \
+  template <typename... A> auto FN(A&&... a) {                                                          \
+    return mysql_non_blocking_call(::FN##_start, ::FN##_cont, std::forward<A>(a)...);                 \
+  }
+
+  LI_MYSQL_NONBLOCKING_WRAPPER(mysql_fetch_row)
+  LI_MYSQL_NONBLOCKING_WRAPPER(mysql_real_query)
+  LI_MYSQL_NONBLOCKING_WRAPPER(mysql_stmt_execute)
+  LI_MYSQL_NONBLOCKING_WRAPPER(mysql_stmt_prepare)
+  LI_MYSQL_NONBLOCKING_WRAPPER(mysql_stmt_fetch)
+  LI_MYSQL_NONBLOCKING_WRAPPER(mysql_stmt_free_result)
+
+#undef LI_MYSQL_NONBLOCKING_WRAPPER
+
+  Y yield_;
+};
+
+
+} // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_ASYNC_WRAPPER
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_STATEMENT
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_STATEMENT
+
+
+
+
+namespace li {
+
+  auto type_to_mysql_statement_buffer_type(const char&) { return MYSQL_TYPE_TINY; }
 auto type_to_mysql_statement_buffer_type(const short int&) { return MYSQL_TYPE_SHORT; }
 auto type_to_mysql_statement_buffer_type(const int&) { return MYSQL_TYPE_LONG; }
 auto type_to_mysql_statement_buffer_type(const long long int&) { return MYSQL_TYPE_LONGLONG; }
@@ -1739,30 +1829,38 @@ auto type_to_mysql_statement_buffer_type(const unsigned long long int&) {
   return MYSQL_TYPE_LONGLONG;
 }
 
-struct mysql_statement {
-  mysql_statement()
-      : stmt_(nullptr), stmt_sptr_(nullptr), num_fields_(-1), metadata_(nullptr),
-        metadata_sptr_(nullptr), fields_(nullptr) {}
+struct mysql_statement_data {
 
-  mysql_statement(MYSQL_STMT* s) : stmt_(s) {
-    metadata_ = mysql_stmt_result_metadata(stmt_);
-    stmt_sptr_ = std::shared_ptr<MYSQL_STMT>(stmt_, mysql_stmt_close);
-
-    if (metadata_) {
-      metadata_sptr_ = std::shared_ptr<MYSQL_RES>(metadata_, mysql_free_result);
-      fields_ = mysql_fetch_fields(metadata_);
-      num_fields_ = mysql_num_fields(metadata_);
-    } else {
-      num_fields_ = -1;
-      metadata_ = nullptr;
-      metadata_sptr_ = nullptr;
-      fields_ = nullptr;
-    }
+  mysql_statement_data(MYSQL_STMT* stmt) {
+      stmt_ = stmt;
+      metadata_ = mysql_stmt_result_metadata(stmt_);
+      if (metadata_)
+      {
+        fields_ = mysql_fetch_fields(metadata_);
+        num_fields_ = mysql_num_fields(metadata_);
+      }
   }
 
+  ~mysql_statement_data() {
+    mysql_stmt_close(stmt_);
+    if (metadata_)
+      mysql_free_result(metadata_);
+  }
+
+  MYSQL_STMT* stmt_ = nullptr;
+  int num_fields_ = -1;
+  MYSQL_RES* metadata_ = nullptr;
+  MYSQL_FIELD* fields_ = nullptr;
+
+};
+
+
+template <typename B>
+struct mysql_statement {
+
   auto& operator()() {
-    if (mysql_stmt_execute(stmt_) != 0)
-      throw std::runtime_error(std::string("mysql_stmt_execute error: ") + mysql_stmt_error(stmt_));
+    if (mysql_wrapper_.mysql_stmt_execute(data_.stmt_) != 0)
+      throw std::runtime_error(std::string("mysql_stmt_execute error: ") + mysql_stmt_error(data_.stmt_));
     return *this;
   }
 
@@ -1776,17 +1874,17 @@ struct mysql_statement {
       i++;
     });
 
-    if (mysql_stmt_bind_param(stmt_, bind) != 0)
+    if (mysql_stmt_bind_param(data_.stmt_, bind) != 0)
       throw std::runtime_error(std::string("mysql_stmt_bind_param error: ") +
-                               mysql_stmt_error(stmt_));
+                               mysql_stmt_error(data_.stmt_));
 
-    if (mysql_stmt_execute(stmt_) != 0)
-      throw std::runtime_error(std::string("mysql_stmt_execute error: ") + mysql_stmt_error(stmt_));
+    if (mysql_wrapper_.mysql_stmt_execute(data_.stmt_) != 0)
+      throw std::runtime_error(std::string("mysql_stmt_execute error: ") + mysql_stmt_error(data_.stmt_));
 
     return *this;
   }
 
-  long long int affected_rows() { return mysql_stmt_affected_rows(stmt_); }
+  long long int affected_rows() { return mysql_stmt_affected_rows(data_.stmt_); }
 
   template <typename V> void bind(MYSQL_BIND& b, V& v) {
     b.buffer = const_cast<std::remove_const_t<V>*>(&v);
@@ -1826,9 +1924,9 @@ struct mysql_statement {
     b[i].buffer_length = real_length;
     b[i].length = nullptr;
     b[i].buffer = &v[0];
-    if (mysql_stmt_fetch_column(stmt_, b + i, i, 0) != 0)
+    if (mysql_stmt_fetch_column(data_.stmt_, b + i, i, 0) != 0)
       throw std::runtime_error(std::string("mysql_stmt_fetch_column error: ") +
-                               mysql_stmt_error(stmt_));
+                               mysql_stmt_error(data_.stmt_));
   }
 
   template <typename T> void bind_output(MYSQL_BIND& b, unsigned long* real_length, T& v) {
@@ -1866,7 +1964,7 @@ struct mysql_statement {
     else
       finalize_fetch(bind, real_lengths, o);
 
-    mysql_stmt_free_result(stmt_);
+    mysql_wrapper_.mysql_stmt_free_result(data_.stmt_);
     return res;
   }
   template <typename T> void read(std::optional<T>& o) {
@@ -1906,7 +2004,7 @@ struct mysql_statement {
         this->finalize_fetch(bind, real_lengths, o);
         f(o);
       }
-      mysql_stmt_free_result(stmt_);
+      mysql_wrapper_.mysql_stmt_free_result(data_.stmt_);
     } else {
       tp o;
 
@@ -1918,52 +2016,52 @@ struct mysql_statement {
         this->finalize_fetch(bind, real_lengths, o);
         apply(o, f);
       }
-      mysql_stmt_free_result(stmt_);
+      mysql_wrapper_.mysql_stmt_free_result(data_.stmt_);
     }
   }
 
   template <typename A> void prepare_fetch(MYSQL_BIND* bind, unsigned long* real_lengths, A& o) {
-    if (num_fields_ != 1)
+    if (data_.num_fields_ != 1)
       throw std::runtime_error("mysql_statement error: The number of column in the result set "
                                "shoud be 1. Use std::tuple or li::sio to fetch several columns or "
                                "modify the request so that it returns a set of 1 column.");
 
     this->bind_output(bind[0], real_lengths, o);
-    mysql_stmt_bind_result(stmt_, bind);
+    mysql_stmt_bind_result(data_.stmt_, bind);
   }
 
   template <typename... A>
   void prepare_fetch(MYSQL_BIND* bind, unsigned long* real_lengths, metamap<A...>& o) {
-    if (num_fields_ != sizeof...(A)) {
+    if (data_.num_fields_ != sizeof...(A)) {
       throw std::runtime_error(
           "mysql_statement error: Not enough columns in the result set to fill the object.");
     }
 
     li::map(o, [&](auto k, auto& v) {
       // Find li::symbol_string(k) position.
-      for (int i = 0; i < num_fields_; i++)
-        if (!strcmp(fields_[i].name, li::symbol_string(k)))
+      for (int i = 0; i < data_.num_fields_; i++)
+        if (!strcmp(data_.fields_[i].name, li::symbol_string(k)))
         // bind the column.
         {
           this->bind_output(bind[i], real_lengths + i, v);
         }
     });
 
-    for (int i = 0; i < num_fields_; i++) {
+    for (int i = 0; i < data_.num_fields_; i++) {
       if (!bind[i].buffer_type) {
         std::ostringstream ss;
         ss << "Error while binding the mysql request to a SIO object: " << std::endl
-           << "   Field " << fields_[i].name << " could not be bound." << std::endl;
+           << "   Field " << data_.fields_[i].name << " could not be bound." << std::endl;
         throw std::runtime_error(ss.str());
       }
     }
 
-    mysql_stmt_bind_result(stmt_, bind);
+    mysql_stmt_bind_result(data_.stmt_, bind);
   }
 
   template <typename... A>
   void prepare_fetch(MYSQL_BIND* bind, unsigned long* real_lengths, std::tuple<A...>& o) {
-    if (num_fields_ != sizeof...(A))
+    if (data_.num_fields_ != sizeof...(A))
       throw std::runtime_error("mysql_statement error: The number of column in the result set does "
                                "not match the number of attributes of the tuple to bind.");
 
@@ -1973,14 +2071,14 @@ struct mysql_statement {
       i++;
     });
 
-    mysql_stmt_bind_result(stmt_, bind);
+    mysql_stmt_bind_result(data_.stmt_, bind);
   }
 
   template <typename... A>
   void finalize_fetch(MYSQL_BIND* bind, unsigned long* real_lengths, metamap<A...>& o) {
     li::map(o, [&](auto k, auto& v) {
-      for (int i = 0; i < num_fields_; i++)
-        if (!strcmp(fields_[i].name, li::symbol_string(k)))
+      for (int i = 0; i < data_.num_fields_; i++)
+        if (!strcmp(data_.fields_[i].name, li::symbol_string(k)))
           this->fetch_column(bind, real_lengths[i], v, i);
     });
   }
@@ -1999,53 +2097,78 @@ struct mysql_statement {
   }
 
   int fetch() {
-    int f = mysql_stmt_fetch(stmt_);
+    int f = mysql_wrapper_.mysql_stmt_fetch(data_.stmt_);
     if (f == 1)
-      throw std::runtime_error(std::string("mysql_stmt_fetch error: ") + mysql_stmt_error(stmt_));
+      throw std::runtime_error(std::string("mysql_stmt_fetch error: ") + mysql_stmt_error(data_.stmt_));
     return f;
   }
 
-  long long int last_insert_id() { return mysql_stmt_insert_id(stmt_); }
+  long long int last_insert_id() { return mysql_stmt_insert_id(data_.stmt_); }
 
-  bool empty() { return mysql_stmt_fetch(stmt_) == MYSQL_NO_DATA; }
+  bool empty() { return mysql_wrapper_.mysql_stmt_fetch(data_.stmt_) == MYSQL_NO_DATA; }
 
-  MYSQL_STMT* stmt_;
-  std::shared_ptr<MYSQL_STMT> stmt_sptr_;
-  int num_fields_;
-  MYSQL_RES* metadata_;
-  std::shared_ptr<MYSQL_RES> metadata_sptr_;
-  MYSQL_FIELD* fields_;
-}; // namespace li
+  B& mysql_wrapper_;
+  mysql_statement_data& data_;
+};
+
+}
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_STATEMENT
+
+
+
+namespace li {
+
+struct mysql_tag {};
 
 struct mysql_database;
 
+struct mysql_connection_data {
+  MYSQL* connection;
+  std::unordered_map<std::string, std::shared_ptr<mysql_statement_data>> statements;
+};
+
+thread_local std::deque<std::shared_ptr<mysql_connection_data>> mysql_connection_pool;
+thread_local std::deque<std::shared_ptr<mysql_connection_data>> mysql_connection_async_pool;
+
+template <typename B> // must be mysql_functions_blocking or mysql_functions_non_blocking
 struct mysql_connection {
-  // mysql_connection(MYSQL* con) : con_(con) {}
 
-  // template <typename... OPTS> inline mysql_connection(OPTS&&... opts) :
-  // con_(impl::open_mysql_connection(opts...)) {}
+  typedef mysql_tag db_tag;
 
-  inline mysql_connection(MYSQL* con, mysql_database& pool);
+  inline mysql_connection(B mysql_wrapper, std::shared_ptr<li::mysql_connection_data> data)
+      : mysql_wrapper_(mysql_wrapper), data_(data), stm_cache_(data->statements),
+        con_(data->connection) {
+
+    sptr_ = std::shared_ptr<int>((int*)42, [data](int* p) { 
+      if constexpr (B::is_blocking)
+        mysql_connection_pool.push_back(data);
+      else  
+        mysql_connection_async_pool.push_back(data);
+
+    });
+  }
+
 
   long long int last_insert_rowid() { return mysql_insert_id(con_); }
 
-  mysql_statement& operator()(std::string rq) { return prepare(rq)(); }
+  mysql_statement<B> operator()(const std::string& rq) { return prepare(rq)(); }
 
-  mysql_statement& prepare(std::string rq) {
-    //std::cout << rq << std::endl;
+  mysql_statement<B> prepare(const std::string& rq) {
     auto it = stm_cache_.find(rq);
     if (it != stm_cache_.end())
-      return it->second;
+      return mysql_statement<B>{mysql_wrapper_, *it->second};
 
+    //std::cout << "prepare " << rq << std::endl;
     MYSQL_STMT* stmt = mysql_stmt_init(con_);
     if (!stmt)
       throw std::runtime_error(std::string("mysql_stmt_init error: ") + mysql_error(con_));
 
-    if (mysql_stmt_prepare(stmt, rq.data(), rq.size()))
+    if (mysql_wrapper_.mysql_stmt_prepare(stmt, rq.data(), rq.size()))
       throw std::runtime_error(std::string("mysql_stmt_prepare error: ") + mysql_error(con_));
 
-    stm_cache_[rq] = mysql_statement(stmt);
-    return stm_cache_[rq];
+    auto pair = stm_cache_.emplace(rq, std::make_shared<mysql_statement_data>(stmt));
+    return mysql_statement<B>{mysql_wrapper_, *pair.first->second};
   }
 
   template <typename T>
@@ -2065,11 +2188,13 @@ struct mysql_connection {
     return ss.str();
   }
 
-  std::unordered_map<std::string, mysql_statement> stm_cache_;
+  B mysql_wrapper_;
+  std::shared_ptr<mysql_connection_data> data_;
+  std::unordered_map<std::string, std::shared_ptr<mysql_statement_data>>& stm_cache_;
   MYSQL* con_;
   std::shared_ptr<int> sptr_;
-  mysql_database& pool_;
 };
+
 
 struct mysql_database : std::enable_shared_from_this<mysql_database> {
 
@@ -2097,46 +2222,66 @@ struct mysql_database : std::enable_shared_from_this<mysql_database> {
       throw std::runtime_error("Mysql is not compiled as thread safe.");
   }
 
-  inline void free_connection(MYSQL* c) {
-    std::unique_lock<std::mutex> l(mutex_);
-    pool_.push_back(c);
-  }
+  ~mysql_database() { mysql_library_end(); }
 
-  inline mysql_connection connect() {
-    MYSQL* con_ = nullptr;
+  template <typename Y>
+  inline mysql_connection<mysql_functions_non_blocking<Y>> connect(Y yield) {
+
+    std::shared_ptr<mysql_connection_data> data = nullptr;
+    if (!mysql_connection_async_pool.empty()) {
+      data = mysql_connection_async_pool.back();
+      mysql_connection_async_pool.pop_back();
+      yield.listen_to_fd(mysql_get_socket(data->connection));
+    }
+    else
     {
-      std::unique_lock<std::mutex> l(mutex_);
-      if (!pool_.empty()) {
-        con_ = pool_.back();
-        pool_.pop_back();
+      MYSQL* mysql = new MYSQL;
+      mysql_init(mysql);
+      mysql_options(mysql, MYSQL_OPT_NONBLOCK, 0);
+      MYSQL* connection = nullptr;
+      int status = mysql_real_connect_start(&connection, mysql, host_.c_str(), user_.c_str(), passwd_.c_str(),
+                                            database_.c_str(), port_, NULL, 0);
+      yield.listen_to_fd(mysql_get_socket(mysql));
+      while (status) {
+        yield();
+        status = mysql_real_connect_cont(&connection, mysql, status);
       }
+      data = std::shared_ptr<mysql_connection_data>(new mysql_connection_data{mysql});
     }
 
-    if (!con_) {
-      con_ = mysql_init(con_);
+    assert(data);
+    return mysql_connection(mysql_functions_non_blocking<decltype(yield)>{yield}, data);
+  }
+
+  inline mysql_connection<mysql_functions_blocking> connect() {
+    std::shared_ptr<mysql_connection_data> data = nullptr;
+    if (!mysql_connection_pool.empty()) {
+      data = mysql_connection_pool.back();
+      mysql_connection_pool.pop_back();
+    }
+
+    if (!data) {
+      MYSQL* con_ = mysql_init(nullptr);
       con_ = mysql_real_connect(con_, host_.c_str(), user_.c_str(), passwd_.c_str(),
                                 database_.c_str(), port_, NULL, 0);
       if (!con_)
         throw std::runtime_error("Cannot connect to the database");
 
       mysql_set_character_set(con_, character_set_.c_str());
+      data = std::shared_ptr<mysql_connection_data>(new mysql_connection_data{con_});
     }
 
-    assert(con_);
-    return mysql_connection(con_, *this);
+    assert(data);
+    return mysql_connection(mysql_functions_blocking{}, data);
   }
 
   std::mutex mutex_;
   std::string host_, user_, passwd_, database_;
   unsigned int port_;
-  std::deque<MYSQL*> pool_;
+  std::deque<MYSQL*> _;
   std::string character_set_;
 };
 
-inline mysql_connection::mysql_connection(MYSQL* con, mysql_database& pool)
-    : con_(con), pool_(pool) {
-  sptr_ = std::shared_ptr<int>((int*)42, [&pool, con](int* p) { pool.free_connection(con); });
-}
 
 } // namespace li
 
@@ -2154,6 +2299,9 @@ inline mysql_connection::mysql_connection(MYSQL* con, mysql_database& pool)
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_DECODE_STRINGSTREAM
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_DECODE_STRINGSTREAM
+
+#if defined(_MSC_VER)
+#endif
 
 
 namespace li {
@@ -3164,13 +3312,18 @@ inline void json_encode(C& ss, const std::vector<T>& array, const json_vector_<E
 
 template <typename T, typename C> inline void json_encode_value(C& ss, const T& t) { ss << t; }
 
-template <typename C> inline void json_encode_value(C& ss, const char* s) { utf8_to_json(s, ss); }
+template <typename C> inline void json_encode_value(C& ss, const char* s) { 
+  //ss << s;
+  utf8_to_json(s, ss);
+ }
 
 template <typename C> inline void json_encode_value(C& ss, const string_view& s) {
+  //ss << s;
   utf8_to_json(s, ss);
 }
 
 template <typename C> inline void json_encode_value(C& ss, const std::string& s) {
+  //ss << s;
   utf8_to_json(s, ss);
 }
 
@@ -3357,16 +3510,16 @@ struct json_key {
   const char* key;
 };
 
-template <typename C, typename M> auto json_decode(C& input, M& obj) {
+template <typename C, typename M> decltype(auto) json_decode(C& input, M& obj) {
   return impl::to_json_schema(obj).decode(input, obj);
 }
 
-template <typename C, typename M> auto json_encode(C& output, const M& obj) {
+template <typename C, typename M> decltype(auto) json_encode(C& output, const M& obj) {
   impl::to_json_schema(obj).encode(output, obj);
 }
 
 template <typename M> auto json_encode(const M& obj) {
-  return impl::to_json_schema(obj).encode(obj);
+  return std::move(impl::to_json_schema(obj).encode(obj));
 }
 
 template <typename A, typename B, typename... C>
@@ -3395,7 +3548,7 @@ template <typename V> struct drt_node {
 
   drt_node() : v_{0, nullptr} {}
   struct iterator {
-    drt_node<V>* ptr;
+    const drt_node<V>* ptr;
     std::string_view first;
     V second;
 
@@ -3417,7 +3570,15 @@ template <typename V> struct drt_node {
       c++;
     std::string_view k = r.substr(s, c - s);
 
-    auto& v_ = children_[k].find_or_create(r, c);
+    auto it = children_.find(k);
+    if (it != children_.end())
+      return children_[k]->find_or_create(r, c);
+    else
+    {
+      auto new_node = new drt_node();
+      children_.insert({k, new_node});
+      return new_node->find_or_create(r, c);
+    }
 
     return v_;
   }
@@ -3429,10 +3590,10 @@ template <typename V> struct drt_node {
       if (prefix.size() && prefix.back() != '/')
         prefix += '/';
       for (auto pair : children_)
-        pair.second.for_all_routes(f, prefix + std::string(pair.first));
+        pair.second->for_all_routes(f, prefix + std::string(pair.first));
     }
   }
-  iterator find(const std::string_view& r, unsigned int c) {
+  iterator find(const std::string_view& r, unsigned int c) const {
     // We found the route r.
     if ((c == r.size() and v_.handler != nullptr) or (children_.size() == 0))
       return iterator{this, r, v_};
@@ -3455,8 +3616,8 @@ template <typename V> struct drt_node {
     // look for k in the children.
     auto it = children_.find(k);
     if (it != children_.end()) {
-      auto it2 = it->second.find(r, c); // search in the corresponding child.
-      if (it2 != it->second.end())
+      auto it2 = it->second->find(r, c); // search in the corresponding child.
+      if (it2 != it->second->end())
         return it2;
     }
 
@@ -3466,14 +3627,14 @@ template <typename V> struct drt_node {
         auto name = kv.first;
         if (name.size() > 4 and name[0] == '{' and name[1] == '{' and
             name[name.size() - 2] == '}' and name[name.size() - 1] == '}')
-          return kv.second.find(r, c);
+          return kv.second->find(r, c);
       }
       return end();
     }
   }
 
   V v_;
-  std::map<std::string_view, drt_node> children_;
+  std::unordered_map<std::string_view, drt_node*> children_;
 };
 } // namespace internal
 
@@ -3492,7 +3653,7 @@ template <typename V> struct dynamic_routing_table {
   }
 
   // Find a route and return an iterator.
-  auto find(const std::string_view& r) { return root.find(r, 0); }
+  auto find(const std::string_view& r) const { return root.find(r, 0); }
 
   template <typename F> void for_all_routes(F f) const { root.for_all_routes(f); }
   auto end() const { return root.end(); }
@@ -3600,7 +3761,7 @@ template <typename Req, typename Resp> struct api {
   H& put(std::string_view r) { return this->operator()(PUT, r); }
   H& delete_(std::string_view r) { return this->operator()(HTTP_DELETE, r); }
 
-  int parse_verb(std::string_view method) {
+  int parse_verb(std::string_view method) const {
     if (method == "GET")
       return GET;
     if (method == "PUT")
@@ -3627,7 +3788,7 @@ template <typename Req, typename Resp> struct api {
     routes_map_.for_all_routes([this](auto r, auto h) { std::cout << r << '\n'; });
     std::cout << std::endl;
   }
-  auto call(const char* method, std::string route, Req& request, Resp& response) {
+  auto call(std::string_view method, std::string_view route, Req& request, Resp& response) const {
     // skip the last / of the url.
     std::string_view route2(route);
     if (route2.size() != 0 and route2[route2.size() - 1] == '/')
@@ -3650,6 +3811,1244 @@ template <typename Req, typename Resp> struct api {
 } // namespace li
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_API
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_HTTP_LISTEN2
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_HTTP_LISTEN2
+
+
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_MOUSTIQUE
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_MOUSTIQUE
+/**
+ * @file   moustique.hh
+ * @author Matthieu Garrigues <matthieu.garrigues@gmail.com> <matthieu.garrigues@gmail.com>
+ * @date   Sat Mar 31 23:52:51 2018
+ * 
+ * @brief  moustique wrapper.
+ * 
+ * 
+ */
+
+
+
+/** 
+ * Open a socket on port \port and call \conn_handler(int client_fd, auto read, auto write) 
+ * to process each incomming connection. This handle takes 3 argments:
+ *               - int client_fd: the file descriptor of the socket.
+ *               - int read(buf, max_size_to_read):  
+ *                       The callback that conn_handler can use to read on the socket.
+ *                       If data is available, copy it into \buf, otherwise suspend the handler until
+ *                       there is something to read.
+ *                       Returns the number of char actually read, returns 0 if the connection has been lost.
+ *               - bool write(buf, buf_size): return true on success, false on error.
+ *                       The callback that conn_handler can use to write on the socket.
+ *                       If the socket is ready to write, write \buf, otherwise suspend the handler until
+ *                       it is ready.
+ *                       Returns true on sucess, false if connection is lost.
+ *
+ * @param port  The server port.
+ * @param socktype The socket type, SOCK_STREAM for TCP, SOCK_DGRAM for UDP.
+ * @param nthreads Number of threads.
+ * @param conn_handler The connection handler
+ * @return false on error, true on success.
+ */
+template <typename H>
+int moustique_listen(int port,
+                     int socktype,
+                     int nthreads,
+                     H conn_handler);
+
+// Same as above but take an already opened socket \listen_fd.
+template <typename H>
+int moustique_listen_fd(int listen_fd,
+                        int nthreads,
+                        H conn_handler);
+
+namespace moustique_impl
+{
+  static int create_and_bind(int port, int socktype)
+  {
+    struct addrinfo hints;
+    struct addrinfo *result, *rp;
+    int s, sfd;
+
+    char port_str[20];
+    snprintf(port_str, sizeof(port_str), "%d", port);
+    memset (&hints, 0, sizeof (struct addrinfo));
+    hints.ai_family = AF_UNSPEC;     /* Return IPv4 and IPv6 choices */
+    hints.ai_socktype = socktype; /* We want a TCP socket */
+    hints.ai_flags = AI_PASSIVE;     /* All interfaces */
+
+    s = getaddrinfo (NULL, port_str, &hints, &result);
+    if (s != 0)
+    {
+      fprintf (stderr, "getaddrinfo: %s\n", gai_strerror (s));
+      return -1;
+    }
+
+    for (rp = result; rp != NULL; rp = rp->ai_next)
+    {
+      sfd = socket (rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+      if (sfd == -1)
+        continue;
+
+      s = bind (sfd, rp->ai_addr, rp->ai_addrlen);
+      if (s == 0)
+      {
+        /* We managed to bind successfully! */
+        break;
+      }
+
+      close (sfd);
+    }
+
+    if (rp == NULL)
+    {
+      fprintf (stderr, "Could not bind: %s\n", strerror(errno));
+      return -1;
+    }
+
+    freeaddrinfo (result);
+
+    return sfd;
+  }
+
+}
+
+#define MOUSTIQUE_CHECK_CALL(CALL)                                      \
+  {                                                                     \
+    int ret = CALL;                                                     \
+    if (-1 == ret)                                                      \
+    {                                                                   \
+      fprintf(stderr, "Error at %s:%i  error is: %s\n", __PRETTY_FUNCTION__, __LINE__, strerror(ret)); \
+      return false;                                                     \
+    }                                                                   \
+  }
+
+template <typename H>
+int moustique_listen(int port,
+                     int socktype,
+                     int nthreads,
+                     H conn_handler)
+{
+  return moustique_listen_fd(moustique_impl::create_and_bind(port, socktype), nthreads, conn_handler);
+}
+
+static volatile int moustique_exit_request = 0;
+
+static void shutdown_handler(int sig) {
+  moustique_exit_request = 1;
+  std::cout << "The server will shutdown..." << std::endl;
+}
+
+template <typename H>
+int moustique_listen_fd(int listen_fd,
+                        int nthreads,
+                        H conn_handler)
+{
+  namespace ctx = boost::context;
+
+  if (listen_fd < 0) return 0;
+  int flags = fcntl (listen_fd, F_GETFL, 0);
+  MOUSTIQUE_CHECK_CALL(fcntl(listen_fd, F_SETFL, flags | O_NONBLOCK));
+  MOUSTIQUE_CHECK_CALL(::listen(listen_fd, SOMAXCONN));
+
+  auto event_loop_fn = [listen_fd, conn_handler] () -> int {
+
+    int epoll_fd = epoll_create1(0);
+
+    auto epoll_ctl = [epoll_fd] (int fd, uint32_t flags)
+    {
+      epoll_event event;
+      memset(&event, 0, sizeof(event));
+      event.data.fd = fd;
+      event.events = flags;
+      MOUSTIQUE_CHECK_CALL(::epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &event));
+      return true;
+    };
+    auto epoll_ctl_mod = [epoll_fd] (int fd, uint32_t flags)
+    {
+      epoll_event event;
+      event.data.fd = fd;
+      event.events = flags;
+      MOUSTIQUE_CHECK_CALL(::epoll_ctl(epoll_fd, EPOLL_CTL_MOD, fd, &event));
+      return true;
+    };
+    
+    epoll_ctl(listen_fd, EPOLLIN | EPOLLET);
+
+    const int MAXEVENTS = 64;
+    std::vector<ctx::continuation> fibers;
+    std::vector<int> secondary_map;
+    // fibers.reserve(1000);
+    // Even loop.
+    epoll_event events[MAXEVENTS];
+
+    while (!moustique_exit_request)
+    {
+
+      int n_events = epoll_wait (epoll_fd, events, MAXEVENTS, 1000);
+      if (moustique_exit_request) 
+        break;
+
+
+      for (int i = 0; i < n_events; i++)
+      {
+
+        if ((events[i].events & EPOLLERR) ||
+            (events[i].events & EPOLLHUP))
+        {
+          close (events[i].data.fd);
+          fibers[events[i].data.fd] = fibers[events[i].data.fd].resume();
+          continue;
+        }
+        else if (listen_fd == events[i].data.fd) // New connection.
+        {
+          while(true)
+          {
+            struct sockaddr in_addr;
+            socklen_t in_len;
+            int infd;
+
+            in_len = sizeof in_addr;
+            infd = accept (listen_fd, &in_addr, &in_len);
+            if (infd == -1)
+              break;
+
+            MOUSTIQUE_CHECK_CALL(fcntl(infd, F_SETFL, fcntl(infd, F_GETFL, 0) | O_NONBLOCK));
+            epoll_ctl(infd, EPOLLIN | EPOLLOUT | EPOLLET);
+            auto listen_to_new_fd = [original_fd=infd,epoll_ctl,&secondary_map] (int new_fd) {
+              if (new_fd > secondary_map.size() || secondary_map[new_fd] == -1)
+                epoll_ctl(new_fd, EPOLLIN | EPOLLOUT | EPOLLET);
+              if (int(secondary_map.size()) < new_fd + 1)
+                secondary_map.resize(new_fd + 10, -1);             
+              secondary_map[new_fd] = original_fd;
+            };
+
+            if (int(fibers.size()) < infd + 1)
+              fibers.resize(infd + 10);
+
+            struct end_of_file {};
+            fibers[infd] = ctx::callcc([fd=infd, &conn_handler, epoll_ctl_mod, listen_to_new_fd]
+                                       (ctx::continuation&& sink) {
+                                         //ctx::continuation sink = std::move(_sink);
+                                         auto read = [fd, &sink, epoll_ctl_mod] (char* buf, int max_size) {
+                                           ssize_t count = ::recv(fd, buf, max_size, 0);
+                                           while (count <= 0)
+                                           {
+                                             if ((count < 0 and errno != EAGAIN) or count == 0)
+                                               return ssize_t(0);
+                                             sink = sink.resume();
+                                             count = ::recv(fd, buf, max_size, 0);
+                                           }
+                                           return count;
+                                         };
+
+                                         auto write = [fd, &sink, epoll_ctl_mod] (const char* buf, int size) {
+                                           if (!buf or !size)
+                                           {
+                                             //std::cout << "pause" << std::endl;
+                                             sink = sink.resume();
+                                             return true;
+                                           }
+                                           const char* end = buf + size;
+                                           ssize_t count = ::send(fd, buf, end - buf, MSG_NOSIGNAL);
+                                           if (count > 0) buf += count;
+                                           while (buf != end)
+                                           {
+                                             if ((count < 0 and errno != EAGAIN) or count == 0)
+                                               return false;
+                                             sink = sink.resume();
+                                             count = ::send(fd, buf, end - buf, MSG_NOSIGNAL);
+                                             if (count > 0) buf += count;
+                                           }
+                                           return true;
+                                         };
+              
+                                         conn_handler(fd, read, write, listen_to_new_fd);
+                                         close(fd);
+                                         return std::move(sink);
+                                       });
+          
+          }
+          
+        }
+        else // Data available on existing sockets. Wake up the fiber associated with events[i].data.fd.
+        {
+
+          if (events[i].data.fd < secondary_map.size() && secondary_map[events[i].data.fd] != -1)
+          {
+            int original_fd = secondary_map[events[i].data.fd];
+            if (fibers[original_fd])
+              fibers[original_fd] = fibers[original_fd].resume();
+          }
+          else
+            if (fibers[events[i].data.fd])
+              fibers[events[i].data.fd] = fibers[events[i].data.fd].resume();
+        }
+      }
+    }
+    close(epoll_fd);
+    return true;  
+  };
+
+  struct sigaction act;
+    memset (&act, 0, sizeof(act));
+	  act.sa_handler = shutdown_handler;
+  
+  sigaction(SIGINT, &act, 0);
+  sigaction(SIGTERM, &act, 0);
+  sigaction(SIGQUIT, &act, 0);
+  
+  std::vector<std::thread> ths;
+  for (int i = 0; i < nthreads; i++)
+    ths.push_back(std::thread([&] { event_loop_fn(); }));
+
+  for (auto& t : ths)
+    t.join();
+
+  close(listen_fd);
+
+  return true;
+}
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_MOUSTIQUE
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_URL_UNESCAPE
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_URL_UNESCAPE
+
+
+namespace li {
+std::string_view url_unescape(std::string_view str) {
+  char* o = (char*)str.data();
+  char* c = (char*)str.data();
+  const char* end = c + str.size();
+
+  while (c < end) {
+    if (*c == '%' && c < end - 2) {
+      char number[3];
+      number[0] = c[1];
+      number[1] = c[2];
+      number[2] = 0;
+      *o = char(strtol(number, nullptr, 16));
+      c += 2;
+    } else if (o != c)
+      *o = *c;
+    o++;
+    c++;
+  }
+  return std::string_view(str.data(), o - str.data());
+}
+} // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_URL_UNESCAPE
+
+
+namespace li {  
+
+namespace http_async_impl {  
+
+char* date_buf = nullptr;
+int date_buf_size = 0;
+
+thread_local std::unordered_map<std::string, std::string_view> static_files;
+
+struct read_buffer
+{
+
+  std::array<char, 20*1024> buffer_;
+  //std::vector<char> buffer_;
+  int cursor = 0; // First index of the currently used buffer area
+  int end = 0; // Index of the last read character
+  
+  read_buffer()
+    : //buffer_(20 * 1024),
+      cursor(0),
+      end(0)
+  {}
+
+  // Free unused space in the buffer in [i1, i2[.
+  // This may move data in [i2, end[ if needed.
+  // Return the
+  void free(int i1, int i2)
+  {
+    assert(i1 < i2);
+    assert(i1 >= 0 and i1 < buffer_.size());
+    assert(i2 > 0 and i2 <= buffer_.size());
+
+    if (i1 == cursor and i2 == end) // eat the whole buffer.
+      cursor = end = 0;
+    else if (i1 == cursor) // eat the beggining of the buffer.
+      cursor = i2;
+    else if (i2 == end) end = i1; // eat the end of the buffer.
+    else if (i2 != end) // eat somewhere in the middle.
+    {
+      if (buffer_.size() - end < buffer_.size() / 4)
+      {
+        if (end - i2 > i2 - i1) // use memmove if overlap.
+          std::memmove(buffer_.data() + i1, buffer_.data() + i2, end - i2);
+        else
+          std::memcpy(buffer_.data() + i1, buffer_.data() + cursor, end - cursor);
+      }
+    }
+  }
+
+  void free(const char* i1, const char* i2) { 
+    assert(i1 >= buffer_.data());
+    assert(i1 <= &buffer_.back());
+    assert(i2 >= buffer_.data() and i2 <= &buffer_.back());
+    free(i1 - buffer_.data(), i2 - buffer_.data()); 
+  }
+  void free(const std::string_view& str) { free(str.data(), str.data() + str.size()); }
+  
+  // private: Read more data
+  // Read from ptr until character x.
+  // read n more characters at address ptr.
+  // eat n first/last character.
+  // free part of the buffer and more data if needed.
+
+  // Read more data.
+  // Return 0 on error.
+  template <typename F>
+  int read_more(F&& read, int size = -1)
+  {
+    if (int(buffer_.size()) <= end - 100)
+    {
+      // reset buffer_.
+      cursor = 0; end = 0; 
+      throw std::runtime_error("Request too long.");
+
+      // if (buffer_.size() > (10*1024*1024))
+      //   return 0; // Buffer is full. Error and return.
+      // else 
+      {
+        // std::cout << "RESIZE" << std::endl;
+        // buffer_.resize(buffer_.size() * 2);
+      }
+    }
+
+    if (size == -1) size = buffer_.size() - end;
+    int received = read(buffer_.data() + end, size);
+    if (received == 0) return 0; // Socket closed, return.
+    end = end + received;
+    //std::cout << "read size " << end << std::endl;
+    return received;
+  }
+  template <typename F>
+  std::string_view read_more_str(F&& read)
+  {
+    int l = read_more(read);
+    return std::string_view(buffer_.data() + end - l);
+  }
+
+  template <typename F>
+  std::string_view read_n(F&& read, const char* start, int size)
+  {
+    int str_start = start - buffer_.data();
+    int str_end = size + str_start;
+    if (end < str_end)
+    {
+      // Read more body on the socket.
+      int current_size = end - str_start;
+      while (current_size < size)
+          current_size += read_more(read);
+    }
+    return std::string_view(start, size);
+  }
+  
+  template <typename F>
+  std::string_view read_until(F&& read, const char*& start, char delimiter)
+  {
+    const char* str_end = start;
+
+    while (true)
+    {
+      const char* buffer_end = buffer_.data() + end;
+      while (str_end < buffer_end and *str_end != delimiter) str_end++;
+
+      if (*str_end == delimiter) break;
+      else {
+        if (!read_more(read)) break;
+      }
+    }
+
+    auto res = std::string_view(start, str_end - start);
+    start = str_end + 1;
+    return res;
+  }
+
+  bool empty() const { return cursor == end; }
+
+  // Return the amount of data currently available to read.
+  int current_size() { return end - cursor; }
+
+  // Reset the buffer. Copy remaining data at the beggining if there is some.
+  void reset() {
+    assert(cursor <= end);
+    if (cursor == end)
+      end = cursor = 0;
+    else
+    {
+      if (cursor > end - cursor) // use memmove if overlap.
+        std::memmove(buffer_.data(), buffer_.data() + cursor, end - cursor);
+      else
+        std::memcpy(buffer_.data(), buffer_.data() + cursor, end - cursor);
+
+      // if (
+      // memcpy(buffer_.data(), buffer_.data() + cursor, end - cursor);
+
+      end = end - cursor;
+      cursor = 0;
+    }
+
+  }
+
+  // On success return the number of bytes read.
+  // On error return 0.
+  char* data() { return buffer_.data(); }
+};
+
+struct output_buffer
+{
+
+  output_buffer(void* buffer, int capacity)
+    : buffer_((char*)buffer),
+      cursor_(buffer_),
+      end_(buffer_ + capacity)      
+  {
+    assert(buffer_);
+  }
+
+  void reset() 
+  {
+    cursor_ = buffer_;
+  }
+
+  std::size_t size()
+  {
+    return cursor_ - buffer_;
+  }
+
+  output_buffer& operator<<(std::string_view s)
+  {
+    if (cursor_ + s.size() >= end_)
+      throw std::runtime_error("Response too long.");
+    assert(cursor_ + s.size() < end_);
+    memcpy(cursor_, s.data(), s.size());
+    cursor_ += s.size();
+    return *this;
+  }
+  output_buffer& operator<<(char v)
+  {
+    cursor_[0] = v;
+    cursor_++;
+    return *this;
+  }
+
+  // output_buffer& operator<<(int v) { return integer(v); }
+  // output_buffer& operator<<(unsigned int v) { return integer(v); }
+  // output_buffer& operator<<(size_t v) { return integer(v); }
+
+  template <typename I>
+  output_buffer& operator<<(I v)
+  {
+    typedef std::array<char, 50> buf_t;
+    buf_t b = boost::lexical_cast<buf_t>(v);
+    operator<<(std::string_view(b.begin(), strlen(b.begin())));
+    return *this;
+  }
+  
+  std::string_view to_string_view() { return std::string_view(buffer_, cursor_ - buffer_); }
+  char* buffer_;
+  char* cursor_;
+  char* end_;
+};
+
+struct http_ctx {
+
+  http_ctx(read_buffer& _rb,
+           std::function<int(char*, int)> _read,
+           std::function<bool(const char*, int)> _write,
+           std::function<void(int)> _listen_to_new_fd
+           )
+    : rb(_rb),
+      read(_read),
+      write(_write),
+      listen_to_new_fd(_listen_to_new_fd),
+      headers_stream(headers_buffer_space, sizeof(headers_buffer_space)),
+      //output_buffer_space(new char[1000 * 1024]),
+      output_stream(output_buffer_space, sizeof(output_buffer_space))
+  {
+    get_parameters_map.reserve(10);
+    response_headers.reserve(20);
+  }
+  //~http_ctx() { delete[] output_buffer_space; }
+
+  http_ctx& operator=(const http_ctx&) = delete;
+  http_ctx(const http_ctx&) = delete;
+
+  std::string_view header(const char* key)
+  {
+    if (!header_map.size())
+      index_headers();
+    return header_map[key];
+  }
+  
+  std::string_view cookie(const char* key)
+  {
+    if (!cookie_map.size())
+      index_cookies();
+    return cookie_map[key];
+  }
+
+  std::string_view get_parameter(const char* key)
+  {
+    if (!url_.size())
+      parse_first_line();
+    return get_parameters_map[key];
+  }
+  
+  // std::string_view post_parameter(const char* key)
+  // {
+  //   if (!is_body_read_)
+  //   {
+  //     //read_whole_body();
+  //     parse_post_parameters();
+  //   }
+  //   return post_parameters_map[key];
+  // }
+ 
+  // std::string_view read_body(char* buf, int buf_size)
+  // {
+  //   // Try to read Content-Length
+
+  //   // if part of the body is in the request buffer
+  //   //  return it and mark it as read.
+  //   // otherwise call read on the socket.
+
+  //   // handle chunked encoding here if needed.
+  // }
+
+  // void sendfile(std::string path)
+  // {
+  //   char buffer[10200];
+  //   //std::cout << uint64_t(output_stream.buffer_) << " " << uint64_t(output_buffer_space) << std::endl;
+  //   output_buffer output_stream(buffer, sizeof(buffer));
+
+  //   struct stat stat_buf;
+  //   int read_fd = open (path.c_str(), O_RDONLY);
+  //   fstat (read_fd, &stat_buf);
+
+
+  //   format_top_headers(output_stream);
+  //   output_stream << headers_stream.to_string_view();
+  //   output_stream << "Content-Length: " << size_t(stat_buf.st_size) << "\r\n\r\n"; //Add body
+  //   auto m = output_stream.to_string_view();
+  //   write(m.data(), m.size());
+    
+  //   off_t offset = 0;
+  //   while (true)
+  //   {
+  //     int ret = ::sendfile(socket_fd, read_fd, &offset, stat_buf.st_size);
+  //     if (ret == EAGAIN)
+  //       write(nullptr, 0);
+  //     else break;
+  //   }
+  // }
+
+  std::string_view url()
+  {
+    if (!url_.size())
+      parse_first_line();
+    return url_;
+  }
+  std::string_view method()
+  {
+    if (!method_.size())
+      parse_first_line();
+    return method_;
+  }
+  std::string_view http_version()
+  {
+    if (!url_.size())
+      parse_first_line();
+    return http_version_;
+  }
+
+  inline void format_top_headers(output_buffer& output_stream)
+  {
+    output_stream << "HTTP/1.1 " << status_ << "\r\n";
+    output_stream << "Date: " << std::string_view(date_buf, date_buf_size) << "\r\n";
+    output_stream << "Connection: keep-alive\r\nServer: Moustique\r\n";
+  }
+  
+  void prepare_request()
+  {
+    //parse_first_line();
+    response_headers.clear();
+    content_length_ = 0;
+    chunked_ = 0;
+    
+    for (int i = 1; i < header_lines_size - 1; i++)
+    {
+      const char* line_end = header_lines[i + 1]; // last line is just an empty line.
+      const char* cur = header_lines[i];
+
+      if (*cur != 'C' and *cur != 'c') continue;
+
+      std::string_view key = split(cur, line_end, ':');
+
+      auto get_value = [&] {
+        std::string_view value = split(cur, line_end, '\r');
+        while (value[0] == ' ')
+          value = std::string_view(value.data() + 1, value.size() - 1);
+        return value;
+      };
+
+      if (key == "Content-Length")
+        content_length_ = atoi(get_value().data());
+      else if (key == "Content-Type")
+      {
+        content_type_ = get_value();
+        chunked_ = (content_type_ == "chunked");
+      }
+      
+      // header_map[key] = value;
+      // std::cout << key << " -> " << value << std::endl;
+    }
+
+  }
+
+  //void respond(std::string s) {return respond(std::string_view(s)); }
+
+  // void respond(const char* s)
+  // {
+  //   return respond(std::string_view(s, strlen(s)));
+  // }
+
+  void respond(const std::string_view& s)
+  {
+    response_written_ = true;
+    if (s.size() > 10000) // writev for large content.
+    {
+      format_top_headers(output_stream);
+      output_stream << headers_stream.to_string_view();
+      output_stream << "Content-Length: " << s.size() << "\r\n\r\n"; //Add body
+
+      auto m = output_stream.to_string_view();
+      iovec iov[2];
+      iov[0].iov_base = (char*)m.data();
+      iov[0].iov_len = m.size();
+      iov[1].iov_base = (char*)s.data();
+      iov[1].iov_len = s.size();
+
+      int total_size = 0;
+      for (int i = 0; i < 1; i++) total_size += iov[i].iov_len;
+
+      int ret = 0;
+      do
+      {
+        ret = writev(socket_fd, iov, 2);
+        if (ret == -1 and errno == EAGAIN)
+          write(nullptr, 0);// yield
+        assert(ret < 0 or ret == total_size);
+      } while (ret == -1 and errno == EAGAIN);
+    }
+    else // write for small content.
+     {
+      format_top_headers(output_stream);
+      output_stream << headers_stream.to_string_view();
+      output_stream << "Content-Length: " << s.size() << "\r\n\r\n" << s; //Add body
+      //std::cout << output_stream.to_string_view().size() << std::endl;
+      //flush_responses();
+      //auto m = output_stream.to_string_view();
+      //write(m.data(), m.size());
+
+      // const char* resp = "HTTP/1.1 200 OK\r\nServer: lithium\r\nDate: Fri, 13 Dec 2019 21:46:28 GMT\r\nContent-Type: Text/Plain\r\nContent-Length: 12\r\n\r\nhello world!";
+      // write(resp, strlen(resp));
+    }
+  }
+
+  template <typename O>
+  void respond_json(const O& obj)
+  {
+    response_written_ = true;
+    char json_buffer[10000];
+    output_buffer json_stream(json_buffer, sizeof(json_buffer));
+
+    json_encode(json_stream, obj);
+
+    format_top_headers(output_stream);
+    output_stream << headers_stream.to_string_view();
+    output_stream << "Content-Length: " << json_stream.to_string_view().size() << "\r\n\r\n"
+                  << json_stream.to_string_view();
+    //auto m = output_stream.to_string_view();
+    //write(m.data(), m.size());
+  }
+  
+
+  void respond_if_needed()
+  {
+    if (!response_written_)
+    {
+      response_written_ = true;
+
+      format_top_headers(output_stream);
+      output_stream << headers_stream.to_string_view();
+      output_stream << "Content-Length: 0\r\n\r\n"; //Add body
+      //auto m = output_stream.to_string_view();
+      //write(m.data(), m.size());
+    }
+  }
+
+  
+  void set_header(std::string_view k, std::string_view v) { 
+    headers_stream << k << ": " << v << "\r\n"; 
+  }
+
+  void set_cookie(std::string_view k, std::string_view v) { 
+    headers_stream << "Set-Cookie: " << k << '=' << v << "\r\n";
+  }
+
+  void set_status(int status) {
+
+    switch (status)
+    {
+    case 200: status_ = "200 OK"; break;
+    case 201: status_ = "201 Created"; break;
+    case 204: status_ = "204 No Content"; break;
+    case 304: status_ = "304 Not Modified"; break;
+    case 400: status_ = "400 Bad Request"; break;
+    case 401: status_ = "401 Unauthorized"; break;
+    case 402: status_ = "402 Not Found"; break;
+    case 403: status_ = "403 Forbidden"; break;
+    case 404: status_ = "404 Not Found"; break;
+    case 409: status_ = "409 Conflict"; break;
+    case 500: status_ = "500 Internal Server Error"; break;
+    default: status_ = "200 OK"; break;
+    }
+    
+  }
+  
+  void send_static_file(const char* path)
+  {
+    auto it = static_files.find(path);
+    if (static_files.end() == it or !it->second.size())
+    {
+      int fd = open(path, O_RDONLY);
+      if (fd == -1)
+        throw http_error::not_found("File not found.");
+      int file_size = lseek(fd, (size_t)0, SEEK_END);
+      auto content = std::string_view((char*)mmap(0, file_size, PROT_READ, MAP_SHARED, fd, 0), file_size);
+      static_files.insert({path, content});
+      respond(content);
+    }
+    else
+      respond(it->second);
+  }
+  
+  //private:
+
+  void add_header_line(const char* l) { header_lines[header_lines_size++] = l; }
+  const char* last_header_line() { return header_lines[header_lines_size - 1]; }
+
+  // split a string, starting from cur and ending with split_char.
+  // Advance cur to the end of the split.
+  std::string_view split(const char*& cur,
+                         const char* line_end, char split_char)
+  {
+
+    const char* start = cur;
+    while (start < (line_end-1) and *start == split_char) start++;
+    const char* end = start + 1;
+    while (end < (line_end-1) and *end != split_char) end++;
+    cur = end + 1;
+    if (*end == split_char)
+      return std::string_view(start, cur - start - 1);
+    else
+      return std::string_view(start, cur - start);
+  }
+  
+  void index_headers()
+  {
+    for (int i = 1; i < header_lines_size - 1; i++)
+    {
+      const char* line_end = header_lines[i + 1]; // last line is just an empty line.
+      const char* cur = header_lines[i];
+
+      std::string_view key = split(cur, line_end, ':');
+      std::string_view value = split(cur, line_end, '\r');
+      while (value[0] == ' ')
+        value = std::string_view(value.data() + 1, value.size() - 1);
+      header_map[key] = value;
+      //std::cout << key << " -> " << value << std::endl;
+    }
+  }
+
+  void index_cookies()
+  {
+    std::string_view cookies = header("Cookie");
+    if (!cookies.data()) return;
+    const char* line_end = &cookies.back() + 1;
+    const char* cur = &cookies.front();
+    while(cur < line_end)
+    {
+
+      std::string_view key = split(cur, line_end, '=');
+      std::string_view value = split(cur, line_end, ';');
+      while (key[0] == ' ')
+        key = std::string_view(key.data() + 1, key.size() - 1);
+      cookie_map[key] = value;
+    }
+  }
+
+  template <typename C>
+  void url_decode_parameters(std::string_view content, C kv_callback)
+  {
+    const char* c = content.data();
+    const char* end = c + content.size();
+    if (c < end)
+    {
+      while (c < end)
+      {
+        std::string_view key = split(c, end, '=');
+        std::string_view value = split(c, end, '&');
+        kv_callback(key, value);
+        // printf("kv: '%.*s' -> '%.*s'\n", key.size(), key.data(), value.size(), value.data());
+      }
+    }    
+  }
+    
+  void parse_first_line()
+  {    
+    const char* c = header_lines[0];
+    const char* end = header_lines[1];
+
+    method_ = split(c, end, ' ');
+    url_ = split(c, end, ' ');
+    http_version_ = split(c, end, '\r');
+
+    // url get parameters.
+    c = url_.data();
+    end = c + url_.size();
+    url_ = split(c, end, '?');
+    get_parameters_string_ = std::string_view(c, end - c);
+
+  }
+
+  std::string_view get_parameters_string()
+  {
+    if (!get_parameters_string_.data())
+      parse_first_line();
+    return get_parameters_string_;
+  }
+  template <typename F>
+  void parse_get_parameters(F processor)
+  {
+    url_decode_parameters(get_parameters_string(), processor);
+  }
+
+  template <typename F>
+  void read_body(F callback)
+  {
+    is_body_read_ = true;
+
+    if (!chunked_ and !content_length_)
+      body_end_ = body_start.data();
+    else if (content_length_)
+    {
+      std::string_view res;
+      int n_body_read = 0;
+
+      // First return part of the body already in memory.
+      int l = std::min(int(body_start.size()), content_length_);
+      callback(std::string_view(body_start.data(), l));
+      n_body_read += l;
+      
+      while (content_length_ > n_body_read)
+      {
+        std::string_view part = rb.read_more_str(read);
+        int l = part.size();
+        int bl = std::min(l, content_length_ - n_body_read);
+        part = std::string_view(part.data(), bl);
+        callback(part);
+        rb.free(part);
+        body_end_ = part.data();
+        n_body_read += part.size();
+      }
+
+    }
+    else if (chunked_)
+    {
+      // Chunked decoding.
+      const char* cur = body_start.data();
+      int chunked_size = strtol(rb.read_until(read, cur, '\r').data(), nullptr, 16);
+      cur++; // skip \n
+      while (chunked_size > 0)
+      {
+        // Read chunk.
+        std::string_view chunk = rb.read_n(read, cur, chunked_size);
+        callback(chunk);
+        rb.free(chunk);
+        cur += chunked_size + 2; // skip \r\n.
+
+        // Read next chunk size.
+        chunked_size = strtol(rb.read_until(read, cur, '\r').data(), nullptr, 16);
+        cur++; // skip \n
+      }
+      cur += 2;// skip the terminaison chunk.
+      body_end_ = cur;
+      body_ = std::string_view(body_start.data(), cur - body_start.data());
+    }
+  }
+  
+  std::string_view read_whole_body()
+  {
+    if (!chunked_ and !content_length_)
+    {
+      is_body_read_ = true;
+      body_end_ = body_start.data();
+      return std::string_view(); // No body.
+    }
+
+    if (content_length_)
+    {
+      body_ = rb.read_n(read, body_start.data(), content_length_);
+      body_end_ = body_.data() + content_length_;
+    }
+    else if (chunked_)
+    {
+      // Chunked decoding.
+      char* out = (char*) body_start.data();
+      const char* cur = body_start.data();
+      int chunked_size = strtol(rb.read_until(read, cur, '\r').data(), nullptr, 16);
+      cur++; // skip \n
+      while (chunked_size > 0)
+      {
+        // Read chunk.
+        std::string_view chunk = rb.read_n(read, cur, chunked_size);
+        cur += chunked_size + 2; // skip \r\n.
+        // Copy the body into a contiguous string.
+        if (out + chunk.size() > chunk.data()) // use memmove if overlap.
+          std::memmove(out, chunk.data(), chunk.size());
+        else
+          std::memcpy(out, chunk.data(), chunk.size());
+        
+        out += chunk.size();
+
+        // Read next chunk size.
+        chunked_size = strtol(rb.read_until(read, cur, '\r').data(), nullptr, 16);
+        cur++; // skip \n
+      }
+      cur += 2;// skip the terminaison chunk.
+      body_end_ = cur;
+      body_ = std::string_view(body_start.data(), out - body_start.data());
+    }
+
+    is_body_read_ = true;    
+    return body_;
+  }
+
+  void read_multipart_formdata()
+  {
+
+  }
+
+  template <typename F>
+  void post_iterate(F kv_callback)
+  {
+    if (is_body_read_) // already in memory.
+      url_decode_parameters(body_, kv_callback);
+    else // stream the body.
+    {
+      std::string_view current_key;
+
+      read_body([] (std::string_view part) {
+          // read key if needed.
+          //if (!current_key.size())
+          // call kv callback if some value is available.          
+        });
+    }
+  }
+  
+  // Read post parameters in the body.
+  std::unordered_map<std::string_view, std::string_view> post_parameters()
+  {
+    if (content_type_ == "application/x-www-form-urlencoded")
+    {
+      if (!is_body_read_)
+        read_whole_body();
+      url_decode_parameters(body_, [&] (auto key, auto value)
+                            { post_parameters_map[key] = value; });
+      return post_parameters_map;
+    }
+    else
+    {
+      // fixme: return bad request here.
+    }
+    return post_parameters_map;
+  }
+
+  void prepare_next_request()
+  {
+    if (!is_body_read_)
+      read_whole_body();
+
+    // std::cout <<"free line0: " << uint64_t(header_lines[0]) << std::endl;
+    // std::cout << rb.current_size() << " " << rb.cursor << std::endl;
+    rb.free(header_lines[0], body_end_);
+    // std::cout << rb.current_size() << " " << rb.cursor << std::endl;
+    //rb.cursor = rb.end = 0;
+    //assert(rb.cursor == 0);
+    headers_stream.reset();
+    status_ = "200 OK";
+    method_ = std::string_view();
+    url_ = std::string_view();
+    http_version_ = std::string_view();
+    content_type_ = std::string_view();
+    header_map.clear();
+    cookie_map.clear();
+    response_headers.clear();
+    get_parameters_map.clear();
+    post_parameters_map.clear();
+    get_parameters_string_ = std::string_view();
+    response_written_ = false;
+  }
+
+  void flush_responses() {
+    auto m = output_stream.to_string_view();
+    if (m.size() > 0)
+    {
+      write(m.data(), m.size());
+      output_stream.reset();
+    }
+  }
+
+  int socket_fd;
+  read_buffer& rb;
+
+  const char* status_ = "200 OK";
+  std::string_view method_;
+  std::string_view url_;
+  std::string_view http_version_;
+  std::string_view content_type_;
+  bool chunked_;
+  int content_length_;
+  std::unordered_map<std::string_view, std::string_view> header_map;
+  std::unordered_map<std::string_view, std::string_view> cookie_map;
+  std::vector<std::pair<std::string_view, std::string_view>> response_headers;
+  std::unordered_map<std::string_view, std::string_view> get_parameters_map;
+  std::unordered_map<std::string_view, std::string_view> post_parameters_map;
+  std::string_view get_parameters_string_;
+  //std::vector<std::string> strings_saver;
+
+  bool is_body_read_ = false;
+  std::string body_local_buffer_;
+  std::string_view body_;
+  std::string_view body_start;
+  const char* body_end_ = nullptr;
+  const char* header_lines[100];
+  int header_lines_size = 0;
+  std::function<bool(const char*, int)> write;
+  std::function<int(char*, int)> read;
+  std::function<void(int)> listen_to_new_fd;
+  char headers_buffer_space[1000];
+  output_buffer headers_stream;
+  bool response_written_ = false;
+
+  char output_buffer_space[10*1024];
+  //char* output_buffer_space;
+  output_buffer output_stream;
+}; 
+
+template <typename F>
+auto make_http_processor(F handler)
+{
+  return [handler] (int fd, auto read, auto write, auto listen_to_new_fd) {
+
+    try {
+      read_buffer rb;
+      bool socket_is_valid = true;
+
+      //http_ctx& ctx = *new http_ctx(rb, read, write);
+      http_ctx ctx = http_ctx(rb, read, write, listen_to_new_fd);
+      ctx.socket_fd = fd;
+      //ctx.header_lines = new const char*[10];
+      
+      while (true)
+      {
+        ctx.is_body_read_ = false;
+        ctx.header_lines_size = 0;
+        // Read until there is a complete header.
+        int header_start = rb.cursor;
+        int header_end = rb.cursor;
+        assert(header_start >= 0);
+        assert(header_end >= 0);
+        assert(ctx.header_lines_size == 0);
+        ctx.add_header_line(rb.data() + header_end);
+        //std::cout <<"set line0: " << uint64_t(rb.data() + header_end) << std::endl;
+        assert(ctx.header_lines_size == 1);
+
+        bool complete_header = false;
+        while (!complete_header)
+        {
+          // Read more data from the socket.
+          if (rb.empty())
+            if (!rb.read_more(read)) return;
+
+          // Look for end of header and save header lines.
+          while (header_end < rb.end - 3)
+          {
+            //if (!strncmp(rb.data() + header_end, "\r\n", 2))
+            if ((rb.data() + header_end)[0] == '\r' and (rb.data() + header_end)[1] == '\n')
+            {
+              ctx.add_header_line(rb.data() + header_end + 2);
+              header_end += 2;
+              if ((rb.data() + header_end)[0] == '\r' and (rb.data() + header_end)[1] == '\n')
+                //if (!strncmp(rb.data() + header_end, "\r\n", 2))
+              {
+                complete_header = true;
+                header_end += 2;
+                break;
+              }
+            }
+            else           
+              header_end++;
+          }
+        }
+
+        // Header is complete. Process it.
+        // Run the handler.
+        assert(rb.cursor <= rb.end);
+        ctx.body_start = std::string_view(rb.data() + header_end, rb.end - header_end);
+        ctx.prepare_request();
+        handler(ctx);
+        //delete[] ctx.header_lines;
+        assert(rb.cursor <= rb.end);
+
+        // Update the cursor the beginning of the next request.
+        ctx.prepare_next_request();
+        // if read buffer is empty, we can flush the output buffer.
+        //std::cout << rb.current_size() << " " << rb.empty() << std::endl;
+        if (rb.empty())// || ctx.output_stream.size() > 100000)
+        ctx.flush_responses();
+
+      }
+      // printf("conection lost %d.\n", fd);
+      //delete &ctx;
+    }
+    catch (const std::runtime_error& e) 
+    {
+      std::cerr << "Error: " << e.what() << std::endl;
+      return;
+    }
+  };
+
+}
+
+} // namespace http_async_impl
+}
+
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_REQUEST
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_REQUEST
@@ -3681,8 +5080,12 @@ std::string_view url_decode2(std::set<void*>& found, std::string_view str, O& ob
   if (start != end) {
     std::string content(str.substr(start, end - start));
     // Url escape.
-    content.resize(MHD_http_unescape(&content[0]));
-    obj = boost::lexical_cast<O>(content);
+    //content.resize(MHD_http_unescape(&content[0]));
+    if constexpr(std::is_same<std::remove_reference_t<decltype(obj)>, std::string>::value or
+                std::is_same<std::remove_reference_t<decltype(obj)>, std::string_view>::value)
+      obj = content;
+    else
+      obj = boost::lexical_cast<O>(content);
     found.insert(&obj);
   }
   if (end == str.size())
@@ -3766,7 +5169,7 @@ std::string_view url_decode2(std::set<void*>& found, std::string_view str, metam
       throw std::runtime_error("url_decode error: unexpected end.");
     next = key_end + 1; // skip the ]
   } else {
-    while (key_end != str.size() && str[key_end] != '[' && str[key_end] != '=')
+    while (key_end < str.size() && str[key_end] != '[' && str[key_end] != '=')
       key_end++;
     next = key_end;
   }
@@ -3864,13 +5267,26 @@ template <typename O> void url_decode(std::string_view str, O& obj) {
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_URL_DECODE
 
+//#include <li/http_backend/http_listen2.hh>
+
+
 
 namespace li {
 
+template <typename C>
+struct async_yield
+{
+  void operator()() { ctx.write(nullptr, 0); }
+  void listen_to_fd(int fd) { ctx.listen_to_new_fd(fd); }
+  C& ctx;
+};
+
 struct http_request {
 
-  inline const char* header(const char* k) const;
-  inline const char* cookie(const char* k) const;
+  http_request(http_async_impl::http_ctx& http_ctx) : http_ctx(http_ctx), yield{http_ctx} {}
+  
+  inline std::string_view header(const char* k) const;
+  inline std::string_view cookie(const char* k) const;
 
   // With list of parameters: s::id = int(), s::name = string(), ...
   template <typename S, typename V, typename... T>
@@ -3890,23 +5306,10 @@ struct http_request {
   template <typename O> auto get_parameters(O& res) const;
   template <typename O> auto post_parameters(O& res) const;
 
-  MHD_Connection* mhd_connection;
-
-  std::string body;
-  std::string url;
+  http_async_impl::http_ctx& http_ctx;
+  async_yield<http_async_impl::http_ctx> yield;
   std::string url_spec;
 };
-
-template <typename F>
-int mhd_keyvalue_iterator(void* cls, enum MHD_ValueKind kind, const char* key, const char* value) {
-  F& f = *(F*)cls;
-  if (key and value and *key and *value) {
-    f(key, value);
-    return MHD_YES;
-  }
-  // else return MHD_NO;
-  return MHD_YES;
-}
 
 struct url_parser_info_node {
   int slash_pos;
@@ -3988,11 +5391,14 @@ auto parse_url_parameters(const url_parser_info& fmt, const std::string_view url
         while (int(url.size()) > (param_end) and url[param_end] != '/')
           param_end++;
 
-        std::string content(url.data() + param_start, param_end - param_start);
-        content.resize(MHD_http_unescape(&content[0]));
+        std::string_view content(url.data() + param_start, param_end - param_start);
         try {
-          obj[k] = boost::lexical_cast<decltype(v)>(content);
-        } catch (std::exception e) {
+          if constexpr(std::is_same<std::remove_reference_t<decltype(v)>, std::string>::value or
+                      std::is_same<std::remove_reference_t<decltype(v)>, std::string_view>::value)
+            obj[k] = content;
+          else
+            obj[k] = boost::lexical_cast<decltype(v)>(content);
+        } catch (const std::bad_cast& e) {
           throw http_error::bad_request("Cannot decode url parameter ", li::symbol_string(k), " : ",
                                         e.what());
         }
@@ -4002,12 +5408,13 @@ auto parse_url_parameters(const url_parser_info& fmt, const std::string_view url
   return obj;
 }
 
-inline const char* http_request::header(const char* k) const {
-  return MHD_lookup_connection_value(mhd_connection, MHD_HEADER_KIND, k);
+inline std::string_view http_request::header(const char* k) const {
+  return http_ctx.header(k);
 }
 
-inline const char* http_request::cookie(const char* k) const {
-  return MHD_lookup_connection_value(mhd_connection, MHD_COOKIE_KIND, k);
+inline std::string_view http_request::cookie(const char* k) const {
+  return http_ctx.cookie(k);
+  //FIXME return MHD_lookup_connection_value(mhd_connection, MHD_COOKIE_KIND, k);
 }
 
 template <typename S, typename V, typename... T>
@@ -4042,34 +5449,32 @@ template <typename O> auto http_request::post_parameters(const O& res) const {
 
 template <typename O> auto http_request::url_parameters(O& res) const {
   auto info = make_url_parser_info(url_spec);
-  return parse_url_parameters(info, url, res);
+  return parse_url_parameters(info, http_ctx.url(), res);
 }
 
 template <typename O> auto http_request::get_parameters(O& res) const {
-  std::set<void*> found;
-  auto add = [&](const char* k, const char* v) {
-    url_decode2(found, std::string(k) + "=" + v, res, true);
-  };
 
-  MHD_get_connection_values(mhd_connection, MHD_GET_ARGUMENT_KIND,
-                            &mhd_keyvalue_iterator<decltype(add)>, &add);
+  try {
+    url_decode(http_ctx.get_parameters_string(), res);
+  }
+   catch (const std::runtime_error& e)
+  {
+    throw http_error::bad_request("Error while decoding the GET parameter: ", e.what());
+  }
 
-  // Check for missing fields.
-  std::string missing = url_decode_check_missing_fields(found, res, true);
-  if (missing.size())
-    throw http_error::bad_request("Error while decoding the GET parameter: ", missing);
   return res;
 }
 
 template <typename O> auto http_request::post_parameters(O& res) const {
   try {
-    const char* encoding = this->header("Content-Type");
-    if (!encoding)
+    std::string_view encoding = this->header("Content-Type");
+    if (!encoding.data())
       throw http_error::bad_request(
           std::string("Content-Type is required to decode the POST parameters"));
 
+    std::string_view body = http_ctx.read_whole_body();
     if (encoding == std::string_view("application/x-www-form-urlencoded"))
-      url_decode(body, res);
+      url_decode(url_unescape(body), res);
     else if (encoding == std::string_view("application/json"))
       json_decode(body, res);
   } catch (std::exception e) {
@@ -4099,39 +5504,109 @@ namespace li {
 using namespace li;
 
 struct http_response {
-  inline http_response() : status(200), file_descriptor(-1) {}
-  inline void set_header(std::string k, std::string v) { headers[k] = v; }
-  inline void set_cookie(std::string k, std::string v) { cookies[k] = v; }
+  inline http_response(http_async_impl::http_ctx& ctx) : http_ctx(ctx) {}
 
-  inline void write() {}
-  template <typename A1, typename... A> inline void write(A1 a1, A&&... a) {
-    body += boost::lexical_cast<std::string>(a1);
-    write(a...);
+  inline void set_header(std::string_view k, std::string_view v) { http_ctx.set_header(k, v); }
+  inline void set_cookie(std::string_view k, std::string_view v) { http_ctx.set_cookie(k, v); }
+
+  template <typename O>
+  inline void write_json(O&& obj) {     
+    http_ctx.set_header("Content-Type", "application/json");
+    http_ctx.respond_json(std::forward<O>(obj));
   }
+  template <typename A, typename B, typename... O>
+  void write_json(assign_exp<A, B>&& w1, O&&... ws) {
+    write_json(mmm(std::forward<assign_exp<A, B>>(w1), std::forward<O>(ws)...));
+  }
+
+  inline void write() { http_ctx.respond(body); }
+
+  void set_status(int s) { http_ctx.set_status(s); }
+
+  template <typename A1, typename... A> inline void write(A1&& a1, A&&... a) {
+    body += boost::lexical_cast<std::string>(std::forward<A1>(a1));
+    write(std::forward<A>(a)...);
+  }
+  
+  template <typename A1, typename... A> inline void write(std::string_view a1) 
+  {
+    http_ctx.respond(a1); 
+  }
+
   inline void write_file(const std::string path) {
-
-#if defined(_MSC_VER)
-    int fd;
-    _sopen_s(&fd, path.c_str(), O_RDONLY, _SH_DENYRW, _S_IREAD);
-#else
-    int fd = open(path.c_str(), O_RDONLY);
-#endif
-
-    if (fd == -1)
-      throw http_error::not_found("File not found.");
-    file_descriptor = fd;
+    http_ctx.send_static_file(path.c_str());
   }
 
-  int status;
+  http_async_impl::http_ctx& http_ctx;
   std::string body;
-  int file_descriptor;
-  std::unordered_map<std::string, std::string> cookies;
-  std::unordered_map<std::string, std::string> headers;
 };
 
 } // namespace li
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_RESPONSE
+
+
+namespace li {
+
+template <typename... O> auto http_serve(api<http_request, http_response> api, int port, O... opts) {
+
+  auto options = mmm(opts...);
+
+//int http_serve(int port, int nthreads, F handler)
+  auto handler = [api] (http_async_impl::http_ctx& ctx) {
+    http_request rq{ctx};
+    http_response resp(ctx);
+    try {
+      api.call(ctx.method(), ctx.url(), rq, resp);
+    } catch (const http_error& e) {
+      ctx.set_status(e.status());
+      ctx.respond(e.what());
+    } catch (const std::runtime_error& e) {
+      std::cerr << "INTERNAL SERVER ERROR: "<< e.what() << std::endl;
+      ctx.set_status(500);
+      ctx.respond("Internal server error.");
+    }
+    ctx.respond_if_needed();
+  };
+
+  auto date_thread = std::make_shared<std::thread>([&] () {
+      char a1[100];
+      char a2[100];
+      memset(a1, 0, sizeof(a1));
+      memset(a2, 0, sizeof(a2));
+      char* date_buf_tmp1 = a1;
+      char* date_buf_tmp2 = a2;
+      while (!moustique_exit_request)
+      {
+        time_t t = time(NULL);
+        const tm& tm = *gmtime(&t);
+        int size = strftime(date_buf_tmp1, sizeof(a1), "%a, %d %b %Y %T GMT", &tm);
+        http_async_impl::date_buf = date_buf_tmp1;
+        http_async_impl::date_buf_size = size;
+        std::swap(date_buf_tmp1, date_buf_tmp2);
+        usleep(1e6);
+      }
+    });
+
+  auto server_thread = std::make_shared<std::thread>([=] () {
+    std::cout << "Starting lithium::http_backend on port " << port << std::endl;
+    moustique_listen(port, SOCK_STREAM, 4, http_async_impl::make_http_processor(std::move(handler)));
+    date_thread->join();
+  });
+
+  if constexpr (has_key<decltype(options), s::non_blocking_t>())
+  {
+    usleep(0.1e6);
+    date_thread->detach();
+    server_thread->detach();
+    //return mmm(s::server_thread = server_thread, s::date_thread = date_thread);
+  }
+  else
+    server_thread->join();
+
+}
+}
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_HTTP_LISTEN2
 
 
 namespace li {
@@ -4157,11 +5632,12 @@ std::string generate_secret_tracking_id() {
 inline std::string random_cookie(http_request& request, http_response& response,
                                  const char* key = "silicon_token") {
   std::string token;
-  const char* token_ = request.cookie(key);
-  if (!token_) {
+  std::string_view token_ = request.cookie(key);
+  if (!token_.data()) {
     token = generate_secret_tracking_id();
     response.set_cookie(key, token);
   } else {
+    std::cout << "got token " << token_ << std::endl;
     token = token_;
   }
 
@@ -4296,7 +5772,7 @@ template <typename DB, typename... F> struct sql_http_session {
         session_table_(create_session_orm(db, table_name, fields...)) {}
 
   auto connect(http_request& request, http_response& response) {
-    return connected_sql_http_session(default_values_, session_table_.connect(),
+    return connected_sql_http_session(default_values_, session_table_.connect(request.yield),
                                       random_cookie(request, response, cookie_name_.c_str()));
   }
 
@@ -4342,7 +5818,7 @@ struct http_authentication {
     if constexpr (has_key<decltype(callbacks_)>(s::hash_password))
       lp[password_field_] = callbacks_[s::hash_password](lp[login_field_], lp[password_field_]);
 
-    if (auto user = users_.connect().find_one(lp)) {
+    if (auto user = users_.connect(req.yield).find_one(lp)) {
       sessions_.connect(req, resp).store(s::user_id = user->id);
       return true;
     } else
@@ -4354,14 +5830,14 @@ struct http_authentication {
     if (sess.values().user_id != -1)
       return users_.connect().find_one(s::id = sess.values().user_id);
     else
-      return decltype(users_.connect().find_one(s::id = sess.values().user_id)){};
+      return decltype(users_.connect(req.yield).find_one(s::id = sess.values().user_id)){};
   }
 
   void logout(http_request& req, http_response& resp) { sessions_.connect(req, resp).logout(); }
 
   bool signup(http_request& req, http_response& resp) {
     auto new_user = req.post_parameters(users_.all_fields_except_computed());
-    auto users = users_.connect();
+    auto users = users_.connect(req.yield);
 
     if (users.exists(login_field_ = new_user[login_field_]))
       return false;
@@ -4420,267 +5896,14 @@ template <typename... A> http_api http_authentication_api(http_authentication<A.
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_HTTP_AUTHENTICATION
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_MHD
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_MHD
-
-
-
-#if defined(__GNUC__) && defined(__MINGW32__)
-#endif
-
-#if defined(_MSC_VER)
-void usleep(__int64 usec) {
-  HANDLE timer;
-  LARGE_INTEGER ft;
-
-  ft.QuadPart =
-      -(10 * usec); // Convert to 100 nanosecond interval, negative value indicates relative time
-
-  timer = CreateWaitableTimer(NULL, TRUE, NULL);
-  SetWaitableTimer(timer, &ft, 0, NULL, NULL, 0);
-  WaitForSingleObject(timer, INFINITE);
-  CloseHandle(timer);
-}
-#endif
-
-
-//#include <li/http_backend/file.hh>
-//#include <li/http_backend/url_decode.hh>
-
-namespace li {
-using namespace li;
-
-template <typename S>
-int mhd_handler(void* cls, struct MHD_Connection* connection, const char* url, const char* method,
-                const char* version, const char* upload_data, size_t* upload_data_size,
-                void** ptr) {
-
-  MHD_Response* response = nullptr;
-  int ret = 0;
-
-  std::string* pp = (std::string*)*ptr;
-  if (!pp) {
-    pp = new std::string;
-    *ptr = pp;
-    return MHD_YES;
-  }
-  if (*upload_data_size) {
-    pp->append(std::string(upload_data, *upload_data_size));
-    *upload_data_size = 0;
-    return MHD_YES;
-  }
-
-  http_request rq{connection, *pp, url};
-  http_response resp;
-
-  try {
-    auto& api = *(S*)cls;
-    // api(std::string("/") + std::string(method) + url, &rq, &resp, connection);
-    api.call(method, url, rq, resp);
-
-    if (resp.file_descriptor > -1) {
-      struct stat st;
-      if (fstat(resp.file_descriptor, &st) != 0)
-        throw http_error::not_found("Cannot fstat this file");
-      response = MHD_create_response_from_fd(st.st_size, resp.file_descriptor);
-    }
-
-  } catch (const http_error& e) {
-    resp.status = e.status();
-    std::string m = e.what();
-    resp.body = m.data();
-  } catch (const std::runtime_error& e) {
-    std::cout << e.what() << std::endl;
-    resp.status = 500;
-    resp.body = "Internal server error.";
-  }
-
-  if (resp.file_descriptor == -1) {
-    const std::string& str = resp.body;
-    response =
-        MHD_create_response_from_buffer(str.size(), (void*)str.c_str(), MHD_RESPMEM_MUST_COPY);
-  }
-
-  if (!response) {
-    resp.status = 500;
-    resp.body = "Failed to create response object.";
-  } else {
-    for (auto kv : resp.headers) {
-      if (kv.first.size() != 0 and kv.second.size() != 0)
-        if (MHD_NO == MHD_add_response_header(response, kv.first.c_str(), kv.second.c_str()))
-          std::cerr << "Failed to set header" << std::endl;
-    }
-
-    // Set cookies.
-    for (auto kv : resp.cookies)
-      if (kv.first.size() != 0 and kv.second.size() != 0) {
-        std::string set_cookie_string = kv.first + '=' + kv.second + "; Path=/";
-        if (MHD_NO == MHD_add_response_header(response, MHD_HTTP_HEADER_SET_COOKIE,
-                                              set_cookie_string.c_str()))
-          std::cerr << "Failed to set cookie" << std::endl;
-      }
-
-    if (resp.headers.find(MHD_HTTP_HEADER_SERVER) == resp.headers.end())
-      MHD_add_response_header(response, MHD_HTTP_HEADER_SERVER, "silicon");
-
-    ret = MHD_queue_response(connection, resp.status, response);
-
-    MHD_destroy_response(response);
-  }
-
-  delete pp;
-  return ret;
-}
-
-struct silicon_mhd_ctx {
-  silicon_mhd_ctx(MHD_Daemon* d, char* cert, char* key) : daemon_(d), cert_(cert), key_(key) {}
-
-  ~silicon_mhd_ctx() {
-    MHD_stop_daemon(daemon_);
-    if (cert_)
-      free(cert_);
-    if (key_)
-      free(key_);
-  }
-
-  MHD_Daemon* daemon_;
-
-  char *cert_, *key_;
-};
-
-/*!
-** Start the microhttpd json backend. This function is by default blocking.
-**
-** @param api The api
-** @param port the port
-** @param opts Available options are:
-**         s::one_thread_per_connection: Spans one thread per connection.
-**         s::linux_epoll: One thread per CPU core with epoll.
-**         s::select: select instead of epoll (active by default).
-**         s::nthreads: Set the number of thread. Default: The numbers of CPU cores.
-**         s::non_blocking: Run the server in a thread and return in a non blocking way.
-**         s::blocking: (Active by default) Blocking call.
-**         s::https_key: path to the https key file.
-**         s::https_cert: path to the https cert file.
-**
-** @return If set as non_blocking, this function returns a
-** silicon_mhd_ctx that will stop and cleanup the server at the end
-** of its lifetime. If set as blocking (default), never returns
-** except if an error prevents or stops the execution of the server.
-**
-*/
-template <typename A, typename... O> auto http_serve(A& api, int port, O... opts) {
-
-  int flags = MHD_USE_SELECT_INTERNALLY;
-  auto options = mmm(opts...);
-  if (has_key(options, s::one_thread_per_connection))
-    flags = MHD_USE_THREAD_PER_CONNECTION;
-  else if (has_key(options, s::select))
-    flags = MHD_USE_SELECT_INTERNALLY;
-  else if (has_key(options, s::linux_epoll)) {
-#if MHD_VERSION >= 0x00095100
-    flags = MHD_USE_EPOLL_INTERNALLY;
-#else
-    flags = MHD_USE_EPOLL_INTERNALLY_LINUX_ONLY;
-#endif
-  }
-
-  auto read_file = [](std::string path) {
-    std::ifstream in(path);
-    if (!in.good()) {
-      std::ostringstream err_ss;
-#if defined(_MSC_VER)
-      err_ss << "Cannot read " << path;
-#else
-      err_ss << "Cannot read " << path << " " << strerror(errno);
-#endif
-      throw std::runtime_error(err_ss.str());
-    }
-    std::ostringstream ss{};
-    ss << in.rdbuf();
-    return ss.str();
-  };
-
-  std::string https_cert, https_key;
-  if (has_key(options, s::https_cert) || has_key(options, s::https_key)) {
-    std::string cert_file = get_or(options, s::https_cert, "");
-    std::string key_file = get_or(options, s::https_key, "");
-#ifdef MHD_USE_TLS
-    flags |= MHD_USE_TLS;
-#else
-    flags |= MHD_USE_SSL;
-#endif
-
-    if (cert_file.size() == 0)
-      throw std::runtime_error("Missing HTTPS certificate file");
-    if (key_file.size() == 0)
-      throw std::runtime_error("Missing HTTPS key file");
-
-    https_key = std::move(read_file(key_file));
-    https_cert = std::move(read_file(cert_file));
-  }
-
-#if defined(_MSC_VER)
-#define strdup _strdup
-#endif
-  char* https_cert_buffer = https_cert.size() ? strdup(https_cert.c_str()) : 0;
-  char* https_key_buffer = https_key.size() ? strdup(https_key.c_str()) : 0;
-#if defined(_MSC_VER)
-#undef strdup
-#endif
-
-  int thread_pool_size = get_or(options, s::nthreads, std::thread::hardware_concurrency());
-
-  using api_t = std::decay_t<decltype(api)>;
-
-  MHD_Daemon* d;
-
-  void* cls = (void*)&api;
-  if (https_key.size() > 0) {
-    if (MHD_is_feature_supported(MHD_FEATURE_SSL) == MHD_NO)
-      throw std::runtime_error("microhttpd has not been compiled with SSL support.");
-
-    if ((flags & MHD_USE_THREAD_PER_CONNECTION) != MHD_USE_THREAD_PER_CONNECTION)
-      d = MHD_start_daemon(flags, port, NULL, NULL, &mhd_handler<api_t>, cls,
-                           MHD_OPTION_THREAD_POOL_SIZE, thread_pool_size, MHD_OPTION_HTTPS_MEM_KEY,
-                           https_key_buffer, MHD_OPTION_HTTPS_MEM_CERT, https_cert_buffer,
-                           MHD_OPTION_END);
-    else
-      d = MHD_start_daemon(flags, port, NULL, NULL, &mhd_handler<api_t>, cls,
-                           MHD_OPTION_HTTPS_MEM_KEY, https_key_buffer, MHD_OPTION_HTTPS_MEM_CERT,
-                           https_cert_buffer, MHD_OPTION_END);
-
-  } else // Without SSL
-  {
-    if ((flags & MHD_USE_THREAD_PER_CONNECTION) != MHD_USE_THREAD_PER_CONNECTION)
-      d = MHD_start_daemon(flags, port, NULL, NULL, &mhd_handler<api_t>, cls,
-                           MHD_OPTION_THREAD_POOL_SIZE, thread_pool_size, MHD_OPTION_END);
-    else
-      d = MHD_start_daemon(flags, port, NULL, NULL, &mhd_handler<api_t>, cls, MHD_OPTION_END);
-  }
-
-  if (d == NULL)
-    throw std::runtime_error("Cannot start the microhttpd daemon");
-
-  if (!has_key(options, s::non_blocking)) {
-    while (true)
-      usleep(1000000);
-  }
-
-  return silicon_mhd_ctx(d, https_cert_buffer, https_key_buffer);
-}
-
-} // namespace li
-
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_MHD
-
+//#include <li/http_backend/mhd.hh>
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SERVE_DIRECTORY
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SERVE_DIRECTORY
 
 
 namespace li {
 
-auto serve_file(const std::string& root, std::string path, http_response& response) {
+auto serve_file(const std::string& root, std::string_view path, http_response& response) {
   std::string base_path = root;
   if (!base_path.empty() && base_path[base_path.size() - 1] != '/') {
     base_path.push_back('/');
@@ -4693,7 +5916,7 @@ auto serve_file(const std::string& root, std::string path, http_response& respon
   // prefix.string().size()));
   size_t len = path.size();
   if (!path.empty() && path[0] == slash) {
-    path.erase(0, 1);
+    path = std::string_view(path.data() + 1, path.size() - 1);//erase(0, 1);
   }
 
   if (path.empty()) {
@@ -4715,14 +5938,14 @@ auto serve_file(const std::string& root, std::string path, http_response& respon
     }
   }
 
-  response.write_file(base_path + path);
+  response.write_file(base_path + std::string(path));
 };
 
 inline auto serve_directory(std::string root) {
   http_api api;
 
   api.get("/{{path...}}") = [root](http_request& request, http_response& response) {
-    auto path = request.url_parameters(s::path = std::string()).path;
+    auto path = request.url_parameters(s::path = std::string_view()).path;
     return serve_file(root, path, response);
   };
   return api;
@@ -4745,8 +5968,8 @@ auto sql_crud_api(sql_orm_schema<A, B, C>& orm_schema) {
 
   api.post("/find_by_id") = [&](http_request& request, http_response& response) {
     auto params = request.post_parameters(s::id = int());
-    if (auto obj = orm_schema.connect().find_one(s::id = params.id, request, response))
-      response.write_json(obj));
+    if (auto obj = orm_schema.connect(request.yield).find_one(s::id = params.id, request, response))
+      response.write_json(obj);
     else
       throw http_error::not_found(orm_schema.table_name(), " with id ", params.id,
                                   " does not exist.");
@@ -4755,18 +5978,18 @@ auto sql_crud_api(sql_orm_schema<A, B, C>& orm_schema) {
   api.post("/create") = [&](http_request& request, http_response& response) {
     auto insert_fields = orm_schema.all_fields_except_computed();
     auto obj = request.post_parameters(insert_fields);
-    long long int id = orm_schema.connect().insert(obj, request, response);
-    response.write_json(s::id = id));
+    long long int id = orm_schema.connect(request.yield).insert(obj, request, response);
+    response.write_json(s::id = id);
   };
 
   api.post("/update") = [&](http_request& request, http_response& response) {
     auto obj = request.post_parameters(orm_schema.all_fields());
-    orm_schema.connect().update(obj, request, response);
+    orm_schema.connect(request.yield).update(obj, request, response);
   };
 
   api.post("/remove") = [&](http_request& request, http_response& response) {
     auto obj = request.post_parameters(orm_schema.primary_key());
-    orm_schema.connect().remove(obj, request, response);
+    orm_schema.connect(request.yield).remove(obj, request, response);
   };
 
   return api;
