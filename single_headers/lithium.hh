@@ -7,48 +7,47 @@
 
 #pragma once
 
-#include <sys/sendfile.h>
-#include <sys/epoll.h>
-#include <netinet/tcp.h>
-#include <cmath>
-#include <stdlib.h>
-#include <boost/context/continuation.hpp>
-#include <iostream>
-#include <optional>
-#include <string_view>
-#include <sys/types.h>
-#include <utility>
-#include <sqlite3.h>
-#include <stdio.h>
-#include <microhttpd.h>
-#include <functional>
-#include <string.h>
-#include <sys/stat.h>
-#include <mysql.h>
-#include <thread>
-#include <errno.h>
-#include <signal.h>
-#include <sys/socket.h>
 #include <sstream>
-#include <sys/mman.h>
-#include <map>
-#include <string>
-#include <set>
+#include <unistd.h>
+#include <sys/types.h>
+#include <cstring>
+#include <boost/lexical_cast.hpp>
+#include <string.h>
+#include <sys/sendfile.h>
 #include <tuple>
+#include <string_view>
+#include <sys/mman.h>
+#include <iostream>
+#include <sys/epoll.h>
+#include <mysql.h>
+#include <variant>
+#include <set>
+#include <netinet/tcp.h>
+#include <netdb.h>
+#include <errno.h>
+#include <stdlib.h>
+#include <random>
+#include <vector>
+#include <cassert>
+#include <thread>
+#include <sys/uio.h>
+#include <signal.h>
+#include <sqlite3.h>
+#include <cmath>
+#include <utility>
+#include <optional>
+#include <deque>
 #include <unordered_map>
 #include <mutex>
-#include <netdb.h>
-#include <unistd.h>
-#include <deque>
-#include <boost/lexical_cast.hpp>
-#include <cassert>
-#include <sys/uio.h>
-#include <variant>
-#include <cstring>
+#include <map>
 #include <memory>
-#include <random>
+#include <boost/context/continuation.hpp>
+#include <string>
+#include <sys/socket.h>
 #include <fcntl.h>
-#include <vector>
+#include <stdio.h>
+#include <functional>
+#include <sys/stat.h>
 
 #if defined(_MSC_VER)
 #include <io.h>
@@ -5490,7 +5489,6 @@ template <typename O> auto http_request::post_parameters(O& res) const {
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_RESPONSE
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_RESPONSE
-
 
 
 //#include <stdlib.h>

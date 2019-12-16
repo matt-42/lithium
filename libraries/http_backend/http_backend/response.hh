@@ -1,8 +1,6 @@
 #pragma once
 
 #include <boost/lexical_cast.hpp>
-
-#include <microhttpd.h>
 #include <string_view>
 
 //#include <stdlib.h>

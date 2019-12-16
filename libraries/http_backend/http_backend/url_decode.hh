@@ -13,7 +13,6 @@
 #include <li/http_backend/error.hh>
 #include <li/http_backend/symbols.hh>
 #include <li/metamap/metamap.hh>
-#include <microhttpd.h>
 
 namespace li {
 // Decode a plain value.

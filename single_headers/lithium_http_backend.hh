@@ -7,45 +7,44 @@
 
 #pragma once
 
-#include <sys/sendfile.h>
-#include <sys/epoll.h>
-#include <netinet/tcp.h>
-#include <cmath>
-#include <stdlib.h>
-#include <boost/context/continuation.hpp>
-#include <string_view>
-#include <optional>
-#include <iostream>
-#include <sys/types.h>
-#include <utility>
-#include <stdio.h>
-#include <microhttpd.h>
-#include <functional>
-#include <string.h>
-#include <sys/stat.h>
-#include <thread>
-#include <errno.h>
-#include <signal.h>
-#include <sys/socket.h>
 #include <sstream>
-#include <sys/mman.h>
-#include <map>
-#include <string>
-#include <set>
-#include <tuple>
-#include <unordered_map>
-#include <mutex>
-#include <netdb.h>
 #include <unistd.h>
-#include <boost/lexical_cast.hpp>
-#include <cassert>
-#include <sys/uio.h>
-#include <variant>
+#include <sys/types.h>
 #include <cstring>
-#include <memory>
+#include <boost/lexical_cast.hpp>
+#include <string.h>
+#include <sys/sendfile.h>
+#include <tuple>
+#include <string_view>
+#include <sys/mman.h>
+#include <iostream>
+#include <sys/epoll.h>
+#include <variant>
+#include <set>
+#include <netinet/tcp.h>
+#include <netdb.h>
+#include <errno.h>
+#include <stdlib.h>
 #include <random>
-#include <fcntl.h>
+#include <cassert>
 #include <vector>
+#include <thread>
+#include <sys/uio.h>
+#include <signal.h>
+#include <cmath>
+#include <utility>
+#include <optional>
+#include <unordered_map>
+#include <map>
+#include <mutex>
+#include <memory>
+#include <boost/context/continuation.hpp>
+#include <string>
+#include <sys/socket.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <functional>
+#include <sys/stat.h>
 
 #if defined(_MSC_VER)
 #include <io.h>
@@ -4516,7 +4515,6 @@ template <typename O> auto http_request::post_parameters(O& res) const {
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_RESPONSE
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_RESPONSE
-
 
 
 //#include <stdlib.h>

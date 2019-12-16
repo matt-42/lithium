@@ -7,18 +7,18 @@
 
 #pragma once
 
+#include <mutex>
+#include <vector>
+#include <memory>
+#include <iostream>
+#include <sstream>
 #include <string>
+#include <cstring>
+#include <sqlite3.h>
+#include <utility>
+#include <optional>
 #include <tuple>
 #include <unordered_map>
-#include <mutex>
-#include <cstring>
-#include <memory>
-#include <optional>
-#include <iostream>
-#include <utility>
-#include <sqlite3.h>
-#include <sstream>
-#include <vector>
 
 #if defined(_MSC_VER)
 #include <ciso646>
