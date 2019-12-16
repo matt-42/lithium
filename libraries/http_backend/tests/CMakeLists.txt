@@ -65,6 +65,3 @@ add_test(hashmap_http_session hashmap_http_session)
 li_add_executable(serve_directory serve_directory.cc)
 target_link_libraries(serve_directory ${LIBS})
 add_test(serve_directory serve_directory)
-
-li_add_executable(bench bench.cc)
-target_link_libraries(bench ${LIBS})

@@ -32,12 +32,13 @@ thread_local std::unordered_map<std::string, std::string_view> static_files;
 struct read_buffer
 {
 
-  std::vector<char> buffer_;
+  std::array<char, 20*1024> buffer_;
+  //std::vector<char> buffer_;
   int cursor = 0; // First index of the currently used buffer area
   int end = 0; // Index of the last read character
   
   read_buffer()
-    : buffer_(4 * 1024, 0),
+    : //buffer_(20 * 1024),
       cursor(0),
       end(0)
   {}
@@ -87,14 +88,18 @@ struct read_buffer
   template <typename F>
   int read_more(F&& read, int size = -1)
   {
-    if (buffer_.size() == end)
+    if (int(buffer_.size()) <= end - 100)
     {
-      if (buffer_.size() > (10*1024*1024))
-        return 0; // Buffer is full. Error and return.
-      else 
+      // reset buffer_.
+      cursor = 0; end = 0; 
+      throw std::runtime_error("Request too long.");
+
+      // if (buffer_.size() > (10*1024*1024))
+      //   return 0; // Buffer is full. Error and return.
+      // else 
       {
-        std::cout << "RESIZE" << std::endl;
-        buffer_.resize(buffer_.size() * 2);
+        // std::cout << "RESIZE" << std::endl;
+        // buffer_.resize(buffer_.size() * 2);
       }
     }
 
@@ -102,6 +107,7 @@ struct read_buffer
     int received = read(buffer_.data() + end, size);
     if (received == 0) return 0; // Socket closed, return.
     end = end + received;
+    //std::cout << "read size " << end << std::endl;
     return received;
   }
   template <typename F>
@@ -194,8 +200,15 @@ struct output_buffer
     cursor_ = buffer_;
   }
 
+  std::size_t size()
+  {
+    return cursor_ - buffer_;
+  }
+
   output_buffer& operator<<(std::string_view s)
   {
+    if (cursor_ + s.size() >= end_)
+      throw std::runtime_error("Response too long.");
     assert(cursor_ + s.size() < end_);
     memcpy(cursor_, s.data(), s.size());
     cursor_ += s.size();
@@ -238,12 +251,14 @@ struct http_ctx {
       read(_read),
       write(_write),
       listen_to_new_fd(_listen_to_new_fd),
-      headers_stream(headers_buffer_space, sizeof(headers_buffer_space))
+      headers_stream(headers_buffer_space, sizeof(headers_buffer_space)),
+      //output_buffer_space(new char[1000 * 1024]),
+      output_stream(output_buffer_space, sizeof(output_buffer_space))
   {
     get_parameters_map.reserve(10);
     response_headers.reserve(20);
-
   }
+  //~http_ctx() { delete[] output_buffer_space; }
 
   http_ctx& operator=(const http_ctx&) = delete;
   http_ctx(const http_ctx&) = delete;
@@ -390,8 +405,6 @@ struct http_ctx {
   void respond(const std::string_view& s)
   {
     response_written_ = true;
-    char buffer[10200];
-    output_buffer output_stream(buffer, sizeof(buffer));
     if (s.size() > 10000) // writev for large content.
     {
       format_top_headers(output_stream);
@@ -422,8 +435,10 @@ struct http_ctx {
       format_top_headers(output_stream);
       output_stream << headers_stream.to_string_view();
       output_stream << "Content-Length: " << s.size() << "\r\n\r\n" << s; //Add body
-      auto m = output_stream.to_string_view();
-      write(m.data(), m.size());
+      //std::cout << output_stream.to_string_view().size() << std::endl;
+      //flush_responses();
+      //auto m = output_stream.to_string_view();
+      //write(m.data(), m.size());
 
       // const char* resp = "HTTP/1.1 200 OK\r\nServer: lithium\r\nDate: Fri, 13 Dec 2019 21:46:28 GMT\r\nContent-Type: Text/Plain\r\nContent-Length: 12\r\n\r\nhello world!";
       // write(resp, strlen(resp));
@@ -439,21 +454,17 @@ struct http_ctx {
 
     json_encode(json_stream, obj);
 
-    char buffer[10200];
-    output_buffer output_stream(buffer, sizeof(buffer));
     format_top_headers(output_stream);
     output_stream << headers_stream.to_string_view();
     output_stream << "Content-Length: " << json_stream.to_string_view().size() << "\r\n\r\n"
                   << json_stream.to_string_view();
-    auto m = output_stream.to_string_view();
-    write(m.data(), m.size());
+    //auto m = output_stream.to_string_view();
+    //write(m.data(), m.size());
   }
   
 
   void respond_if_needed()
   {
-    char buffer[10200];
-    output_buffer output_stream(buffer, sizeof(buffer));
     if (!response_written_)
     {
       response_written_ = true;
@@ -461,8 +472,8 @@ struct http_ctx {
       format_top_headers(output_stream);
       output_stream << headers_stream.to_string_view();
       output_stream << "Content-Length: 0\r\n\r\n"; //Add body
-      auto m = output_stream.to_string_view();
-      write(m.data(), m.size());
+      //auto m = output_stream.to_string_view();
+      //write(m.data(), m.size());
     }
   }
 
@@ -780,6 +791,15 @@ struct http_ctx {
     response_written_ = false;
   }
 
+  void flush_responses() {
+    auto m = output_stream.to_string_view();
+    if (m.size() > 0)
+    {
+      write(m.data(), m.size());
+      output_stream.reset();
+    }
+  }
+
   int socket_fd;
   read_buffer& rb;
 
@@ -811,76 +831,93 @@ struct http_ctx {
   char headers_buffer_space[1000];
   output_buffer headers_stream;
   bool response_written_ = false;
-};
+
+  char output_buffer_space[10*1024];
+  //char* output_buffer_space;
+  output_buffer output_stream;
+}; 
 
 template <typename F>
 auto make_http_processor(F handler)
 {
   return [handler] (int fd, auto read, auto write, auto listen_to_new_fd) {
 
-    read_buffer rb;
-    bool socket_is_valid = true;
+    try {
+      read_buffer rb;
+      bool socket_is_valid = true;
 
-    //http_ctx& ctx = *new http_ctx(rb, read, write);
-    http_ctx ctx = http_ctx(rb, read, write, listen_to_new_fd);
-    ctx.socket_fd = fd;
-    //ctx.header_lines = new const char*[10];
-    
-    while (true)
-    {
-      ctx.is_body_read_ = false;
-      ctx.header_lines_size = 0;
-      // Read until there is a complete header.
-      int header_start = rb.cursor;
-      int header_end = rb.cursor;
-      assert(header_start >= 0);
-      assert(header_end >= 0);
-      assert(ctx.header_lines_size == 0);
-      ctx.add_header_line(rb.data() + header_end);
-      //std::cout <<"set line0: " << uint64_t(rb.data() + header_end) << std::endl;
-      assert(ctx.header_lines_size == 1);
-
-      bool complete_header = false;
-      while (!complete_header)
+      //http_ctx& ctx = *new http_ctx(rb, read, write);
+      http_ctx ctx = http_ctx(rb, read, write, listen_to_new_fd);
+      ctx.socket_fd = fd;
+      //ctx.header_lines = new const char*[10];
+      
+      while (true)
       {
-        // Read more data from the socket.
-        if (!rb.read_more(read)) return;
+        ctx.is_body_read_ = false;
+        ctx.header_lines_size = 0;
+        // Read until there is a complete header.
+        int header_start = rb.cursor;
+        int header_end = rb.cursor;
+        assert(header_start >= 0);
+        assert(header_end >= 0);
+        assert(ctx.header_lines_size == 0);
+        ctx.add_header_line(rb.data() + header_end);
+        //std::cout <<"set line0: " << uint64_t(rb.data() + header_end) << std::endl;
+        assert(ctx.header_lines_size == 1);
 
-        // Look for end of header and save header lines.
-        while (header_end < rb.end - 3)
+        bool complete_header = false;
+        while (!complete_header)
         {
-          //if (!strncmp(rb.data() + header_end, "\r\n", 2))
-          if ((rb.data() + header_end)[0] == '\r' and (rb.data() + header_end)[1] == '\n')
+          // Read more data from the socket.
+          if (rb.empty())
+            if (!rb.read_more(read)) return;
+
+          // Look for end of header and save header lines.
+          while (header_end < rb.end - 3)
           {
-            ctx.add_header_line(rb.data() + header_end + 2);
-            header_end += 2;
+            //if (!strncmp(rb.data() + header_end, "\r\n", 2))
             if ((rb.data() + header_end)[0] == '\r' and (rb.data() + header_end)[1] == '\n')
-              //if (!strncmp(rb.data() + header_end, "\r\n", 2))
             {
-              complete_header = true;
+              ctx.add_header_line(rb.data() + header_end + 2);
               header_end += 2;
-              break;
+              if ((rb.data() + header_end)[0] == '\r' and (rb.data() + header_end)[1] == '\n')
+                //if (!strncmp(rb.data() + header_end, "\r\n", 2))
+              {
+                complete_header = true;
+                header_end += 2;
+                break;
+              }
             }
+            else           
+              header_end++;
           }
-          else           
-            header_end++;
         }
+
+        // Header is complete. Process it.
+        // Run the handler.
+        assert(rb.cursor <= rb.end);
+        ctx.body_start = std::string_view(rb.data() + header_end, rb.end - header_end);
+        ctx.prepare_request();
+        handler(ctx);
+        //delete[] ctx.header_lines;
+        assert(rb.cursor <= rb.end);
+
+        // Update the cursor the beginning of the next request.
+        ctx.prepare_next_request();
+        // if read buffer is empty, we can flush the output buffer.
+        //std::cout << rb.current_size() << " " << rb.empty() << std::endl;
+        if (rb.empty())// || ctx.output_stream.size() > 100000)
+        ctx.flush_responses();
+
       }
-
-      // Header is complete. Process it.
-      // Run the handler.
-      assert(rb.cursor <= rb.end);
-      ctx.body_start = std::string_view(rb.data() + header_end, rb.end - header_end);
-      ctx.prepare_request();
-      handler(ctx);
-      //delete[] ctx.header_lines;
-      assert(rb.cursor <= rb.end);
-
-      // Update the cursor the beginning of the next request.
-      ctx.prepare_next_request();
+      // printf("conection lost %d.\n", fd);
+      //delete &ctx;
     }
-    // printf("conection lost %d.\n", fd);
-    //delete &ctx;
+    catch (const std::runtime_error& e) 
+    {
+      std::cerr << "Error: " << e.what() << std::endl;
+      return;
+    }
   };
 
 }
@@ -935,6 +972,7 @@ template <typename... O> auto http_serve(api<http_request, http_response> api, i
     });
 
   auto server_thread = std::make_shared<std::thread>([=] () {
+    std::cout << "start listening to " << port << std::endl;
     moustique_listen(port, SOCK_STREAM, 3, http_async_impl::make_http_processor(std::move(handler)));
     date_thread->join();
   });

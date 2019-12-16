@@ -40,7 +40,7 @@ std::string symbol_definition(std::string s) {
 
 std::vector<std::string> find_symbols_in_files(std::vector<std::string> input_files) {
   std::set<std::string> symbols;
-  std::regex symbol_regex(".?s::([a-z][[:alnum:]_]+)");
+  std::regex symbol_regex(".?s::([a-zA-Z][[:alnum:]_]*)");
   std::set<std::string> keywords = {"alignas",      "alignof",
                                     "and",          "and_eq",
                                     "asm",          "auto",

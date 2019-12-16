@@ -7,6 +7,7 @@ include_directories(${Boost_INCLUDE_DIRS})
 
 add_subdirectory("examples")
 add_subdirectory("tests")
+add_subdirectory("benchmarks")
 
 
 install(DIRECTORY http_backend DESTINATION include/li

@@ -9,8 +9,8 @@
 
 namespace li {
 
-struct sqlite_connection;
-struct mysql_connection;
+struct sqlite_tag;
+struct mysql_tag;
 
 using s::auto_increment;
 using s::primary_key;
@@ -54,12 +54,12 @@ template <typename SCHEMA, typename C> struct sql_orm {
         ss << ", ";
       ss << li::symbol_string(k) << " " << con_.type_to_string(v);
 
-      if (std::is_same<C, sqlite_connection>::value) {
+      if (std::is_same<typename C::db_tag, sqlite_tag>::value) {
         if (auto_increment || primary_key)
           ss << " PRIMARY KEY ";
       }
 
-      if (std::is_same<C, mysql_connection>::value) {
+      if (std::is_same<typename C::db_tag, mysql_tag>::value) {
         if (auto_increment)
           ss << " AUTO_INCREMENT NOT NULL";
         if (primary_key)
@@ -362,6 +362,8 @@ struct sql_orm_schema : public MD {
       : MD(md), database_(db), table_name_(table_name), callbacks_(cb) {}
 
   inline auto connect() { return sql_orm(*this, database_.connect()); }
+  template <typename Y>
+  inline auto connect(Y& y) { return sql_orm(*this, database_.connect(y)); }
 
   const std::string& table_name() const { return table_name_; }
   auto get_callbacks() const { return callbacks_; }

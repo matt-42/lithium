@@ -3,6 +3,7 @@
 #include <li/sql/mysql.hh>
 
 #include "symbols.hh"
+#include "client.hh"
 
 using namespace li;
 
@@ -11,14 +12,31 @@ thread_local std::deque<MYSQL*> sync_pool_;
 thread_local std::deque<std::pair<MYSQL*, MYSQL_STMT*>> async_pool_stmt;
 thread_local std::deque<std::pair<MYSQL*, MYSQL_STMT*>> sync_pool_stmt;
 
+template <typename C>
+struct my_yield
+{
+  void operator()() { ctx.write(nullptr, 0); }
+  void listen_to_fd(int fd) { ctx.listen_to_new_fd(fd); }
+  C& ctx;
+};
+
+struct my_yield2
+{
+  void operator()() {  }
+  void listen_to_fd(int fd) { }
+};
+
 int main(int argc, char* argv[]) {
 
   auto mysql_db =
       mysql_database(s::host = "127.0.0.1", s::database = "silicon_test", s::user = "root",
                      s::password = "sl_test_password", s::port = 14550, s::charset = "utf8");
-  mysql_db.connect();
+  //mysql_db.connect();
   //std::cout << mysql_db.connect()("SELECT 1+2;").read<int>() << std::endl;;
-    
+  //auto c = mysql_db.async_connect(my_yield2{});
+  //auto c = mysql_db.connect();
+  //std::cout << c("SELECT 1+2;").read<int>() << std::endl;
+  //return 0;    
   http_api my_api;
 
   my_api.get("/json") = [&](http_request& request, http_response& response) {
@@ -32,8 +50,16 @@ int main(int argc, char* argv[]) {
     response.write_json(s::message = c("SELECT 1+2;").read<int>());
   };
 
+  my_api.get("/new_async_api") = [&](http_request& request, http_response& response) {
+    auto c = mysql_db.connect(my_yield<decltype(request.http_ctx)>{request.http_ctx});
+    //auto c = mysql_db.async_connect(my_yield2{});
+    response.write_json(s::message = c("SELECT 1+2;").read<int>());
+  };
+
   my_api.get("/async") = [&](http_request& request, http_response& response) {
-    auto yield = [&]() { request.http_ctx.write(nullptr, 0); };
+    auto yield = [&]() { 
+      request.http_ctx.write(nullptr, 0); 
+    };
 
     MYSQL* mysql = nullptr;
     if (!async_pool_.empty()) {
@@ -81,6 +107,7 @@ int main(int argc, char* argv[]) {
       std::cout << "mysql_use_result() returns error" << std::endl;
 
     for (;;) {
+      //mysql_async_call(yield, mysql_fetch_row_start, mysql_fetch_row_cont, &row, res);
       status = mysql_fetch_row_start(&row, res);
       while (status) {
         // status= wait_for_mysql(mysql, status);
@@ -293,5 +320,9 @@ int main(int argc, char* argv[]) {
     response.write_json(s::age = final_result);
   };
 
-  http_serve(my_api, atoi(argv[1]));
+  int port = 12360;
+  http_serve(my_api, port); return 0;
+  
+  //http_serve(my_api, port, s::non_blocking);
+  //benchmark(1, 1, 25, port, "GET /json HTTP/1.1\r\nHost: localhost\r\n\r\n");
 }

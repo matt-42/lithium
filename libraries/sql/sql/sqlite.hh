@@ -20,6 +20,8 @@
 
 namespace li {
 
+struct sqlite_tag {};
+
 template <typename T> struct tuple_remove_references_and_const;
 template <typename... T> struct tuple_remove_references_and_const<std::tuple<T...>> {
   typedef std::tuple<std::remove_const_t<std::remove_reference_t<T>>...> type;
@@ -226,6 +228,8 @@ struct sqlite_statement {
 void free_sqlite3_db(void* db) { sqlite3_close_v2((sqlite3*)db); }
 
 struct sqlite_connection {
+  typedef sqlite_tag db_tag;
+  
   typedef std::shared_ptr<sqlite3> db_sptr;
   typedef std::unordered_map<std::string, sqlite_statement> stmt_map;
   typedef std::shared_ptr<std::unordered_map<std::string, sqlite_statement>> stmt_map_ptr;
@@ -313,7 +317,9 @@ struct sqlite_database {
     }
   }
 
-  sqlite_connection& connect() { return con_; }
+  template <typename Y>
+  inline sqlite_connection& connect(Y y) { return con_; }
+  inline sqlite_connection& connect() { return con_; }
 
   sqlite_connection con_;
   std::string path_;

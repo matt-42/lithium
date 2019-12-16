@@ -18,8 +18,18 @@
 
 namespace li {
 
+template <typename C>
+struct async_yield
+{
+  void operator()() { ctx.write(nullptr, 0); }
+  void listen_to_fd(int fd) { ctx.listen_to_new_fd(fd); }
+  C& ctx;
+};
+
 struct http_request {
 
+  http_request(http_async_impl::http_ctx& http_ctx) : http_ctx(http_ctx), yield{http_ctx} {}
+  
   inline std::string_view header(const char* k) const;
   inline std::string_view cookie(const char* k) const;
 
@@ -42,6 +52,7 @@ struct http_request {
   template <typename O> auto post_parameters(O& res) const;
 
   http_async_impl::http_ctx& http_ctx;
+  async_yield<http_async_impl::http_ctx> yield;
   std::string url_spec;
 };
 

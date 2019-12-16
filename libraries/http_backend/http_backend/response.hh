@@ -24,7 +24,10 @@ struct http_response {
   inline void set_cookie(std::string_view k, std::string_view v) { http_ctx.set_cookie(k, v); }
 
   template <typename O>
-  inline void write_json(O&& obj) { http_ctx.respond_json(std::forward<O>(obj)); }
+  inline void write_json(O&& obj) {     
+    http_ctx.set_header("Content-Type", "application/json");
+    http_ctx.respond_json(std::forward<O>(obj));
+  }
   template <typename A, typename B, typename... O>
   void write_json(assign_exp<A, B>&& w1, O&&... ws) {
     write_json(mmm(std::forward<assign_exp<A, B>>(w1), std::forward<O>(ws)...));

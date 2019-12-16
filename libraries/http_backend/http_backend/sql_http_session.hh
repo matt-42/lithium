@@ -63,7 +63,7 @@ template <typename DB, typename... F> struct sql_http_session {
         session_table_(create_session_orm(db, table_name, fields...)) {}
 
   auto connect(http_request& request, http_response& response) {
-    return connected_sql_http_session(default_values_, session_table_.connect(),
+    return connected_sql_http_session(default_values_, session_table_.connect(request.yield),
                                       random_cookie(request, response, cookie_name_.c_str()));
   }
 
