@@ -58,7 +58,7 @@ int main(int argc, char* argv[]) {
   };
 
   my_api.get("/queries") = [&](http_request& request, http_response& response) {
-    int N = request.get_parameters(s::N = int()).N;
+    int N = request.get_parameters(s::N = std::optional<int>(1)).N.value_or(1);
     N = std::max(1, std::min(N, 500));
     
     auto c = random_numbers.connect(request.yield);
@@ -70,7 +70,7 @@ int main(int argc, char* argv[]) {
   };
 
   my_api.get("/updates") = [&](http_request& request, http_response& response) {
-    int N = request.get_parameters(s::N = int()).N;
+    int N = request.get_parameters(s::N = std::optional<int>()).N.value_or(1);
     N = std::max(1, std::min(N, 500));
     
     auto c = random_numbers.connect(request.yield);

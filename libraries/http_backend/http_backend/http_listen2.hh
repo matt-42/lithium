@@ -972,8 +972,8 @@ template <typename... O> auto http_serve(api<http_request, http_response> api, i
     });
 
   auto server_thread = std::make_shared<std::thread>([=] () {
-    std::cout << "start listening to " << port << std::endl;
-    moustique_listen(port, SOCK_STREAM, 3, http_async_impl::make_http_processor(std::move(handler)));
+    std::cout << "Starting lithium::http_backend on port " << port << std::endl;
+    moustique_listen(port, SOCK_STREAM, 4, http_async_impl::make_http_processor(std::move(handler)));
     date_thread->join();
   });
 
