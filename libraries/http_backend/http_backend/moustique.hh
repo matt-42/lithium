@@ -262,10 +262,10 @@ int moustique_listen_fd(int listen_fd,
 
             // Function to subscribe to other files descriptor.
             auto listen_to_new_fd = [original_fd=infd,epoll_ctl,&secondary_map] (int new_fd) {
-              if (new_fd > secondary_map.size() || secondary_map[new_fd] == -1)
+              if (new_fd >= secondary_map.size() || secondary_map[new_fd] == -1)
                 epoll_ctl(new_fd, EPOLLIN | EPOLLOUT | EPOLLET);
               if (int(secondary_map.size()) < new_fd + 1)
-                secondary_map.resize(new_fd + 10, -1);             
+                secondary_map.resize(new_fd+1, -1);             
               secondary_map[new_fd] = original_fd;
             };
 
@@ -275,7 +275,7 @@ int moustique_listen_fd(int listen_fd,
               is_running.resize(infd + 10, false);
             }
             struct end_of_file {};
-            fibers[infd] = ctx::callcc([fd=infd, &conn_handler, epoll_ctl_del, listen_to_new_fd, &is_running]
+            fibers[infd] = ctx::callcc([fd=infd, &conn_handler, epoll_ctl_del, listen_to_new_fd, &is_running,&secondary_map]
                                        (ctx::continuation&& sink) {
                                          try {
                                         //nrunning++;
@@ -317,7 +317,14 @@ int moustique_listen_fd(int listen_fd,
                                          };
               
                                          conn_handler(fd, read, write, listen_to_new_fd);
+                                         //epoll_ctl_del(fd);
                                          close(fd);
+                                         // unsubscribe to fd in secondary map.
+                                        //  for (int i = 0; i < secondary_map.size(); i++)
+                                        //  {
+                                        //    if (secondary_map[i] == fd)
+                                        //      epoll_ctl_del(i);
+                                        //  }
                                          is_running[fd] = false;
                                          }
                                          catch (fiber_exception& ex) {

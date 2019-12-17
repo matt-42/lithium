@@ -8,22 +8,22 @@
 #pragma once
 
 #include <iostream>
-#include <map>
 #include <memory>
-#include <curl/curl.h>
-#include <sstream>
-#include <utility>
-#include <tuple>
-#include <functional>
-#include <string>
-#include <cassert>
-#include <cstring>
-#include <string_view>
-#include <unordered_map>
-#include <cmath>
 #include <variant>
+#include <unordered_map>
 #include <vector>
+#include <cassert>
+#include <tuple>
+#include <utility>
+#include <string>
+#include <functional>
+#include <map>
+#include <curl/curl.h>
+#include <cmath>
+#include <string_view>
 #include <optional>
+#include <sstream>
+#include <cstring>
 
 #if defined(_MSC_VER)
 #include <ciso646>

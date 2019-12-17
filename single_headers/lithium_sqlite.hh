@@ -9,16 +9,16 @@
 
 #include <iostream>
 #include <memory>
-#include <sstream>
-#include <utility>
-#include <tuple>
-#include <string>
-#include <mutex>
-#include <cstring>
-#include <unordered_map>
 #include <sqlite3.h>
+#include <unordered_map>
+#include <tuple>
 #include <vector>
+#include <mutex>
+#include <utility>
+#include <string>
 #include <optional>
+#include <sstream>
+#include <cstring>
 
 #if defined(_MSC_VER)
 #include <ciso646>

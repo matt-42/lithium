@@ -7,48 +7,48 @@
 
 #pragma once
 
-#include <stdio.h>
-#include <map>
-#include <sys/stat.h>
-#include <random>
-#include <cstring>
-#include <netinet/tcp.h>
-#include <vector>
-#include <optional>
-#include <sys/uio.h>
-#include <errno.h>
-#include <thread>
-#include <utility>
-#include <set>
-#include <cassert>
-#include <mutex>
-#include <sys/sendfile.h>
-#include <string.h>
-#include <boost/context/continuation.hpp>
-#include <variant>
-#include <unistd.h>
-#include <sys/mman.h>
-#include <iostream>
-#include <stdlib.h>
-#include <netdb.h>
-#include <sys/epoll.h>
 #include <memory>
-#include <sstream>
-#include <sys/socket.h>
 #include <tuple>
-#include <string>
-#include <string_view>
 #include <unordered_map>
+#include <sys/sendfile.h>
+#include <errno.h>
+#include <netdb.h>
+#include <set>
+#include <sys/epoll.h>
+#include <stdlib.h>
+#include <sys/socket.h>
+#include <thread>
 #include <sys/types.h>
-#include <boost/lexical_cast.hpp>
+#include <utility>
 #include <functional>
-#include <signal.h>
+#include <map>
 #include <cmath>
+#include <optional>
+#include <cstring>
+#include <random>
+#include <iostream>
 #include <fcntl.h>
+#include <sys/uio.h>
+#include <mutex>
+#include <string>
+#include <string.h>
+#include <variant>
+#include <string_view>
+#include <stdio.h>
+#include <boost/lexical_cast.hpp>
+#include <sstream>
+#include <cassert>
+#include <vector>
+#include <netinet/tcp.h>
+#include <boost/context/continuation.hpp>
+#include <unistd.h>
+#include <signal.h>
+#include <sys/stat.h>
+#include <sys/mman.h>
 
 #if defined(_MSC_VER)
-#include <io.h>
 #include <ciso646>
+#include <io.h>
 #endif // _MSC_VER
 
 
@@ -3063,7 +3063,7 @@ int moustique_listen_fd(int listen_fd,
           if (is_running[events[i].data.fd])
 
             fibers[events[i].data.fd] = fibers[events[i].data.fd].resume_with(std::move([] (auto&& sink)  { 
-              std::cout << "throw socket closed" << std::endl;
+              //std::cout << "throw socket closed" << std::endl;
               throw fiber_exception(std::move(sink), "Socket closed"); 
               return std::move(sink);
             }));
@@ -3092,10 +3092,10 @@ int moustique_listen_fd(int listen_fd,
 
             // Function to subscribe to other files descriptor.
             auto listen_to_new_fd = [original_fd=infd,epoll_ctl,&secondary_map] (int new_fd) {
-              if (new_fd > secondary_map.size() || secondary_map[new_fd] == -1)
+              if (new_fd >= secondary_map.size() || secondary_map[new_fd] == -1)
                 epoll_ctl(new_fd, EPOLLIN | EPOLLOUT | EPOLLET);
               if (int(secondary_map.size()) < new_fd + 1)
-                secondary_map.resize(new_fd + 10, -1);             
+                secondary_map.resize(new_fd+1, -1);             
               secondary_map[new_fd] = original_fd;
             };
 
@@ -3105,7 +3105,7 @@ int moustique_listen_fd(int listen_fd,
               is_running.resize(infd + 10, false);
             }
             struct end_of_file {};
-            fibers[infd] = ctx::callcc([fd=infd, &conn_handler, epoll_ctl_del, listen_to_new_fd, &is_running]
+            fibers[infd] = ctx::callcc([fd=infd, &conn_handler, epoll_ctl_del, listen_to_new_fd, &is_running,&secondary_map]
                                        (ctx::continuation&& sink) {
                                          try {
                                         //nrunning++;
@@ -3147,7 +3147,14 @@ int moustique_listen_fd(int listen_fd,
                                          };
               
                                          conn_handler(fd, read, write, listen_to_new_fd);
+                                         //epoll_ctl_del(fd);
                                          close(fd);
+                                         // unsubscribe to fd in secondary map.
+                                        //  for (int i = 0; i < secondary_map.size(); i++)
+                                        //  {
+                                        //    if (secondary_map[i] == fd)
+                                        //      epoll_ctl_del(i);
+                                        //  }
                                          is_running[fd] = false;
                                          }
                                          catch (fiber_exception& ex) {

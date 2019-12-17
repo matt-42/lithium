@@ -8,18 +8,18 @@
 #pragma once
 
 #include <memory>
-#include <sstream>
-#include <utility>
-#include <tuple>
-#include <functional>
-#include <string>
-#include <cassert>
-#include <cstring>
-#include <string_view>
-#include <cmath>
 #include <variant>
+#include <cassert>
+#include <tuple>
 #include <vector>
+#include <utility>
+#include <string>
+#include <functional>
+#include <cmath>
+#include <string_view>
 #include <optional>
+#include <sstream>
+#include <cstring>
 
 #if defined(_MSC_VER)
 #include <ciso646>

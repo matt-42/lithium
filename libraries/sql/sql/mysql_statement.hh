@@ -43,9 +43,10 @@ struct mysql_statement_data {
   }
 
   ~mysql_statement_data() {
-    mysql_stmt_close(stmt_);
     if (metadata_)
       mysql_free_result(metadata_);
+    mysql_stmt_free_result(stmt_);
+    mysql_stmt_close(stmt_);
   }
 
   MYSQL_STMT* stmt_ = nullptr;
