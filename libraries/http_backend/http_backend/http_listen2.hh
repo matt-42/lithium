@@ -256,14 +256,16 @@ struct http_ctx {
       listen_to_new_fd(_listen_to_new_fd),
       headers_stream(headers_buffer_space, sizeof(headers_buffer_space)),
       output_buffer_space(new char[100 * 1024]),
-      output_stream(output_buffer_space, 100 * 1024)
+      output_stream(output_buffer_space, 100 * 1024),
+      json_buffer(new char[100 * 1024]),
+      json_stream(json_buffer, 100 * 1024)
       //output_stream(output_buffer_space, sizeof(output_buffer_space))
       
   {
     get_parameters_map.reserve(10);
     response_headers.reserve(20);
   }
-  ~http_ctx() { delete[] output_buffer_space; }
+  ~http_ctx() { delete[] output_buffer_space; delete[] json_buffer; }
 
   http_ctx& operator=(const http_ctx&) = delete;
   http_ctx(const http_ctx&) = delete;
@@ -454,9 +456,7 @@ struct http_ctx {
   void respond_json(const O& obj)
   {
     response_written_ = true;
-    char json_buffer[100000];
-    output_buffer json_stream(json_buffer, sizeof(json_buffer));
-
+    json_stream.reset();
     json_encode(json_stream, obj);
 
     format_top_headers(output_stream);
@@ -840,6 +840,8 @@ struct http_ctx {
   //char output_buffer_space[4*1024];
   char* output_buffer_space;
   output_buffer output_stream;
+  char* json_buffer;
+  output_buffer json_stream;
 };  
 
 template <typename F>

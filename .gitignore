@@ -6,3 +6,5 @@ build
 old
 todo
 *.out
+test.txt
+hello.txt
