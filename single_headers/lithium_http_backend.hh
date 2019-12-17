@@ -7,44 +7,44 @@
 
 #pragma once
 
-#include <string_view>
-#include <map>
-#include <unordered_map>
-#include <mutex>
-#include <set>
-#include <vector>
-#include <fcntl.h>
 #include <variant>
-#include <string.h>
-#include <cmath>
-#include <iostream>
-#include <sys/socket.h>
-#include <sys/uio.h>
-#include <thread>
-#include <boost/context/continuation.hpp>
-#include <cstring>
-#include <functional>
-#include <unistd.h>
-#include <sys/types.h>
-#include <signal.h>
-#include <sstream>
-#include <sys/sendfile.h>
-#include <optional>
-#include <sys/stat.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/epoll.h>
-#include <boost/lexical_cast.hpp>
-#include <memory>
-#include <sys/mman.h>
-#include <cassert>
-#include <utility>
-#include <errno.h>
 #include <tuple>
+#include <optional>
+#include <stdlib.h>
+#include <vector>
+#include <sys/sendfile.h>
+#include <utility>
+#include <sstream>
+#include <cassert>
+#include <sys/socket.h>
 #include <random>
+#include <iostream>
+#include <thread>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <memory>
+#include <boost/context/continuation.hpp>
+#include <map>
+#include <errno.h>
+#include <sys/epoll.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <cmath>
+#include <signal.h>
 #include <netinet/tcp.h>
+#include <set>
+#include <string_view>
+#include <mutex>
+#include <cstring>
+#include <unordered_map>
 #include <netdb.h>
 #include <string>
+#include <boost/lexical_cast.hpp>
+#include <stdio.h>
+#include <sys/mman.h>
+#include <functional>
+#include <sys/uio.h>
+#include <string.h>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -3014,17 +3014,17 @@ int moustique_listen_fd(int listen_fd,
     while (!moustique_exit_request)
     {
 
-      int n_events = epoll_wait (epoll_fd, events, MAXEVENTS, 100);
+      int n_events = epoll_wait (epoll_fd, events, MAXEVENTS, 1000);
       if (moustique_exit_request) 
         break;
 
       if (n_events == 0)
       {
-        int cpt = 0;
+        //int cpt = 0;
         for (int i = 0; i < fibers.size(); i++)
           if (is_running[i])
           {
-            cpt++;
+            //cpt++;
             fibers[i] = fibers[i].resume();
           }
         //std::cout << "count : " << cpt << std::endl;;
@@ -3212,7 +3212,8 @@ struct read_buffer
   int end = 0; // Index of the last read character
   
   read_buffer()
-    : buffer_(1000 * 1024),
+    : buffer_(500 * 1024),
+      //buffer_(500),
       cursor(0),
       end(0)
   {}
@@ -3246,7 +3247,8 @@ struct read_buffer
   void free(const char* i1, const char* i2) { 
     assert(i1 >= buffer_.data());
     assert(i1 <= &buffer_.back());
-    assert(i2 >= buffer_.data() and i2 <= &buffer_.back());
+    //std::cout << (i2 - &buffer_.front()) << " " << buffer_.size() <<  << std::endl;
+    assert(i2 >= buffer_.data() and i2 <= &buffer_.back() + 1);
     free(i1 - buffer_.data(), i2 - buffer_.data()); 
   }
   void free(const std::string_view& str) { free(str.data(), str.data() + str.size()); }
@@ -3265,9 +3267,7 @@ struct read_buffer
     if (int(buffer_.size()) <= end - 100)
     {
       // reset buffer_.
-      cursor = 0; end = 0; 
-      throw std::runtime_error("Request too long.");
-
+      cursor = 0; end = 0;
       // if (buffer_.size() > (10*1024*1024))
       //   return 0; // Buffer is full. Error and return.
       // else 
@@ -3279,8 +3279,15 @@ struct read_buffer
 
     if (size == -1) size = buffer_.size() - end;
     int received = read(buffer_.data() + end, size);
+
     if (received == 0) return 0; // Socket closed, return.
     end = end + received;
+    if (end == buffer_.size())
+    {
+      //std::cerr << "Request too long." << std::endl;
+      throw std::runtime_error("Request too long.");
+      return 0;
+    }
     //std::cout << "read size " << end << std::endl;
     return received;
   }
@@ -4063,7 +4070,10 @@ auto make_http_processor(F handler)
         {
           // Read more data from the socket.
           if (rb.empty())
-            if (!rb.read_more(read)) return;
+            if (!rb.read_more(read)) 
+            {
+              return;
+            }
 
           // Look for end of header and save header lines.
           while (header_end < rb.end - 3)
@@ -4092,6 +4102,7 @@ auto make_http_processor(F handler)
         ctx.body_start = std::string_view(rb.data() + header_end, rb.end - header_end);
         ctx.prepare_request();
         handler(ctx);
+        //std::cout << "request end." << std::endl;
         //delete[] ctx.header_lines;
         assert(rb.cursor <= rb.end);
 
@@ -4100,7 +4111,7 @@ auto make_http_processor(F handler)
         // if read buffer is empty, we can flush the output buffer.
         //std::cout << rb.current_size() << " " << rb.empty() << std::endl;
         if (rb.empty())// || ctx.output_stream.size() > 100000)
-        ctx.flush_responses();
+          ctx.flush_responses();
 
       }
       // printf("conection lost %d.\n", fd);

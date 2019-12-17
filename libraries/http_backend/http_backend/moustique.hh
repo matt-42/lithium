@@ -190,11 +190,11 @@ int moustique_listen_fd(int listen_fd,
 
       if (n_events == 0)
       {
-        int cpt = 0;
+        //int cpt = 0;
         for (int i = 0; i < fibers.size(); i++)
           if (is_running[i])
           {
-            cpt++;
+            //cpt++;
             fibers[i] = fibers[i].resume();
           }
         //std::cout << "count : " << cpt << std::endl;;

@@ -69,9 +69,7 @@ int main(int argc, char* argv[]) {
     for (int i = 0; i < N; i++)
       numbers[i] = c.find_one(s::id = 1 + rand() % 99).value();
 
-    std::cout << "ok." << std::endl;
     response.write_json(numbers);
-    std::cout << "written." << std::endl;
   };
 
   my_api.get("/updates") = [&](http_request& request, http_response& response) {
@@ -114,6 +112,7 @@ int main(int argc, char* argv[]) {
     response.write(ss.str());
   };
   
+  //int port = 12667;
   int port = atoi(argv[1]);
   http_serve(my_api, port, s::nthreads = 3); 
   

@@ -39,6 +39,7 @@ struct read_buffer
   
   read_buffer()
     : buffer_(500 * 1024),
+      //buffer_(500),
       cursor(0),
       end(0)
   {}
@@ -72,7 +73,8 @@ struct read_buffer
   void free(const char* i1, const char* i2) { 
     assert(i1 >= buffer_.data());
     assert(i1 <= &buffer_.back());
-    assert(i2 >= buffer_.data() and i2 <= &buffer_.back());
+    //std::cout << (i2 - &buffer_.front()) << " " << buffer_.size() <<  << std::endl;
+    assert(i2 >= buffer_.data() and i2 <= &buffer_.back() + 1);
     free(i1 - buffer_.data(), i2 - buffer_.data()); 
   }
   void free(const std::string_view& str) { free(str.data(), str.data() + str.size()); }
@@ -91,9 +93,7 @@ struct read_buffer
     if (int(buffer_.size()) <= end - 100)
     {
       // reset buffer_.
-      cursor = 0; end = 0; 
-      throw std::runtime_error("Request too long.");
-
+      cursor = 0; end = 0;
       // if (buffer_.size() > (10*1024*1024))
       //   return 0; // Buffer is full. Error and return.
       // else 
@@ -105,8 +105,14 @@ struct read_buffer
 
     if (size == -1) size = buffer_.size() - end;
     int received = read(buffer_.data() + end, size);
+
     if (received == 0) return 0; // Socket closed, return.
     end = end + received;
+    if (end == buffer_.size())
+    {
+      //std::cerr << "Request too long." << std::endl;
+      throw std::runtime_error("Request too long.");
+    }
     //std::cout << "read size " << end << std::endl;
     return received;
   }
@@ -889,7 +895,10 @@ auto make_http_processor(F handler)
         {
           // Read more data from the socket.
           if (rb.empty())
-            if (!rb.read_more(read)) return;
+            if (!rb.read_more(read)) 
+            {
+              return;
+            }
 
           // Look for end of header and save header lines.
           while (header_end < rb.end - 3)
@@ -918,6 +927,7 @@ auto make_http_processor(F handler)
         ctx.body_start = std::string_view(rb.data() + header_end, rb.end - header_end);
         ctx.prepare_request();
         handler(ctx);
+        //std::cout << "request end." << std::endl;
         //delete[] ctx.header_lines;
         assert(rb.cursor <= rb.end);
 
@@ -926,7 +936,7 @@ auto make_http_processor(F handler)
         // if read buffer is empty, we can flush the output buffer.
         //std::cout << rb.current_size() << " " << rb.empty() << std::endl;
         if (rb.empty())// || ctx.output_stream.size() > 100000)
-        ctx.flush_responses();
+          ctx.flush_responses();
 
       }
       // printf("conection lost %d.\n", fd);
