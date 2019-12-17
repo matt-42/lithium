@@ -7,52 +7,52 @@
 
 #pragma once
 
-#include <set>
-#include <boost/context/continuation.hpp>
-#include <memory>
-#include <sys/socket.h>
-#include <unistd.h>
-#include <functional>
-#include <cmath>
-#include <variant>
-#include <sys/epoll.h>
-#include <netdb.h>
-#include <iostream>
-#include <errno.h>
-#include <stdlib.h>
-#include <netinet/tcp.h>
-#include <string_view>
-#include <sys/mman.h>
-#include <optional>
 #include <map>
-#include <thread>
-#include <fcntl.h>
-#include <atomic>
-#include <mysql.h>
-#include <vector>
-#include <tuple>
-#include <sqlite3.h>
-#include <sys/types.h>
-#include <deque>
-#include <signal.h>
-#include <sys/uio.h>
-#include <sstream>
-#include <stdio.h>
-#include <mutex>
-#include <sys/sendfile.h>
-#include <string>
-#include <random>
+#include <string_view>
 #include <unordered_map>
-#include <cassert>
+#include <mutex>
+#include <set>
+#include <vector>
+#include <atomic>
+#include <fcntl.h>
+#include <variant>
 #include <string.h>
-#include <boost/lexical_cast.hpp>
+#include <cmath>
+#include <iostream>
+#include <sys/socket.h>
+#include <thread>
+#include <sys/uio.h>
+#include <boost/context/continuation.hpp>
 #include <cstring>
+#include <deque>
+#include <functional>
+#include <unistd.h>
+#include <sys/types.h>
+#include <signal.h>
+#include <mysql.h>
+#include <sstream>
+#include <sys/sendfile.h>
+#include <optional>
 #include <sys/stat.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sqlite3.h>
+#include <sys/epoll.h>
+#include <boost/lexical_cast.hpp>
+#include <memory>
+#include <sys/mman.h>
+#include <cassert>
 #include <utility>
+#include <errno.h>
+#include <tuple>
+#include <random>
+#include <netinet/tcp.h>
+#include <netdb.h>
+#include <string>
 
 #if defined(_MSC_VER)
-#include <io.h>
 #include <ciso646>
+#include <io.h>
 #endif // _MSC_VER
 
 
@@ -4250,7 +4250,7 @@ struct read_buffer
   int end = 0; // Index of the last read character
   
   read_buffer()
-    : buffer_(400 * 1024),
+    : buffer_(1000 * 1024),
       cursor(0),
       end(0)
   {}
@@ -4399,10 +4399,17 @@ struct read_buffer
 struct output_buffer
 {
 
-  output_buffer(void* buffer, int capacity)
+  output_buffer() 
+  : flush_([] (const char*, int) {})
+  {
+  }
+
+  output_buffer(void* buffer, int capacity, 
+                std::function<void(const char*, int)> flush_ = [] (const char*, int) {})
     : buffer_((char*)buffer),
       cursor_(buffer_),
-      end_(buffer_ + capacity)      
+      end_(buffer_ + capacity),
+      flush_(flush_)
   {
     assert(buffer_);
   }
@@ -4416,13 +4423,19 @@ struct output_buffer
   {
     return cursor_ - buffer_;
   }
+  void flush()
+  {
+    flush_(buffer_, size());
+    reset();
+  }
 
   output_buffer& operator<<(std::string_view s)
   {
     if (cursor_ + s.size() >= end_)
     {
+      flush();
       //std::cout << s.size() << " " << (end_ - buffer_) << std::endl;
-      throw std::runtime_error("Response too long.");
+      //throw std::runtime_error("Response too long.");
     }
     assert(cursor_ + s.size() < end_);
     memcpy(cursor_, s.data(), s.size());
@@ -4453,6 +4466,7 @@ struct output_buffer
   char* buffer_;
   char* cursor_;
   char* end_;
+  std::function<void(const char*s, int d)> flush_;
 };
 
 struct http_ctx {
@@ -4466,16 +4480,35 @@ struct http_ctx {
       read(_read),
       write(_write),
       listen_to_new_fd(_listen_to_new_fd),
-      headers_stream(headers_buffer_space, sizeof(headers_buffer_space)),
       output_buffer_space(new char[100 * 1024]),
-      output_stream(output_buffer_space, 100 * 1024),
-      json_buffer(new char[100 * 1024]),
-      json_stream(json_buffer, 100 * 1024)
-      //output_stream(output_buffer_space, sizeof(output_buffer_space))
-      
+      json_buffer(new char[100 * 1024])
   {
     get_parameters_map.reserve(10);
     response_headers.reserve(20);
+
+    output_stream = output_buffer(output_buffer_space, 100 * 1024, 
+                                  [&] (const char* d, int s) { 
+      // iovec iov[1];
+      // iov[0].iov_base = (char*)d;
+      // iov[0].iov_len = s;
+
+      // int ret = 0;
+      // do
+      // {
+      //   ret = writev(socket_fd, iov, 1);
+      //   if (ret == -1 and errno == EAGAIN)
+      //     write(nullptr, 0);// yield
+      //   assert(ret < 0 or ret == s);
+      // } while (ret == -1 and errno == EAGAIN);
+      write(d, s); 
+                                    });
+
+    headers_stream = output_buffer(headers_buffer_space, sizeof(headers_buffer_space),
+                                  [&] (const char* d,int s) { output_stream << std::string_view(d, s); });
+
+    json_stream = output_buffer(json_buffer, 100 * 1024,
+                                [&] (const char* d,int s) { output_stream << std::string_view(d, s); });
+
   }
   ~http_ctx() { delete[] output_buffer_space; delete[] json_buffer; }
 
@@ -4624,44 +4657,9 @@ struct http_ctx {
   void respond(const std::string_view& s)
   {
     response_written_ = true;
-    if (s.size() > 10000) // writev for large content.
-    {
-      format_top_headers(output_stream);
-      output_stream << headers_stream.to_string_view();
-      output_stream << "Content-Length: " << s.size() << "\r\n\r\n"; //Add body
-
-      auto m = output_stream.to_string_view();
-      iovec iov[2];
-      iov[0].iov_base = (char*)m.data();
-      iov[0].iov_len = m.size();
-      iov[1].iov_base = (char*)s.data();
-      iov[1].iov_len = s.size();
-
-      int total_size = 0;
-      for (int i = 0; i < 1; i++) total_size += iov[i].iov_len;
-
-      int ret = 0;
-      do
-      {
-        ret = writev(socket_fd, iov, 2);
-        if (ret == -1 and errno == EAGAIN)
-          write(nullptr, 0);// yield
-        assert(ret < 0 or ret == total_size);
-      } while (ret == -1 and errno == EAGAIN);
-    }
-    else // write for small content.
-     {
-      format_top_headers(output_stream);
-      output_stream << headers_stream.to_string_view();
-      output_stream << "Content-Length: " << s.size() << "\r\n\r\n" << s; //Add body
-      //std::cout << output_stream.to_string_view().size() << std::endl;
-      //flush_responses();
-      //auto m = output_stream.to_string_view();
-      //write(m.data(), m.size());
-
-      // const char* resp = "HTTP/1.1 200 OK\r\nServer: lithium\r\nDate: Fri, 13 Dec 2019 21:46:28 GMT\r\nContent-Type: Text/Plain\r\nContent-Length: 12\r\n\r\nhello world!";
-      // write(resp, strlen(resp));
-    }
+    format_top_headers(output_stream);
+    headers_stream.flush(); // flushes to output_stream.
+    output_stream << "Content-Length: " << s.size() << "\r\n\r\n" << s; //Add body
   }
 
   template <typename O>
@@ -4672,11 +4670,9 @@ struct http_ctx {
     json_encode(json_stream, obj);
 
     format_top_headers(output_stream);
-    output_stream << headers_stream.to_string_view();
-    output_stream << "Content-Length: " << json_stream.to_string_view().size() << "\r\n\r\n"
-                  << json_stream.to_string_view();
-    //auto m = output_stream.to_string_view();
-    //write(m.data(), m.size());
+    headers_stream.flush(); // flushes to output_stream.
+    output_stream << "Content-Length: " << json_stream.to_string_view().size() << "\r\n\r\n";
+    json_stream.flush(); // flushes to output_stream.
   }
   
 
@@ -4689,8 +4685,6 @@ struct http_ctx {
       format_top_headers(output_stream);
       output_stream << headers_stream.to_string_view();
       output_stream << "Content-Length: 0\r\n\r\n"; //Add body
-      //auto m = output_stream.to_string_view();
-      //write(m.data(), m.size());
     }
   }
 
@@ -5009,12 +5003,30 @@ struct http_ctx {
   }
 
   void flush_responses() {
-    auto m = output_stream.to_string_view();
-    if (m.size() > 0)
-    {
-      write(m.data(), m.size());
-      output_stream.reset();
-    }
+    output_stream.flush();
+    // auto m = output_stream.to_string_view();
+    
+    // if (m.size() > 1) // writev for large responses.
+    // {
+    //   iovec iov[1];
+    //   iov[0].iov_base = (char*)m.data();
+    //   iov[0].iov_len = m.size();
+
+    //   int ret = 0;
+    //   do
+    //   {
+    //     ret = writev(socket_fd, iov, 1);
+    //     if (ret == -1 and errno == EAGAIN)
+    //       write(nullptr, 0);// yield
+    //     assert(ret < 0 or ret == m.size());
+    //   } while (ret == -1 and errno == EAGAIN);
+    // }
+    // else
+    // {
+    //   write(m.data(), m.size());
+    // }
+    // output_stream.reset();
+    
   }
 
   int socket_fd;

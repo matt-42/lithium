@@ -46,7 +46,6 @@ int main(int argc, char* argv[]) {
   http_api my_api;
 
   my_api.get("/plaintext") = [&](http_request& request, http_response& response) {
-    throw std::runtime_error("test error");
     //response.set_header("Content-Type", "text/plain");
     response.write("Hello world!");
   };
@@ -70,7 +69,9 @@ int main(int argc, char* argv[]) {
     for (int i = 0; i < N; i++)
       numbers[i] = c.find_one(s::id = 1 + rand() % 99).value();
 
+    std::cout << "ok." << std::endl;
     response.write_json(numbers);
+    std::cout << "written." << std::endl;
   };
 
   my_api.get("/updates") = [&](http_request& request, http_response& response) {
@@ -114,7 +115,7 @@ int main(int argc, char* argv[]) {
   };
   
   int port = atoi(argv[1]);
-  http_serve(my_api, port, s::nthreads = 3  ); 
+  http_serve(my_api, port, s::nthreads = 3); 
   
   return 0;
 
