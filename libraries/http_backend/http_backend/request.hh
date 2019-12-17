@@ -20,6 +20,7 @@ namespace li {
 template <typename C>
 struct async_yield
 {
+  typedef fiber_exception exception_type;
   void operator()() { 
     ctx.write(nullptr, 0);
      }

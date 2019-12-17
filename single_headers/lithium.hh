@@ -7,52 +7,52 @@
 
 #pragma once
 
-#include <variant>
-#include <tuple>
-#include <optional>
-#include <stdlib.h>
-#include <sqlite3.h>
-#include <vector>
-#include <utility>
-#include <sys/sendfile.h>
-#include <sstream>
-#include <cassert>
-#include <sys/socket.h>
-#include <random>
-#include <iostream>
-#include <thread>
-#include <fcntl.h>
-#include <sys/stat.h>
-#include <memory>
-#include <boost/context/continuation.hpp>
-#include <map>
-#include <errno.h>
-#include <sys/epoll.h>
-#include <sys/mman.h>
-#include <sys/types.h>
-#include <unistd.h>
-#include <cmath>
-#include <signal.h>
-#include <mutex>
-#include <netinet/tcp.h>
-#include <string_view>
-#include <set>
-#include <cstring>
-#include <unordered_map>
-#include <deque>
-#include <netdb.h>
-#include <mysql.h>
-#include <string>
-#include <boost/lexical_cast.hpp>
 #include <stdio.h>
-#include <atomic>
-#include <functional>
+#include <map>
+#include <deque>
+#include <sys/stat.h>
+#include <random>
+#include <cstring>
+#include <netinet/tcp.h>
+#include <vector>
+#include <optional>
 #include <sys/uio.h>
+#include <errno.h>
+#include <thread>
+#include <utility>
+#include <set>
+#include <cassert>
+#include <mutex>
+#include <sys/sendfile.h>
 #include <string.h>
+#include <boost/context/continuation.hpp>
+#include <variant>
+#include <atomic>
+#include <unistd.h>
+#include <sys/mman.h>
+#include <iostream>
+#include <stdlib.h>
+#include <netdb.h>
+#include <sys/epoll.h>
+#include <memory>
+#include <sstream>
+#include <sys/socket.h>
+#include <tuple>
+#include <string>
+#include <string_view>
+#include <unordered_map>
+#include <sys/types.h>
+#include <boost/lexical_cast.hpp>
+#include <mysql.h>
+#include <functional>
+#include <signal.h>
+#include <sqlite3.h>
+#include <cmath>
+#include <fcntl.h>
 
 #if defined(_MSC_VER)
-#include <ciso646>
 #include <io.h>
+#include <ciso646>
 #endif // _MSC_VER
 
 
@@ -1755,6 +1755,7 @@ struct mysql_functions_blocking {
   LI_MYSQL_BLOCKING_WRAPPER(mysql_fetch_row)
   LI_MYSQL_BLOCKING_WRAPPER(mysql_real_query)
   LI_MYSQL_BLOCKING_WRAPPER(mysql_stmt_execute)
+  LI_MYSQL_BLOCKING_WRAPPER(mysql_stmt_reset)
   LI_MYSQL_BLOCKING_WRAPPER(mysql_stmt_prepare)
   LI_MYSQL_BLOCKING_WRAPPER(mysql_stmt_fetch)
   LI_MYSQL_BLOCKING_WRAPPER(mysql_stmt_free_result)
@@ -1773,8 +1774,20 @@ template <typename Y> struct mysql_functions_non_blocking {
     RT ret;
     int status =
         fn_start(&ret, std::forward<A1>(a1), std::forward<A>(args)...);
+
+    bool error = false;
     while (status) {
-      yield_();
+      try { yield_(); } catch (typename Y::exception_type& e){ 
+
+        //std::cerr << "yield exception. Terminate gracefully..." << std::endl;
+        // Terminate the mysql async call before rethrowing e.
+        while (status) {
+          //try { yield_(); } catch (...) {}
+          status = fn_cont(&ret, std::forward<A1>(a1), status);
+        }
+        throw std::move(e);
+      }
+
       status = fn_cont(&ret, std::forward<A1>(a1), status);
     }
     return ret;
@@ -1788,6 +1801,7 @@ template <typename Y> struct mysql_functions_non_blocking {
   LI_MYSQL_NONBLOCKING_WRAPPER(mysql_fetch_row)
   LI_MYSQL_NONBLOCKING_WRAPPER(mysql_real_query)
   LI_MYSQL_NONBLOCKING_WRAPPER(mysql_stmt_execute)
+  LI_MYSQL_NONBLOCKING_WRAPPER(mysql_stmt_reset)
   LI_MYSQL_NONBLOCKING_WRAPPER(mysql_stmt_prepare)
   LI_MYSQL_NONBLOCKING_WRAPPER(mysql_stmt_fetch)
   LI_MYSQL_NONBLOCKING_WRAPPER(mysql_stmt_free_result)
@@ -2127,7 +2141,7 @@ struct mysql_connection_data {
 
   ~mysql_connection_data() {
     // mysql_close(connection);
-     }
+  }
 
   MYSQL* connection;
   std::unordered_map<std::string, std::shared_ptr<mysql_statement_data>> statements;
@@ -2154,6 +2168,8 @@ struct mysql_connection {
       //   return;
       // }
       //std::cout << mysql_connection_async_pool.size() << std::endl;
+
+      // need to cleanup the connection.
       if constexpr (B::is_blocking)
         mysql_connection_pool.push_back(data);
       else  
@@ -2170,8 +2186,9 @@ struct mysql_connection {
   mysql_statement<B> prepare(const std::string& rq) {
     auto it = stm_cache_.find(rq);
     if (it != stm_cache_.end())
+    {
       return mysql_statement<B>{mysql_wrapper_, *it->second};
-
+    }
     //std::cout << "prepare " << rq << std::endl;
     MYSQL_STMT* stmt = mysql_stmt_init(con_);
     if (!stmt)
@@ -2251,24 +2268,31 @@ struct mysql_database : std::enable_shared_from_this<mysql_database> {
     std::shared_ptr<mysql_connection_data> data = nullptr;
     while (!data)
     {
-      if (ntry > 20)
-        throw std::runtime_error("Cannot connect to the database");
+      // if (ntry > 20)
+      //   throw std::runtime_error("Cannot connect to the database");
       ntry++;
 
       if (!mysql_connection_async_pool.empty()) {
         data = mysql_connection_async_pool.back();
+        for (auto pair : data->statements)
+        {
+          //std::cout << "reset " << pair.first << std::endl; 
+          //mysql_functions_non_blocking<decltype(yield)>{yield}.mysql_stmt_reset(pair.second->stmt_);
+          mysql_functions_non_blocking<decltype(yield)>{yield}.mysql_stmt_free_result(pair.second->stmt_);
+        }
         mysql_connection_async_pool.pop_back();
         yield.listen_to_fd(mysql_get_socket(data->connection));
       }
       else
       {
         // std::cout << total_number_of_mysql_connections << " connections. "<< std::endl;
-        // if (total_number_of_mysql_connections > 400)
+        // if (total_number_of_mysql_connections > 40)
         // {
-        //   std::cout << "Waiting for a free mysql connection..." << std::endl;
+        //   //std::cout << "Waiting for a free mysql connection..." << std::endl;
         //   yield();
         //   continue;
         // }
+        //std::cout << "NEW MYSQL CONNECTION "  << std::endl; 
         MYSQL* mysql;
         int mysql_fd = -1;
         int status;
@@ -4004,6 +4028,19 @@ static void shutdown_handler(int sig) {
   std::cout << "The server will shutdown..." << std::endl;
 }
 
+struct fiber_exception {
+
+
+    std::string what;
+    boost::context::continuation    c;
+    fiber_exception(fiber_exception&& e) : what{std::move(e.what)}, c{std::move(e.c)} {}
+    fiber_exception(boost::context::continuation && c_,std::string const& what) :
+        what { what },
+        c{ std::move( c_) } {
+    }
+};
+
+
 template <typename H>
 int moustique_listen_fd(int listen_fd,
                         int nthreads,
@@ -4037,6 +4074,11 @@ int moustique_listen_fd(int listen_fd,
       MOUSTIQUE_CHECK_CALL(::epoll_ctl(epoll_fd, EPOLL_CTL_MOD, fd, &event));
       return true;
     };
+    auto epoll_ctl_del = [epoll_fd] (int fd)
+    { 
+      MOUSTIQUE_CHECK_CALL(::epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, nullptr));
+      return true;
+    };
     
     epoll_ctl(listen_fd, EPOLLIN | EPOLLET);
 
@@ -4052,7 +4094,9 @@ int moustique_listen_fd(int listen_fd,
     while (!moustique_exit_request)
     {
 
-      int n_events = epoll_wait (epoll_fd, events, MAXEVENTS, 1000);
+      //std::cout << "before wait" << std::endl;
+      int n_events = epoll_wait (epoll_fd, events, MAXEVENTS, 100);
+      //std::cout << "end wait" << std::endl;
       if (moustique_exit_request) 
         break;
 
@@ -4072,11 +4116,20 @@ int moustique_listen_fd(int listen_fd,
       {
 
         if ((events[i].events & EPOLLERR) ||
-            (events[i].events & EPOLLHUP))
+            (events[i].events & EPOLLHUP) ||
+            (events[i].events & EPOLLRDHUP)
+            )
         {
           close (events[i].data.fd);
+          //std::cout << "socket closed" << std::endl;
           if (is_running[events[i].data.fd])
-            fibers[events[i].data.fd] = fibers[events[i].data.fd].resume();
+
+            fibers[events[i].data.fd] = fibers[events[i].data.fd].resume_with(std::move([] (auto&& sink)  { 
+              std::cout << "throw socket closed" << std::endl;
+              throw fiber_exception(std::move(sink), "Socket closed"); 
+              return std::move(sink);
+            }));
+
           //nrunning--;
           continue;
         }
@@ -4084,6 +4137,7 @@ int moustique_listen_fd(int listen_fd,
         {
           while(true)
           {
+            //std::cout << "new connection" << std::endl;
             struct sockaddr in_addr;
             socklen_t in_len;
             int infd;
@@ -4094,8 +4148,11 @@ int moustique_listen_fd(int listen_fd,
               break;
 
 
+            // Subscribe epoll to the socket file descriptor.
             MOUSTIQUE_CHECK_CALL(fcntl(infd, F_SETFL, fcntl(infd, F_GETFL, 0) | O_NONBLOCK));
-            epoll_ctl(infd, EPOLLIN | EPOLLOUT | EPOLLET);
+            epoll_ctl(infd, EPOLLIN | EPOLLOUT | EPOLLET | EPOLLRDHUP);
+
+            // Function to subscribe to other files descriptor.
             auto listen_to_new_fd = [original_fd=infd,epoll_ctl,&secondary_map] (int new_fd) {
               if (new_fd > secondary_map.size() || secondary_map[new_fd] == -1)
                 epoll_ctl(new_fd, EPOLLIN | EPOLLOUT | EPOLLET);
@@ -4110,14 +4167,15 @@ int moustique_listen_fd(int listen_fd,
               is_running.resize(infd + 10, false);
             }
             struct end_of_file {};
-            fibers[infd] = ctx::callcc([fd=infd, &conn_handler, epoll_ctl_mod, listen_to_new_fd, &is_running]
+            fibers[infd] = ctx::callcc([fd=infd, &conn_handler, epoll_ctl_del, listen_to_new_fd, &is_running]
                                        (ctx::continuation&& sink) {
+                                         try {
                                         //nrunning++;
                                         is_running[fd] = true;
                                         //std::cout << "nrunning: " << nrunning << std::endl;
 
                                          //ctx::continuation sink = std::move(_sink);
-                                         auto read = [fd, &sink, epoll_ctl_mod] (char* buf, int max_size) {
+                                         auto read = [fd, &sink] (char* buf, int max_size) {
                                            ssize_t count = ::recv(fd, buf, max_size, 0);
                                            while (count <= 0)
                                            {
@@ -4129,7 +4187,7 @@ int moustique_listen_fd(int listen_fd,
                                            return count;
                                          };
 
-                                         auto write = [fd, &sink, epoll_ctl_mod] (const char* buf, int size) {
+                                         auto write = [fd, &sink] (const char* buf, int size) {
                                            if (!buf or !size)
                                            {
                                              //std::cout << "pause" << std::endl;
@@ -4153,9 +4211,18 @@ int moustique_listen_fd(int listen_fd,
                                          conn_handler(fd, read, write, listen_to_new_fd);
                                          close(fd);
                                          is_running[fd] = false;
+                                         }
+                                         catch (fiber_exception& ex) {
+                                            //std::cerr << "my_exception: " << ex.what << std::endl;
+                                            is_running[fd] = false;
+                                            return std::move(ex.c);
+                                         }
                                          //nrunning--;
                                          //std::cout << "nrunning: " << nrunning << std::endl;
+                                         //epoll_ctl_del(fd);
+                                         
                                          return std::move(sink);
+
                                        });
           
           }
@@ -4324,7 +4391,6 @@ struct read_buffer
     {
       //std::cerr << "Request too long." << std::endl;
       throw std::runtime_error("Request too long.");
-      return 0;
     }
     //std::cout << "read size " << end << std::endl;
     return received;
@@ -5394,6 +5460,7 @@ namespace li {
 template <typename C>
 struct async_yield
 {
+  typedef fiber_exception exception_type;
   void operator()() { 
     ctx.write(nullptr, 0);
      }

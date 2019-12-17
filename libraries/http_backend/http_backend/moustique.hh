@@ -136,6 +136,19 @@ static void shutdown_handler(int sig) {
   std::cout << "The server will shutdown..." << std::endl;
 }
 
+struct fiber_exception {
+
+
+    std::string what;
+    boost::context::continuation    c;
+    fiber_exception(fiber_exception&& e) : what{std::move(e.what)}, c{std::move(e.c)} {}
+    fiber_exception(boost::context::continuation && c_,std::string const& what) :
+        what { what },
+        c{ std::move( c_) } {
+    }
+};
+
+
 template <typename H>
 int moustique_listen_fd(int listen_fd,
                         int nthreads,
@@ -169,6 +182,11 @@ int moustique_listen_fd(int listen_fd,
       MOUSTIQUE_CHECK_CALL(::epoll_ctl(epoll_fd, EPOLL_CTL_MOD, fd, &event));
       return true;
     };
+    auto epoll_ctl_del = [epoll_fd] (int fd)
+    { 
+      MOUSTIQUE_CHECK_CALL(::epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, nullptr));
+      return true;
+    };
     
     epoll_ctl(listen_fd, EPOLLIN | EPOLLET);
 
@@ -184,7 +202,9 @@ int moustique_listen_fd(int listen_fd,
     while (!moustique_exit_request)
     {
 
+      //std::cout << "before wait" << std::endl;
       int n_events = epoll_wait (epoll_fd, events, MAXEVENTS, 100);
+      //std::cout << "end wait" << std::endl;
       if (moustique_exit_request) 
         break;
 
@@ -204,11 +224,20 @@ int moustique_listen_fd(int listen_fd,
       {
 
         if ((events[i].events & EPOLLERR) ||
-            (events[i].events & EPOLLHUP))
+            (events[i].events & EPOLLHUP) ||
+            (events[i].events & EPOLLRDHUP)
+            )
         {
           close (events[i].data.fd);
+          //std::cout << "socket closed" << std::endl;
           if (is_running[events[i].data.fd])
-            fibers[events[i].data.fd] = fibers[events[i].data.fd].resume();
+
+            fibers[events[i].data.fd] = fibers[events[i].data.fd].resume_with(std::move([] (auto&& sink)  { 
+              //std::cout << "throw socket closed" << std::endl;
+              throw fiber_exception(std::move(sink), "Socket closed"); 
+              return std::move(sink);
+            }));
+
           //nrunning--;
           continue;
         }
@@ -216,6 +245,7 @@ int moustique_listen_fd(int listen_fd,
         {
           while(true)
           {
+            //std::cout << "new connection" << std::endl;
             struct sockaddr in_addr;
             socklen_t in_len;
             int infd;
@@ -226,8 +256,11 @@ int moustique_listen_fd(int listen_fd,
               break;
 
 
+            // Subscribe epoll to the socket file descriptor.
             MOUSTIQUE_CHECK_CALL(fcntl(infd, F_SETFL, fcntl(infd, F_GETFL, 0) | O_NONBLOCK));
-            epoll_ctl(infd, EPOLLIN | EPOLLOUT | EPOLLET);
+            epoll_ctl(infd, EPOLLIN | EPOLLOUT | EPOLLET | EPOLLRDHUP);
+
+            // Function to subscribe to other files descriptor.
             auto listen_to_new_fd = [original_fd=infd,epoll_ctl,&secondary_map] (int new_fd) {
               if (new_fd > secondary_map.size() || secondary_map[new_fd] == -1)
                 epoll_ctl(new_fd, EPOLLIN | EPOLLOUT | EPOLLET);
@@ -242,14 +275,15 @@ int moustique_listen_fd(int listen_fd,
               is_running.resize(infd + 10, false);
             }
             struct end_of_file {};
-            fibers[infd] = ctx::callcc([fd=infd, &conn_handler, epoll_ctl_mod, listen_to_new_fd, &is_running]
+            fibers[infd] = ctx::callcc([fd=infd, &conn_handler, epoll_ctl_del, listen_to_new_fd, &is_running]
                                        (ctx::continuation&& sink) {
+                                         try {
                                         //nrunning++;
                                         is_running[fd] = true;
                                         //std::cout << "nrunning: " << nrunning << std::endl;
 
                                          //ctx::continuation sink = std::move(_sink);
-                                         auto read = [fd, &sink, epoll_ctl_mod] (char* buf, int max_size) {
+                                         auto read = [fd, &sink] (char* buf, int max_size) {
                                            ssize_t count = ::recv(fd, buf, max_size, 0);
                                            while (count <= 0)
                                            {
@@ -261,7 +295,7 @@ int moustique_listen_fd(int listen_fd,
                                            return count;
                                          };
 
-                                         auto write = [fd, &sink, epoll_ctl_mod] (const char* buf, int size) {
+                                         auto write = [fd, &sink] (const char* buf, int size) {
                                            if (!buf or !size)
                                            {
                                              //std::cout << "pause" << std::endl;
@@ -285,9 +319,18 @@ int moustique_listen_fd(int listen_fd,
                                          conn_handler(fd, read, write, listen_to_new_fd);
                                          close(fd);
                                          is_running[fd] = false;
+                                         }
+                                         catch (fiber_exception& ex) {
+                                            //std::cerr << "my_exception: " << ex.what << std::endl;
+                                            is_running[fd] = false;
+                                            return std::move(ex.c);
+                                         }
                                          //nrunning--;
                                          //std::cout << "nrunning: " << nrunning << std::endl;
+                                         //epoll_ctl_del(fd);
+                                         
                                          return std::move(sink);
+
                                        });
           
           }

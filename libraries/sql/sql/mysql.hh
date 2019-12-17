@@ -33,7 +33,7 @@ struct mysql_connection_data {
 
   ~mysql_connection_data() {
     // mysql_close(connection);
-     }
+  }
 
   MYSQL* connection;
   std::unordered_map<std::string, std::shared_ptr<mysql_statement_data>> statements;
@@ -60,6 +60,8 @@ struct mysql_connection {
       //   return;
       // }
       //std::cout << mysql_connection_async_pool.size() << std::endl;
+
+      // need to cleanup the connection.
       if constexpr (B::is_blocking)
         mysql_connection_pool.push_back(data);
       else  
@@ -76,8 +78,9 @@ struct mysql_connection {
   mysql_statement<B> prepare(const std::string& rq) {
     auto it = stm_cache_.find(rq);
     if (it != stm_cache_.end())
+    {
       return mysql_statement<B>{mysql_wrapper_, *it->second};
-
+    }
     //std::cout << "prepare " << rq << std::endl;
     MYSQL_STMT* stmt = mysql_stmt_init(con_);
     if (!stmt)
@@ -157,24 +160,31 @@ struct mysql_database : std::enable_shared_from_this<mysql_database> {
     std::shared_ptr<mysql_connection_data> data = nullptr;
     while (!data)
     {
-      if (ntry > 20)
-        throw std::runtime_error("Cannot connect to the database");
+      // if (ntry > 20)
+      //   throw std::runtime_error("Cannot connect to the database");
       ntry++;
 
       if (!mysql_connection_async_pool.empty()) {
         data = mysql_connection_async_pool.back();
+        for (auto pair : data->statements)
+        {
+          //std::cout << "reset " << pair.first << std::endl; 
+          //mysql_functions_non_blocking<decltype(yield)>{yield}.mysql_stmt_reset(pair.second->stmt_);
+          mysql_functions_non_blocking<decltype(yield)>{yield}.mysql_stmt_free_result(pair.second->stmt_);
+        }
         mysql_connection_async_pool.pop_back();
         yield.listen_to_fd(mysql_get_socket(data->connection));
       }
       else
       {
         // std::cout << total_number_of_mysql_connections << " connections. "<< std::endl;
-        // if (total_number_of_mysql_connections > 400)
+        // if (total_number_of_mysql_connections > 40)
         // {
-        //   std::cout << "Waiting for a free mysql connection..." << std::endl;
+        //   //std::cout << "Waiting for a free mysql connection..." << std::endl;
         //   yield();
         //   continue;
         // }
+        //std::cout << "NEW MYSQL CONNECTION "  << std::endl; 
         MYSQL* mysql;
         int mysql_fd = -1;
         int status;

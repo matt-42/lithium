@@ -7,23 +7,23 @@
 
 #pragma once
 
-#include <memory>
-#include <tuple>
-#include <cstring>
-#include <cassert>
-#include <optional>
-#include <sstream>
-#include <unordered_map>
-#include <map>
-#include <deque>
 #include <iostream>
 #include <mysql.h>
-#include <string>
-#include <thread>
+#include <map>
 #include <vector>
+#include <deque>
+#include <memory>
+#include <sstream>
+#include <thread>
 #include <utility>
-#include <atomic>
+#include <tuple>
+#include <cassert>
+#include <string>
+#include <cstring>
 #include <mutex>
+#include <unordered_map>
+#include <atomic>
+#include <optional>
 
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL
@@ -907,6 +907,7 @@ struct mysql_functions_blocking {
   LI_MYSQL_BLOCKING_WRAPPER(mysql_fetch_row)
   LI_MYSQL_BLOCKING_WRAPPER(mysql_real_query)
   LI_MYSQL_BLOCKING_WRAPPER(mysql_stmt_execute)
+  LI_MYSQL_BLOCKING_WRAPPER(mysql_stmt_reset)
   LI_MYSQL_BLOCKING_WRAPPER(mysql_stmt_prepare)
   LI_MYSQL_BLOCKING_WRAPPER(mysql_stmt_fetch)
   LI_MYSQL_BLOCKING_WRAPPER(mysql_stmt_free_result)
@@ -925,8 +926,20 @@ template <typename Y> struct mysql_functions_non_blocking {
     RT ret;
     int status =
         fn_start(&ret, std::forward<A1>(a1), std::forward<A>(args)...);
+
+    bool error = false;
     while (status) {
-      yield_();
+      try { yield_(); } catch (typename Y::exception_type& e){ 
+
+        //std::cerr << "yield exception. Terminate gracefully..." << std::endl;
+        // Terminate the mysql async call before rethrowing e.
+        while (status) {
+          //try { yield_(); } catch (...) {}
+          status = fn_cont(&ret, std::forward<A1>(a1), status);
+        }
+        throw std::move(e);
+      }
+
       status = fn_cont(&ret, std::forward<A1>(a1), status);
     }
     return ret;
@@ -940,6 +953,7 @@ template <typename Y> struct mysql_functions_non_blocking {
   LI_MYSQL_NONBLOCKING_WRAPPER(mysql_fetch_row)
   LI_MYSQL_NONBLOCKING_WRAPPER(mysql_real_query)
   LI_MYSQL_NONBLOCKING_WRAPPER(mysql_stmt_execute)
+  LI_MYSQL_NONBLOCKING_WRAPPER(mysql_stmt_reset)
   LI_MYSQL_NONBLOCKING_WRAPPER(mysql_stmt_prepare)
   LI_MYSQL_NONBLOCKING_WRAPPER(mysql_stmt_fetch)
   LI_MYSQL_NONBLOCKING_WRAPPER(mysql_stmt_free_result)
@@ -1279,7 +1293,7 @@ struct mysql_connection_data {
 
   ~mysql_connection_data() {
     // mysql_close(connection);
-     }
+  }
 
   MYSQL* connection;
   std::unordered_map<std::string, std::shared_ptr<mysql_statement_data>> statements;
@@ -1306,6 +1320,8 @@ struct mysql_connection {
       //   return;
       // }
       //std::cout << mysql_connection_async_pool.size() << std::endl;
+
+      // need to cleanup the connection.
       if constexpr (B::is_blocking)
         mysql_connection_pool.push_back(data);
       else  
@@ -1322,8 +1338,9 @@ struct mysql_connection {
   mysql_statement<B> prepare(const std::string& rq) {
     auto it = stm_cache_.find(rq);
     if (it != stm_cache_.end())
+    {
       return mysql_statement<B>{mysql_wrapper_, *it->second};
-
+    }
     //std::cout << "prepare " << rq << std::endl;
     MYSQL_STMT* stmt = mysql_stmt_init(con_);
     if (!stmt)
@@ -1403,24 +1420,31 @@ struct mysql_database : std::enable_shared_from_this<mysql_database> {
     std::shared_ptr<mysql_connection_data> data = nullptr;
     while (!data)
     {
-      if (ntry > 20)
-        throw std::runtime_error("Cannot connect to the database");
+      // if (ntry > 20)
+      //   throw std::runtime_error("Cannot connect to the database");
       ntry++;
 
       if (!mysql_connection_async_pool.empty()) {
         data = mysql_connection_async_pool.back();
+        for (auto pair : data->statements)
+        {
+          //std::cout << "reset " << pair.first << std::endl; 
+          //mysql_functions_non_blocking<decltype(yield)>{yield}.mysql_stmt_reset(pair.second->stmt_);
+          mysql_functions_non_blocking<decltype(yield)>{yield}.mysql_stmt_free_result(pair.second->stmt_);
+        }
         mysql_connection_async_pool.pop_back();
         yield.listen_to_fd(mysql_get_socket(data->connection));
       }
       else
       {
         // std::cout << total_number_of_mysql_connections << " connections. "<< std::endl;
-        // if (total_number_of_mysql_connections > 400)
+        // if (total_number_of_mysql_connections > 40)
         // {
-        //   std::cout << "Waiting for a free mysql connection..." << std::endl;
+        //   //std::cout << "Waiting for a free mysql connection..." << std::endl;
         //   yield();
         //   continue;
         // }
+        //std::cout << "NEW MYSQL CONNECTION "  << std::endl; 
         MYSQL* mysql;
         int mysql_fd = -1;
         int status;

@@ -54,7 +54,9 @@ int main(int argc, char* argv[]) {
     response.write_json(s::message = "Hello world!");
   };
   my_api.get("/db") = [&](http_request& request, http_response& response) {
+    std::cout << "start" << std::endl;
     response.write_json(random_numbers.connect(request.yield).find_one(s::id = 14).value());
+    std::cout << "end" << std::endl;
   };
 
   my_api.get("/queries") = [&](http_request& request, http_response& response) {
@@ -73,6 +75,7 @@ int main(int argc, char* argv[]) {
   };
 
   my_api.get("/updates") = [&](http_request& request, http_response& response) {
+    //std::cout << "start" << std::endl;
     std::string N_str = request.get_parameters(s::N = std::optional<std::string>()).N.value_or("1");
     //std::cout << N_str << std::endl;
     int N = atoi(N_str.c_str());
@@ -85,7 +88,7 @@ int main(int argc, char* argv[]) {
       numbers[i].randomNumber = 1 + rand() % 99;
       c.update(numbers[i]);
     }
-
+    //std::cout << "end" << std::endl;
     response.write_json(numbers);
   };
 
@@ -112,7 +115,7 @@ int main(int argc, char* argv[]) {
     response.write(ss.str());
   };
   
-  //int port = 12667;
+  //int port = 12666;
   int port = atoi(argv[1]);
   http_serve(my_api, port, s::nthreads = 3); 
   

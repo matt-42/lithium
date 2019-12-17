@@ -20,6 +20,7 @@ struct mysql_functions_blocking {
   LI_MYSQL_BLOCKING_WRAPPER(mysql_fetch_row)
   LI_MYSQL_BLOCKING_WRAPPER(mysql_real_query)
   LI_MYSQL_BLOCKING_WRAPPER(mysql_stmt_execute)
+  LI_MYSQL_BLOCKING_WRAPPER(mysql_stmt_reset)
   LI_MYSQL_BLOCKING_WRAPPER(mysql_stmt_prepare)
   LI_MYSQL_BLOCKING_WRAPPER(mysql_stmt_fetch)
   LI_MYSQL_BLOCKING_WRAPPER(mysql_stmt_free_result)
@@ -38,8 +39,20 @@ template <typename Y> struct mysql_functions_non_blocking {
     RT ret;
     int status =
         fn_start(&ret, std::forward<A1>(a1), std::forward<A>(args)...);
+
+    bool error = false;
     while (status) {
-      yield_();
+      try { yield_(); } catch (typename Y::exception_type& e){ 
+
+        //std::cerr << "yield exception. Terminate gracefully..." << std::endl;
+        // Terminate the mysql async call before rethrowing e.
+        while (status) {
+          //try { yield_(); } catch (...) {}
+          status = fn_cont(&ret, std::forward<A1>(a1), status);
+        }
+        throw std::move(e);
+      }
+
       status = fn_cont(&ret, std::forward<A1>(a1), status);
     }
     return ret;
@@ -53,6 +66,7 @@ template <typename Y> struct mysql_functions_non_blocking {
   LI_MYSQL_NONBLOCKING_WRAPPER(mysql_fetch_row)
   LI_MYSQL_NONBLOCKING_WRAPPER(mysql_real_query)
   LI_MYSQL_NONBLOCKING_WRAPPER(mysql_stmt_execute)
+  LI_MYSQL_NONBLOCKING_WRAPPER(mysql_stmt_reset)
   LI_MYSQL_NONBLOCKING_WRAPPER(mysql_stmt_prepare)
   LI_MYSQL_NONBLOCKING_WRAPPER(mysql_stmt_fetch)
   LI_MYSQL_NONBLOCKING_WRAPPER(mysql_stmt_free_result)
