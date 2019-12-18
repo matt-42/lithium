@@ -1,12 +1,18 @@
-li::http_backend
+li::http_backend: Asynchronous High Performance HTTP Server
 =================================
 
-This library goal is to ease the development of http backend servers. 
-Built on top of microhttpd and other lithium libraries.
+This library goal is to ease the development of HTTP APIs without
+compromising on performance.
 
-# Installation / Supported compilers
+# Main features
+  - Custom aync input/output engine based on epoll
+  - Mysql (asyncronous) / Sqlite (sync) connectors and ORMs
+  - Static file serving
+  - Pipelining
 
-Everything explained here: https://github.com/matt-42/lithium#installation
+# Supported platforms
+
+Only linux is supported (epoll), linux and windows may be supported later.
 
 # Quick tour
 
