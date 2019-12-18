@@ -61,8 +61,10 @@ template <typename B>
 struct mysql_statement {
 
   auto& operator()() {
-    if (mysql_wrapper_.mysql_stmt_execute(data_.stmt_) != 0)
+    if (mysql_wrapper_.mysql_stmt_execute(connection_status_, data_.stmt_) != 0)
+
       throw std::runtime_error(std::string("mysql_stmt_execute error: ") + mysql_stmt_error(data_.stmt_));
+
     return *this;
   }
 
@@ -77,12 +79,13 @@ struct mysql_statement {
     });
 
     if (mysql_stmt_bind_param(data_.stmt_, bind) != 0)
+    {
+      *connection_status_ = 1;
       throw std::runtime_error(std::string("mysql_stmt_bind_param error: ") +
                                mysql_stmt_error(data_.stmt_));
-
-    if (mysql_wrapper_.mysql_stmt_execute(data_.stmt_) != 0)
+    }
+    if (mysql_wrapper_.mysql_stmt_execute(connection_status_, data_.stmt_) != 0)
       throw std::runtime_error(std::string("mysql_stmt_execute error: ") + mysql_stmt_error(data_.stmt_));
-
     return *this;
   }
 
@@ -127,8 +130,11 @@ struct mysql_statement {
     b[i].length = nullptr;
     b[i].buffer = &v[0];
     if (mysql_stmt_fetch_column(data_.stmt_, b + i, i, 0) != 0)
+    {
+      *connection_status_ = 1;
       throw std::runtime_error(std::string("mysql_stmt_fetch_column error: ") +
                                mysql_stmt_error(data_.stmt_));
+    }
   }
 
   template <typename T> void bind_output(MYSQL_BIND& b, unsigned long* real_length, T& v) {
@@ -166,7 +172,7 @@ struct mysql_statement {
     else
       finalize_fetch(bind, real_lengths, o);
 
-    mysql_wrapper_.mysql_stmt_free_result(data_.stmt_);
+    mysql_wrapper_.mysql_stmt_free_result(connection_status_, data_.stmt_);
     return res;
   }
   template <typename T> void read(std::optional<T>& o) {
@@ -206,7 +212,7 @@ struct mysql_statement {
         this->finalize_fetch(bind, real_lengths, o);
         f(o);
       }
-      mysql_wrapper_.mysql_stmt_free_result(data_.stmt_);
+      mysql_wrapper_.mysql_stmt_free_result(connection_status_, data_.stmt_);
     } else {
       tp o;
 
@@ -218,7 +224,7 @@ struct mysql_statement {
         this->finalize_fetch(bind, real_lengths, o);
         apply(o, f);
       }
-      mysql_wrapper_.mysql_stmt_free_result(data_.stmt_);
+      mysql_wrapper_.mysql_stmt_free_result(connection_status_, data_.stmt_);
     }
   }
 
@@ -299,18 +305,21 @@ struct mysql_statement {
   }
 
   int fetch() {
-    int f = mysql_wrapper_.mysql_stmt_fetch(data_.stmt_);
+    int f = mysql_wrapper_.mysql_stmt_fetch(connection_status_, data_.stmt_);
     if (f == 1)
+    {
       throw std::runtime_error(std::string("mysql_stmt_fetch error: ") + mysql_stmt_error(data_.stmt_));
+    }
     return f;
   }
 
   long long int last_insert_id() { return mysql_stmt_insert_id(data_.stmt_); }
 
-  bool empty() { return mysql_wrapper_.mysql_stmt_fetch(data_.stmt_) == MYSQL_NO_DATA; }
+  bool empty() { return mysql_wrapper_.mysql_stmt_fetch(connection_status_, data_.stmt_) == MYSQL_NO_DATA; }
 
   B& mysql_wrapper_;
   mysql_statement_data& data_;
+  std::shared_ptr<int> connection_status_;
 };
 
 }

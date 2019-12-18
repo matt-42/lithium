@@ -117,8 +117,12 @@ int main(int argc, char* argv[]) {
   };
   
   //int port = 12666;
+  int mysql_max_connection = mysql_db.connect()("SELECT @@GLOBAL.max_connections;").read<int>() * 0.75;
+  std::cout << "mysql max connection " << mysql_max_connection << std::endl;
   int port = atoi(argv[1]);
-  http_serve(my_api, port, s::nthreads = 50); 
+  int nthread = 4;
+  li::max_mysql_connections_per_thread = (mysql_max_connection / nthread);
+  http_serve(my_api, port, s::nthreads = nthread); 
   
   return 0;
 

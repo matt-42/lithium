@@ -7,23 +7,23 @@
 
 #pragma once
 
-#include <iostream>
-#include <memory>
-#include <cassert>
-#include <unordered_map>
-#include <deque>
-#include <mutex>
-#include <tuple>
+#include <thread>
+#include <cstring>
+#include <string>
+#include <sstream>
+#include <map>
 #include <utility>
+#include <optional>
+#include <tuple>
+#include <iostream>
 #include <mysql.h>
 #include <vector>
-#include <string>
+#include <memory>
 #include <atomic>
-#include <map>
-#include <thread>
-#include <optional>
-#include <sstream>
-#include <cstring>
+#include <cassert>
+#include <deque>
+#include <mutex>
+#include <unordered_map>
 
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL
@@ -896,13 +896,16 @@ template <unsigned SIZE> struct sql_varchar : public std::string {
 
 namespace li {
 
-
 // Blocking version.
 struct mysql_functions_blocking {
   enum { is_blocking = true };
 
-#define LI_MYSQL_BLOCKING_WRAPPER(FN)                     \
-  template <typename... A> auto FN(A&&... a) { return ::FN(std::forward<A>(a)...); }
+#define LI_MYSQL_BLOCKING_WRAPPER(FN)                                                              \
+  template <typename... A> auto FN(std::shared_ptr<int> connection_status, A&&... a) {\
+    int ret = ::FN(std::forward<A>(a)...); \
+    if (ret)\
+      *connection_status = 1;\
+    return ret; }
 
   LI_MYSQL_BLOCKING_WRAPPER(mysql_fetch_row)
   LI_MYSQL_BLOCKING_WRAPPER(mysql_real_query)
@@ -918,36 +921,37 @@ struct mysql_functions_blocking {
 // Non blocking version.
 template <typename Y> struct mysql_functions_non_blocking {
   enum { is_blocking = false };
-  
+
   template <typename RT, typename A1, typename... A, typename B1, typename... B>
-  auto mysql_non_blocking_call(int fn_start(RT*, B1, B...), int fn_cont(RT*, B1, int),
-                        A1&& a1, A&&... args) {
+  auto mysql_non_blocking_call(std::shared_ptr<int> connection_status, int fn_start(RT*, B1, B...),
+                               int fn_cont(RT*, B1, int), A1&& a1, A&&... args) {
 
     RT ret;
-    int status =
-        fn_start(&ret, std::forward<A1>(a1), std::forward<A>(args)...);
+    int status = fn_start(&ret, std::forward<A1>(a1), std::forward<A>(args)...);
 
     bool error = false;
     while (status) {
-      try { yield_(); } catch (typename Y::exception_type& e){ 
-
-        //std::cerr << "yield exception. Terminate gracefully..." << std::endl;
-        // Terminate the mysql async call before rethrowing e.
-        while (status) {
-          //try { yield_(); } catch (...) {}
-          status = fn_cont(&ret, std::forward<A1>(a1), status);
-        }
+      try {
+        yield_();
+      } catch (typename Y::exception_type& e) {
+        // Yield thrown a exception (probably because a closed connection).
+        // Mark the connection as broken because it is left in a undefined state.
+        *connection_status = 1;
         throw std::move(e);
       }
 
       status = fn_cont(&ret, std::forward<A1>(a1), status);
     }
+    if (ret)
+    {
+      *connection_status = 1;
+    }
     return ret;
   }
 
-#define LI_MYSQL_NONBLOCKING_WRAPPER(FN)                                                                 \
-  template <typename... A> auto FN(A&&... a) {                                                          \
-    return mysql_non_blocking_call(::FN##_start, ::FN##_cont, std::forward<A>(a)...);                 \
+#define LI_MYSQL_NONBLOCKING_WRAPPER(FN)                                                           \
+  template <typename... A> auto FN(std::shared_ptr<int> connection_status, A&&... a) {                                                     \
+    return mysql_non_blocking_call(connection_status, ::FN##_start, ::FN##_cont, std::forward<A>(a)...);              \
   }
 
   LI_MYSQL_NONBLOCKING_WRAPPER(mysql_fetch_row)
@@ -962,7 +966,6 @@ template <typename Y> struct mysql_functions_non_blocking {
 
   Y yield_;
 };
-
 
 } // namespace li
 
@@ -1026,8 +1029,10 @@ template <typename B>
 struct mysql_statement {
 
   auto& operator()() {
-    if (mysql_wrapper_.mysql_stmt_execute(data_.stmt_) != 0)
+    if (mysql_wrapper_.mysql_stmt_execute(connection_status_, data_.stmt_) != 0)
+
       throw std::runtime_error(std::string("mysql_stmt_execute error: ") + mysql_stmt_error(data_.stmt_));
+
     return *this;
   }
 
@@ -1042,12 +1047,13 @@ struct mysql_statement {
     });
 
     if (mysql_stmt_bind_param(data_.stmt_, bind) != 0)
+    {
+      *connection_status_ = 1;
       throw std::runtime_error(std::string("mysql_stmt_bind_param error: ") +
                                mysql_stmt_error(data_.stmt_));
-
-    if (mysql_wrapper_.mysql_stmt_execute(data_.stmt_) != 0)
+    }
+    if (mysql_wrapper_.mysql_stmt_execute(connection_status_, data_.stmt_) != 0)
       throw std::runtime_error(std::string("mysql_stmt_execute error: ") + mysql_stmt_error(data_.stmt_));
-
     return *this;
   }
 
@@ -1092,8 +1098,11 @@ struct mysql_statement {
     b[i].length = nullptr;
     b[i].buffer = &v[0];
     if (mysql_stmt_fetch_column(data_.stmt_, b + i, i, 0) != 0)
+    {
+      *connection_status_ = 1;
       throw std::runtime_error(std::string("mysql_stmt_fetch_column error: ") +
                                mysql_stmt_error(data_.stmt_));
+    }
   }
 
   template <typename T> void bind_output(MYSQL_BIND& b, unsigned long* real_length, T& v) {
@@ -1131,7 +1140,7 @@ struct mysql_statement {
     else
       finalize_fetch(bind, real_lengths, o);
 
-    mysql_wrapper_.mysql_stmt_free_result(data_.stmt_);
+    mysql_wrapper_.mysql_stmt_free_result(connection_status_, data_.stmt_);
     return res;
   }
   template <typename T> void read(std::optional<T>& o) {
@@ -1171,7 +1180,7 @@ struct mysql_statement {
         this->finalize_fetch(bind, real_lengths, o);
         f(o);
       }
-      mysql_wrapper_.mysql_stmt_free_result(data_.stmt_);
+      mysql_wrapper_.mysql_stmt_free_result(connection_status_, data_.stmt_);
     } else {
       tp o;
 
@@ -1183,7 +1192,7 @@ struct mysql_statement {
         this->finalize_fetch(bind, real_lengths, o);
         apply(o, f);
       }
-      mysql_wrapper_.mysql_stmt_free_result(data_.stmt_);
+      mysql_wrapper_.mysql_stmt_free_result(connection_status_, data_.stmt_);
     }
   }
 
@@ -1264,18 +1273,21 @@ struct mysql_statement {
   }
 
   int fetch() {
-    int f = mysql_wrapper_.mysql_stmt_fetch(data_.stmt_);
+    int f = mysql_wrapper_.mysql_stmt_fetch(connection_status_, data_.stmt_);
     if (f == 1)
+    {
       throw std::runtime_error(std::string("mysql_stmt_fetch error: ") + mysql_stmt_error(data_.stmt_));
+    }
     return f;
   }
 
   long long int last_insert_id() { return mysql_stmt_insert_id(data_.stmt_); }
 
-  bool empty() { return mysql_wrapper_.mysql_stmt_fetch(data_.stmt_) == MYSQL_NO_DATA; }
+  bool empty() { return mysql_wrapper_.mysql_stmt_fetch(connection_status_, data_.stmt_) == MYSQL_NO_DATA; }
 
   B& mysql_wrapper_;
   mysql_statement_data& data_;
+  std::shared_ptr<int> connection_status_;
 };
 
 }
@@ -1285,6 +1297,8 @@ struct mysql_statement {
 
 
 namespace li {
+
+int max_mysql_connections_per_thread = 200;
 
 struct mysql_tag {};
 
@@ -1302,7 +1316,7 @@ struct mysql_connection_data {
 
 thread_local std::deque<std::shared_ptr<mysql_connection_data>> mysql_connection_pool;
 thread_local std::deque<std::shared_ptr<mysql_connection_data>> mysql_connection_async_pool;
-std::atomic<int> total_number_of_mysql_connections = 0;
+thread_local int total_number_of_mysql_connections = 0;
 
 template <typename B> // must be mysql_functions_blocking or mysql_functions_non_blocking
 struct mysql_connection {
@@ -1311,20 +1325,16 @@ struct mysql_connection {
 
   inline mysql_connection(B mysql_wrapper, std::shared_ptr<li::mysql_connection_data> data)
       : mysql_wrapper_(mysql_wrapper), data_(data), stm_cache_(data->statements),
-        con_(data->connection), broken_connection_(new bool(false)) {
+        con_(data->connection){
 
-    sptr_ = std::shared_ptr<int>((int*)42, [=](int* p) { 
-      // if (*broken_connection_) 
-      // {
-      //   total_number_of_mysql_connections--;
-      //   //std::cout << "discarding broken mysql connection." << std::endl;
-      //   return;
-      // }
-      //std::cout << mysql_connection_async_pool.size() << std::endl;
-
-      // need to cleanup the connection.
-
-      //data->statements.clear();
+    connection_status_ = std::shared_ptr<int>(new int(0), [=](int* p) { 
+      if (*p) 
+      {
+        total_number_of_mysql_connections--;
+        //std::cerr << "Discarding broken mysql connection." << std::endl;
+        return;
+      }
+      
       if constexpr (B::is_blocking)
         mysql_connection_pool.push_back(data);
       else  
@@ -1344,24 +1354,23 @@ struct mysql_connection {
     {
       //mysql_wrapper_.mysql_stmt_free_result(it->second->stmt_);
       //mysql_wrapper_.mysql_stmt_reset(it->second->stmt_);
-      return mysql_statement<B>{mysql_wrapper_, *it->second};
+      return mysql_statement<B>{mysql_wrapper_, *it->second, connection_status_};
     }
     //std::cout << "prepare " << rq << std::endl;
     MYSQL_STMT* stmt = mysql_stmt_init(con_);
     if (!stmt)
     {
-      *broken_connection_ = true;
+      *connection_status_ = true;
       throw std::runtime_error(std::string("mysql_stmt_init error: ") + mysql_error(con_));
     }
-    if (mysql_wrapper_.mysql_stmt_prepare(stmt, rq.data(), rq.size()))
+    if (mysql_wrapper_.mysql_stmt_prepare(connection_status_, stmt, rq.data(), rq.size()))
     {
-      std::cout << "error!!!" << std::endl;
-      *broken_connection_ = true;
+      *connection_status_ = true;
       throw std::runtime_error(std::string("mysql_stmt_prepare error: ") + mysql_error(con_));
     }
 
     auto pair = stm_cache_.emplace(rq, std::make_shared<mysql_statement_data>(stmt));
-    return mysql_statement<B>{mysql_wrapper_, *pair.first->second};
+    return mysql_statement<B>{mysql_wrapper_, *pair.first->second, connection_status_};
   }
 
   template <typename T>
@@ -1385,8 +1394,7 @@ struct mysql_connection {
   std::shared_ptr<mysql_connection_data> data_;
   std::unordered_map<std::string, std::shared_ptr<mysql_statement_data>>& stm_cache_;
   MYSQL* con_;
-  std::shared_ptr<int> sptr_;
-  std::shared_ptr<bool> broken_connection_;
+  std::shared_ptr<int> connection_status_;
 };
 
 
@@ -1432,21 +1440,13 @@ struct mysql_database : std::enable_shared_from_this<mysql_database> {
 
       if (!mysql_connection_async_pool.empty()) {
         data = mysql_connection_async_pool.back();
-        //std::cout << "statement cache size: " << data->statements.size() << std::endl;
-        for (auto pair : data->statements)
-        {
-          //std::cout << "reset " << pair.first << std::endl; 
-          //mysql_functions_non_blocking<decltype(yield)>{yield}.mysql_stmt_reset(pair.second->stmt_);
-          //mysql_functions_non_blocking<decltype(yield)>{yield}.mysql_stmt_free_result(pair.second->stmt_);
-        }
         mysql_connection_async_pool.pop_back();
         yield.listen_to_fd(mysql_get_socket(data->connection));
-        //std::cout << "nconnection " << total_number_of_mysql_connections << std::endl;
       }
       else
       {
         // std::cout << total_number_of_mysql_connections << " connections. "<< std::endl;
-        if (total_number_of_mysql_connections > 1000)
+        if (total_number_of_mysql_connections > max_mysql_connections_per_thread)
         {
           //std::cout << "Waiting for a free mysql connection..." << std::endl;
           yield();
@@ -1496,7 +1496,7 @@ struct mysql_database : std::enable_shared_from_this<mysql_database> {
       }
     }
     assert(data);
-    return mysql_connection(mysql_functions_non_blocking<decltype(yield)>{yield}, data);
+    return std::move(mysql_connection(mysql_functions_non_blocking<decltype(yield)>{yield}, data));
   }
 
   inline mysql_connection<mysql_functions_blocking> connect() {
@@ -1519,7 +1519,7 @@ struct mysql_database : std::enable_shared_from_this<mysql_database> {
     }
 
     assert(data);
-    return mysql_connection(mysql_functions_blocking{}, data);
+    return std::move(mysql_connection(mysql_functions_blocking{}, data));
   }
 
   std::mutex mutex_;
