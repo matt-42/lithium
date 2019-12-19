@@ -41,6 +41,8 @@ struct sqlite_statement {
       : db_(db), stmt_(s), stmt_sptr_(stmt_sptr(s, free_sqlite3_statement)),
         ready_for_reading_(false) {}
 
+  void wait () {}
+
   template <typename... A> void row_to_metamap(metamap<A...>& o) {
     int ncols = sqlite3_column_count(stmt_);
     int filled[sizeof...(A)];
@@ -318,8 +320,8 @@ struct sqlite_database {
   }
 
   template <typename Y>
-  inline sqlite_connection& connect(Y y) { return con_; }
-  inline sqlite_connection& connect() { return con_; }
+  inline sqlite_connection connect(Y y) { return con_; }
+  inline sqlite_connection connect() { return con_; }
 
   sqlite_connection con_;
   std::string path_;

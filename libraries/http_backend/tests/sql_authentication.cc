@@ -2,6 +2,7 @@
 #include <li/http_client/http_client.hh>
 #include <li/sql/mysql.hh>
 #include <li/sql/sqlite.hh>
+#include <li/sql/pgsql.hh>
 
 #include "symbols.hh"
 #include "test.hh"
@@ -84,6 +85,7 @@ int main() {
     CHECK_EQUAL("valid login", r4.status, 200);
     CHECK_EQUAL("valid login", r4.body, "login success");
 
+    // Remove this check, postgresql need time to update the table. Don't know why.
     CHECK_EQUAL("valid login", session.orm().connect().count(), 1);
 
     // Check session.
@@ -91,6 +93,7 @@ int main() {
     std::cout << json_encode(r5) << std::endl;
     CHECK_EQUAL("read session", r5.body, "john");
     CHECK_EQUAL("read session", r5.status, 200);
+
 
     // Logout
     c.get("/logout");
@@ -108,4 +111,8 @@ int main() {
       mysql_database(s::host = "127.0.0.1", s::database = "silicon_test", s::user = "root",
                      s::password = "sl_test_password", s::port = 14550, s::charset = "utf8");
   test_with_db(mysql_db, 12359);
+
+  auto pgsql_db = pgsql_database(s::host = "localhost", s::database = "postgres", s::user = "postgres",
+                            s::password = "lithium_test", s::port = 32768, s::charset = "utf8");
+  test_with_db(pgsql_db, 12361);
 }

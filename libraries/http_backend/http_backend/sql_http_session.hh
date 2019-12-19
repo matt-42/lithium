@@ -12,9 +12,9 @@ template <typename ORM> struct connected_sql_http_session {
   // Retrive the cookie
   // Retrieve it from the database.
   // Insert it if it does not exists.
-  connected_sql_http_session(typename ORM::object_type& defaults, ORM orm,
+  connected_sql_http_session(typename ORM::object_type& defaults, ORM&& orm,
                              const std::string& session_id)
-      : loaded_(false), session_id_(session_id), orm_(orm), values_(defaults) {}
+      : loaded_(false), session_id_(session_id), orm_(std::forward<ORM>(orm)), values_(defaults) {}
 
   // Store fiels into the session
   template <typename... F> auto store(F... fields) {

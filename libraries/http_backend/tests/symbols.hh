@@ -120,11 +120,6 @@
     LI_SYMBOL(secret_key)
 #endif
 
-#ifndef LI_SYMBOL_synchronous
-#define LI_SYMBOL_synchronous
-    LI_SYMBOL(synchronous)
-#endif
-
 #ifndef LI_SYMBOL_test1
 #define LI_SYMBOL_test1
     LI_SYMBOL(test1)

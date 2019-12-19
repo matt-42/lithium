@@ -312,6 +312,8 @@ struct mysql_statement {
     }
     return f;
   }
+  
+  void wait () {}
 
   long long int last_insert_id() { return mysql_stmt_insert_id(data_.stmt_); }
 

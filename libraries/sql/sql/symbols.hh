@@ -60,6 +60,11 @@
     LI_SYMBOL(host)
 #endif
 
+#ifndef LI_SYMBOL_id
+#define LI_SYMBOL_id
+    LI_SYMBOL(id)
+#endif
+
 #ifndef LI_SYMBOL_password
 #define LI_SYMBOL_password
     LI_SYMBOL(password)

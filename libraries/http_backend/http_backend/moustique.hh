@@ -262,8 +262,10 @@ int moustique_listen_fd(int listen_fd,
 
             // Function to subscribe to other files descriptor.
             auto listen_to_new_fd = [original_fd=infd,epoll_ctl,&secondary_map] (int new_fd) {
+              // Listen to the fd if not already done before.
               if (new_fd >= secondary_map.size() || secondary_map[new_fd] == -1)
                 epoll_ctl(new_fd, EPOLLIN | EPOLLOUT | EPOLLET);
+              // Associate new_fd to the original_fd.
               if (int(secondary_map.size()) < new_fd + 1)
                 secondary_map.resize(new_fd+1, -1);             
               secondary_map[new_fd] = original_fd;

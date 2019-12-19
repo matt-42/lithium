@@ -62,6 +62,8 @@ before_script:
     - cmake .. -DCMAKE_CXX_COMPILER=${LOCAL_CXX} -DCMAKE_INSTALL_PREFIX=$HOME/local
 
 script:
+    - docker pull postgres
+    - docker run -p=32768:5432 --name test_postgres -e POSTGRES_PASSWORD=lithium_test -d postgres
     - cd $HOME/build/$TRAVIS_REPO_SLUG/build 
     - bash ../libraries/sql/tests/mysql_test_server.sh start
     - make all

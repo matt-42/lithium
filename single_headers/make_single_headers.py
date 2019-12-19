@@ -117,6 +117,7 @@ if __name__ == "__main__":
         "lithium_http_backend": ["li/http_backend/http_backend.hh"],
         "lithium_mysql": ["li/sql/mysql.hh","li/sql/sql_orm.hh"],
         "lithium_sqlite": ["li/sql/sqlite.hh","li/sql/sql_orm.hh"],
+        "lithium_pgsql": ["li/sql/pgsql.hh","li/sql/sql_orm.hh"],
         "lithium": ["li/sql/sqlite.hh","li/sql/sql_orm.hh", "li/sql/mysql.hh", "li/http_backend/http_backend.hh"],
              })
     for libname, files in data.items():

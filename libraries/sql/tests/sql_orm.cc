@@ -3,6 +3,7 @@
 #include <li/sql/mysql.hh>
 #include <li/sql/sql_orm.hh>
 #include <li/sql/sqlite.hh>
+#include <li/sql/pgsql.hh>
 
 #include "../../http_backend/tests/test.hh"
 
@@ -15,8 +16,8 @@ int main() {
   auto test_with_db = [](auto& db) {
     auto schema = sql_orm_schema<decltype(db)>(db, "users_orm_test")
                       .fields(s::id(s::auto_increment, s::primary_key) = int(),
-                              s::age(s::read_only) = int(125),
-                              s::name = std::string("default_name"), s::login = std::string())
+                              s::age(s::read_only) = int(125), s::login = std::string(),
+                              s::name = std::string("default_name"))
                       .callbacks(s::after_insert =
                                      [](auto p, int data) {
                                        std::cout << "inserted " << json_encode(p) << std::endl;
@@ -28,8 +29,10 @@ int main() {
                                        assert(data1 == 42);
                                        assert(data2 == 51);
                                      });
-    auto orm = schema.connect();
     auto c = db.connect();
+
+
+    auto orm = schema.connect();
 
     orm.drop_table_if_exists();
     orm.create_table_if_not_exists();
@@ -40,9 +43,11 @@ int main() {
     // Insert.
     long long int john_id = orm.insert(s::name = "John", s::age = 42, s::login = "lol", 42);
     assert(orm.count() == 1);
-    std::cout << john_id << std::endl;
+    //long long int john2_id2 = orm.insert(s::login = "lol", 42);
+    std::cout << "last id: "<< john_id  << std::endl;
     auto u = orm.find_one(s::id = john_id);
     assert(u);
+    std::cout << json_encode(u) << std::endl;
     assert(u->id = john_id and u->name == "John" and u->age == 42 and u->login == "lol");
 
     // Insert. Check if defaults value are kept.
@@ -75,4 +80,8 @@ int main() {
       mysql_database(s::host = "127.0.0.1", s::database = "silicon_test", s::user = "root",
                      s::password = "sl_test_password", s::port = 14550, s::charset = "utf8");
   test_with_db(mysql_db);
+
+  auto pgsql_db = pgsql_database(s::host = "localhost", s::database = "postgres", s::user = "postgres",
+                            s::password = "lithium_test", s::port = 32768, s::charset = "utf8");
+  test_with_db(pgsql_db);
 }
