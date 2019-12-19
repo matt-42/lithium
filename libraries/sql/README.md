@@ -2,11 +2,15 @@ li::sql
 ================================
 
 This library aims to ease the communication with SQL databases within C++ code.
-
+It provides an asynchronous and a synchronous mode (= blocking or non blocking mode).
 It features:
-  - A SQLite C++ connector
-  - A MySQL C++ connector
-  - An ORM-like class that allow to send requests without typing raw SQL code
+  - A MySQL sync & async C++ connector
+  - A PostgreSQL sync & async C++ connector
+  - A SQLite sync C++ connector (async not implemented, it fallbacks on the synchronous mode)
+  - An ORM-like class that allow to send requests without typing raw SQL code.
+
+All the three connectors are following the same API so you can use the same way
+a SQLite, a MySQL and a PostgreSQL database.
 
 # Tutorial
 
@@ -21,11 +25,31 @@ auto db = li::mysql_database(s::host = "127.0.0.1",
                              s::port = 12345,
                              s::charset = "utf8");
 
-// Declare a sqlite database.
+// OR a sqlite database.
 auto db = li::sqlite_database("my_sqlitedb.db");
 
-// Connect to the database.
+// OR a postgresql database.
+auto db = li::pgsql_database(s::host = "127.0.0.1",
+                             s::database = "testdb",
+                             s::user = "user",
+                             s::password = "pass",
+                             s::port = 12345,
+                             s::charset = "utf8");
+
+// Connect to the database: SYNCHRONOUS MODE.
+// All function call are blocking.
 auto con = db.connect();
+
+// Connect to the database: ASYNCHRONOUS MODE.
+// All methods will call your_yield_object() whenever
+// it as to wait for a result.
+// It will also call your_yield_object.listen_to_fd((int) fd)
+// So you can subscribe to event on the file descriptor of the
+// socket used to communicate with the database.
+auto con = db.connect(your_yield_object);
+
+// This was the only difference between using the async and the synchronous
+// connector. All the rest of the API is identical.
 
 // Run simple requests.
 con("DROP table if exists users;");
