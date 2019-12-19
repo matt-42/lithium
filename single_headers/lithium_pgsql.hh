@@ -8,24 +8,24 @@
 #pragma once
 
 #include <atomic>
-#include <string>
 #include <vector>
-#include <cassert>
-#include <memory>
-#include <thread>
-#include <tuple>
-#include <optional>
-#include <iostream>
-#include <utility>
-#include <arpa/inet.h>
+#include <string>
 #include <mutex>
-#include <deque>
-#include <sstream>
+#include <libpq-fe.h>
 #include <unistd.h>
+#include <memory>
+#include <sstream>
+#include <deque>
+#include <utility>
+#include <cassert>
 #include <map>
 #include <cstring>
-#include <libpq-fe.h>
+#include <optional>
 #include <unordered_map>
+#include <tuple>
+#include <thread>
+#include <iostream>
+#include <arpa/inet.h>
 
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL
@@ -957,7 +957,7 @@ struct pgsql_statement {
   // Execute a simple request takes no arguments and return no rows.
   auto& operator()() {
 
-    std::cout << "sending " << data_.stmt_name.c_str() << std::endl;
+    //std::cout << "sending " << data_.stmt_name.c_str() << std::endl;
     flush_results();
     if (!PQsendQueryPrepared(connection_, data_.stmt_name.c_str(), 0, nullptr, nullptr, nullptr, 1))
       throw std::runtime_error(std::string("Postresql error:") + PQerrorMessage(connection_));
@@ -970,18 +970,18 @@ struct pgsql_statement {
   template <unsigned N>
   void bind_param(sql_varchar<N>&& m, const char*& values, int& lengths, int& binary)
   {
-    std::cout << "send param varchar " << m << std::endl;
+    //std::cout << "send param varchar " << m << std::endl;
     values = m.c_str(); lengths = m.size(); binary = 0;
   }
   template <unsigned N>
   void bind_param(const sql_varchar<N>&& m, const char*& values, int& lengths, int& binary)
   {
-    std::cout << "send param const varchar " << m << std::endl;
+    //std::cout << "send param const varchar " << m << std::endl;
     values = m.c_str(); lengths = m.size(); binary = 0;
   }
   void bind_param(const char* m, const char*& values, int& lengths, int& binary)
   {
-    std::cout << "send param const char*[N] " << m << std::endl;
+    //std::cout << "send param const char*[N] " << m << std::endl;
     values = m; lengths = strlen(m); binary = 0;
   }
 
@@ -997,14 +997,14 @@ struct pgsql_statement {
       if constexpr(std::is_same<std::decay_t<decltype(m)>, std::string>::value or
                    std::is_same<std::decay_t<decltype(m)>, std::string_view>::value)
       {
-        std::cout << "send param string: " << m << std::endl;
+        //std::cout << "send param string: " << m << std::endl;
         values[i] = m.c_str();
         lengths[i] = m.size();
         binary[i] = 0;
       }
       else if constexpr(std::is_same<std::remove_reference_t<decltype(m)>, const char*>::value)
       {
-        std::cout << "send param const char* " << m << std::endl;
+        //std::cout << "send param const char* " << m << std::endl;
         values[i] = m;
         lengths[i] = strlen(m);
         binary[i] = 0;
@@ -1018,7 +1018,7 @@ struct pgsql_statement {
       else if constexpr(std::is_same<std::decay_t<decltype(m)>, long long int>::value)
       {
         // FIXME send 64bit values.
-        std::cout << "long long int param: " << m << std::endl;
+        //std::cout << "long long int param: " << m << std::endl;
         values[i] = (char*)new int(htonl(uint32_t(m)));
         lengths[i] = sizeof(uint32_t);
         // does not work:
@@ -1035,7 +1035,7 @@ struct pgsql_statement {
     });
 
     flush_results();
-    std::cout << "sending " << data_.stmt_name.c_str() << " with " << nparams << " params" << std::endl;
+    //std::cout << "sending " << data_.stmt_name.c_str() << " with " << nparams << " params" << std::endl;
     if (!PQsendQueryPrepared(connection_, data_.stmt_name.c_str(), nparams, values, lengths, binary, 1))
       throw std::runtime_error(std::string("Postresql error:") + PQerrorMessage(connection_));
     
@@ -1047,7 +1047,7 @@ struct pgsql_statement {
   // Fetch a string from a result field.
   template <typename... A> void fetch_impl(std::string& out, char* val, int length, bool is_binary) {
     //assert(!is_binary);
-    std::cout << "fetch string: " << length << " '"<< val <<"'" << std::endl;
+    //std::cout << "fetch string: " << length << " '"<< val <<"'" << std::endl;
     out = std::move(std::string(val, strlen(val)));
   }
 
@@ -1060,7 +1060,7 @@ struct pgsql_statement {
   // Fetch an int from a result field.
   void fetch_impl(int& out, char* val, int length, bool is_binary) {
     assert(is_binary);
-    // std::cout << "fetch integer " << length << std::endl;
+    //std::cout << "fetch integer " << length << " " << is_binary << std::endl;
     // std::cout << "fetch integer " << be64toh(*((uint64_t *) val)) << std::endl;
     if (length == 8) 
     {
@@ -1322,7 +1322,7 @@ struct pgsql_connection {
     }
     std::stringstream stmt_name;
     stmt_name << (void*)connection_ << stm_cache_.size();
-    std::cout << "prepare " << rq << " NAME: " << stmt_name.str() << std::endl;
+    //std::cout << "prepare " << rq << " NAME: " << stmt_name.str() << std::endl;
 
     while (PGresult* res = wait_for_next_result())
       PQclear(res);
