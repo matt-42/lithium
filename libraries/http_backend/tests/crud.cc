@@ -18,7 +18,7 @@ int main() {
   auto test_with_db = [](auto& db, int port) {
 
     auto user_schema =
-        sql_orm_schema(db, "users")
+        sql_orm_schema<std::decay_t<decltype(db)>>(db, "users")
             .fields(s::id(s::auto_increment, s::primary_key) = int(), s::name = std::string(),
                     s::age = int(), s::address = std::string(), s::city = std::string())
             .callbacks(s::before_insert = [](auto& user, http_request&, http_response&) {
