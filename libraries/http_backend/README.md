@@ -2,11 +2,17 @@ li::http_backend: Asynchronous High Performance HTTP Server
 =================================
 
 This library goal is to ease the development of HTTP APIs without
-compromising on performance.
+compromising on performance. Coroutines (based on epoll and boost::context) 
+are used to provide a asynchronous execution without impacting the ease
+of use : Only few threads can serve thousands of clients.
+
+All the communication asynchronous : client <-> server communication and
+also server <-> database (except SQLite which does not use the network).
+
 
 # Main features
   - Custom aync input/output engine based on epoll
-  - Mysql (asyncronous) / Sqlite (sync) connectors and ORMs
+  - PostgreSQL (async), Mysql (async), Sqlite (sync) connectors and ORMs.
   - Static file serving
   - Pipelining
 
