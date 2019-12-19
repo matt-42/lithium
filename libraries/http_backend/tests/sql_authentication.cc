@@ -105,14 +105,14 @@ int main() {
   };
 
   auto sqlite_db = sqlite_database("iod_sqlite_orm_test.db");
-  test_with_db(sqlite_db, 12358);
+  test_with_db(sqlite_db, 12258);
 
   auto mysql_db =
       mysql_database(s::host = "127.0.0.1", s::database = "silicon_test", s::user = "root",
                      s::password = "sl_test_password", s::port = 14550, s::charset = "utf8");
-  test_with_db(mysql_db, 12359);
+  test_with_db(mysql_db, 12259);
 
   auto pgsql_db = pgsql_database(s::host = "localhost", s::database = "postgres", s::user = "postgres",
                             s::password = "lithium_test", s::port = 32768, s::charset = "utf8");
-  test_with_db(pgsql_db, 12361);
+  test_with_db(pgsql_db, 12261);
 }

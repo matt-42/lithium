@@ -14,7 +14,7 @@ matrix:
         - sudo apt-add-repository -y 'deb https://apt.kitware.com/ubuntu/ bionic main'
         - sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test;
         - sudo apt-get install -qq gcc-9 g++-9;
-        - sudo apt-get install -qq libboost-all-dev libssl-dev lcov libsqlite3-dev libmicrohttpd-dev cmake libcurl4-openssl-dev
+        - sudo apt-get install -qq libboost-all-dev libpq-dev libssl-dev lcov libsqlite3-dev libmicrohttpd-dev cmake libcurl4-openssl-dev
 
         - sudo apt-get install software-properties-common
         - sudo apt-key adv --recv-keys --keyserver hkp://keyserver.ubuntu.com:80 0xF1656F24C74CD1D8

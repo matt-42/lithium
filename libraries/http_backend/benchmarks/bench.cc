@@ -1,5 +1,6 @@
 #include <li/http_backend/http_backend.hh>
 #include <li/sql/mysql.hh>
+#include <li/sql/pgsql.hh>
 
 #include "symbols.hh"
 using namespace li;
@@ -24,15 +25,18 @@ std::string escape_html_entities(const std::string& data)
 
 int main(int argc, char* argv[]) {
 
-  auto mysql_db =
-      mysql_database(s::host = "127.0.0.1", s::database = "silicon_test", s::user = "root",
-                     s::password = "sl_test_password", s::port = 14550, s::charset = "utf8");
+  // auto sql_db =
+  //     mysql_database(s::host = "127.0.0.1", s::database = "silicon_test", s::user = "root",
+  //                    s::password = "sl_test_password", s::port = 14550, s::charset = "utf8");
 
-  auto fortunes = sql_orm_schema(mysql_db, "Fortune").fields(
+  auto sql_db = pgsql_database(s::host = "localhost", s::database = "postgres", s::user = "postgres",
+                            s::password = "lithium_test", s::port = 32768, s::charset = "utf8");
+
+  auto fortunes = sql_orm_schema(sql_db, "Fortune").fields(
     s::id(s::auto_increment, s::primary_key) = int(),
     s::message = std::string());
 
-  auto random_numbers = sql_orm_schema(mysql_db, "World").fields(
+  auto random_numbers = sql_orm_schema(sql_db, "World").fields(
     s::id(s::auto_increment, s::primary_key) = int(),
     s::randomNumber = int());
 
@@ -117,11 +121,19 @@ int main(int argc, char* argv[]) {
   };
   
   //int port = 12666;
-  int mysql_max_connection = mysql_db.connect()("SELECT @@GLOBAL.max_connections;").read<int>() * 0.75;
-  std::cout << "mysql max connection " << mysql_max_connection << std::endl;
+  // int mysql_max_connection = sql_db.connect()("SELECT @@GLOBAL.max_connections;").read<int>() * 0.75;
+  // std::cout << "mysql max connection " << mysql_max_connection << std::endl;
+  // int port = atoi(argv[1]);
+  // int nthread = 4;
+  // li::max_mysql_connections_per_thread = (mysql_max_connection / nthread);
+
+  int mysql_max_connection = 95;//sql_db.connect()("SHOW max_connections;").read<int>() * 0.75;
+  std::cout << "sql max connection " << mysql_max_connection << std::endl;
   int port = atoi(argv[1]);
   int nthread = 4;
-  li::max_mysql_connections_per_thread = (mysql_max_connection / nthread);
+  li::max_pgsql_connections_per_thread = (mysql_max_connection / nthread);
+
+
   http_serve(my_api, port, s::nthreads = nthread); 
   
   return 0;
