@@ -223,8 +223,8 @@ struct pgsql_database : std::enable_shared_from_this<pgsql_database> {
           if (PQstatus(connection) != CONNECTION_OK)
           {
             std::cout << "Error: cannot connect to the postresql server " << host_  << ": " << PQerrorMessage(connection) << std::endl;
-            std::cout << "Retrying in 1s..." << std::endl;
-            usleep(1e6);            
+            yield();
+            continue;
           }
 
           if (PQsetnonblocking(connection, 1) == -1)

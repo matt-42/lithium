@@ -7,24 +7,24 @@
 
 #pragma once
 
-#include <atomic>
-#include <vector>
-#include <string>
-#include <mutex>
-#include <libpq-fe.h>
+#include <utility>
+#include <unordered_map>
+#include <thread>
+#include <iostream>
 #include <unistd.h>
 #include <memory>
+#include <mutex>
 #include <sstream>
+#include <libpq-fe.h>
 #include <deque>
-#include <utility>
+#include <string>
+#include <optional>
+#include <tuple>
 #include <cassert>
 #include <map>
 #include <cstring>
-#include <optional>
-#include <unordered_map>
-#include <tuple>
-#include <thread>
-#include <iostream>
+#include <vector>
+#include <atomic>
 #include <arpa/inet.h>
 
 
@@ -1430,8 +1430,8 @@ struct pgsql_database : std::enable_shared_from_this<pgsql_database> {
           if (PQstatus(connection) != CONNECTION_OK)
           {
             std::cout << "Error: cannot connect to the postresql server " << host_  << ": " << PQerrorMessage(connection) << std::endl;
-            std::cout << "Retrying in 1s..." << std::endl;
-            usleep(1e6);            
+            yield();
+            continue;
           }
 
           if (PQsetnonblocking(connection, 1) == -1)

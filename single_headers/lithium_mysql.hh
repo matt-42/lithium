@@ -7,23 +7,23 @@
 
 #pragma once
 
+#include <deque>
+#include <map>
+#include <string>
+#include <utility>
 #include <optional>
-#include <atomic>
-#include <mutex>
 #include <unordered_map>
 #include <mysql.h>
-#include <vector>
-#include <cassert>
-#include <map>
+#include <cstring>
+#include <thread>
+#include <iostream>
+#include <sstream>
 #include <memory>
 #include <tuple>
-#include <sstream>
-#include <thread>
-#include <deque>
-#include <utility>
-#include <iostream>
-#include <cstring>
-#include <string>
+#include <vector>
+#include <atomic>
+#include <cassert>
+#include <mutex>
 
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL
