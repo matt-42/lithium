@@ -7,18 +7,18 @@
 
 #pragma once
 
-#include <cstring>
-#include <string>
-#include <sstream>
-#include <utility>
-#include <optional>
-#include <tuple>
 #include <iostream>
+#include <string>
+#include <utility>
+#include <unordered_map>
 #include <vector>
-#include <memory>
 #include <sqlite3.h>
 #include <mutex>
-#include <unordered_map>
+#include <cstring>
+#include <sstream>
+#include <tuple>
+#include <optional>
+#include <memory>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -842,6 +842,11 @@ template <unsigned SIZE> struct sql_varchar : public std::string {
     LI_SYMBOL(host)
 #endif
 
+#ifndef LI_SYMBOL_id
+#define LI_SYMBOL_id
+    LI_SYMBOL(id)
+#endif
+
 #ifndef LI_SYMBOL_password
 #define LI_SYMBOL_password
     LI_SYMBOL(password)
@@ -913,6 +918,8 @@ struct sqlite_statement {
   sqlite_statement(sqlite3* db, sqlite3_stmt* s)
       : db_(db), stmt_(s), stmt_sptr_(stmt_sptr(s, free_sqlite3_statement)),
         ready_for_reading_(false) {}
+
+  void wait () {}
 
   template <typename... A> void row_to_metamap(metamap<A...>& o) {
     int ncols = sqlite3_column_count(stmt_);
@@ -1191,8 +1198,8 @@ struct sqlite_database {
   }
 
   template <typename Y>
-  inline sqlite_connection& connect(Y y) { return con_; }
-  inline sqlite_connection& connect() { return con_; }
+  inline sqlite_connection connect(Y y) { return con_; }
+  inline sqlite_connection connect() { return con_; }
 
   sqlite_connection con_;
   std::string path_;
@@ -1317,6 +1324,7 @@ namespace li {
 
 struct sqlite_tag;
 struct mysql_tag;
+struct pgsql_tag;
 
 using s::auto_increment;
 using s::primary_key;
@@ -1327,19 +1335,27 @@ template <typename SCHEMA, typename C> struct sql_orm {
   typedef decltype(std::declval<SCHEMA>().all_fields()) O;
   typedef O object_type;
 
-  sql_orm(SCHEMA& schema, C con) : schema_(schema), con_(con) {}
+  ~sql_orm() {
+
+    //assert(0);
+  }
+  sql_orm(sql_orm&&) = default;
+  sql_orm(const sql_orm&) = delete;
+  sql_orm& operator=(const sql_orm&) = delete;
+
+  sql_orm(SCHEMA& schema, C&& con) : schema_(schema), con_(std::forward<C>(con)) {}
 
   template <typename S, typename... A> void call_callback(S s, A&&... args) {
     if constexpr (has_key<decltype(schema_.get_callbacks())>(S{}))
       return schema_.get_callbacks()[s](args...);
   }
 
-  inline auto drop_table_if_exists() {
-    con_(std::string("DROP TABLE IF EXISTS ") + schema_.table_name());
+  inline auto& drop_table_if_exists() {
+    con_(std::string("DROP TABLE IF EXISTS ") + schema_.table_name()).wait();
     return *this;
   }
 
-  inline auto create_table_if_not_exists() {
+  inline auto& create_table_if_not_exists() {
     std::ostringstream ss;
     ss << "CREATE TABLE if not exists " << schema_.table_name() << " (";
 
@@ -1358,7 +1374,10 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
       if (!first)
         ss << ", ";
-      ss << li::symbol_string(k) << " " << con_.type_to_string(v);
+      ss << li::symbol_string(k) << " ";
+      
+      if (!std::is_same<typename C::db_tag, pgsql_tag>::value or !auto_increment)
+        ss << con_.type_to_string(v);
 
       if (std::is_same<typename C::db_tag, sqlite_tag>::value) {
         if (auto_increment || primary_key)
@@ -1372,23 +1391,34 @@ template <typename SCHEMA, typename C> struct sql_orm {
           ss << " PRIMARY KEY ";
       }
 
-      // To activate when pgsql_connection is implemented.
-      // if (std::is_same<C, pgsql_connection>::value and
-      //     m.attributes().has(s::auto_increment))
-      //   ss << " SERIAL ";
+      if (std::is_same<typename C::db_tag, pgsql_tag>::value) {
+        if (auto_increment)
+          ss << " SERIAL ";
+      }
 
       first = false;
     });
     ss << ");";
     try {
-      con_(ss.str())();
-    } catch (std::exception e) {
-      std::cerr << "Warning: Silicon could not create the " << schema_.table_name() << " sql table."
+      con_(ss.str()).wait();
+    } catch (std::runtime_error e) {
+      std::cerr << "Warning: Lithium::sql could not create the " << schema_.table_name() << " sql table."
                 << std::endl
                 << "You can ignore this message if the table already exists."
                 << "The sql error is: " << e.what() << std::endl;
     }
     return *this;
+  }
+
+  std::string placeholder_string() {
+
+    if (std::is_same<typename C::db_tag, pgsql_tag>::value) {
+      placeholder_pos_++;
+      std::stringstream ss;
+      ss << '$' << placeholder_pos_;
+      return ss.str();
+    }
+    else return "?";
   }
 
   template <typename W> void where_clause(W&& cond, std::ostringstream& ss) {
@@ -1398,7 +1428,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
       if (!first)
         ss << " and ";
       first = false;
-      ss << li::symbol_string(k) << " = ? ";
+      ss << li::symbol_string(k) << " = " << placeholder_string();
     });
     ss << " ";
   }
@@ -1406,6 +1436,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
   template <typename... W, typename... A> auto find_one(metamap<W...> where, A&&... cb_args) {
     std::ostringstream ss;
     O o;
+    placeholder_pos_ = 0;
     ss << "SELECT ";
     bool first = true;
     li::map(o, [&](auto k, auto v) {
@@ -1437,6 +1468,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
   template <typename W> bool exists(W&& cond) {
     std::ostringstream ss;
     O o;
+    placeholder_pos_ = 0;
     ss << "SELECT count(*) FROM " << schema_.table_name();
     where_clause(cond, ss);
     ss << "LIMIT 1";
@@ -1451,7 +1483,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
   }
   // Save a ll fields except auto increment.
   // The db will automatically fill auto increment keys.
-  template <typename N, typename... A> long long int insert(N&& o, A&&... cb_args) {
+  template <typename N, typename... A> auto insert(N&& o, A&&... cb_args) {
     std::ostringstream ss;
     std::ostringstream vs;
 
@@ -1461,6 +1493,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
     call_callback(s::validate, values, cb_args...);
     call_callback(s::before_insert, values, cb_args...);
+    placeholder_pos_ = 0;
     ss << "INSERT into " << schema_.table_name() << "(";
 
     bool first = true;
@@ -1471,23 +1504,34 @@ template <typename SCHEMA, typename C> struct sql_orm {
       }
       first = false;
       ss << li::symbol_string(k);
-      vs << "?";
+      vs << placeholder_string();
     });
 
     ss << ") VALUES (" << vs.str() << ")";
+
+
+
+
+    if (std::is_same<typename C::db_tag, pgsql_tag>::value &&
+        has_key(schema_.all_fields(), s::id))
+      ss << " returning id;";
+
     auto req = con_.prepare(ss.str());
     li::reduce(values, req);
 
     call_callback(s::after_insert, o, cb_args...);
 
-    return req.last_insert_id();
+    if constexpr(has_key<decltype(schema_.all_fields())>(s::id))
+      return req.last_insert_id();
+    else return req.wait();
   };
+
   template <typename A, typename B, typename... O, typename... W>
-  long long int insert(metamap<O...>&& o, assign_exp<A, B> w1, W... ws) {
+  auto insert(metamap<O...>&& o, assign_exp<A, B> w1, W... ws) {
     return insert(cat(o, mmm(w1)), ws...);
   }
   template <typename A, typename B, typename... W>
-  long long int insert(assign_exp<A, B> w1, W... ws) {
+  auto insert(assign_exp<A, B> w1, W... ws) {
     return insert(mmm(w1), ws...);
   }
 
@@ -1500,6 +1544,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
   // Iterate on all the rows of the table.
   template <typename F> void forall(F f) {
     std::ostringstream ss;
+    placeholder_pos_ = 0;
     ss << "SELECT * from " << schema_.table_name();
     con_(ss.str()).map([&](decltype(schema_.all_fields()) o) { f(o); });
   }
@@ -1520,6 +1565,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     static_assert(metamap_size<decltype(pk)>() > 0,
                   "You must provide at least one primary key to update an object.");
     std::ostringstream ss;
+    placeholder_pos_ = 0;
     ss << "UPDATE " << schema_.table_name() << " SET ";
 
     bool first = true;
@@ -1529,7 +1575,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
       if (!first)
         ss << ",";
       first = false;
-      ss << li::symbol_string(k) << " = ?";
+      ss << li::symbol_string(k) << " = " << placeholder_string();
     });
 
     where_clause(pk, ss);
@@ -1557,6 +1603,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     call_callback(s::before_remove, o, args...);
 
     std::ostringstream ss;
+    placeholder_pos_ = 0;
     ss << "DELETE from " << schema_.table_name() << " WHERE ";
 
     bool first = true;
@@ -1564,7 +1611,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
       if (!first)
         ss << " and ";
       first = false;
-      ss << li::symbol_string(k) << " = ? ";
+      ss << li::symbol_string(k) << " = " << placeholder_string();
     });
 
     auto pks = intersection(o, schema_.primary_key());
@@ -1584,6 +1631,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
   SCHEMA schema_;
   C con_;
+  int placeholder_pos_ = 0;
 };
 
 template <typename... F> struct orm_fields {
@@ -1667,9 +1715,9 @@ struct sql_orm_schema : public MD {
   sql_orm_schema(DB& db, const std::string& table_name, CB cb = CB(), MD md = MD())
       : MD(md), database_(db), table_name_(table_name), callbacks_(cb) {}
 
-  inline auto connect() { return sql_orm(*this, database_.connect()); }
+  inline auto connect() { return sql_orm{*this, database_.connect()}; }
   template <typename Y>
-  inline auto connect(Y& y) { return sql_orm(*this, database_.connect(y)); }
+  inline auto connect(Y& y) { return sql_orm{*this, database_.connect(y)}; }
 
   const std::string& table_name() const { return table_name_; }
   auto get_callbacks() const { return callbacks_; }

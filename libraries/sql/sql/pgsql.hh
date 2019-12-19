@@ -115,7 +115,7 @@ struct pgsql_connection {
     }
     std::stringstream stmt_name;
     stmt_name << (void*)connection_ << stm_cache_.size();
-    std::cout << "prepare " << rq << " NAME: " << stmt_name.str() << std::endl;
+    //std::cout << "prepare " << rq << " NAME: " << stmt_name.str() << std::endl;
 
     while (PGresult* res = wait_for_next_result())
       PQclear(res);
