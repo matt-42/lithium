@@ -27,9 +27,10 @@ template <typename M1, typename... Ms> struct metamap<M1, Ms...> : public M1, pu
   typedef metamap<M1, Ms...> self;
   // Constructors.
   inline metamap() = default;
-  // inline metamap(self&&) = default;
+  inline metamap(self&&) = default;
   inline metamap(const self&) = default;
   self& operator=(const self&) = default;
+  self& operator=(self&&) = default;
 
   // metamap(self& other)
   //  : metamap(const_cast<const self&>(other)) {}

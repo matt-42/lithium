@@ -8,18 +8,18 @@
 #pragma once
 
 #include <memory>
-#include <functional>
-#include <vector>
-#include <variant>
+#include <string>
 #include <cassert>
-#include <utility>
-#include <optional>
-#include <cstring>
-#include <tuple>
-#include <cmath>
 #include <sstream>
 #include <string_view>
-#include <string>
+#include <cstring>
+#include <tuple>
+#include <utility>
+#include <vector>
+#include <functional>
+#include <variant>
+#include <optional>
+#include <cmath>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -277,9 +277,10 @@ template <typename M1, typename... Ms> struct metamap<M1, Ms...> : public M1, pu
   typedef metamap<M1, Ms...> self;
   // Constructors.
   inline metamap() = default;
-  // inline metamap(self&&) = default;
+  inline metamap(self&&) = default;
   inline metamap(const self&) = default;
   self& operator=(const self&) = default;
+  self& operator=(self&&) = default;
 
   // metamap(self& other)
   //  : metamap(const_cast<const self&>(other)) {}

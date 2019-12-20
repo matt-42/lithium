@@ -7,23 +7,23 @@
 
 #pragma once
 
-#include <memory>
-#include <vector>
-#include <cassert>
-#include <mutex>
-#include <mysql.h>
-#include <iostream>
-#include <optional>
-#include <cstring>
-#include <utility>
-#include <unordered_map>
-#include <thread>
-#include <map>
-#include <tuple>
 #include <atomic>
-#include <sstream>
-#include <deque>
+#include <memory>
+#include <mutex>
 #include <string>
+#include <iostream>
+#include <sstream>
+#include <cstring>
+#include <thread>
+#include <tuple>
+#include <utility>
+#include <vector>
+#include <mysql.h>
+#include <map>
+#include <deque>
+#include <optional>
+#include <cassert>
+#include <unordered_map>
 
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL
@@ -156,9 +156,10 @@ template <typename M1, typename... Ms> struct metamap<M1, Ms...> : public M1, pu
   typedef metamap<M1, Ms...> self;
   // Constructors.
   inline metamap() = default;
-  // inline metamap(self&&) = default;
+  inline metamap(self&&) = default;
   inline metamap(const self&) = default;
   self& operator=(const self&) = default;
+  self& operator=(self&&) = default;
 
   // metamap(self& other)
   //  : metamap(const_cast<const self&>(other)) {}
@@ -1183,7 +1184,7 @@ struct mysql_statement {
       this->prepare_fetch(bind, real_lengths, o);
       while (this->fetch() != MYSQL_NO_DATA) {
         this->finalize_fetch(bind, real_lengths, o);
-        f(o);
+        f(std::move(o));
       }
       mysql_wrapper_.mysql_stmt_free_result(connection_status_, data_.stmt_);
     } else {
@@ -1195,7 +1196,7 @@ struct mysql_statement {
       this->prepare_fetch(bind, real_lengths, o);
       while (this->fetch() != MYSQL_NO_DATA) {
         this->finalize_fetch(bind, real_lengths, o);
-        apply(o, f);
+        apply(std::move(o), f);
       }
       mysql_wrapper_.mysql_stmt_free_result(connection_status_, data_.stmt_);
     }

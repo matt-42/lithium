@@ -7,48 +7,48 @@
 
 #pragma once
 
-#include <sys/stat.h>
-#include <cassert>
-#include <mysql.h>
-#include <optional>
-#include <thread>
-#include <deque>
-#include <fcntl.h>
-#include <netinet/tcp.h>
-#include <netdb.h>
-#include <sys/epoll.h>
-#include <boost/context/continuation.hpp>
-#include <mutex>
-#include <iostream>
-#include <sqlite3.h>
-#include <map>
 #include <atomic>
-#include <sys/sendfile.h>
-#include <stdlib.h>
+#include <unistd.h>
+#include <mutex>
 #include <sys/types.h>
 #include <tuple>
-#include <cmath>
+#include <signal.h>
+#include <map>
+#include <sys/socket.h>
+#include <stdio.h>
+#include <boost/lexical_cast.hpp>
+#include <random>
+#include <fcntl.h>
+#include <string>
+#include <sys/uio.h>
+#include <utility>
+#include <vector>
+#include <netdb.h>
+#include <netinet/tcp.h>
+#include <sys/stat.h>
+#include <memory>
+#include <errno.h>
 #include <sstream>
-#include <sys/mman.h>
+#include <thread>
+#include <cmath>
 #include <string_view>
 #include <string.h>
-#include <memory>
-#include <functional>
-#include <vector>
-#include <variant>
-#include <sys/uio.h>
 #include <set>
-#include <cstring>
+#include <boost/context/continuation.hpp>
+#include <functional>
+#include <deque>
+#include <cassert>
 #include <unordered_map>
-#include <errno.h>
-#include <signal.h>
-#include <random>
-#include <boost/lexical_cast.hpp>
-#include <unistd.h>
-#include <utility>
-#include <sys/socket.h>
-#include <string>
-#include <stdio.h>
+#include <stdlib.h>
+#include <sys/mman.h>
+#include <iostream>
+#include <cstring>
+#include <sys/sendfile.h>
+#include <mysql.h>
+#include <sys/epoll.h>
+#include <variant>
+#include <optional>
+#include <sqlite3.h>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -188,9 +188,10 @@ template <typename M1, typename... Ms> struct metamap<M1, Ms...> : public M1, pu
   typedef metamap<M1, Ms...> self;
   // Constructors.
   inline metamap() = default;
-  // inline metamap(self&&) = default;
+  inline metamap(self&&) = default;
   inline metamap(const self&) = default;
   self& operator=(const self&) = default;
+  self& operator=(self&&) = default;
 
   // metamap(self& other)
   //  : metamap(const_cast<const self&>(other)) {}
@@ -2074,7 +2075,7 @@ struct mysql_statement {
       this->prepare_fetch(bind, real_lengths, o);
       while (this->fetch() != MYSQL_NO_DATA) {
         this->finalize_fetch(bind, real_lengths, o);
-        f(o);
+        f(std::move(o));
       }
       mysql_wrapper_.mysql_stmt_free_result(connection_status_, data_.stmt_);
     } else {
@@ -2086,7 +2087,7 @@ struct mysql_statement {
       this->prepare_fetch(bind, real_lengths, o);
       while (this->fetch() != MYSQL_NO_DATA) {
         this->finalize_fetch(bind, real_lengths, o);
-        apply(o, f);
+        apply(std::move(o), f);
       }
       mysql_wrapper_.mysql_stmt_free_result(connection_status_, data_.stmt_);
     }
@@ -4385,6 +4386,96 @@ std::string_view url_unescape(std::string_view str) {
 
 namespace li {  
 
+
+struct output_buffer
+{
+
+  output_buffer() 
+  : flush_([] (const char*, int) {})
+  {
+  }
+
+  output_buffer(int capacity, 
+                std::function<void(const char*, int)> flush_ = [] (const char*, int) {})
+    : buffer_(new char[capacity]),
+      own_buffer_(true),
+      cursor_(buffer_),
+      end_(buffer_ + capacity),
+      flush_(flush_)
+  {
+    assert(buffer_);
+  }
+
+  ~output_buffer() {
+    if (own_buffer_)
+      delete[] buffer_;
+  }
+  output_buffer(void* buffer, int capacity, 
+                std::function<void(const char*, int)> flush_ = [] (const char*, int) {})
+    : buffer_((char*)buffer),
+      own_buffer_(false),
+      cursor_(buffer_),
+      end_(buffer_ + capacity),
+      flush_(flush_)
+  {
+    assert(buffer_);
+  }
+
+  void reset() 
+  {
+    cursor_ = buffer_;
+  }
+
+  std::size_t size()
+  {
+    return cursor_ - buffer_;
+  }
+  void flush()
+  {
+    flush_(buffer_, size());
+    reset();
+  }
+
+  output_buffer& operator<<(std::string_view s)
+  {
+    if (cursor_ + s.size() >= end_)
+      flush();
+
+    assert(cursor_ + s.size() < end_);
+    memcpy(cursor_, s.data(), s.size());
+    cursor_ += s.size();
+    return *this;
+  }
+
+  output_buffer& operator<<(const char* s)
+  {
+    return operator<<(std::string_view(s, strlen(s)));   
+  }
+  output_buffer& operator<<(char v)
+  {
+    cursor_[0] = v;
+    cursor_++;
+    return *this;
+  }
+
+  template <typename I>
+  output_buffer& operator<<(I v)
+  {
+    typedef std::array<char, 150> buf_t;
+    buf_t b = boost::lexical_cast<buf_t>(v);
+    return operator<<(std::string_view(b.begin(), strlen(b.begin())));
+  }
+  
+  std::string_view to_string_view() { return std::string_view(buffer_, cursor_ - buffer_); }
+
+  char* buffer_;
+  bool own_buffer_;
+  char* cursor_;
+  char* end_;
+  std::function<void(const char*s, int d)> flush_;
+};
+
+
 namespace http_async_impl {  
 
 char* date_buf = nullptr;
@@ -4553,75 +4644,6 @@ struct read_buffer
   char* data() { return buffer_.data(); }
 };
 
-struct output_buffer
-{
-
-  output_buffer() 
-  : flush_([] (const char*, int) {})
-  {
-  }
-
-  output_buffer(void* buffer, int capacity, 
-                std::function<void(const char*, int)> flush_ = [] (const char*, int) {})
-    : buffer_((char*)buffer),
-      cursor_(buffer_),
-      end_(buffer_ + capacity),
-      flush_(flush_)
-  {
-    assert(buffer_);
-  }
-
-  void reset() 
-  {
-    cursor_ = buffer_;
-  }
-
-  std::size_t size()
-  {
-    return cursor_ - buffer_;
-  }
-  void flush()
-  {
-    flush_(buffer_, size());
-    reset();
-  }
-
-  output_buffer& operator<<(std::string_view s)
-  {
-    if (cursor_ + s.size() >= end_)
-      flush();
-
-    assert(cursor_ + s.size() < end_);
-    memcpy(cursor_, s.data(), s.size());
-    cursor_ += s.size();
-    return *this;
-  }
-
-  output_buffer& operator<<(const char* s)
-  {
-    return operator<<(std::string_view(s, strlen(s)));   
-  }
-  output_buffer& operator<<(char v)
-  {
-    cursor_[0] = v;
-    cursor_++;
-    return *this;
-  }
-
-  template <typename I>
-  output_buffer& operator<<(I v)
-  {
-    typedef std::array<char, 50> buf_t;
-    buf_t b = boost::lexical_cast<buf_t>(v);
-    return operator<<(std::string_view(b.begin(), strlen(b.begin())));
-  }
-  
-  std::string_view to_string_view() { return std::string_view(buffer_, cursor_ - buffer_); }
-  char* buffer_;
-  char* cursor_;
-  char* end_;
-  std::function<void(const char*s, int d)> flush_;
-};
 
 struct http_ctx {
 
@@ -5797,7 +5819,7 @@ struct http_response {
   }
 
   inline void write() { http_ctx.respond(body); }
-
+  //template <typename T> http_response& operator<<(T t) { http_ctx.respond(t); }
   void set_status(int s) { http_ctx.set_status(s); }
 
   template <typename A1, typename... A> inline void write(A1&& a1, A&&... a) {

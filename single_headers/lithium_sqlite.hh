@@ -8,17 +8,17 @@
 #pragma once
 
 #include <memory>
-#include <vector>
 #include <mutex>
-#include <utility>
+#include <string>
 #include <iostream>
-#include <optional>
+#include <sstream>
 #include <cstring>
+#include <utility>
+#include <tuple>
+#include <vector>
+#include <optional>
 #include <sqlite3.h>
 #include <unordered_map>
-#include <tuple>
-#include <sstream>
-#include <string>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -157,9 +157,10 @@ template <typename M1, typename... Ms> struct metamap<M1, Ms...> : public M1, pu
   typedef metamap<M1, Ms...> self;
   // Constructors.
   inline metamap() = default;
-  // inline metamap(self&&) = default;
+  inline metamap(self&&) = default;
   inline metamap(const self&) = default;
   self& operator=(const self&) = default;
+  self& operator=(self&&) = default;
 
   // metamap(self& other)
   //  : metamap(const_cast<const self&>(other)) {}

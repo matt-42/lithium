@@ -7,23 +7,23 @@
 
 #pragma once
 
-#include <memory>
-#include <functional>
-#include <vector>
-#include <variant>
-#include <utility>
-#include <cassert>
-#include <curl/curl.h>
-#include <iostream>
 #include <optional>
-#include <cstring>
-#include <unordered_map>
-#include <tuple>
-#include <map>
-#include <cmath>
-#include <sstream>
-#include <string_view>
+#include <memory>
 #include <string>
+#include <cassert>
+#include <sstream>
+#include <iostream>
+#include <cstring>
+#include <utility>
+#include <string_view>
+#include <tuple>
+#include <vector>
+#include <map>
+#include <functional>
+#include <variant>
+#include <curl/curl.h>
+#include <cmath>
+#include <unordered_map>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -579,9 +579,10 @@ template <typename M1, typename... Ms> struct metamap<M1, Ms...> : public M1, pu
   typedef metamap<M1, Ms...> self;
   // Constructors.
   inline metamap() = default;
-  // inline metamap(self&&) = default;
+  inline metamap(self&&) = default;
   inline metamap(const self&) = default;
   self& operator=(const self&) = default;
+  self& operator=(self&&) = default;
 
   // metamap(self& other)
   //  : metamap(const_cast<const self&>(other)) {}

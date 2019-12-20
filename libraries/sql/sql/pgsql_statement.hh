@@ -284,11 +284,11 @@ struct pgsql_statement {
         if constexpr (li::is_metamap<T>::ret) {
           T o;
           fetch(res, row_i, o);
-          f(o);
+          f(std::move(o));
         } else { // tuple version.
           tp o;
           fetch(res, row_i, o);
-          std::apply(f, o);
+          std::apply(f, std::move(o));
         }
       }
       PQclear(res);

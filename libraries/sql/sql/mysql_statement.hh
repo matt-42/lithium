@@ -210,7 +210,7 @@ struct mysql_statement {
       this->prepare_fetch(bind, real_lengths, o);
       while (this->fetch() != MYSQL_NO_DATA) {
         this->finalize_fetch(bind, real_lengths, o);
-        f(o);
+        f(std::move(o));
       }
       mysql_wrapper_.mysql_stmt_free_result(connection_status_, data_.stmt_);
     } else {
@@ -222,7 +222,7 @@ struct mysql_statement {
       this->prepare_fetch(bind, real_lengths, o);
       while (this->fetch() != MYSQL_NO_DATA) {
         this->finalize_fetch(bind, real_lengths, o);
-        apply(o, f);
+        apply(std::move(o), f);
       }
       mysql_wrapper_.mysql_stmt_free_result(connection_status_, data_.stmt_);
     }

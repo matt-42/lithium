@@ -5,32 +5,29 @@
 #include "symbols.hh"
 using namespace li;
 
-
-std::string escape_html_entities(const std::string& data)
+template <typename B>
+void escape_html_entities(B& buffer, const std::string& data)
 {
-    std::string buffer;
-    buffer.reserve(data.size());
     for(size_t pos = 0; pos != data.size(); ++pos) {
         switch(data[pos]) {
-            case '&':  buffer.append("&amp;");       break;
-            case '\"': buffer.append("&quot;");      break;
-            case '\'': buffer.append("&apos;");      break;
-            case '<':  buffer.append("&lt;");        break;
-            case '>':  buffer.append("&gt;");        break;
-            default:   buffer.append(&data[pos], 1); break;
+            case '&':  buffer << "&amp;";       break;
+            case '\"': buffer << "&quot;";      break;
+            case '\'': buffer << "&apos;";      break;
+            case '<':  buffer << "&lt;";        break;
+            case '>':  buffer << "&gt;";        break;
+            default:   buffer << data[pos]; break;
         }
     }
-    return std::move(buffer);
 }
 
 int main(int argc, char* argv[]) {
 
-  // auto sql_db =
-  //     mysql_database(s::host = "127.0.0.1", s::database = "silicon_test", s::user = "root",
-  //                    s::password = "sl_test_password", s::port = 14550, s::charset = "utf8");
+  auto sql_db =
+      mysql_database(s::host = "127.0.0.1", s::database = "silicon_test", s::user = "root",
+                     s::password = "sl_test_password", s::port = 14550, s::charset = "utf8");
 
-  auto sql_db = pgsql_database(s::host = "localhost", s::database = "postgres", s::user = "postgres",
-                            s::password = "lithium_test", s::port = 32768, s::charset = "utf8");
+  // auto sql_db = pgsql_database(s::host = "localhost", s::database = "postgres", s::user = "postgres",
+  //                           s::password = "lithium_test", s::port = 32768, s::charset = "utf8");
 
   auto fortunes = sql_orm_schema(sql_db, "Fortune").fields(
     s::id(s::auto_increment, s::primary_key) = int(),
@@ -46,6 +43,10 @@ int main(int argc, char* argv[]) {
       c.drop_table_if_exists().create_table_if_not_exists();
       for (int i = 0; i < 100; i++)
         c.insert(s::randomNumber = i);
+      auto f = fortunes.connect();
+      f.drop_table_if_exists().create_table_if_not_exists();
+      for (int i = 0; i < 100; i++)
+        f.insert(s::message = "testmessagetestmessagetestmessagetestmessagetestmessagetestmessage");
     }
   http_api my_api;
 
@@ -103,35 +104,42 @@ int main(int argc, char* argv[]) {
     std::vector<fortune> table;
 
     auto c = fortunes.connect(request.yield);
-    c.forall([&] (auto f) { table.push_back(f); });
-    table.push_back(fortune(0, std::string("Additional fortune added at request time.")));
+    c.forall([&] (auto f) { table.emplace_back(std::move(f)); });
+    table.emplace_back(0, std::string("Additional fortune added at request time."));
 
     std::sort(table.begin(), table.end(),
               [] (const fortune& a, const fortune& b) { return a.message < b.message; });
 
-    std::stringstream ss;
-
+    char b[100000];
+    li::output_buffer ss(b, sizeof(b));
+    //std::ostringstream ss;
+    //output_buffer
     ss << "<!DOCTYPE html><html><head><title>Fortunes</title></head><body><table><tr><th>id</th><th>message</th></tr>";
     for(auto& f : table)
-      ss << "<tr><td>" << f.id << "</td><td>" << escape_html_entities(f.message) << "</td></tr>";
+    {
+      ss << "<tr><td>" << f.id << "</td><td>";
+      escape_html_entities(ss, f.message); 
+      ss << "</td></tr>";
+    }
     ss << "</table></body></html>";
 
     response.set_header("Content-Type", "text/html; charset=utf-8");
-    response.write(ss.str());
+    response.write(ss.to_string_view());
+    //response.write(ss.str());
   };
   
   //int port = 12666;
-  // int mysql_max_connection = sql_db.connect()("SELECT @@GLOBAL.max_connections;").read<int>() * 0.75;
-  // std::cout << "mysql max connection " << mysql_max_connection << std::endl;
-  // int port = atoi(argv[1]);
-  // int nthread = 4;
-  // li::max_mysql_connections_per_thread = (mysql_max_connection / nthread);
-
-  int mysql_max_connection = atoi(sql_db.connect()("SHOW max_connections;").read<std::string>().c_str()) * 0.75;
-  std::cout << "sql max connection " << mysql_max_connection << std::endl;
+  int mysql_max_connection = sql_db.connect()("SELECT @@GLOBAL.max_connections;").read<int>() * 0.75;
+  std::cout << "mysql max connection " << mysql_max_connection << std::endl;
   int port = atoi(argv[1]);
   int nthread = 4;
-  li::max_pgsql_connections_per_thread = (mysql_max_connection / nthread);
+  li::max_mysql_connections_per_thread = (mysql_max_connection / nthread);
+
+  // int mysql_max_connection = atoi(sql_db.connect()("SHOW max_connections;").read<std::string>().c_str()) * 0.75;
+  // std::cout << "sql max connection " << mysql_max_connection << std::endl;
+  // int port = atoi(argv[1]);
+  // int nthread = 4;
+  // li::max_pgsql_connections_per_thread = (mysql_max_connection / nthread);
 
 
   http_serve(my_api, port, s::nthreads = nthread); 

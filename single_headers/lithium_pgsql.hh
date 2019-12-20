@@ -7,25 +7,25 @@
 
 #pragma once
 
-#include <cassert>
-#include <optional>
+#include <atomic>
+#include <unistd.h>
+#include <mutex>
+#include <tuple>
+#include <map>
 #include <libpq-fe.h>
+#include <string>
+#include <arpa/inet.h>
+#include <utility>
+#include <vector>
+#include <memory>
+#include <sstream>
 #include <thread>
 #include <deque>
-#include <mutex>
-#include <iostream>
-#include <map>
-#include <atomic>
-#include <tuple>
-#include <sstream>
-#include <memory>
-#include <vector>
-#include <cstring>
+#include <cassert>
 #include <unordered_map>
-#include <arpa/inet.h>
-#include <unistd.h>
-#include <utility>
-#include <string>
+#include <iostream>
+#include <cstring>
+#include <optional>
 
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL
@@ -161,9 +161,10 @@ template <typename M1, typename... Ms> struct metamap<M1, Ms...> : public M1, pu
   typedef metamap<M1, Ms...> self;
   // Constructors.
   inline metamap() = default;
-  // inline metamap(self&&) = default;
+  inline metamap(self&&) = default;
   inline metamap(const self&) = default;
   self& operator=(const self&) = default;
+  self& operator=(self&&) = default;
 
   // metamap(self& other)
   //  : metamap(const_cast<const self&>(other)) {}
@@ -1180,11 +1181,11 @@ struct pgsql_statement {
         if constexpr (li::is_metamap<T>::ret) {
           T o;
           fetch(res, row_i, o);
-          f(o);
+          f(std::move(o));
         } else { // tuple version.
           tp o;
           fetch(res, row_i, o);
-          std::apply(f, o);
+          std::apply(f, std::move(o));
         }
       }
       PQclear(res);
