@@ -32,8 +32,7 @@ struct http_response {
   }
 
   inline void write() { http_ctx.respond(body); }
-  //template <typename T> http_response& operator<<(T t) { http_ctx.respond(t); }
-  void set_status(int s) { http_ctx.set_status(s); }
+   void set_status(int s) { http_ctx.set_status(s); }
 
   template <typename A1, typename... A> inline void write(A1&& a1, A&&... a) {
     body += boost::lexical_cast<std::string>(std::forward<A1>(a1));
