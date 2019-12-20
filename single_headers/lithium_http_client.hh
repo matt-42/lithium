@@ -7,23 +7,23 @@
 
 #pragma once
 
-#include <sstream>
+#include <memory>
+#include <string_view>
+#include <utility>
 #include <vector>
-#include <cmath>
 #include <unordered_map>
-#include <cstring>
+#include <cassert>
+#include <curl/curl.h>
+#include <sstream>
 #include <optional>
 #include <iostream>
-#include <map>
-#include <utility>
-#include <tuple>
-#include <curl/curl.h>
-#include <string_view>
+#include <cmath>
 #include <variant>
-#include <memory>
-#include <string>
-#include <cassert>
 #include <functional>
+#include <cstring>
+#include <string>
+#include <tuple>
+#include <map>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -451,7 +451,7 @@ public:
   inline decode_stringstream(std::string_view buffer_)
       : cur(buffer_.data()), bad_(false), buffer(buffer_) {}
 
-  inline bool eof() const { return cur >= &buffer.back(); }
+  inline bool eof() const { return cur > &buffer.back(); }
   inline const char peek() const { return *cur; }
   inline const char get() { return *(cur++); }
   inline int bad() const { return bad_; }

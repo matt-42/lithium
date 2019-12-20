@@ -7,19 +7,19 @@
 
 #pragma once
 
-#include <sstream>
-#include <cmath>
-#include <vector>
-#include <cstring>
-#include <optional>
-#include <utility>
-#include <tuple>
-#include <variant>
-#include <string_view>
 #include <memory>
-#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
 #include <cassert>
+#include <sstream>
+#include <optional>
+#include <cmath>
+#include <variant>
 #include <functional>
+#include <cstring>
+#include <string>
+#include <tuple>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -149,7 +149,7 @@ public:
   inline decode_stringstream(std::string_view buffer_)
       : cur(buffer_.data()), bad_(false), buffer(buffer_) {}
 
-  inline bool eof() const { return cur >= &buffer.back(); }
+  inline bool eof() const { return cur > &buffer.back(); }
   inline const char peek() const { return *cur; }
   inline const char get() { return *(cur++); }
   inline int bad() const { return bad_; }

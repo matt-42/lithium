@@ -7,52 +7,52 @@
 
 #pragma once
 
-#include <vector>
-#include <mysql.h>
-#include <unordered_map>
-#include <optional>
-#include <stdio.h>
-#include <stdlib.h>
+#include <memory>
 #include <fcntl.h>
-#include <sys/socket.h>
-#include <boost/lexical_cast.hpp>
-#include <map>
-#include <utility>
-#include <signal.h>
-#include <set>
-#include <atomic>
-#include <sys/uio.h>
-#include <errno.h>
-#include <string>
-#include <cassert>
-#include <sys/mman.h>
 #include <sys/stat.h>
-#include <variant>
-#include <deque>
-#include <mutex>
-#include <string.h>
-#include <thread>
+#include <sqlite3.h>
+#include <sys/sendfile.h>
+#include <sys/uio.h>
+#include <sys/mman.h>
+#include <tuple>
+#include <atomic>
+#include <string_view>
+#include <utility>
+#include <vector>
+#include <cassert>
+#include <errno.h>
+#include <sys/socket.h>
+#include <netinet/tcp.h>
 #include <random>
-#include <netdb.h>
 #include <functional>
-#include <sstream>
+#include <mutex>
+#include <boost/context/continuation.hpp>
+#include <string>
+#include <unordered_map>
+#include <signal.h>
+#include <sys/epoll.h>
 #include <cmath>
 #include <unistd.h>
+#include <string.h>
 #include <cstring>
+#include <boost/lexical_cast.hpp>
+#include <map>
+#include <set>
+#include <sstream>
+#include <stdlib.h>
+#include <optional>
+#include <deque>
 #include <iostream>
-#include <sys/sendfile.h>
+#include <thread>
+#include <variant>
 #include <sys/types.h>
-#include <tuple>
-#include <sqlite3.h>
-#include <string_view>
-#include <memory>
-#include <netinet/tcp.h>
-#include <boost/context/continuation.hpp>
-#include <sys/epoll.h>
+#include <stdio.h>
+#include <mysql.h>
+#include <netdb.h>
 
 #if defined(_MSC_VER)
-#include <ciso646>
 #include <io.h>
+#include <ciso646>
 #endif // _MSC_VER
 
 
@@ -2601,7 +2601,7 @@ public:
   inline decode_stringstream(std::string_view buffer_)
       : cur(buffer_.data()), bad_(false), buffer(buffer_) {}
 
-  inline bool eof() const { return cur >= &buffer.back(); }
+  inline bool eof() const { return cur > &buffer.back(); }
   inline const char peek() const { return *cur; }
   inline const char get() { return *(cur++); }
   inline int bad() const { return bad_; }
