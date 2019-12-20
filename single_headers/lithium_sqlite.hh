@@ -7,18 +7,18 @@
 
 #pragma once
 
-#include <memory>
-#include <mutex>
-#include <string>
-#include <iostream>
-#include <sstream>
-#include <cstring>
 #include <utility>
-#include <tuple>
-#include <vector>
+#include <cstring>
+#include <sstream>
 #include <optional>
+#include <vector>
 #include <sqlite3.h>
+#include <mutex>
+#include <tuple>
+#include <iostream>
 #include <unordered_map>
+#include <string>
+#include <memory>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -1546,8 +1546,11 @@ template <typename SCHEMA, typename C> struct sql_orm {
   template <typename F> void forall(F f) {
     std::ostringstream ss;
     placeholder_pos_ = 0;
+
     ss << "SELECT * from " << schema_.table_name();
-    con_(ss.str()).map([&](decltype(schema_.all_fields()) o) { f(o); });
+
+    typedef decltype(schema_.all_fields()) O;
+    con_(ss.str()).map([&](O&& o) { f(std::forward<O>(o)); });
   }
 
   // Update N's members except auto increment members.

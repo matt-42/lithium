@@ -7,44 +7,44 @@
 
 #pragma once
 
-#include <unistd.h>
-#include <mutex>
-#include <sys/types.h>
-#include <tuple>
-#include <signal.h>
-#include <map>
-#include <sys/socket.h>
-#include <stdio.h>
-#include <boost/lexical_cast.hpp>
-#include <random>
-#include <fcntl.h>
-#include <string>
-#include <sys/uio.h>
-#include <utility>
-#include <vector>
 #include <netdb.h>
 #include <netinet/tcp.h>
-#include <sys/stat.h>
-#include <memory>
-#include <errno.h>
-#include <sstream>
-#include <string.h>
-#include <string_view>
-#include <thread>
-#include <set>
-#include <boost/context/continuation.hpp>
+#include <sys/socket.h>
+#include <unistd.h>
+#include <variant>
+#include <boost/lexical_cast.hpp>
 #include <functional>
+#include <tuple>
 #include <cassert>
 #include <unordered_map>
+#include <string.h>
+#include <string>
+#include <string_view>
+#include <memory>
+#include <sys/types.h>
+#include <cmath>
+#include <sys/epoll.h>
+#include <map>
+#include <sys/uio.h>
+#include <errno.h>
+#include <set>
 #include <stdlib.h>
+#include <boost/context/continuation.hpp>
+#include <utility>
+#include <cstring>
+#include <sys/stat.h>
+#include <random>
+#include <sstream>
+#include <signal.h>
+#include <optional>
+#include <vector>
+#include <thread>
+#include <mutex>
+#include <stdio.h>
 #include <sys/mman.h>
 #include <iostream>
-#include <cstring>
+#include <fcntl.h>
 #include <sys/sendfile.h>
-#include <sys/epoll.h>
-#include <variant>
-#include <optional>
-#include <cmath>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -2400,8 +2400,11 @@ template <typename SCHEMA, typename C> struct sql_orm {
   template <typename F> void forall(F f) {
     std::ostringstream ss;
     placeholder_pos_ = 0;
+
     ss << "SELECT * from " << schema_.table_name();
-    con_(ss.str()).map([&](decltype(schema_.all_fields()) o) { f(o); });
+
+    typedef decltype(schema_.all_fields()) O;
+    con_(ss.str()).map([&](O&& o) { f(std::forward<O>(o)); });
   }
 
   // Update N's members except auto increment members.
@@ -4745,8 +4748,7 @@ struct http_response {
   }
 
   inline void write() { http_ctx.respond(body); }
-  //template <typename T> http_response& operator<<(T t) { http_ctx.respond(t); }
-  void set_status(int s) { http_ctx.set_status(s); }
+   void set_status(int s) { http_ctx.set_status(s); }
 
   template <typename A1, typename... A> inline void write(A1&& a1, A&&... a) {
     body += boost::lexical_cast<std::string>(std::forward<A1>(a1));

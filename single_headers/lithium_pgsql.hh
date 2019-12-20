@@ -7,25 +7,25 @@
 
 #pragma once
 
-#include <atomic>
 #include <unistd.h>
-#include <mutex>
 #include <tuple>
-#include <map>
-#include <libpq-fe.h>
-#include <string>
-#include <arpa/inet.h>
-#include <utility>
-#include <vector>
-#include <memory>
-#include <sstream>
-#include <thread>
-#include <deque>
 #include <cassert>
 #include <unordered_map>
-#include <iostream>
+#include <string>
+#include <memory>
+#include <libpq-fe.h>
+#include <deque>
+#include <map>
+#include <arpa/inet.h>
+#include <atomic>
+#include <utility>
 #include <cstring>
+#include <sstream>
 #include <optional>
+#include <thread>
+#include <vector>
+#include <mutex>
+#include <iostream>
 
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL
@@ -1821,8 +1821,11 @@ template <typename SCHEMA, typename C> struct sql_orm {
   template <typename F> void forall(F f) {
     std::ostringstream ss;
     placeholder_pos_ = 0;
+
     ss << "SELECT * from " << schema_.table_name();
-    con_(ss.str()).map([&](decltype(schema_.all_fields()) o) { f(o); });
+
+    typedef decltype(schema_.all_fields()) O;
+    con_(ss.str()).map([&](O&& o) { f(std::forward<O>(o)); });
   }
 
   // Update N's members except auto increment members.

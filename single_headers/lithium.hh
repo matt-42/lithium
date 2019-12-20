@@ -7,48 +7,48 @@
 
 #pragma once
 
-#include <atomic>
-#include <unistd.h>
-#include <mutex>
-#include <sys/types.h>
-#include <tuple>
-#include <signal.h>
-#include <map>
-#include <sys/socket.h>
-#include <stdio.h>
-#include <boost/lexical_cast.hpp>
-#include <random>
-#include <fcntl.h>
-#include <string>
-#include <sys/uio.h>
-#include <utility>
-#include <vector>
+#include <mysql.h>
 #include <netdb.h>
 #include <netinet/tcp.h>
-#include <sys/stat.h>
-#include <memory>
-#include <errno.h>
-#include <sstream>
-#include <thread>
-#include <cmath>
-#include <string_view>
-#include <string.h>
-#include <set>
-#include <boost/context/continuation.hpp>
+#include <sys/socket.h>
+#include <unistd.h>
+#include <variant>
+#include <boost/lexical_cast.hpp>
 #include <functional>
-#include <deque>
+#include <tuple>
 #include <cassert>
 #include <unordered_map>
+#include <string.h>
+#include <string>
+#include <string_view>
+#include <memory>
+#include <sys/types.h>
+#include <deque>
+#include <sqlite3.h>
+#include <cmath>
+#include <sys/epoll.h>
+#include <map>
+#include <sys/uio.h>
+#include <errno.h>
+#include <set>
+#include <atomic>
 #include <stdlib.h>
+#include <boost/context/continuation.hpp>
+#include <utility>
+#include <cstring>
+#include <sys/stat.h>
+#include <random>
+#include <sstream>
+#include <signal.h>
+#include <optional>
+#include <vector>
+#include <thread>
+#include <mutex>
+#include <stdio.h>
 #include <sys/mman.h>
 #include <iostream>
-#include <cstring>
+#include <fcntl.h>
 #include <sys/sendfile.h>
-#include <mysql.h>
-#include <sys/epoll.h>
-#include <variant>
-#include <optional>
-#include <sqlite3.h>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -1577,8 +1577,11 @@ template <typename SCHEMA, typename C> struct sql_orm {
   template <typename F> void forall(F f) {
     std::ostringstream ss;
     placeholder_pos_ = 0;
+
     ss << "SELECT * from " << schema_.table_name();
-    con_(ss.str()).map([&](decltype(schema_.all_fields()) o) { f(o); });
+
+    typedef decltype(schema_.all_fields()) O;
+    con_(ss.str()).map([&](O&& o) { f(std::forward<O>(o)); });
   }
 
   // Update N's members except auto increment members.
@@ -1797,20 +1800,24 @@ namespace li {
 struct mysql_functions_blocking {
   enum { is_blocking = true };
 
-#define LI_MYSQL_BLOCKING_WRAPPER(FN)                                                              \
-  template <typename... A> auto FN(std::shared_ptr<int> connection_status, A&&... a) {\
-    int ret = ::FN(std::forward<A>(a)...); \
-    if (ret)\
+#define LI_MYSQL_BLOCKING_WRAPPER(ERR, FN)                                                              \
+  template <typename A1, typename... A> auto FN(std::shared_ptr<int> connection_status, A1 a1, A&&... a) {\
+    int ret = ::FN(a1, std::forward<A>(a)...); \
+    if (ret and ret != MYSQL_NO_DATA) \
+    { \
       *connection_status = 1;\
+      throw std::runtime_error(std::string("Mysql error: ") + ERR(a1));\
+    } \
     return ret; }
 
-  LI_MYSQL_BLOCKING_WRAPPER(mysql_fetch_row)
-  LI_MYSQL_BLOCKING_WRAPPER(mysql_real_query)
-  LI_MYSQL_BLOCKING_WRAPPER(mysql_stmt_execute)
-  LI_MYSQL_BLOCKING_WRAPPER(mysql_stmt_reset)
-  LI_MYSQL_BLOCKING_WRAPPER(mysql_stmt_prepare)
-  LI_MYSQL_BLOCKING_WRAPPER(mysql_stmt_fetch)
-  LI_MYSQL_BLOCKING_WRAPPER(mysql_stmt_free_result)
+  LI_MYSQL_BLOCKING_WRAPPER(mysql_error, mysql_fetch_row)
+  LI_MYSQL_BLOCKING_WRAPPER(mysql_error, mysql_real_query)
+  LI_MYSQL_BLOCKING_WRAPPER(mysql_stmt_error, mysql_stmt_execute)
+  LI_MYSQL_BLOCKING_WRAPPER(mysql_stmt_error, mysql_stmt_reset)
+  LI_MYSQL_BLOCKING_WRAPPER(mysql_stmt_error, mysql_stmt_prepare)
+  LI_MYSQL_BLOCKING_WRAPPER(mysql_stmt_error, mysql_stmt_fetch)
+  LI_MYSQL_BLOCKING_WRAPPER(mysql_stmt_error, mysql_stmt_free_result)
+  LI_MYSQL_BLOCKING_WRAPPER(mysql_stmt_error, mysql_stmt_store_result)
 
 #undef LI_MYSQL_BLOCKING_WRAPPER
 };
@@ -1820,7 +1827,10 @@ template <typename Y> struct mysql_functions_non_blocking {
   enum { is_blocking = false };
 
   template <typename RT, typename A1, typename... A, typename B1, typename... B>
-  auto mysql_non_blocking_call(std::shared_ptr<int> connection_status, int fn_start(RT*, B1, B...),
+  auto mysql_non_blocking_call(std::shared_ptr<int> connection_status,
+                              const char* fn_name, 
+                               const char *error_fun(B1),
+                               int fn_start(RT*, B1, B...),
                                int fn_cont(RT*, B1, int), A1&& a1, A&&... args) {
 
     RT ret;
@@ -1839,25 +1849,28 @@ template <typename Y> struct mysql_functions_non_blocking {
 
       status = fn_cont(&ret, std::forward<A1>(a1), status);
     }
-    if (ret)
+    if (ret and ret != MYSQL_NO_DATA)
     {
       *connection_status = 1;
+      throw std::runtime_error(std::string("Mysql error in ") + fn_name + ": " + error_fun(a1));
     }
     return ret;
   }
 
-#define LI_MYSQL_NONBLOCKING_WRAPPER(FN)                                                           \
+
+#define LI_MYSQL_NONBLOCKING_WRAPPER(ERR, FN)                                                           \
   template <typename... A> auto FN(std::shared_ptr<int> connection_status, A&&... a) {                                                     \
-    return mysql_non_blocking_call(connection_status, ::FN##_start, ::FN##_cont, std::forward<A>(a)...);              \
+    return mysql_non_blocking_call(connection_status, #FN, ERR, ::FN##_start, ::FN##_cont, std::forward<A>(a)...);              \
   }
 
-  LI_MYSQL_NONBLOCKING_WRAPPER(mysql_fetch_row)
-  LI_MYSQL_NONBLOCKING_WRAPPER(mysql_real_query)
-  LI_MYSQL_NONBLOCKING_WRAPPER(mysql_stmt_execute)
-  LI_MYSQL_NONBLOCKING_WRAPPER(mysql_stmt_reset)
-  LI_MYSQL_NONBLOCKING_WRAPPER(mysql_stmt_prepare)
-  LI_MYSQL_NONBLOCKING_WRAPPER(mysql_stmt_fetch)
-  LI_MYSQL_NONBLOCKING_WRAPPER(mysql_stmt_free_result)
+  LI_MYSQL_NONBLOCKING_WRAPPER(mysql_error, mysql_fetch_row)
+  LI_MYSQL_NONBLOCKING_WRAPPER(mysql_error, mysql_real_query)
+  LI_MYSQL_NONBLOCKING_WRAPPER(mysql_stmt_error, mysql_stmt_execute)
+  LI_MYSQL_NONBLOCKING_WRAPPER(mysql_stmt_error, mysql_stmt_reset)
+  LI_MYSQL_NONBLOCKING_WRAPPER(mysql_stmt_error, mysql_stmt_prepare)
+  LI_MYSQL_NONBLOCKING_WRAPPER(mysql_stmt_error, mysql_stmt_fetch)
+  LI_MYSQL_NONBLOCKING_WRAPPER(mysql_stmt_error, mysql_stmt_free_result)
+  LI_MYSQL_NONBLOCKING_WRAPPER(mysql_stmt_error, mysql_stmt_store_result)
 
 #undef LI_MYSQL_NONBLOCKING_WRAPPER
 
@@ -1968,6 +1981,7 @@ struct mysql_statement {
     b.buffer_length = s.size();
   }
   void bind(MYSQL_BIND& b, const std::string& s) { bind(b, *const_cast<std::string*>(&s)); }
+
   template <unsigned SIZE> void bind(MYSQL_BIND& b, const sql_varchar<SIZE>& s) {
     bind(b, *const_cast<std::string*>(static_cast<const std::string*>(&s)));
   }
@@ -1990,6 +2004,12 @@ struct mysql_statement {
 
   template <typename T> void fetch_column(MYSQL_BIND*, unsigned long, T&, int) {}
   void fetch_column(MYSQL_BIND* b, unsigned long real_length, std::string& v, int i) {
+    if (real_length <= v.size())
+    {
+      v.resize(real_length);
+      return;
+    }
+
     v.resize(real_length);
     b[i].buffer_length = real_length;
     b[i].length = nullptr;
@@ -2001,15 +2021,29 @@ struct mysql_statement {
                                mysql_stmt_error(data_.stmt_));
     }
   }
+  template <unsigned SIZE>
+  void fetch_column(MYSQL_BIND& b, unsigned long real_length, sql_varchar<SIZE>& v, int i) {
+    v.resize(real_length);
+  }
 
   template <typename T> void bind_output(MYSQL_BIND& b, unsigned long* real_length, T& v) {
     bind(b, v);
   }
+
   void bind_output(MYSQL_BIND& b, unsigned long* real_length, std::string& v) {
+    v.resize(100);
     b.buffer_type = MYSQL_TYPE_STRING;
-    b.buffer_length = 0;
-    b.buffer = 0;
+    b.buffer_length = v.size();
+    b.buffer = &v[0];
     b.length = real_length;
+  }
+
+  template <unsigned SIZE>
+  void bind_output(MYSQL_BIND& b, sql_varchar<SIZE>& s) {
+    s.resize(SIZE);
+    b.buffer = &s[0];
+    b.buffer_type = MYSQL_TYPE_STRING;
+    b.buffer_length = s.size();
   }
 
   template <typename A> static constexpr auto number_of_fields(const A&) {
@@ -2064,6 +2098,7 @@ struct mysql_statement {
   }
 
   template <typename F> void map(F f) {
+
     typedef callable_arguments_tuple_t<F> tp;
     typedef std::remove_reference_t<std::tuple_element_t<0, tp>> T;
     if constexpr (li::is_metamap<T>::ret) {
@@ -2075,7 +2110,7 @@ struct mysql_statement {
       this->prepare_fetch(bind, real_lengths, o);
       while (this->fetch() != MYSQL_NO_DATA) {
         this->finalize_fetch(bind, real_lengths, o);
-        f(std::move(o));
+        f(std::move(o));  
       }
       mysql_wrapper_.mysql_stmt_free_result(connection_status_, data_.stmt_);
     } else {
@@ -5819,8 +5854,7 @@ struct http_response {
   }
 
   inline void write() { http_ctx.respond(body); }
-  //template <typename T> http_response& operator<<(T t) { http_ctx.respond(t); }
-  void set_status(int s) { http_ctx.set_status(s); }
+   void set_status(int s) { http_ctx.set_status(s); }
 
   template <typename A1, typename... A> inline void write(A1&& a1, A&&... a) {
     body += boost::lexical_cast<std::string>(std::forward<A1>(a1));

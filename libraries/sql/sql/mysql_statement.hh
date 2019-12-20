@@ -103,6 +103,7 @@ struct mysql_statement {
     b.buffer_length = s.size();
   }
   void bind(MYSQL_BIND& b, const std::string& s) { bind(b, *const_cast<std::string*>(&s)); }
+
   template <unsigned SIZE> void bind(MYSQL_BIND& b, const sql_varchar<SIZE>& s) {
     bind(b, *const_cast<std::string*>(static_cast<const std::string*>(&s)));
   }
@@ -125,6 +126,12 @@ struct mysql_statement {
 
   template <typename T> void fetch_column(MYSQL_BIND*, unsigned long, T&, int) {}
   void fetch_column(MYSQL_BIND* b, unsigned long real_length, std::string& v, int i) {
+    if (real_length <= v.size())
+    {
+      v.resize(real_length);
+      return;
+    }
+
     v.resize(real_length);
     b[i].buffer_length = real_length;
     b[i].length = nullptr;
@@ -136,15 +143,29 @@ struct mysql_statement {
                                mysql_stmt_error(data_.stmt_));
     }
   }
+  template <unsigned SIZE>
+  void fetch_column(MYSQL_BIND& b, unsigned long real_length, sql_varchar<SIZE>& v, int i) {
+    v.resize(real_length);
+  }
 
   template <typename T> void bind_output(MYSQL_BIND& b, unsigned long* real_length, T& v) {
     bind(b, v);
   }
+
   void bind_output(MYSQL_BIND& b, unsigned long* real_length, std::string& v) {
+    v.resize(100);
     b.buffer_type = MYSQL_TYPE_STRING;
-    b.buffer_length = 0;
-    b.buffer = 0;
+    b.buffer_length = v.size();
+    b.buffer = &v[0];
     b.length = real_length;
+  }
+
+  template <unsigned SIZE>
+  void bind_output(MYSQL_BIND& b, sql_varchar<SIZE>& s) {
+    s.resize(SIZE);
+    b.buffer = &s[0];
+    b.buffer_type = MYSQL_TYPE_STRING;
+    b.buffer_length = s.size();
   }
 
   template <typename A> static constexpr auto number_of_fields(const A&) {
@@ -199,6 +220,7 @@ struct mysql_statement {
   }
 
   template <typename F> void map(F f) {
+
     typedef callable_arguments_tuple_t<F> tp;
     typedef std::remove_reference_t<std::tuple_element_t<0, tp>> T;
     if constexpr (li::is_metamap<T>::ret) {
@@ -210,7 +232,7 @@ struct mysql_statement {
       this->prepare_fetch(bind, real_lengths, o);
       while (this->fetch() != MYSQL_NO_DATA) {
         this->finalize_fetch(bind, real_lengths, o);
-        f(std::move(o));
+        f(std::move(o));  
       }
       mysql_wrapper_.mysql_stmt_free_result(connection_status_, data_.stmt_);
     } else {
