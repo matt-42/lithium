@@ -7,48 +7,48 @@
 
 #pragma once
 
-#include <stdio.h>
-#include <set>
-#include <utility>
-#include <netdb.h>
-#include <unordered_map>
-#include <variant>
-#include <errno.h>
-#include <thread>
-#include <iostream>
-#include <netinet/tcp.h>
-#include <memory>
-#include <unistd.h>
-#include <sys/sendfile.h>
-#include <sys/mman.h>
-#include <mutex>
-#include <sstream>
-#include <sys/socket.h>
-#include <boost/lexical_cast.hpp>
-#include <string>
-#include <deque>
 #include <sys/stat.h>
-#include <stdlib.h>
-#include <signal.h>
-#include <optional>
-#include <tuple>
-#include <string_view>
-#include <boost/context/continuation.hpp>
 #include <cassert>
-#include <map>
-#include <sys/uio.h>
-#include <string.h>
-#include <random>
-#include <cmath>
 #include <mysql.h>
-#include <cstring>
-#include <functional>
+#include <optional>
+#include <thread>
+#include <deque>
 #include <fcntl.h>
+#include <netinet/tcp.h>
+#include <netdb.h>
 #include <sys/epoll.h>
-#include <vector>
-#include <atomic>
+#include <boost/context/continuation.hpp>
+#include <mutex>
+#include <iostream>
 #include <sqlite3.h>
+#include <map>
+#include <atomic>
+#include <sys/sendfile.h>
+#include <stdlib.h>
 #include <sys/types.h>
+#include <tuple>
+#include <cmath>
+#include <sstream>
+#include <sys/mman.h>
+#include <string_view>
+#include <string.h>
+#include <memory>
+#include <functional>
+#include <vector>
+#include <variant>
+#include <sys/uio.h>
+#include <set>
+#include <cstring>
+#include <unordered_map>
+#include <errno.h>
+#include <signal.h>
+#include <random>
+#include <boost/lexical_cast.hpp>
+#include <unistd.h>
+#include <utility>
+#include <sys/socket.h>
+#include <string>
+#include <stdio.h>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -3689,6 +3689,8 @@ namespace li {
 
 namespace internal {
 
+
+
 template <typename V> struct drt_node {
 
   drt_node() : v_{0, nullptr} {}
@@ -3701,6 +3703,7 @@ template <typename V> struct drt_node {
     bool operator==(const iterator& b) const { return this->ptr == b.ptr; }
     bool operator!=(const iterator& b) const { return this->ptr != b.ptr; }
   };
+
 
   auto end() const { return iterator{nullptr, std::string_view(), V()}; }
 
@@ -3934,6 +3937,16 @@ template <typename Req, typename Resp> struct api {
     std::cout << std::endl;
   }
   auto call(std::string_view method, std::string_view route, Req& request, Resp& response) const {
+    if (route == last_called_route_)
+    {
+      if (last_handler_.verb == ANY or parse_verb(method) == last_handler_.verb) {
+        request.url_spec = last_handler_.url_spec;
+        last_handler_.handler(request, response);
+        return;
+      } else
+        throw http_error::not_found("Method ", method, " not implemented on route ", route);
+    }
+
     // skip the last / of the url.
     std::string_view route2(route);
     if (route2.size() != 0 and route2[route2.size() - 1] == '/')
@@ -3942,6 +3955,8 @@ template <typename Req, typename Resp> struct api {
     auto it = routes_map_.find(route2);
     if (it != routes_map_.end()) {
       if (it->second.verb == ANY or parse_verb(method) == it->second.verb) {
+        const_cast<self*>(this)->last_called_route_ = route;
+        const_cast<self*>(this)->last_handler_ = it->second;
         request.url_spec = it->second.url_spec;
         it->second.handler(request, response);
       } else
@@ -3951,6 +3966,8 @@ template <typename Req, typename Resp> struct api {
   }
 
   dynamic_routing_table<VH> routes_map_;
+  std::string last_called_route_;
+  VH last_handler_;
 };
 
 } // namespace li
@@ -4384,7 +4401,7 @@ struct read_buffer
   int end = 0; // Index of the last read character
   
   read_buffer()
-    : buffer_(500 * 1024),
+    : buffer_(50 * 1024),
       //buffer_(500),
       cursor(0),
       end(0)
@@ -4572,15 +4589,17 @@ struct output_buffer
   output_buffer& operator<<(std::string_view s)
   {
     if (cursor_ + s.size() >= end_)
-    {
       flush();
-      //std::cout << s.size() << " " << (end_ - buffer_) << std::endl;
-      //throw std::runtime_error("Response too long.");
-    }
+
     assert(cursor_ + s.size() < end_);
     memcpy(cursor_, s.data(), s.size());
     cursor_ += s.size();
     return *this;
+  }
+
+  output_buffer& operator<<(const char* s)
+  {
+    return operator<<(std::string_view(s, strlen(s)));   
   }
   output_buffer& operator<<(char v)
   {
@@ -4589,17 +4608,12 @@ struct output_buffer
     return *this;
   }
 
-  // output_buffer& operator<<(int v) { return integer(v); }
-  // output_buffer& operator<<(unsigned int v) { return integer(v); }
-  // output_buffer& operator<<(size_t v) { return integer(v); }
-
   template <typename I>
   output_buffer& operator<<(I v)
   {
     typedef std::array<char, 50> buf_t;
     buf_t b = boost::lexical_cast<buf_t>(v);
-    operator<<(std::string_view(b.begin(), strlen(b.begin())));
-    return *this;
+    return operator<<(std::string_view(b.begin(), strlen(b.begin())));
   }
   
   std::string_view to_string_view() { return std::string_view(buffer_, cursor_ - buffer_); }
@@ -5247,23 +5261,33 @@ auto make_http_processor(F handler)
             }
 
           // Look for end of header and save header lines.
-          while (header_end < rb.end - 3)
           {
-            //if (!strncmp(rb.data() + header_end, "\r\n", 2))
-            if ((rb.data() + header_end)[0] == '\r' and (rb.data() + header_end)[1] == '\n')
+            const char * cur = rb.data() + header_end;
+            while ((cur - rb.data()) < rb.end - 3)
             {
-              ctx.add_header_line(rb.data() + header_end + 2);
-              header_end += 2;
-              if ((rb.data() + header_end)[0] == '\r' and (rb.data() + header_end)[1] == '\n')
-                //if (!strncmp(rb.data() + header_end, "\r\n", 2))
+              //if (!strncmp(rb.data() + header_end, "\r\n", 2))
+ 
+              if (cur[0] == '\r' and cur[1] == '\n')
               {
-                complete_header = true;
-                header_end += 2;
-                break;
+                ctx.add_header_line(cur + 2);
+                //header_end += 2;
+                cur+=2;
+                //if ((rb.data() + header_end)[0] == '\r' and (rb.data() + header_end)[1] == '\n')
+                if (cur[0] == '\r' and cur[1] == '\n')
+                //if (!strncmp(rb.data() + header_end, "\r\n", 2))
+                {
+                  complete_header = true;
+                  cur+=2;
+                  header_end = cur - rb.data();
+                  break;
+                }
+              }
+              else
+              {
+                //header_end++;
+                cur++;
               }
             }
-            else           
-              header_end++;
           }
         }
 
@@ -5807,7 +5831,6 @@ template <typename... O> auto http_serve(api<http_request, http_response> api, i
 
   int nthreads = get_or(options, s::nthreads, 4);
 
-//int http_serve(int port, int nthreads, F handler)
   auto handler = [api] (http_async_impl::http_ctx& ctx) {
     http_request rq{ctx};
     http_response resp(ctx);

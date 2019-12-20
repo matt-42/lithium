@@ -7,25 +7,25 @@
 
 #pragma once
 
-#include <utility>
-#include <unordered_map>
-#include <thread>
-#include <iostream>
-#include <unistd.h>
-#include <memory>
-#include <mutex>
-#include <sstream>
-#include <libpq-fe.h>
-#include <deque>
-#include <string>
-#include <optional>
-#include <tuple>
 #include <cassert>
+#include <optional>
+#include <libpq-fe.h>
+#include <thread>
+#include <deque>
+#include <mutex>
+#include <iostream>
 #include <map>
-#include <cstring>
-#include <vector>
 #include <atomic>
+#include <tuple>
+#include <sstream>
+#include <memory>
+#include <vector>
+#include <cstring>
+#include <unordered_map>
 #include <arpa/inet.h>
+#include <unistd.h>
+#include <utility>
+#include <string>
 
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL
@@ -1112,7 +1112,8 @@ struct pgsql_statement {
       field_i++;
     });
   }
-  template <typename... A> void fetch(PGresult* res, int row_i, int& o) {
+  
+  template <typename T> void fetch(PGresult* res, int row_i, T& o) {
     int field_i = 0;
 
     int nfields = PQnfields(res);
