@@ -7,48 +7,48 @@
 
 #pragma once
 
-#include <map>
-#include <cassert>
-#include <netinet/tcp.h>
-#include <sys/types.h>
-#include <string.h>
-#include <variant>
-#include <stdio.h>
-#include <sys/uio.h>
-#include <cmath>
-#include <random>
-#include <utility>
-#include <sqlite3.h>
 #include <vector>
-#include <signal.h>
-#include <iostream>
-#include <set>
-#include <tuple>
-#include <sys/sendfile.h>
-#include <sys/mman.h>
-#include <boost/lexical_cast.hpp>
-#include <memory>
-#include <unistd.h>
-#include <netdb.h>
-#include <stdlib.h>
-#include <string>
-#include <thread>
-#include <mutex>
-#include <sstream>
-#include <unordered_map>
-#include <boost/context/continuation.hpp>
-#include <fcntl.h>
 #include <mysql.h>
-#include <atomic>
-#include <errno.h>
+#include <unordered_map>
 #include <optional>
-#include <cstring>
-#include <deque>
+#include <stdio.h>
+#include <stdlib.h>
+#include <fcntl.h>
 #include <sys/socket.h>
+#include <boost/lexical_cast.hpp>
+#include <map>
+#include <utility>
+#include <signal.h>
+#include <set>
+#include <atomic>
+#include <sys/uio.h>
+#include <errno.h>
+#include <string>
+#include <cassert>
+#include <sys/mman.h>
 #include <sys/stat.h>
+#include <variant>
+#include <deque>
+#include <mutex>
+#include <string.h>
+#include <thread>
+#include <random>
+#include <netdb.h>
 #include <functional>
-#include <sys/epoll.h>
+#include <sstream>
+#include <cmath>
+#include <unistd.h>
+#include <cstring>
+#include <iostream>
+#include <sys/sendfile.h>
+#include <sys/types.h>
+#include <tuple>
+#include <sqlite3.h>
 #include <string_view>
+#include <memory>
+#include <netinet/tcp.h>
+#include <boost/context/continuation.hpp>
+#include <sys/epoll.h>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -2598,13 +2598,14 @@ template <typename F> void parse_float(F* f, const char* str, const char** end) 
 
 class decode_stringstream {
 public:
-  inline decode_stringstream(string_view buffer_)
+  inline decode_stringstream(std::string_view buffer_)
       : cur(buffer_.data()), bad_(false), buffer(buffer_) {}
 
   inline bool eof() const { return cur >= &buffer.back(); }
   inline const char peek() const { return *cur; }
-  inline int get() { return *(cur++); }
+  inline const char get() { return *(cur++); }
   inline int bad() const { return bad_; }
+  inline int good() const { return !bad_ && !eof(); }
 
   template <typename T> void operator>>(T& value) {
     eat_spaces();
@@ -2663,7 +2664,7 @@ private:
 
   int bad_;
   const char* cur;
-  string_view buffer; //
+  std::string_view buffer; //
 };
 
 } // namespace li
@@ -2746,12 +2747,12 @@ inline decltype(auto) wrap_json_output_stream(std::string& s) {
 inline decltype(auto) wrap_json_input_stream(std::istringstream& s) { return s; }
 inline decltype(auto) wrap_json_input_stream(std::stringstream& s) { return s; }
 inline decltype(auto) wrap_json_input_stream(decode_stringstream& s) { return s; }
-inline decltype(auto) wrap_json_input_stream(const std::string& s) { return std::istringstream(s); }
+inline decltype(auto) wrap_json_input_stream(const std::string& s) { return decode_stringstream(s); }
 inline decltype(auto) wrap_json_input_stream(const char* s) {
-  return std::istringstream(std::string(s));
+  return decode_stringstream(s);
 }
 inline decltype(auto) wrap_json_input_stream(const std::string_view& s) {
-  return std::istringstream(std::string(s));
+  return decode_stringstream(s);
 }
 
 namespace unicode_impl {
@@ -4499,6 +4500,30 @@ struct output_buffer
     cursor_++;
     return *this;
   }
+
+  output_buffer& operator<<(std::size_t v)
+  {
+    if (v == 0) operator<<('0');
+
+    char buffer[10];
+    char* str_start = buffer;
+    for (int i = 0; i < 10; i++)
+    {
+      if (v > 0) str_start = buffer + 9 - i;
+      buffer[9 - i] = (v % 10) + '0';
+      v /= 10;
+    }
+    operator<<(std::string_view(str_start, buffer + 10 - str_start));
+    return *this;
+  }
+  // template <typename I>
+  // output_buffer& operator<<(unsigned long s)
+  // {
+  //   typedef std::array<char, 150> buf_t;
+  //   buf_t b = boost::lexical_cast<buf_t>(v);
+  //   return operator<<(std::string_view(b.begin(), strlen(b.begin())));
+  // }
+
 
   template <typename I>
   output_buffer& operator<<(I v)

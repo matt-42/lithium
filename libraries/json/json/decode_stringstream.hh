@@ -113,13 +113,14 @@ template <typename F> void parse_float(F* f, const char* str, const char** end) 
 
 class decode_stringstream {
 public:
-  inline decode_stringstream(string_view buffer_)
+  inline decode_stringstream(std::string_view buffer_)
       : cur(buffer_.data()), bad_(false), buffer(buffer_) {}
 
   inline bool eof() const { return cur >= &buffer.back(); }
   inline const char peek() const { return *cur; }
-  inline int get() { return *(cur++); }
+  inline const char get() { return *(cur++); }
   inline int bad() const { return bad_; }
+  inline int good() const { return !bad_ && !eof(); }
 
   template <typename T> void operator>>(T& value) {
     eat_spaces();
@@ -178,7 +179,7 @@ private:
 
   int bad_;
   const char* cur;
-  string_view buffer; //
+  std::string_view buffer; //
 };
 
 } // namespace li

@@ -94,6 +94,30 @@ struct output_buffer
     return *this;
   }
 
+  output_buffer& operator<<(std::size_t v)
+  {
+    if (v == 0) operator<<('0');
+
+    char buffer[10];
+    char* str_start = buffer;
+    for (int i = 0; i < 10; i++)
+    {
+      if (v > 0) str_start = buffer + 9 - i;
+      buffer[9 - i] = (v % 10) + '0';
+      v /= 10;
+    }
+    operator<<(std::string_view(str_start, buffer + 10 - str_start));
+    return *this;
+  }
+  // template <typename I>
+  // output_buffer& operator<<(unsigned long s)
+  // {
+  //   typedef std::array<char, 150> buf_t;
+  //   buf_t b = boost::lexical_cast<buf_t>(v);
+  //   return operator<<(std::string_view(b.begin(), strlen(b.begin())));
+  // }
+
+
   template <typename I>
   output_buffer& operator<<(I v)
   {

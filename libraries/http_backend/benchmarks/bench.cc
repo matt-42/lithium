@@ -20,14 +20,20 @@ void escape_html_entities(B& buffer, const std::string& data)
     }
 }
 
+#define MYSQL
+
 int main(int argc, char* argv[]) {
 
-  // auto sql_db =
-      // mysql_database(s::host = "127.0.0.1", s::database = "silicon_test", s::user = "root",
-      //                s::password = "sl_test_password", s::port = 14550, s::charset = "utf8");
+#ifdef MYSQL
+  auto sql_db =
+      mysql_database(s::host = "127.0.0.1", s::database = "silicon_test", s::user = "root",
+                     s::password = "sl_test_password", s::port = 14550, s::charset = "utf8");
 
+#elif
   auto sql_db = pgsql_database(s::host = "localhost", s::database = "postgres", s::user = "postgres",
                             s::password = "lithium_test", s::port = 32768, s::charset = "utf8");
+
+#endif
 
   auto fortunes = sql_orm_schema(sql_db, "Fortune").fields(
     s::id(s::auto_increment, s::primary_key) = int(),
@@ -45,7 +51,7 @@ int main(int argc, char* argv[]) {
         c.insert(s::randomNumber = i);
       auto f = fortunes.connect();
       f.drop_table_if_exists().create_table_if_not_exists();
-      for (int i = 0; i < 10; i++)
+      for (int i = 0; i < 100; i++)
         f.insert(s::message = "testmessagetestmessagetestmessagetestmessagetestmessagetestmessage");
     }
   http_api my_api;
@@ -125,20 +131,22 @@ int main(int argc, char* argv[]) {
     response.set_header("Content-Type", "text/html; charset=utf-8");
     response.write(ss.to_string_view());
   };
-  
-  // int mysql_max_connection = sql_db.connect()("SELECT @@GLOBAL.max_connections;").read<int>() * 0.75;
-  // std::cout << "mysql max connection " << mysql_max_connection << std::endl;
-  // int port = atoi(argv[1]);
-  // //int port = 12667;
-  // int nthread = 4;
-  // li::max_mysql_connections_per_thread = (mysql_max_connection / nthread);
 
+#ifdef MYSQL  
+  int mysql_max_connection = sql_db.connect()("SELECT @@GLOBAL.max_connections;").read<int>() * 0.75;
+  std::cout << "mysql max connection " << mysql_max_connection << std::endl;
+  int port = atoi(argv[1]);
+  //int port = 12667;
+  int nthread = 4;
+  li::max_mysql_connections_per_thread = (mysql_max_connection / nthread);
+
+#elif
   int mysql_max_connection = atoi(sql_db.connect()("SHOW max_connections;").read<std::string>().c_str()) * 0.75;
   std::cout << "sql max connection " << mysql_max_connection << std::endl;
   int port = atoi(argv[1]);
   int nthread = 4;
   li::max_pgsql_connections_per_thread = (mysql_max_connection / nthread);
-
+#endif
 
   http_serve(my_api, port, s::nthreads = nthread); 
   

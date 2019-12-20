@@ -14,7 +14,7 @@ find_package(PostgreSQL REQUIRED)
 include_directories(${SQLite3_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS} ${MICROHTTPD_INCLUDE_DIRS} ${MYSQL_INCLUDE_DIR})
 include_directories(${PostgreSQL_INCLUDE_DIRS})
 
-add_definitions(-march=native)
+add_definitions(-march=native -fno-omit-frame-pointer)
 
 set(CMAKE_VERBOSE_MAKEFILE ON)
 if (OPENSSL_FOUND)

@@ -7,23 +7,23 @@
 
 #pragma once
 
-#include <map>
-#include <cassert>
-#include <optional>
-#include <iostream>
-#include <cstring>
-#include <tuple>
-#include <string>
-#include <variant>
 #include <sstream>
+#include <vector>
 #include <cmath>
 #include <unordered_map>
-#include <curl/curl.h>
-#include <functional>
-#include <string_view>
+#include <cstring>
+#include <optional>
+#include <iostream>
+#include <map>
 #include <utility>
+#include <tuple>
+#include <curl/curl.h>
+#include <string_view>
+#include <variant>
 #include <memory>
-#include <vector>
+#include <string>
+#include <cassert>
+#include <functional>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -448,13 +448,14 @@ template <typename F> void parse_float(F* f, const char* str, const char** end) 
 
 class decode_stringstream {
 public:
-  inline decode_stringstream(string_view buffer_)
+  inline decode_stringstream(std::string_view buffer_)
       : cur(buffer_.data()), bad_(false), buffer(buffer_) {}
 
   inline bool eof() const { return cur >= &buffer.back(); }
   inline const char peek() const { return *cur; }
-  inline int get() { return *(cur++); }
+  inline const char get() { return *(cur++); }
   inline int bad() const { return bad_; }
+  inline int good() const { return !bad_ && !eof(); }
 
   template <typename T> void operator>>(T& value) {
     eat_spaces();
@@ -513,7 +514,7 @@ private:
 
   int bad_;
   const char* cur;
-  string_view buffer; //
+  std::string_view buffer; //
 };
 
 } // namespace li
@@ -976,12 +977,12 @@ inline decltype(auto) wrap_json_output_stream(std::string& s) {
 inline decltype(auto) wrap_json_input_stream(std::istringstream& s) { return s; }
 inline decltype(auto) wrap_json_input_stream(std::stringstream& s) { return s; }
 inline decltype(auto) wrap_json_input_stream(decode_stringstream& s) { return s; }
-inline decltype(auto) wrap_json_input_stream(const std::string& s) { return std::istringstream(s); }
+inline decltype(auto) wrap_json_input_stream(const std::string& s) { return decode_stringstream(s); }
 inline decltype(auto) wrap_json_input_stream(const char* s) {
-  return std::istringstream(std::string(s));
+  return decode_stringstream(s);
 }
 inline decltype(auto) wrap_json_input_stream(const std::string_view& s) {
-  return std::istringstream(std::string(s));
+  return decode_stringstream(s);
 }
 
 namespace unicode_impl {

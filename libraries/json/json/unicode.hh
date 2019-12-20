@@ -28,12 +28,12 @@ inline decltype(auto) wrap_json_output_stream(std::string& s) {
 inline decltype(auto) wrap_json_input_stream(std::istringstream& s) { return s; }
 inline decltype(auto) wrap_json_input_stream(std::stringstream& s) { return s; }
 inline decltype(auto) wrap_json_input_stream(decode_stringstream& s) { return s; }
-inline decltype(auto) wrap_json_input_stream(const std::string& s) { return std::istringstream(s); }
+inline decltype(auto) wrap_json_input_stream(const std::string& s) { return decode_stringstream(s); }
 inline decltype(auto) wrap_json_input_stream(const char* s) {
-  return std::istringstream(std::string(s));
+  return decode_stringstream(s);
 }
 inline decltype(auto) wrap_json_input_stream(const std::string_view& s) {
-  return std::istringstream(std::string(s));
+  return decode_stringstream(s);
 }
 
 namespace unicode_impl {
