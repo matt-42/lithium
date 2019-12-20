@@ -7,44 +7,44 @@
 
 #pragma once
 
-#include <netdb.h>
-#include <netinet/tcp.h>
-#include <sys/socket.h>
-#include <unistd.h>
-#include <variant>
-#include <boost/lexical_cast.hpp>
-#include <functional>
-#include <tuple>
-#include <cassert>
-#include <unordered_map>
-#include <string.h>
-#include <string>
-#include <string_view>
-#include <memory>
-#include <sys/types.h>
-#include <cmath>
-#include <sys/epoll.h>
 #include <map>
+#include <cassert>
+#include <netinet/tcp.h>
+#include <sys/types.h>
+#include <string.h>
+#include <variant>
+#include <stdio.h>
 #include <sys/uio.h>
-#include <errno.h>
-#include <set>
-#include <stdlib.h>
-#include <boost/context/continuation.hpp>
-#include <utility>
-#include <cstring>
-#include <sys/stat.h>
+#include <cmath>
 #include <random>
-#include <sstream>
-#include <signal.h>
-#include <optional>
+#include <utility>
 #include <vector>
+#include <signal.h>
+#include <iostream>
+#include <set>
+#include <tuple>
+#include <sys/sendfile.h>
+#include <sys/mman.h>
+#include <boost/lexical_cast.hpp>
+#include <memory>
+#include <unistd.h>
+#include <netdb.h>
+#include <stdlib.h>
+#include <string>
 #include <thread>
 #include <mutex>
-#include <stdio.h>
-#include <sys/mman.h>
-#include <iostream>
+#include <sstream>
+#include <unordered_map>
+#include <boost/context/continuation.hpp>
 #include <fcntl.h>
-#include <sys/sendfile.h>
+#include <errno.h>
+#include <optional>
+#include <cstring>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <functional>
+#include <sys/epoll.h>
+#include <string_view>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -2404,7 +2404,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     ss << "SELECT * from " << schema_.table_name();
 
     typedef decltype(schema_.all_fields()) O;
-    con_(ss.str()).map([&](O&& o) { f(std::forward<O>(o)); });
+    con_(ss.str()).map([&](const O& o) { f(o); });
   }
 
   // Update N's members except auto increment members.

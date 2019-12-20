@@ -7,48 +7,48 @@
 
 #pragma once
 
-#include <mysql.h>
-#include <netdb.h>
-#include <netinet/tcp.h>
-#include <sys/socket.h>
-#include <unistd.h>
-#include <variant>
-#include <boost/lexical_cast.hpp>
-#include <functional>
-#include <tuple>
-#include <cassert>
-#include <unordered_map>
-#include <string.h>
-#include <string>
-#include <string_view>
-#include <memory>
-#include <sys/types.h>
-#include <deque>
-#include <sqlite3.h>
-#include <cmath>
-#include <sys/epoll.h>
 #include <map>
+#include <cassert>
+#include <netinet/tcp.h>
+#include <sys/types.h>
+#include <string.h>
+#include <variant>
+#include <stdio.h>
 #include <sys/uio.h>
-#include <errno.h>
-#include <set>
-#include <atomic>
-#include <stdlib.h>
-#include <boost/context/continuation.hpp>
-#include <utility>
-#include <cstring>
-#include <sys/stat.h>
+#include <cmath>
 #include <random>
-#include <sstream>
-#include <signal.h>
-#include <optional>
+#include <utility>
+#include <sqlite3.h>
 #include <vector>
+#include <signal.h>
+#include <iostream>
+#include <set>
+#include <tuple>
+#include <sys/sendfile.h>
+#include <sys/mman.h>
+#include <boost/lexical_cast.hpp>
+#include <memory>
+#include <unistd.h>
+#include <netdb.h>
+#include <stdlib.h>
+#include <string>
 #include <thread>
 #include <mutex>
-#include <stdio.h>
-#include <sys/mman.h>
-#include <iostream>
+#include <sstream>
+#include <unordered_map>
+#include <boost/context/continuation.hpp>
 #include <fcntl.h>
-#include <sys/sendfile.h>
+#include <mysql.h>
+#include <atomic>
+#include <errno.h>
+#include <optional>
+#include <cstring>
+#include <deque>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <functional>
+#include <sys/epoll.h>
+#include <string_view>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -1581,7 +1581,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     ss << "SELECT * from " << schema_.table_name();
 
     typedef decltype(schema_.all_fields()) O;
-    con_(ss.str()).map([&](O&& o) { f(std::forward<O>(o)); });
+    con_(ss.str()).map([&](const O& o) { f(o); });
   }
 
   // Update N's members except auto increment members.
@@ -2097,10 +2097,17 @@ struct mysql_statement {
       return std::optional<T>();
   }
 
+  template <typename T>
+  struct unconstref_tuple_elements {};
+  template <typename... T>
+  struct unconstref_tuple_elements<std::tuple<T...>> {
+    typedef std::tuple<std::remove_const_t<std::remove_reference_t<T>>...> ret;
+  };
+
   template <typename F> void map(F f) {
 
-    typedef callable_arguments_tuple_t<F> tp;
-    typedef std::remove_reference_t<std::tuple_element_t<0, tp>> T;
+    typedef typename unconstref_tuple_elements<callable_arguments_tuple_t<F>>::ret tp;
+    typedef std::remove_const_t<std::remove_reference_t<std::tuple_element_t<0, tp>>> T;
     if constexpr (li::is_metamap<T>::ret) {
       T o;
 
@@ -2110,7 +2117,7 @@ struct mysql_statement {
       this->prepare_fetch(bind, real_lengths, o);
       while (this->fetch() != MYSQL_NO_DATA) {
         this->finalize_fetch(bind, real_lengths, o);
-        f(std::move(o));  
+        f(o);
       }
       mysql_wrapper_.mysql_stmt_free_result(connection_status_, data_.stmt_);
     } else {

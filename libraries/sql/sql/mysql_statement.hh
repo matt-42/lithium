@@ -219,10 +219,17 @@ struct mysql_statement {
       return std::optional<T>();
   }
 
+  template <typename T>
+  struct unconstref_tuple_elements {};
+  template <typename... T>
+  struct unconstref_tuple_elements<std::tuple<T...>> {
+    typedef std::tuple<std::remove_const_t<std::remove_reference_t<T>>...> ret;
+  };
+
   template <typename F> void map(F f) {
 
-    typedef callable_arguments_tuple_t<F> tp;
-    typedef std::remove_reference_t<std::tuple_element_t<0, tp>> T;
+    typedef typename unconstref_tuple_elements<callable_arguments_tuple_t<F>>::ret tp;
+    typedef std::remove_const_t<std::remove_reference_t<std::tuple_element_t<0, tp>>> T;
     if constexpr (li::is_metamap<T>::ret) {
       T o;
 
@@ -232,7 +239,7 @@ struct mysql_statement {
       this->prepare_fetch(bind, real_lengths, o);
       while (this->fetch() != MYSQL_NO_DATA) {
         this->finalize_fetch(bind, real_lengths, o);
-        f(std::move(o));  
+        f(o);
       }
       mysql_wrapper_.mysql_stmt_free_result(connection_status_, data_.stmt_);
     } else {

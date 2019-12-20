@@ -7,25 +7,25 @@
 
 #pragma once
 
-#include <unistd.h>
-#include <tuple>
-#include <cassert>
-#include <unordered_map>
-#include <string>
-#include <memory>
-#include <libpq-fe.h>
-#include <deque>
 #include <map>
+#include <cassert>
+#include <libpq-fe.h>
+#include <utility>
+#include <vector>
+#include <iostream>
+#include <tuple>
+#include <memory>
+#include <unistd.h>
+#include <string>
+#include <thread>
+#include <mutex>
+#include <sstream>
+#include <unordered_map>
 #include <arpa/inet.h>
 #include <atomic>
-#include <utility>
-#include <cstring>
-#include <sstream>
 #include <optional>
-#include <thread>
-#include <vector>
-#include <mutex>
-#include <iostream>
+#include <cstring>
+#include <deque>
 
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL
@@ -1168,10 +1168,17 @@ struct pgsql_statement {
       return std::optional<T>();
   }
 
+  template <typename T>
+  struct unconstref_tuple_elements {};
+  template <typename... T>
+  struct unconstref_tuple_elements<std::tuple<T...>> {
+    typedef std::tuple<std::remove_const_t<std::remove_reference_t<T>>...> ret;
+  };
+  
   // Map a function to multiple rows.
   template <typename F> void map(F f) {
-    typedef callable_arguments_tuple_t<F> tp;
-    typedef std::remove_reference_t<std::tuple_element_t<0, tp>> T;
+    typedef typename unconstref_tuple_elements<callable_arguments_tuple_t<F>>::ret tp;
+    typedef std::remove_const_t<std::remove_reference_t<std::tuple_element_t<0, tp>>> T;
 
     while(PGresult* res = wait_for_next_result())
     {
@@ -1181,11 +1188,11 @@ struct pgsql_statement {
         if constexpr (li::is_metamap<T>::ret) {
           T o;
           fetch(res, row_i, o);
-          f(std::move(o));
+          f(o);
         } else { // tuple version.
           tp o;
           fetch(res, row_i, o);
-          std::apply(f, std::move(o));
+          std::apply(f, o);
         }
       }
       PQclear(res);
@@ -1825,7 +1832,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     ss << "SELECT * from " << schema_.table_name();
 
     typedef decltype(schema_.all_fields()) O;
-    con_(ss.str()).map([&](O&& o) { f(std::forward<O>(o)); });
+    con_(ss.str()).map([&](const O& o) { f(o); });
   }
 
   // Update N's members except auto increment members.

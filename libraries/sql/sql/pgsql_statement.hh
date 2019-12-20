@@ -271,10 +271,17 @@ struct pgsql_statement {
       return std::optional<T>();
   }
 
+  template <typename T>
+  struct unconstref_tuple_elements {};
+  template <typename... T>
+  struct unconstref_tuple_elements<std::tuple<T...>> {
+    typedef std::tuple<std::remove_const_t<std::remove_reference_t<T>>...> ret;
+  };
+  
   // Map a function to multiple rows.
   template <typename F> void map(F f) {
-    typedef callable_arguments_tuple_t<F> tp;
-    typedef std::remove_reference_t<std::tuple_element_t<0, tp>> T;
+    typedef typename unconstref_tuple_elements<callable_arguments_tuple_t<F>>::ret tp;
+    typedef std::remove_const_t<std::remove_reference_t<std::tuple_element_t<0, tp>>> T;
 
     while(PGresult* res = wait_for_next_result())
     {
@@ -284,11 +291,11 @@ struct pgsql_statement {
         if constexpr (li::is_metamap<T>::ret) {
           T o;
           fetch(res, row_i, o);
-          f(std::move(o));
+          f(o);
         } else { // tuple version.
           tp o;
           fetch(res, row_i, o);
-          std::apply(f, std::move(o));
+          std::apply(f, o);
         }
       }
       PQclear(res);

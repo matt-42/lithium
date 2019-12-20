@@ -236,7 +236,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     ss << "SELECT * from " << schema_.table_name();
 
     typedef decltype(schema_.all_fields()) O;
-    con_(ss.str()).map([&](O&& o) { f(std::forward<O>(o)); });
+    con_(ss.str()).map([&](const O& o) { f(o); });
   }
 
   // Update N's members except auto increment members.
