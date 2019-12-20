@@ -216,7 +216,8 @@ struct pgsql_statement {
       field_i++;
     });
   }
-  template <typename... A> void fetch(PGresult* res, int row_i, int& o) {
+  
+  template <typename T> void fetch(PGresult* res, int row_i, T& o) {
     int field_i = 0;
 
     int nfields = PQnfields(res);

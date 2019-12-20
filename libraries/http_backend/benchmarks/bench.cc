@@ -50,7 +50,7 @@ int main(int argc, char* argv[]) {
   http_api my_api;
 
   my_api.get("/plaintext") = [&](http_request& request, http_response& response) {
-    //response.set_header("Content-Type", "text/plain");
+    response.set_header("Content-Type", "text/plain");
     response.write("Hello world!");
   };
 
@@ -127,7 +127,7 @@ int main(int argc, char* argv[]) {
   // int nthread = 4;
   // li::max_mysql_connections_per_thread = (mysql_max_connection / nthread);
 
-  int mysql_max_connection = 95;//sql_db.connect()("SHOW max_connections;").read<int>() * 0.75;
+  int mysql_max_connection = atoi(sql_db.connect()("SHOW max_connections;").read<std::string>().c_str()) * 0.75;
   std::cout << "sql max connection " << mysql_max_connection << std::endl;
   int port = atoi(argv[1]);
   int nthread = 4;

@@ -38,7 +38,7 @@ struct read_buffer
   int end = 0; // Index of the last read character
   
   read_buffer()
-    : buffer_(500 * 1024),
+    : buffer_(50 * 1024),
       //buffer_(500),
       cursor(0),
       end(0)
@@ -226,15 +226,17 @@ struct output_buffer
   output_buffer& operator<<(std::string_view s)
   {
     if (cursor_ + s.size() >= end_)
-    {
       flush();
-      //std::cout << s.size() << " " << (end_ - buffer_) << std::endl;
-      //throw std::runtime_error("Response too long.");
-    }
+
     assert(cursor_ + s.size() < end_);
     memcpy(cursor_, s.data(), s.size());
     cursor_ += s.size();
     return *this;
+  }
+
+  output_buffer& operator<<(const char* s)
+  {
+    return operator<<(std::string_view(s, strlen(s)));   
   }
   output_buffer& operator<<(char v)
   {
@@ -243,17 +245,12 @@ struct output_buffer
     return *this;
   }
 
-  // output_buffer& operator<<(int v) { return integer(v); }
-  // output_buffer& operator<<(unsigned int v) { return integer(v); }
-  // output_buffer& operator<<(size_t v) { return integer(v); }
-
   template <typename I>
   output_buffer& operator<<(I v)
   {
     typedef std::array<char, 50> buf_t;
     buf_t b = boost::lexical_cast<buf_t>(v);
-    operator<<(std::string_view(b.begin(), strlen(b.begin())));
-    return *this;
+    return operator<<(std::string_view(b.begin(), strlen(b.begin())));
   }
   
   std::string_view to_string_view() { return std::string_view(buffer_, cursor_ - buffer_); }
@@ -901,23 +898,33 @@ auto make_http_processor(F handler)
             }
 
           // Look for end of header and save header lines.
-          while (header_end < rb.end - 3)
           {
-            //if (!strncmp(rb.data() + header_end, "\r\n", 2))
-            if ((rb.data() + header_end)[0] == '\r' and (rb.data() + header_end)[1] == '\n')
+            const char * cur = rb.data() + header_end;
+            while ((cur - rb.data()) < rb.end - 3)
             {
-              ctx.add_header_line(rb.data() + header_end + 2);
-              header_end += 2;
-              if ((rb.data() + header_end)[0] == '\r' and (rb.data() + header_end)[1] == '\n')
-                //if (!strncmp(rb.data() + header_end, "\r\n", 2))
+              //if (!strncmp(rb.data() + header_end, "\r\n", 2))
+ 
+              if (cur[0] == '\r' and cur[1] == '\n')
               {
-                complete_header = true;
-                header_end += 2;
-                break;
+                ctx.add_header_line(cur + 2);
+                //header_end += 2;
+                cur+=2;
+                //if ((rb.data() + header_end)[0] == '\r' and (rb.data() + header_end)[1] == '\n')
+                if (cur[0] == '\r' and cur[1] == '\n')
+                //if (!strncmp(rb.data() + header_end, "\r\n", 2))
+                {
+                  complete_header = true;
+                  cur+=2;
+                  header_end = cur - rb.data();
+                  break;
+                }
+              }
+              else
+              {
+                //header_end++;
+                cur++;
               }
             }
-            else           
-              header_end++;
           }
         }
 
@@ -966,7 +973,6 @@ template <typename... O> auto http_serve(api<http_request, http_response> api, i
 
   int nthreads = get_or(options, s::nthreads, 4);
 
-//int http_serve(int port, int nthreads, F handler)
   auto handler = [api] (http_async_impl::http_ctx& ctx) {
     http_request rq{ctx};
     http_response resp(ctx);

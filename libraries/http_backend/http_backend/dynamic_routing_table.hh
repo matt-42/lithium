@@ -10,6 +10,8 @@ namespace li {
 
 namespace internal {
 
+
+
 template <typename V> struct drt_node {
 
   drt_node() : v_{0, nullptr} {}
@@ -22,6 +24,7 @@ template <typename V> struct drt_node {
     bool operator==(const iterator& b) const { return this->ptr == b.ptr; }
     bool operator!=(const iterator& b) const { return this->ptr != b.ptr; }
   };
+
 
   auto end() const { return iterator{nullptr, std::string_view(), V()}; }
 
