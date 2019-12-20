@@ -7,48 +7,48 @@
 
 #pragma once
 
-#include <memory>
-#include <fcntl.h>
-#include <sys/stat.h>
-#include <sqlite3.h>
-#include <sys/sendfile.h>
-#include <sys/uio.h>
-#include <sys/mman.h>
-#include <tuple>
-#include <atomic>
-#include <string_view>
-#include <utility>
-#include <vector>
-#include <cassert>
-#include <errno.h>
-#include <sys/socket.h>
-#include <netinet/tcp.h>
-#include <random>
-#include <functional>
-#include <mutex>
-#include <boost/context/continuation.hpp>
-#include <string>
-#include <unordered_map>
-#include <signal.h>
-#include <sys/epoll.h>
 #include <cmath>
-#include <unistd.h>
+#include <unordered_map>
 #include <string.h>
-#include <cstring>
 #include <boost/lexical_cast.hpp>
+#include <optional>
+#include <sqlite3.h>
+#include <mysql.h>
+#include <netinet/tcp.h>
+#include <cstring>
+#include <variant>
+#include <atomic>
+#include <boost/context/continuation.hpp>
+#include <random>
+#include <stdlib.h>
+#include <netdb.h>
+#include <functional>
+#include <vector>
+#include <sys/types.h>
+#include <utility>
+#include <string_view>
+#include <sys/uio.h>
+#include <fcntl.h>
+#include <tuple>
+#include <sys/epoll.h>
+#include <signal.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <sstream>
+#include <cassert>
 #include <map>
 #include <set>
-#include <sstream>
-#include <stdlib.h>
-#include <optional>
+#include <thread>
+#include <sys/mman.h>
 #include <deque>
 #include <iostream>
-#include <thread>
-#include <variant>
-#include <sys/types.h>
+#include <sys/sendfile.h>
+#include <string>
+#include <sys/socket.h>
 #include <stdio.h>
-#include <mysql.h>
-#include <netdb.h>
+#include <mutex>
+#include <memory>
+#include <errno.h>
 
 #if defined(_MSC_VER)
 #include <io.h>
@@ -1849,7 +1849,7 @@ template <typename Y> struct mysql_functions_non_blocking {
 
       status = fn_cont(&ret, std::forward<A1>(a1), status);
     }
-    if (ret and ret != MYSQL_NO_DATA)
+    if (ret and ret != MYSQL_NO_DATA and ret != MYSQL_DATA_TRUNCATED)
     {
       *connection_status = 1;
       throw std::runtime_error(std::string("Mysql error in ") + fn_name + ": " + error_fun(a1));

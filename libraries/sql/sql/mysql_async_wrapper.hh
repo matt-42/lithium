@@ -62,7 +62,7 @@ template <typename Y> struct mysql_functions_non_blocking {
 
       status = fn_cont(&ret, std::forward<A1>(a1), status);
     }
-    if (ret and ret != MYSQL_NO_DATA)
+    if (ret and ret != MYSQL_NO_DATA and ret != MYSQL_DATA_TRUNCATED)
     {
       *connection_status = 1;
       throw std::runtime_error(std::string("Mysql error in ") + fn_name + ": " + error_fun(a1));
