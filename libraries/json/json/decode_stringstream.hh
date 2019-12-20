@@ -116,7 +116,7 @@ public:
   inline decode_stringstream(std::string_view buffer_)
       : cur(buffer_.data()), bad_(false), buffer(buffer_) {}
 
-  inline bool eof() const { return cur >= &buffer.back(); }
+  inline bool eof() const { return cur > &buffer.back(); }
   inline const char peek() const { return *cur; }
   inline const char get() { return *(cur++); }
   inline int bad() const { return bad_; }
