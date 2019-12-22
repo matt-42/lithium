@@ -23,29 +23,37 @@
 namespace li {  
 
 
+template <unsigned INLINE_SIZE = 5012>
 struct output_buffer
 {
+  char static_buffer_[INLINE_SIZE];
+  char* dynamic_buffer_ = nullptr;
+  char* buffer_;
+  bool own_buffer_;
+  char* cursor_;
+  char* end_;
+  std::function<void(const char*s, int d)> flush_;
 
-  output_buffer() 
-  : flush_([] (const char*, int) {})
-  {
-  }
+  // output_buffer() 
+  // : flush_([] (const char*, int) {})
+  // {
+  // }
 
-  output_buffer(int capacity, 
-                std::function<void(const char*, int)> flush_ = [] (const char*, int) {})
-    : buffer_(new char[capacity]),
+  output_buffer(std::function<void(const char*, int)> flush_ = [] (const char*, int) {})
+    : buffer_(static_buffer_),
       own_buffer_(true),
-      cursor_(buffer_),
-      end_(buffer_ + capacity),
+      cursor_(static_buffer_),
+      end_(static_buffer_ + INLINE_SIZE),
       flush_(flush_)
   {
+    buffer_ = static_buffer_;
     assert(buffer_);
   }
 
-  ~output_buffer() {
-    if (own_buffer_)
-      delete[] buffer_;
-  }
+  // ~output_buffer() {
+  //   // if (own_buffer_)
+  //   //   delete[] buffer_;
+  // }
   output_buffer(void* buffer, int capacity, 
                 std::function<void(const char*, int)> flush_ = [] (const char*, int) {})
     : buffer_((char*)buffer),
@@ -66,6 +74,7 @@ struct output_buffer
   {
     return cursor_ - buffer_;
   }
+
   void flush()
   {
     flush_(buffer_, size());
@@ -128,11 +137,6 @@ struct output_buffer
   
   std::string_view to_string_view() { return std::string_view(buffer_, cursor_ - buffer_); }
 
-  char* buffer_;
-  bool own_buffer_;
-  char* cursor_;
-  char* end_;
-  std::function<void(const char*s, int d)> flush_;
 };
 
 
@@ -307,6 +311,8 @@ struct read_buffer
 
 struct http_ctx {
 
+  typedef output_buffer<512> output_buffer;
+
   http_ctx(read_buffer& _rb,
            std::function<int(char*, int)> _read,
            std::function<bool(const char*, int)> _write,
@@ -316,14 +322,13 @@ struct http_ctx {
       read(_read),
       write(_write),
       listen_to_new_fd(_listen_to_new_fd),
-      output_buffer_space(new char[100 * 1024]),
+      // output_buffer_space(new char[100 * 1024]),
       json_buffer(new char[100 * 1024])
   {
     get_parameters_map.reserve(10);
     response_headers.reserve(20);
 
-    output_stream = output_buffer(output_buffer_space, 100 * 1024, 
-                                  [&] (const char* d, int s) { 
+    output_stream = output_buffer([&] (const char* d, int s) { 
       // iovec iov[1];
       // iov[0].iov_base = (char*)d;
       // iov[0].iov_len = s;
@@ -346,7 +351,9 @@ struct http_ctx {
                                 [&] (const char* d,int s) { output_stream << std::string_view(d, s); });
 
   }
-  ~http_ctx() { delete[] output_buffer_space; delete[] json_buffer; }
+  ~http_ctx() {
+    //delete[] output_buffer_space; 
+  delete[] json_buffer; }
 
   http_ctx& operator=(const http_ctx&) = delete;
   http_ctx(const http_ctx&) = delete;
