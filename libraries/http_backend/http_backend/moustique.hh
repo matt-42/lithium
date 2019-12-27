@@ -319,7 +319,7 @@ int moustique_listen_fd(int listen_fd,
                                          };
               
                                          conn_handler(fd, read, write, listen_to_new_fd);
-                                         //epoll_ctl_del(fd);
+                                         epoll_ctl_del(fd);
                                          close(fd);
                                          // unsubscribe to fd in secondary map.
                                         //  for (int i = 0; i < secondary_map.size(); i++)
