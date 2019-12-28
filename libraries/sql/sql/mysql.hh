@@ -21,7 +21,7 @@
 #include <li/sql/symbols.hh>
 #include <li/sql/mysql_async_wrapper.hh>
 #include <li/sql/mysql_statement.hh>
-
+#include <li/sql/type_hashmap.hh>
 
 namespace li {
 
@@ -39,11 +39,32 @@ struct mysql_connection_data {
 
   MYSQL* connection;
   std::unordered_map<std::string, std::shared_ptr<mysql_statement_data>> statements;
+  type_hashmap<std::shared_ptr<mysql_statement_data>> statements_hashmap;
 };
 
 thread_local std::deque<std::shared_ptr<mysql_connection_data>> mysql_connection_pool;
 thread_local std::deque<std::shared_ptr<mysql_connection_data>> mysql_connection_async_pool;
 thread_local int total_number_of_mysql_connections = 0;
+
+template <typename B> // must be mysql_functions_blocking or mysql_functions_non_blocking
+struct mysql_result {
+
+  B& mysql_wrapper_;
+  MYSQL* con_;
+  std::shared_ptr<int> connection_status_;
+  MYSQL_RES* result_ = nullptr;
+
+  template <typename T>
+  T read() {
+    result_ = mysql_use_result(con_);
+    MYSQL_ROW row = mysql_wrapper_.mysql_fetch_row(connection_status_, result_);
+    return boost::lexical_cast<T>(row[0]);
+    mysql_wrapper_.mysql_free_result(connection_status_, result_); 
+  } 
+
+  void wait() {}
+
+};
 
 template <typename B> // must be mysql_functions_blocking or mysql_functions_non_blocking
 struct mysql_connection {
@@ -54,10 +75,12 @@ struct mysql_connection {
       : mysql_wrapper_(mysql_wrapper), data_(data), stm_cache_(data->statements),
         con_(data->connection){
 
-    connection_status_ = std::shared_ptr<int>(new int(0), [=](int* p) { 
+    connection_status_ = std::shared_ptr<int>(new int(0), [=](int* p) mutable { 
       if (*p) 
       {
-        total_number_of_mysql_connections--;
+      //  if constexpr (!B::is_blocking)
+      //    mysql_wrapper.yield_.unsubscribe(mysql_get_socket(data->connection));
+       total_number_of_mysql_connections--;
         //std::cerr << "Discarding broken mysql connection." << std::endl;
         return;
       }
@@ -73,7 +96,25 @@ struct mysql_connection {
 
   long long int last_insert_rowid() { return mysql_insert_id(con_); }
 
-  mysql_statement<B> operator()(const std::string& rq) { return prepare(rq)(); }
+  mysql_result<B> operator()(const std::string& rq) { 
+    mysql_wrapper_.mysql_real_query(connection_status_, con_, rq.c_str(), rq.size());
+    return mysql_result<B>{mysql_wrapper_, con_, connection_status_};
+  }
+
+  template <typename... T>
+  bool has_cached_statement(T&&... key) {
+    return data_->statements_hashmap(key...).get() != nullptr;
+  }
+  template <typename... T>
+  mysql_statement<B> get_cached_statement(T&&... key) {
+    return mysql_statement<B>{mysql_wrapper_, 
+                              *data_->statements_hashmap(key...), 
+                              connection_status_};
+  }
+  template <typename... T>
+  void cache_statement(mysql_statement<B>& stmt, T&&... key) {
+    data_->statements_hashmap(key...) = stmt.data_.shared_from_this();
+  }
 
   mysql_statement<B> prepare(const std::string& rq) {
     auto it = stm_cache_.find(rq);

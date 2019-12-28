@@ -7,11 +7,12 @@
 #include <li/metamap/metamap.hh>
 #include <li/sql/sql_common.hh>
 #include <li/sql/symbols.hh>
+#include <memory>
 
 namespace li {
 
 
-struct pgsql_statement_data {
+struct pgsql_statement_data : std::enable_shared_from_this<pgsql_statement_data> {
   pgsql_statement_data(const std::string& s) : stmt_name(s) {}
   std::string stmt_name;
 };

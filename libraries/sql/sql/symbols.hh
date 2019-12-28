@@ -55,6 +55,21 @@
     LI_SYMBOL(database)
 #endif
 
+#ifndef LI_SYMBOL_exists
+#define LI_SYMBOL_exists
+    LI_SYMBOL(exists)
+#endif
+
+#ifndef LI_SYMBOL_find_one
+#define LI_SYMBOL_find_one
+    LI_SYMBOL(find_one)
+#endif
+
+#ifndef LI_SYMBOL_forall
+#define LI_SYMBOL_forall
+    LI_SYMBOL(forall)
+#endif
+
 #ifndef LI_SYMBOL_host
 #define LI_SYMBOL_host
     LI_SYMBOL(host)
@@ -63,6 +78,11 @@
 #ifndef LI_SYMBOL_id
 #define LI_SYMBOL_id
     LI_SYMBOL(id)
+#endif
+
+#ifndef LI_SYMBOL_insert
+#define LI_SYMBOL_insert
+    LI_SYMBOL(insert)
 #endif
 
 #ifndef LI_SYMBOL_password
@@ -93,6 +113,11 @@
 #ifndef LI_SYMBOL_synchronous
 #define LI_SYMBOL_synchronous
     LI_SYMBOL(synchronous)
+#endif
+
+#ifndef LI_SYMBOL_update
+#define LI_SYMBOL_update
+    LI_SYMBOL(update)
 #endif
 
 #ifndef LI_SYMBOL_user

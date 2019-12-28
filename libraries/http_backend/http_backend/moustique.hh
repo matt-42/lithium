@@ -182,17 +182,21 @@ int moustique_listen_fd(int listen_fd,
       MOUSTIQUE_CHECK_CALL(::epoll_ctl(epoll_fd, EPOLL_CTL_MOD, fd, &event));
       return true;
     };
-    auto epoll_ctl_del = [epoll_fd] (int fd)
-    { 
-      MOUSTIQUE_CHECK_CALL(::epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, nullptr));
-      return true;
-    };
     
     epoll_ctl(listen_fd, EPOLLIN | EPOLLET);
 
     const int MAXEVENTS = 64;
     std::vector<ctx::continuation> fibers;
     std::vector<int> secondary_map;
+
+    auto epoll_ctl_del = [epoll_fd, &secondary_map] (int fd)
+    {
+      // std::cout << "del " << fd << std::endl; 
+      if (fd < secondary_map.size()) secondary_map[fd] = -1;
+      MOUSTIQUE_CHECK_CALL(::epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, nullptr));
+      return true;
+    };
+
     // fibers.reserve(1000);
     // Even loop.
     epoll_event events[MAXEVENTS];
@@ -264,7 +268,7 @@ int moustique_listen_fd(int listen_fd,
             auto listen_to_new_fd = [original_fd=infd,epoll_ctl,&secondary_map] (int new_fd) {
               // Listen to the fd if not already done before.
               if (new_fd >= secondary_map.size() || secondary_map[new_fd] == -1)
-                epoll_ctl(new_fd, EPOLLIN | EPOLLOUT | EPOLLET);
+                epoll_ctl(new_fd, EPOLLIN | EPOLLOUT | EPOLLET | EPOLLRDHUP);
               // Associate new_fd to the original_fd.
               if (int(secondary_map.size()) < new_fd + 1)
                 secondary_map.resize(new_fd+1, -1);             
@@ -318,7 +322,7 @@ int moustique_listen_fd(int listen_fd,
                                            return true;
                                          };
               
-                                         conn_handler(fd, read, write, listen_to_new_fd);
+                                         conn_handler(fd, read, write, listen_to_new_fd, epoll_ctl_del);
                                          epoll_ctl_del(fd);
                                          close(fd);
                                          // unsubscribe to fd in secondary map.

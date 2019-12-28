@@ -310,12 +310,14 @@ struct http_ctx {
   http_ctx(read_buffer& _rb,
            std::function<int(char*, int)> _read,
            std::function<bool(const char*, int)> _write,
-           std::function<void(int)> _listen_to_new_fd
+           std::function<void(int)> _listen_to_new_fd,
+           std::function<void(int)> _unsubscribe
            )
     : rb(_rb),
       read(_read),
       write(_write),
       listen_to_new_fd(_listen_to_new_fd),
+      unsubscribe(_unsubscribe),
       output_buffer_space(new char[100 * 1024]),
       json_buffer(new char[100 * 1024])
   {
@@ -892,7 +894,7 @@ struct http_ctx {
   int header_lines_size = 0;
   std::function<bool(const char*, int)> write;
   std::function<int(char*, int)> read;
-  std::function<void(int)> listen_to_new_fd;
+  std::function<void(int)> listen_to_new_fd, unsubscribe;
   char headers_buffer_space[1000];
   output_buffer headers_stream;
   bool response_written_ = false;
@@ -907,14 +909,15 @@ struct http_ctx {
 template <typename F>
 auto make_http_processor(F handler)
 {
-  return [handler] (int fd, auto read, auto write, auto listen_to_new_fd) {
+  return [handler] (int fd, auto read, auto write,
+                    auto listen_to_new_fd, auto unsubscribe) {
 
     try {
       read_buffer rb;
       bool socket_is_valid = true;
 
       //http_ctx& ctx = *new http_ctx(rb, read, write);
-      http_ctx ctx = http_ctx(rb, read, write, listen_to_new_fd);
+      http_ctx ctx = http_ctx(rb, read, write, listen_to_new_fd, unsubscribe);
       ctx.socket_fd = fd;
       //ctx.header_lines = new const char*[10];
       

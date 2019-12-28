@@ -16,15 +16,18 @@ struct mysql_functions_blocking {
 #define LI_MYSQL_BLOCKING_WRAPPER(ERR, FN)                                                              \
   template <typename A1, typename... A> auto FN(std::shared_ptr<int> connection_status, A1 a1, A&&... a) {\
     int ret = ::FN(a1, std::forward<A>(a)...); \
-    if (ret and ret != MYSQL_NO_DATA) \
+    if (ret and ret != MYSQL_NO_DATA and ret != MYSQL_DATA_TRUNCATED) \
     { \
       *connection_status = 1;\
       throw std::runtime_error(std::string("Mysql error: ") + ERR(a1));\
     } \
     return ret; }
 
-  LI_MYSQL_BLOCKING_WRAPPER(mysql_error, mysql_fetch_row)
+  MYSQL_ROW mysql_fetch_row(std::shared_ptr<int> connection_status, MYSQL_RES* res) { return ::mysql_fetch_row(res); }
+  int mysql_free_result(std::shared_ptr<int> connection_status, MYSQL_RES* res) { ::mysql_free_result(res); return 0; }
+  //LI_MYSQL_BLOCKING_WRAPPER(mysql_error, mysql_fetch_row)
   LI_MYSQL_BLOCKING_WRAPPER(mysql_error, mysql_real_query)
+  LI_MYSQL_BLOCKING_WRAPPER(mysql_error, mysql_free_result)
   LI_MYSQL_BLOCKING_WRAPPER(mysql_stmt_error, mysql_stmt_execute)
   LI_MYSQL_BLOCKING_WRAPPER(mysql_stmt_error, mysql_stmt_reset)
   LI_MYSQL_BLOCKING_WRAPPER(mysql_stmt_error, mysql_stmt_prepare)
@@ -33,6 +36,7 @@ struct mysql_functions_blocking {
   LI_MYSQL_BLOCKING_WRAPPER(mysql_stmt_error, mysql_stmt_store_result)
 
 #undef LI_MYSQL_BLOCKING_WRAPPER
+
 };
 
 // Non blocking version.
@@ -78,6 +82,7 @@ template <typename Y> struct mysql_functions_non_blocking {
 
   LI_MYSQL_NONBLOCKING_WRAPPER(mysql_error, mysql_fetch_row)
   LI_MYSQL_NONBLOCKING_WRAPPER(mysql_error, mysql_real_query)
+  LI_MYSQL_NONBLOCKING_WRAPPER(mysql_error, mysql_free_result)
   LI_MYSQL_NONBLOCKING_WRAPPER(mysql_stmt_error, mysql_stmt_execute)
   LI_MYSQL_NONBLOCKING_WRAPPER(mysql_stmt_error, mysql_stmt_reset)
   LI_MYSQL_NONBLOCKING_WRAPPER(mysql_stmt_error, mysql_stmt_prepare)

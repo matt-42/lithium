@@ -23,35 +23,44 @@
 #include <li/sql/sql_common.hh>
 #include <li/sql/symbols.hh>
 #include <li/sql/pgsql_statement.hh>
+#include <li/sql/type_hashmap.hh>
 
 
 namespace li {
 
 int max_pgsql_connections_per_thread = 200;
+thread_local int total_number_of_pgsql_connections = 0;
 
 struct pgsql_tag {};
 
 struct pgsql_database;
 
+
 struct pgsql_connection_data {
 
   ~pgsql_connection_data() {
-    PQfinish(connection);
+    if (connection)
+    {
+      PQfinish(connection);
+      // std::cerr << " DISCONNECT " << fd << std::endl;
+      total_number_of_pgsql_connections--;
+    }
   }
 
-  PGconn* connection;
+  PGconn* connection = nullptr;
+  int fd = -1;
   std::unordered_map<std::string, std::shared_ptr<pgsql_statement_data>> statements;
+  type_hashmap<std::shared_ptr<pgsql_statement_data>> statements_hashmap;
 };
 
 thread_local std::deque<std::shared_ptr<pgsql_connection_data>> pgsql_connection_pool;
-thread_local std::deque<std::shared_ptr<pgsql_connection_data>> pgsql_connection_async_pool;
-thread_local int total_number_of_pgsql_connections = 0;
 
 template <typename Y>
 void pq_wait(Y& yield, PGconn* con)
 {
   while (PQisBusy(con)) yield();
 }
+
 
 template <typename Y>
 struct pgsql_connection {
@@ -66,22 +75,41 @@ struct pgsql_connection {
       : yield_(yield), data_(data), stm_cache_(data->statements),
         connection_(data->connection){
 
-    connection_status_ = std::shared_ptr<int>(new int(0), [=](int* p) {
+    connection_status_ = std::shared_ptr<int>(new int(0), [data, yield](int* p) mutable {
       if (*p) 
       {
-        total_number_of_pgsql_connections--;
+        yield.unsubscribe(data->fd);
         //std::cerr << "Discarding broken pgsql connection." << std::endl;
         return;
       }
- 
-      pgsql_connection_async_pool.push_back(data);
-
+      else
+         pgsql_connection_pool.push_back(data);
     });
   }
 
   //FIXME long long int last_insert_rowid() { return pgsql_insert_id(connection_); }
 
-  pgsql_statement<Y> operator()(const std::string& rq) { return prepare(rq)(); }
+  //pgsql_statement<Y> operator()(const std::string& rq) { return prepare(rq)(); }
+
+  // Read request returning 1 scalar. Use prepared statement for more advanced read functions.
+  template <typename T>
+  T read()
+  {
+    PGresult* res = wait_for_next_result();
+    return boost::lexical_cast<T>(PQgetvalue(res, 0, 0));
+  }
+
+  auto& operator()(const std::string& rq) {
+    wait();
+    if (!PQsendQuery(connection_, rq.c_str()))
+      throw std::runtime_error(std::string("Postresql error:") + PQerrorMessage(connection_));
+    return *this;
+  }
+
+  void wait () {
+    while (PGresult* res = wait_for_next_result())
+      PQclear(res);
+  }
 
   PGresult* wait_for_next_result() {
     while (true)
@@ -104,6 +132,22 @@ struct pgsql_connection {
         return PQgetResult(connection_);
     }
   }
+
+  template <typename... T>
+  bool has_cached_statement(T&&... key) {
+    return data_->statements_hashmap(key...).get() != nullptr;
+  }
+  template <typename... T>
+  pgsql_statement<Y> get_cached_statement(T&&... key) {
+    return pgsql_statement<Y>{connection_, yield_, 
+                              *data_->statements_hashmap(key...), 
+                              connection_status_};
+  }
+  template <typename... T>
+  void cache_statement(pgsql_statement<Y>& stmt, T&&... key) {
+    data_->statements_hashmap(key...) = stmt.data_.shared_from_this();
+  }
+
 
   pgsql_statement<Y> prepare(const std::string& rq) {
     auto it = stm_cache_.find(rq);
@@ -195,70 +239,69 @@ struct pgsql_database : std::enable_shared_from_this<pgsql_database> {
       //   throw std::runtime_error("Cannot connect to the database");
       ntry++;
 
-      if (!pgsql_connection_async_pool.empty()) {
-        data = pgsql_connection_async_pool.back();
-        pgsql_connection_async_pool.pop_back();
-        yield.listen_to_fd(PQsocket(data->connection));
+      if (!pgsql_connection_pool.empty()) {
+        data = pgsql_connection_pool.back();
+        pgsql_connection_pool.pop_back();
       }
       else
       {
         // std::cout << total_number_of_pgsql_connections << " connections. "<< std::endl;
-        if (total_number_of_pgsql_connections > max_pgsql_connections_per_thread)
+        if (total_number_of_pgsql_connections >= max_pgsql_connections_per_thread)
         {
           //std::cout << "Waiting for a free pgsql connection..." << std::endl;
           yield();
           continue;
         }
         total_number_of_pgsql_connections++;
-        //std::cout << "NEW MYSQL CONNECTION "  << std::endl; 
         PGconn* connection = nullptr;
         int pgsql_fd = -1;
-        int status;
-        //while (pgsql_fd == -1)
+        std::stringstream coninfo;
+        coninfo << "postgresql://" << user_ << ":" << passwd_ << "@" << host_ << ":" << port_ << "/" << database_;
+        connection = PQconnectdb(coninfo.str().c_str());
+        //std::cout << "CONNECT " << total_number_of_pgsql_connections << std::endl;
+        if (PQstatus(connection) != CONNECTION_OK)
         {
-          std::stringstream coninfo;
-          coninfo << "postgresql://" << user_ << ":" << passwd_ << "@" << host_ << ":" << port_ << "/" << database_;
-          connection = PQconnectdb(coninfo.str().c_str());
-
-          if (PQstatus(connection) != CONNECTION_OK)
-          {
-            std::cout << "Error: cannot connect to the postresql server " << host_  << ": " << PQerrorMessage(connection) << std::endl;
-            yield();
-            continue;
-          }
-
-          if (PQsetnonblocking(connection, 1) == -1)
-          {
-            PQfinish(connection);
-            yield();
-            continue;
-          }
-
-          pgsql_fd = PQsocket(connection);
-          if (pgsql_fd == -1)
-          {
-            // If PQsocket return -1, retry later.
-            PQfinish(connection);
-            yield();
-            continue;
-          }
+          std::cerr << "Warning: cannot connect to the postresql server " << host_  << ": " << PQerrorMessage(connection) << std::endl;
+          std::cerr<< "thread allocated connection == " << total_number_of_pgsql_connections <<  std::endl;
+          std::cerr<< "Maximum is " << max_pgsql_connections_per_thread <<  std::endl;
+          total_number_of_pgsql_connections--;
+          yield();
+          continue;
         }
 
-        if (status)
-          yield.listen_to_fd(pgsql_fd);
+        if (PQsetnonblocking(connection, 1) == -1)
+        {
+          std::cerr << "Warning: PQsetnonblocking returned -1: " << PQerrorMessage(connection) << std::endl;
+          PQfinish(connection);
+          total_number_of_pgsql_connections--;
+          yield();
+          continue;
+        }
 
-        //throw std::runtime_error("Cannot connect to the database");
+        pgsql_fd = PQsocket(connection);
+        if (pgsql_fd == -1)
+        {
+          std::cerr << "Warning: PQsocket returned -1: " << PQerrorMessage(connection) << std::endl;
+          // If PQsocket return -1, retry later.
+          PQfinish(connection);
+          total_number_of_pgsql_connections--;
+          yield();
+          continue;
+        }
+
         //pgsql_set_character_set(pgsql, character_set_.c_str());
-        data = std::shared_ptr<pgsql_connection_data>(new pgsql_connection_data{connection});
+        data = std::shared_ptr<pgsql_connection_data>(new pgsql_connection_data{connection, pgsql_fd});
       }
     }
     assert(data);
+    yield.listen_to_fd(data->fd);
     return pgsql_connection(yield, data);
   }
   struct active_yield {
     typedef std::runtime_error exception_type;
     void operator()() {}
     void listen_to_fd(int) {}
+    void unsubscribe(int) {}
   };
 
   inline pgsql_connection<active_yield> connect() {

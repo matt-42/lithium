@@ -25,6 +25,7 @@ struct async_yield
     ctx.write(nullptr, 0);
      }
   void listen_to_fd(int fd) { ctx.listen_to_new_fd(fd); }
+  void unsubscribe(int fd) { ctx.unsubscribe(fd); }
   C& ctx;
 };
 
