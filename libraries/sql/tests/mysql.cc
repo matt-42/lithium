@@ -41,7 +41,8 @@ int main() {
     // Prepared statement.
     auto insert_user = c.prepare("INSERT into users_test_mysql(id, name, age) values (?,?,?);");
 
-    insert_user(1, "John", 42)(2, "Bob", 24); // Send two queries.
+    insert_user(1, "John", 42);
+    insert_user(2, "Bob", 24);
 
     int count = c("SELECT count(*) from users_test_mysql").template read<int>();
     std::cout << count << std::endl;

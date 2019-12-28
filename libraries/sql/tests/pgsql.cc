@@ -51,10 +51,10 @@ int main() {
     insert_user(1, 12, "Bob", "45");
     std::cout << "id: " << insert_user.last_insert_id() << std::endl;
     //std::cout 
-    int count = c("SELECT count(*) from users_test_mysql;").template read<int>();
+    int count = c.prepare("SELECT count(*) from users_test_mysql;")().template read<int>();
     std::cout << count << std::endl;
 
-    c("SELECT name, age from users_test_mysql").map([] (std::string name, int age)
+    c.prepare("SELECT name, age from users_test_mysql")().map([] (std::string name, int age)
     {
       std::cout << "name: "<< name << " age:" << age << std::endl;
     });

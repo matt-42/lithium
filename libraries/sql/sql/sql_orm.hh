@@ -334,7 +334,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
   }
 
   inline int count() {
-    return con_(std::string("SELECT count(*) from ") + schema_.table_name()).template read<int>();
+    return con_.prepare(std::string("SELECT count(*) from ") + schema_.table_name())().template read<int>();
   }
 
   template <typename N, typename... CB> void remove(const N& o, CB&&... args) {

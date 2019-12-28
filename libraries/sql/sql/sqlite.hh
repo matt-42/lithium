@@ -16,6 +16,7 @@
 #include <li/metamap/metamap.hh>
 #include <li/sql/sql_common.hh>
 #include <li/sql/symbols.hh>
+#include <li/sql/type_hashmap.hh>
 #include <sqlite3.h>
 
 namespace li {
@@ -259,6 +260,19 @@ struct sqlite_connection {
     format_error(err, args...);
   }
 
+  template <typename... T>
+  bool has_cached_statement(T&&... key) {
+    return statements_hashmap(key...).stmt_sptr_.get() != nullptr;
+  }
+  template <typename... T>
+  sqlite_statement  get_cached_statement(T&&... key) {
+    return statements_hashmap(key...);
+  }
+  template <typename... T>
+  void cache_statement(sqlite_statement& stmt, T&&... key) {
+    statements_hashmap(key...) = stmt;
+  }
+
   sqlite_statement prepare(const std::string& req) {
     // std::cout << req << std::endl;
     auto it = stm_cache_->find(req);
@@ -300,6 +314,7 @@ struct sqlite_connection {
   sqlite3* db_;
   db_sptr db_sptr_;
   stmt_map_ptr stm_cache_;
+  type_hashmap<sqlite_statement> statements_hashmap;
 };
 
 struct sqlite_database {
