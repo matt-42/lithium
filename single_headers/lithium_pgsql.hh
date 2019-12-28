@@ -7,30 +7,30 @@
 
 #pragma once
 
-#include <unordered_map>
-#include <optional>
-#include <cstring>
-#include <atomic>
-#include <vector>
-#include <utility>
-#include <libpq-fe.h>
-#include <arpa/inet.h>
-#include <tuple>
-#include <unistd.h>
-#include <sstream>
-#include <cassert>
 #include <map>
-#include <thread>
-#include <deque>
-#include <iostream>
-#include <string>
 #include <mutex>
+#include <boost/lexical_cast.hpp>
+#include <thread>
+#include <utility>
+#include <string>
+#include <cstring>
+#include <sstream>
+#include <arpa/inet.h>
+#include <unordered_map>
+#include <deque>
+#include <vector>
+#include <iostream>
+#include <optional>
+#include <tuple>
+#include <libpq-fe.h>
+#include <unistd.h>
 #include <memory>
+#include <atomic>
+#include <cassert>
 
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL
-
 
 
 #include "libpq-fe.h"
@@ -842,6 +842,21 @@ template <unsigned SIZE> struct sql_varchar : public std::string {
     LI_SYMBOL(database)
 #endif
 
+#ifndef LI_SYMBOL_exists
+#define LI_SYMBOL_exists
+    LI_SYMBOL(exists)
+#endif
+
+#ifndef LI_SYMBOL_find_one
+#define LI_SYMBOL_find_one
+    LI_SYMBOL(find_one)
+#endif
+
+#ifndef LI_SYMBOL_forall
+#define LI_SYMBOL_forall
+    LI_SYMBOL(forall)
+#endif
+
 #ifndef LI_SYMBOL_host
 #define LI_SYMBOL_host
     LI_SYMBOL(host)
@@ -850,6 +865,11 @@ template <unsigned SIZE> struct sql_varchar : public std::string {
 #ifndef LI_SYMBOL_id
 #define LI_SYMBOL_id
     LI_SYMBOL(id)
+#endif
+
+#ifndef LI_SYMBOL_insert
+#define LI_SYMBOL_insert
+    LI_SYMBOL(insert)
 #endif
 
 #ifndef LI_SYMBOL_password
@@ -882,6 +902,11 @@ template <unsigned SIZE> struct sql_varchar : public std::string {
     LI_SYMBOL(synchronous)
 #endif
 
+#ifndef LI_SYMBOL_update
+#define LI_SYMBOL_update
+    LI_SYMBOL(update)
+#endif
+
 #ifndef LI_SYMBOL_user
 #define LI_SYMBOL_user
     LI_SYMBOL(user)
@@ -908,7 +933,7 @@ template <unsigned SIZE> struct sql_varchar : public std::string {
 namespace li {
 
 
-struct pgsql_statement_data {
+struct pgsql_statement_data : std::enable_shared_from_this<pgsql_statement_data> {
   pgsql_statement_data(const std::string& s) : stmt_name(s) {}
   std::string stmt_name;
 };
@@ -1239,35 +1264,67 @@ struct pgsql_statement {
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_STATEMENT
 
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_TYPE_HASHMAP
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_TYPE_HASHMAP
+
+
+namespace li {
+
+template <typename V>
+struct type_hashmap {
+
+  template <typename... T> V& operator()(T&&...)
+  {
+    static int hash = values.size();
+    values.resize(hash+1);
+    return values[hash];
+  }
+
+private:
+  std::vector<V> values;
+};
+
+}
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_TYPE_HASHMAP
+
 
 
 namespace li {
 
 int max_pgsql_connections_per_thread = 200;
+thread_local int total_number_of_pgsql_connections = 0;
 
 struct pgsql_tag {};
 
 struct pgsql_database;
 
+
 struct pgsql_connection_data {
 
   ~pgsql_connection_data() {
-    PQfinish(connection);
+    if (connection)
+    {
+      PQfinish(connection);
+      // std::cerr << " DISCONNECT " << fd << std::endl;
+      total_number_of_pgsql_connections--;
+    }
   }
 
-  PGconn* connection;
+  PGconn* connection = nullptr;
+  int fd = -1;
   std::unordered_map<std::string, std::shared_ptr<pgsql_statement_data>> statements;
+  type_hashmap<std::shared_ptr<pgsql_statement_data>> statements_hashmap;
 };
 
 thread_local std::deque<std::shared_ptr<pgsql_connection_data>> pgsql_connection_pool;
-thread_local std::deque<std::shared_ptr<pgsql_connection_data>> pgsql_connection_async_pool;
-thread_local int total_number_of_pgsql_connections = 0;
 
 template <typename Y>
 void pq_wait(Y& yield, PGconn* con)
 {
   while (PQisBusy(con)) yield();
 }
+
 
 template <typename Y>
 struct pgsql_connection {
@@ -1282,22 +1339,41 @@ struct pgsql_connection {
       : yield_(yield), data_(data), stm_cache_(data->statements),
         connection_(data->connection){
 
-    connection_status_ = std::shared_ptr<int>(new int(0), [=](int* p) {
+    connection_status_ = std::shared_ptr<int>(new int(0), [data, yield](int* p) mutable {
       if (*p) 
       {
-        total_number_of_pgsql_connections--;
+        yield.unsubscribe(data->fd);
         //std::cerr << "Discarding broken pgsql connection." << std::endl;
         return;
       }
- 
-      pgsql_connection_async_pool.push_back(data);
-
+      else
+         pgsql_connection_pool.push_back(data);
     });
   }
 
   //FIXME long long int last_insert_rowid() { return pgsql_insert_id(connection_); }
 
-  pgsql_statement<Y> operator()(const std::string& rq) { return prepare(rq)(); }
+  //pgsql_statement<Y> operator()(const std::string& rq) { return prepare(rq)(); }
+
+  // Read request returning 1 scalar. Use prepared statement for more advanced read functions.
+  template <typename T>
+  T read()
+  {
+    PGresult* res = wait_for_next_result();
+    return boost::lexical_cast<T>(PQgetvalue(res, 0, 0));
+  }
+
+  auto& operator()(const std::string& rq) {
+    wait();
+    if (!PQsendQuery(connection_, rq.c_str()))
+      throw std::runtime_error(std::string("Postresql error:") + PQerrorMessage(connection_));
+    return *this;
+  }
+
+  void wait () {
+    while (PGresult* res = wait_for_next_result())
+      PQclear(res);
+  }
 
   PGresult* wait_for_next_result() {
     while (true)
@@ -1320,6 +1396,22 @@ struct pgsql_connection {
         return PQgetResult(connection_);
     }
   }
+
+  template <typename... T>
+  bool has_cached_statement(T&&... key) {
+    return data_->statements_hashmap(key...).get() != nullptr;
+  }
+  template <typename... T>
+  pgsql_statement<Y> get_cached_statement(T&&... key) {
+    return pgsql_statement<Y>{connection_, yield_, 
+                              *data_->statements_hashmap(key...), 
+                              connection_status_};
+  }
+  template <typename... T>
+  void cache_statement(pgsql_statement<Y>& stmt, T&&... key) {
+    data_->statements_hashmap(key...) = stmt.data_.shared_from_this();
+  }
+
 
   pgsql_statement<Y> prepare(const std::string& rq) {
     auto it = stm_cache_.find(rq);
@@ -1411,70 +1503,69 @@ struct pgsql_database : std::enable_shared_from_this<pgsql_database> {
       //   throw std::runtime_error("Cannot connect to the database");
       ntry++;
 
-      if (!pgsql_connection_async_pool.empty()) {
-        data = pgsql_connection_async_pool.back();
-        pgsql_connection_async_pool.pop_back();
-        yield.listen_to_fd(PQsocket(data->connection));
+      if (!pgsql_connection_pool.empty()) {
+        data = pgsql_connection_pool.back();
+        pgsql_connection_pool.pop_back();
       }
       else
       {
         // std::cout << total_number_of_pgsql_connections << " connections. "<< std::endl;
-        if (total_number_of_pgsql_connections > max_pgsql_connections_per_thread)
+        if (total_number_of_pgsql_connections >= max_pgsql_connections_per_thread)
         {
           //std::cout << "Waiting for a free pgsql connection..." << std::endl;
           yield();
           continue;
         }
         total_number_of_pgsql_connections++;
-        //std::cout << "NEW MYSQL CONNECTION "  << std::endl; 
         PGconn* connection = nullptr;
         int pgsql_fd = -1;
-        int status;
-        //while (pgsql_fd == -1)
+        std::stringstream coninfo;
+        coninfo << "postgresql://" << user_ << ":" << passwd_ << "@" << host_ << ":" << port_ << "/" << database_;
+        connection = PQconnectdb(coninfo.str().c_str());
+        //std::cout << "CONNECT " << total_number_of_pgsql_connections << std::endl;
+        if (PQstatus(connection) != CONNECTION_OK)
         {
-          std::stringstream coninfo;
-          coninfo << "postgresql://" << user_ << ":" << passwd_ << "@" << host_ << ":" << port_ << "/" << database_;
-          connection = PQconnectdb(coninfo.str().c_str());
-
-          if (PQstatus(connection) != CONNECTION_OK)
-          {
-            std::cout << "Error: cannot connect to the postresql server " << host_  << ": " << PQerrorMessage(connection) << std::endl;
-            yield();
-            continue;
-          }
-
-          if (PQsetnonblocking(connection, 1) == -1)
-          {
-            PQfinish(connection);
-            yield();
-            continue;
-          }
-
-          pgsql_fd = PQsocket(connection);
-          if (pgsql_fd == -1)
-          {
-            // If PQsocket return -1, retry later.
-            PQfinish(connection);
-            yield();
-            continue;
-          }
+          std::cerr << "Warning: cannot connect to the postresql server " << host_  << ": " << PQerrorMessage(connection) << std::endl;
+          std::cerr<< "thread allocated connection == " << total_number_of_pgsql_connections <<  std::endl;
+          std::cerr<< "Maximum is " << max_pgsql_connections_per_thread <<  std::endl;
+          total_number_of_pgsql_connections--;
+          yield();
+          continue;
         }
 
-        if (status)
-          yield.listen_to_fd(pgsql_fd);
+        if (PQsetnonblocking(connection, 1) == -1)
+        {
+          std::cerr << "Warning: PQsetnonblocking returned -1: " << PQerrorMessage(connection) << std::endl;
+          PQfinish(connection);
+          total_number_of_pgsql_connections--;
+          yield();
+          continue;
+        }
 
-        //throw std::runtime_error("Cannot connect to the database");
+        pgsql_fd = PQsocket(connection);
+        if (pgsql_fd == -1)
+        {
+          std::cerr << "Warning: PQsocket returned -1: " << PQerrorMessage(connection) << std::endl;
+          // If PQsocket return -1, retry later.
+          PQfinish(connection);
+          total_number_of_pgsql_connections--;
+          yield();
+          continue;
+        }
+
         //pgsql_set_character_set(pgsql, character_set_.c_str());
-        data = std::shared_ptr<pgsql_connection_data>(new pgsql_connection_data{connection});
+        data = std::shared_ptr<pgsql_connection_data>(new pgsql_connection_data{connection, pgsql_fd});
       }
     }
     assert(data);
+    yield.listen_to_fd(data->fd);
     return pgsql_connection(yield, data);
   }
   struct active_yield {
     typedef std::runtime_error exception_type;
     void operator()() {}
     void listen_to_fd(int) {}
+    void unsubscribe(int) {}
   };
 
   inline pgsql_connection<active_yield> connect() {
@@ -1676,7 +1767,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
       if (std::is_same<typename C::db_tag, pgsql_tag>::value) {
         if (auto_increment)
-          ss << " SERIAL ";
+          ss << " SERIAL PRIMARY KEY ";
       }
 
       first = false;
@@ -1717,26 +1808,36 @@ template <typename SCHEMA, typename C> struct sql_orm {
   }
 
   template <typename... W, typename... A> auto find_one(metamap<W...> where, A&&... cb_args) {
-    std::ostringstream ss;
-    O o;
-    placeholder_pos_ = 0;
-    ss << "SELECT ";
-    bool first = true;
-    li::map(o, [&](auto k, auto v) {
-      if (!first)
-        ss << ",";
-      first = false;
-      ss << li::symbol_string(k);
-    });
 
-    ss << " FROM " << schema_.table_name();
-    where_clause(where, ss);
-    ss << "LIMIT 1";
-    auto stmt = con_.prepare(ss.str());
+    auto get_statement = [&] (){ 
+      if (!con_.has_cached_statement(s::find_one, where))
+      {
+        std::ostringstream ss;
+        placeholder_pos_ = 0;
+        ss << "SELECT ";
+        bool first = true;
+        O o;
+        li::map(o, [&](auto k, auto v) {
+          if (!first)
+            ss << ",";
+          first = false;
+          ss << li::symbol_string(k);
+        });
 
+        ss << " FROM " << schema_.table_name();
+        where_clause(where, ss);
+        ss << "LIMIT 1";
+        auto stmt = con_.prepare(ss.str());
+        con_.cache_statement(stmt, s::find_one, where);
+        return stmt;
+      }
+      else return con_.get_cached_statement(s::find_one, where);
+    };
+
+    auto stmt = get_statement();
     auto res = li::tuple_reduce(metamap_values(where), stmt).template read_optional<O>();
     if (res)
-      call_callback(s::read_access, o, cb_args...);
+      call_callback(s::read_access, *res, cb_args...);
     return res;
   }
 
@@ -1749,15 +1850,24 @@ template <typename SCHEMA, typename C> struct sql_orm {
   }
 
   template <typename W> bool exists(W&& cond) {
-    std::ostringstream ss;
+
     O o;
-    placeholder_pos_ = 0;
-    ss << "SELECT count(*) FROM " << schema_.table_name();
-    where_clause(cond, ss);
-    ss << "LIMIT 1";
+    auto get_statement = [&] (){ 
+      if (!con_.has_cached_statement(s::exists, o, cond))
+      {
+        std::ostringstream ss;
+        placeholder_pos_ = 0;
+        ss << "SELECT count(*) FROM " << schema_.table_name();
+        where_clause(cond, ss);
+        ss << "LIMIT 1";
+        auto stmt = con_.prepare(ss.str());
+        con_.cache_statement(stmt, s::exists, o, cond);
+        return stmt;
+      }
+      else return con_.get_cached_statement(s::exists, o, cond);
+    };
 
-    auto stmt = con_.prepare(ss.str());
-
+    auto stmt = get_statement();
     return li::tuple_reduce(metamap_values(cond), stmt).template read<int>();
   }
 
@@ -1767,46 +1877,55 @@ template <typename SCHEMA, typename C> struct sql_orm {
   // Save a ll fields except auto increment.
   // The db will automatically fill auto increment keys.
   template <typename N, typename... A> auto insert(N&& o, A&&... cb_args) {
-    std::ostringstream ss;
-    std::ostringstream vs;
 
     auto values = schema_.without_auto_increment();
     map(o, [&](auto k, auto& v) { values[k] = o[k]; });
-    // auto values = intersection(o, schema_.without_auto_increment());
 
     call_callback(s::validate, values, cb_args...);
     call_callback(s::before_insert, values, cb_args...);
-    placeholder_pos_ = 0;
-    ss << "INSERT into " << schema_.table_name() << "(";
 
-    bool first = true;
-    li::map(values, [&](auto k, auto v) {
-      if (!first) {
-        ss << ",";
-        vs << ",";
+
+    auto get_statement = [&] (){ 
+      if (!con_.has_cached_statement(s::insert, o))
+      {
+        std::ostringstream ss;
+        std::ostringstream vs;
+
+        placeholder_pos_ = 0;
+        ss << "INSERT into " << schema_.table_name() << "(";
+
+        bool first = true;
+        li::map(values, [&](auto k, auto v) {
+          if (!first) {
+            ss << ",";
+            vs << ",";
+          }
+          first = false;
+          ss << li::symbol_string(k);
+          vs << placeholder_string();
+        });
+
+        ss << ") VALUES (" << vs.str() << ")";
+
+        if (std::is_same<typename C::db_tag, pgsql_tag>::value &&
+            has_key(schema_.all_fields(), s::id))
+          ss << " returning id;";
+
+        auto stmt = con_.prepare(ss.str());
+        con_.cache_statement(stmt, s::insert, o);
+        return stmt;
       }
-      first = false;
-      ss << li::symbol_string(k);
-      vs << placeholder_string();
-    });
+      else return con_.get_cached_statement(s::insert, o);
+    };
 
-    ss << ") VALUES (" << vs.str() << ")";
-
-
-
-
-    if (std::is_same<typename C::db_tag, pgsql_tag>::value &&
-        has_key(schema_.all_fields(), s::id))
-      ss << " returning id;";
-
-    auto req = con_.prepare(ss.str());
-    li::reduce(values, req);
+    auto stmt = get_statement();
+    auto request_res = li::reduce(values, stmt);
 
     call_callback(s::after_insert, o, cb_args...);
 
     if constexpr(has_key<decltype(schema_.all_fields())>(s::id))
-      return req.last_insert_id();
-    else return req.wait();
+      return request_res.last_insert_id();
+    else return request_res.wait();
   };
 
   template <typename A, typename B, typename... O, typename... W>
@@ -1826,13 +1945,24 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
   // Iterate on all the rows of the table.
   template <typename F> void forall(F f) {
-    std::ostringstream ss;
-    placeholder_pos_ = 0;
-
-    ss << "SELECT * from " << schema_.table_name();
 
     typedef decltype(schema_.all_fields()) O;
-    con_(ss.str()).map([&](const O& o) { f(o); });
+
+    auto get_statement = [&] (){ 
+      if (!con_.has_cached_statement(s::forall, O{}))
+      {
+        std::ostringstream ss;
+        placeholder_pos_ = 0;
+        ss << "SELECT * from " << schema_.table_name();
+        auto stmt = con_.prepare(ss.str());
+        con_.cache_statement(stmt, s::forall, O{});
+        return stmt;
+      }
+      else return con_.get_cached_statement(s::forall, O{});
+    };
+
+    auto stmt = get_statement();
+    stmt().map([&](const O& o) { f(o); });
   }
 
   // Update N's members except auto increment members.
@@ -1847,26 +1977,36 @@ template <typename SCHEMA, typename C> struct sql_orm {
     // static_assert(metamap_size<decltype(intersect(o, schema_.read_only()))>(),
     //"You cannot give read only fields to the orm update method.");
 
-    auto pk = intersection(o, schema_.primary_key());
-    static_assert(metamap_size<decltype(pk)>() > 0,
-                  "You must provide at least one primary key to update an object.");
-    std::ostringstream ss;
-    placeholder_pos_ = 0;
-    ss << "UPDATE " << schema_.table_name() << " SET ";
-
-    bool first = true;
     auto to_update = substract(o, schema_.read_only());
+    auto pk = intersection(o, schema_.primary_key());
 
-    map(to_update, [&](auto k, auto v) {
-      if (!first)
-        ss << ",";
-      first = false;
-      ss << li::symbol_string(k) << " = " << placeholder_string();
-    });
+    auto get_statement = [&] (){ 
+      if (!con_.has_cached_statement(s::update, o))
+      {
+        static_assert(metamap_size<decltype(pk)>() > 0,
+                      "You must provide at least one primary key to update an object.");
+        std::ostringstream ss;
+        placeholder_pos_ = 0;
+        ss << "UPDATE " << schema_.table_name() << " SET ";
 
-    where_clause(pk, ss);
+        bool first = true;
 
-    auto stmt = con_.prepare(ss.str());
+        map(to_update, [&](auto k, auto v) {
+          if (!first)
+            ss << ",";
+          first = false;
+          ss << li::symbol_string(k) << " = " << placeholder_string();
+        });
+
+        where_clause(pk, ss);
+        auto stmt = con_.prepare(ss.str());
+        con_.cache_statement(stmt, s::update, o);
+        return stmt;
+      }
+      else return con_.get_cached_statement(s::update, o);
+    };
+
+    auto stmt = get_statement();//con_.prepare(ss.str());
     li::tuple_reduce(std::tuple_cat(metamap_values(to_update), metamap_values(pk)), stmt);
 
     call_callback(s::after_update, o, args...);
@@ -1881,7 +2021,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
   }
 
   inline int count() {
-    return con_(std::string("SELECT count(*) from ") + schema_.table_name()).template read<int>();
+    return con_.prepare(std::string("SELECT count(*) from ") + schema_.table_name())().template read<int>();
   }
 
   template <typename N, typename... CB> void remove(const N& o, CB&&... args) {
@@ -1914,6 +2054,8 @@ template <typename SCHEMA, typename C> struct sql_orm {
   }
 
   auto& schema() { return schema_; }
+
+  C& backend_connection() { return con_; }
 
   SCHEMA schema_;
   C con_;

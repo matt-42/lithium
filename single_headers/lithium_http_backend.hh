@@ -7,48 +7,48 @@
 
 #pragma once
 
+#include <stdlib.h>
+#include <variant>
+#include <map>
+#include <string.h>
+#include <sys/stat.h>
+#include <mutex>
+#include <sys/mman.h>
+#include <boost/lexical_cast.hpp>
+#include <thread>
+#include <netdb.h>
+#include <random>
+#include <utility>
+#include <functional>
+#include <sys/uio.h>
+#include <string>
+#include <cstring>
+#include <signal.h>
+#include <sys/socket.h>
+#include <errno.h>
+#include <string_view>
+#include <netinet/tcp.h>
+#include <sys/epoll.h>
+#include <sstream>
 #include <cmath>
 #include <unordered_map>
-#include <string.h>
-#include <boost/lexical_cast.hpp>
-#include <optional>
-#include <netinet/tcp.h>
-#include <cstring>
-#include <variant>
-#include <boost/context/continuation.hpp>
-#include <random>
-#include <stdlib.h>
-#include <netdb.h>
-#include <functional>
-#include <vector>
-#include <sys/types.h>
-#include <utility>
-#include <string_view>
-#include <sys/uio.h>
 #include <fcntl.h>
-#include <tuple>
-#include <sys/epoll.h>
-#include <signal.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#include <sstream>
-#include <cassert>
-#include <map>
 #include <set>
-#include <thread>
-#include <sys/mman.h>
-#include <iostream>
 #include <sys/sendfile.h>
-#include <string>
-#include <sys/socket.h>
+#include <vector>
 #include <stdio.h>
-#include <mutex>
+#include <iostream>
+#include <sys/types.h>
+#include <optional>
+#include <tuple>
+#include <unistd.h>
 #include <memory>
-#include <errno.h>
+#include <boost/context/continuation.hpp>
+#include <cassert>
 
 #if defined(_MSC_VER)
-#include <io.h>
 #include <ciso646>
+#include <io.h>
 #endif // _MSC_VER
 
 
@@ -2117,6 +2117,21 @@ template <unsigned SIZE> struct sql_varchar : public std::string {
     LI_SYMBOL(database)
 #endif
 
+#ifndef LI_SYMBOL_exists
+#define LI_SYMBOL_exists
+    LI_SYMBOL(exists)
+#endif
+
+#ifndef LI_SYMBOL_find_one
+#define LI_SYMBOL_find_one
+    LI_SYMBOL(find_one)
+#endif
+
+#ifndef LI_SYMBOL_forall
+#define LI_SYMBOL_forall
+    LI_SYMBOL(forall)
+#endif
+
 #ifndef LI_SYMBOL_host
 #define LI_SYMBOL_host
     LI_SYMBOL(host)
@@ -2125,6 +2140,11 @@ template <unsigned SIZE> struct sql_varchar : public std::string {
 #ifndef LI_SYMBOL_id
 #define LI_SYMBOL_id
     LI_SYMBOL(id)
+#endif
+
+#ifndef LI_SYMBOL_insert
+#define LI_SYMBOL_insert
+    LI_SYMBOL(insert)
 #endif
 
 #ifndef LI_SYMBOL_password
@@ -2155,6 +2175,11 @@ template <unsigned SIZE> struct sql_varchar : public std::string {
 #ifndef LI_SYMBOL_synchronous
 #define LI_SYMBOL_synchronous
     LI_SYMBOL(synchronous)
+#endif
+
+#ifndef LI_SYMBOL_update
+#define LI_SYMBOL_update
+    LI_SYMBOL(update)
 #endif
 
 #ifndef LI_SYMBOL_user
@@ -2249,7 +2274,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
       if (std::is_same<typename C::db_tag, pgsql_tag>::value) {
         if (auto_increment)
-          ss << " SERIAL ";
+          ss << " SERIAL PRIMARY KEY ";
       }
 
       first = false;
@@ -2290,26 +2315,36 @@ template <typename SCHEMA, typename C> struct sql_orm {
   }
 
   template <typename... W, typename... A> auto find_one(metamap<W...> where, A&&... cb_args) {
-    std::ostringstream ss;
-    O o;
-    placeholder_pos_ = 0;
-    ss << "SELECT ";
-    bool first = true;
-    li::map(o, [&](auto k, auto v) {
-      if (!first)
-        ss << ",";
-      first = false;
-      ss << li::symbol_string(k);
-    });
 
-    ss << " FROM " << schema_.table_name();
-    where_clause(where, ss);
-    ss << "LIMIT 1";
-    auto stmt = con_.prepare(ss.str());
+    auto get_statement = [&] (){ 
+      if (!con_.has_cached_statement(s::find_one, where))
+      {
+        std::ostringstream ss;
+        placeholder_pos_ = 0;
+        ss << "SELECT ";
+        bool first = true;
+        O o;
+        li::map(o, [&](auto k, auto v) {
+          if (!first)
+            ss << ",";
+          first = false;
+          ss << li::symbol_string(k);
+        });
 
+        ss << " FROM " << schema_.table_name();
+        where_clause(where, ss);
+        ss << "LIMIT 1";
+        auto stmt = con_.prepare(ss.str());
+        con_.cache_statement(stmt, s::find_one, where);
+        return stmt;
+      }
+      else return con_.get_cached_statement(s::find_one, where);
+    };
+
+    auto stmt = get_statement();
     auto res = li::tuple_reduce(metamap_values(where), stmt).template read_optional<O>();
     if (res)
-      call_callback(s::read_access, o, cb_args...);
+      call_callback(s::read_access, *res, cb_args...);
     return res;
   }
 
@@ -2322,15 +2357,24 @@ template <typename SCHEMA, typename C> struct sql_orm {
   }
 
   template <typename W> bool exists(W&& cond) {
-    std::ostringstream ss;
+
     O o;
-    placeholder_pos_ = 0;
-    ss << "SELECT count(*) FROM " << schema_.table_name();
-    where_clause(cond, ss);
-    ss << "LIMIT 1";
+    auto get_statement = [&] (){ 
+      if (!con_.has_cached_statement(s::exists, o, cond))
+      {
+        std::ostringstream ss;
+        placeholder_pos_ = 0;
+        ss << "SELECT count(*) FROM " << schema_.table_name();
+        where_clause(cond, ss);
+        ss << "LIMIT 1";
+        auto stmt = con_.prepare(ss.str());
+        con_.cache_statement(stmt, s::exists, o, cond);
+        return stmt;
+      }
+      else return con_.get_cached_statement(s::exists, o, cond);
+    };
 
-    auto stmt = con_.prepare(ss.str());
-
+    auto stmt = get_statement();
     return li::tuple_reduce(metamap_values(cond), stmt).template read<int>();
   }
 
@@ -2340,46 +2384,55 @@ template <typename SCHEMA, typename C> struct sql_orm {
   // Save a ll fields except auto increment.
   // The db will automatically fill auto increment keys.
   template <typename N, typename... A> auto insert(N&& o, A&&... cb_args) {
-    std::ostringstream ss;
-    std::ostringstream vs;
 
     auto values = schema_.without_auto_increment();
     map(o, [&](auto k, auto& v) { values[k] = o[k]; });
-    // auto values = intersection(o, schema_.without_auto_increment());
 
     call_callback(s::validate, values, cb_args...);
     call_callback(s::before_insert, values, cb_args...);
-    placeholder_pos_ = 0;
-    ss << "INSERT into " << schema_.table_name() << "(";
 
-    bool first = true;
-    li::map(values, [&](auto k, auto v) {
-      if (!first) {
-        ss << ",";
-        vs << ",";
+
+    auto get_statement = [&] (){ 
+      if (!con_.has_cached_statement(s::insert, o))
+      {
+        std::ostringstream ss;
+        std::ostringstream vs;
+
+        placeholder_pos_ = 0;
+        ss << "INSERT into " << schema_.table_name() << "(";
+
+        bool first = true;
+        li::map(values, [&](auto k, auto v) {
+          if (!first) {
+            ss << ",";
+            vs << ",";
+          }
+          first = false;
+          ss << li::symbol_string(k);
+          vs << placeholder_string();
+        });
+
+        ss << ") VALUES (" << vs.str() << ")";
+
+        if (std::is_same<typename C::db_tag, pgsql_tag>::value &&
+            has_key(schema_.all_fields(), s::id))
+          ss << " returning id;";
+
+        auto stmt = con_.prepare(ss.str());
+        con_.cache_statement(stmt, s::insert, o);
+        return stmt;
       }
-      first = false;
-      ss << li::symbol_string(k);
-      vs << placeholder_string();
-    });
+      else return con_.get_cached_statement(s::insert, o);
+    };
 
-    ss << ") VALUES (" << vs.str() << ")";
-
-
-
-
-    if (std::is_same<typename C::db_tag, pgsql_tag>::value &&
-        has_key(schema_.all_fields(), s::id))
-      ss << " returning id;";
-
-    auto req = con_.prepare(ss.str());
-    li::reduce(values, req);
+    auto stmt = get_statement();
+    auto request_res = li::reduce(values, stmt);
 
     call_callback(s::after_insert, o, cb_args...);
 
     if constexpr(has_key<decltype(schema_.all_fields())>(s::id))
-      return req.last_insert_id();
-    else return req.wait();
+      return request_res.last_insert_id();
+    else return request_res.wait();
   };
 
   template <typename A, typename B, typename... O, typename... W>
@@ -2399,13 +2452,24 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
   // Iterate on all the rows of the table.
   template <typename F> void forall(F f) {
-    std::ostringstream ss;
-    placeholder_pos_ = 0;
-
-    ss << "SELECT * from " << schema_.table_name();
 
     typedef decltype(schema_.all_fields()) O;
-    con_(ss.str()).map([&](const O& o) { f(o); });
+
+    auto get_statement = [&] (){ 
+      if (!con_.has_cached_statement(s::forall, O{}))
+      {
+        std::ostringstream ss;
+        placeholder_pos_ = 0;
+        ss << "SELECT * from " << schema_.table_name();
+        auto stmt = con_.prepare(ss.str());
+        con_.cache_statement(stmt, s::forall, O{});
+        return stmt;
+      }
+      else return con_.get_cached_statement(s::forall, O{});
+    };
+
+    auto stmt = get_statement();
+    stmt().map([&](const O& o) { f(o); });
   }
 
   // Update N's members except auto increment members.
@@ -2420,26 +2484,36 @@ template <typename SCHEMA, typename C> struct sql_orm {
     // static_assert(metamap_size<decltype(intersect(o, schema_.read_only()))>(),
     //"You cannot give read only fields to the orm update method.");
 
-    auto pk = intersection(o, schema_.primary_key());
-    static_assert(metamap_size<decltype(pk)>() > 0,
-                  "You must provide at least one primary key to update an object.");
-    std::ostringstream ss;
-    placeholder_pos_ = 0;
-    ss << "UPDATE " << schema_.table_name() << " SET ";
-
-    bool first = true;
     auto to_update = substract(o, schema_.read_only());
+    auto pk = intersection(o, schema_.primary_key());
 
-    map(to_update, [&](auto k, auto v) {
-      if (!first)
-        ss << ",";
-      first = false;
-      ss << li::symbol_string(k) << " = " << placeholder_string();
-    });
+    auto get_statement = [&] (){ 
+      if (!con_.has_cached_statement(s::update, o))
+      {
+        static_assert(metamap_size<decltype(pk)>() > 0,
+                      "You must provide at least one primary key to update an object.");
+        std::ostringstream ss;
+        placeholder_pos_ = 0;
+        ss << "UPDATE " << schema_.table_name() << " SET ";
 
-    where_clause(pk, ss);
+        bool first = true;
 
-    auto stmt = con_.prepare(ss.str());
+        map(to_update, [&](auto k, auto v) {
+          if (!first)
+            ss << ",";
+          first = false;
+          ss << li::symbol_string(k) << " = " << placeholder_string();
+        });
+
+        where_clause(pk, ss);
+        auto stmt = con_.prepare(ss.str());
+        con_.cache_statement(stmt, s::update, o);
+        return stmt;
+      }
+      else return con_.get_cached_statement(s::update, o);
+    };
+
+    auto stmt = get_statement();//con_.prepare(ss.str());
     li::tuple_reduce(std::tuple_cat(metamap_values(to_update), metamap_values(pk)), stmt);
 
     call_callback(s::after_update, o, args...);
@@ -2454,7 +2528,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
   }
 
   inline int count() {
-    return con_(std::string("SELECT count(*) from ") + schema_.table_name()).template read<int>();
+    return con_.prepare(std::string("SELECT count(*) from ") + schema_.table_name())().template read<int>();
   }
 
   template <typename N, typename... CB> void remove(const N& o, CB&&... args) {
@@ -2487,6 +2561,8 @@ template <typename SCHEMA, typename C> struct sql_orm {
   }
 
   auto& schema() { return schema_; }
+
+  C& backend_connection() { return con_; }
 
   SCHEMA schema_;
   C con_;
@@ -3080,17 +3156,21 @@ int moustique_listen_fd(int listen_fd,
       MOUSTIQUE_CHECK_CALL(::epoll_ctl(epoll_fd, EPOLL_CTL_MOD, fd, &event));
       return true;
     };
-    auto epoll_ctl_del = [epoll_fd] (int fd)
-    { 
-      MOUSTIQUE_CHECK_CALL(::epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, nullptr));
-      return true;
-    };
     
     epoll_ctl(listen_fd, EPOLLIN | EPOLLET);
 
     const int MAXEVENTS = 64;
     std::vector<ctx::continuation> fibers;
     std::vector<int> secondary_map;
+
+    auto epoll_ctl_del = [epoll_fd, &secondary_map] (int fd)
+    {
+      // std::cout << "del " << fd << std::endl; 
+      if (fd < secondary_map.size()) secondary_map[fd] = -1;
+      MOUSTIQUE_CHECK_CALL(::epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, nullptr));
+      return true;
+    };
+
     // fibers.reserve(1000);
     // Even loop.
     epoll_event events[MAXEVENTS];
@@ -3162,7 +3242,7 @@ int moustique_listen_fd(int listen_fd,
             auto listen_to_new_fd = [original_fd=infd,epoll_ctl,&secondary_map] (int new_fd) {
               // Listen to the fd if not already done before.
               if (new_fd >= secondary_map.size() || secondary_map[new_fd] == -1)
-                epoll_ctl(new_fd, EPOLLIN | EPOLLOUT | EPOLLET);
+                epoll_ctl(new_fd, EPOLLIN | EPOLLOUT | EPOLLET | EPOLLRDHUP);
               // Associate new_fd to the original_fd.
               if (int(secondary_map.size()) < new_fd + 1)
                 secondary_map.resize(new_fd+1, -1);             
@@ -3216,8 +3296,8 @@ int moustique_listen_fd(int listen_fd,
                                            return true;
                                          };
               
-                                         conn_handler(fd, read, write, listen_to_new_fd);
-                                         //epoll_ctl_del(fd);
+                                         conn_handler(fd, read, write, listen_to_new_fd, epoll_ctl_del);
+                                         epoll_ctl_del(fd);
                                          close(fd);
                                          // unsubscribe to fd in secondary map.
                                         //  for (int i = 0; i < secondary_map.size(); i++)
@@ -3604,12 +3684,14 @@ struct http_ctx {
   http_ctx(read_buffer& _rb,
            std::function<int(char*, int)> _read,
            std::function<bool(const char*, int)> _write,
-           std::function<void(int)> _listen_to_new_fd
+           std::function<void(int)> _listen_to_new_fd,
+           std::function<void(int)> _unsubscribe
            )
     : rb(_rb),
       read(_read),
       write(_write),
       listen_to_new_fd(_listen_to_new_fd),
+      unsubscribe(_unsubscribe),
       output_buffer_space(new char[100 * 1024]),
       json_buffer(new char[100 * 1024])
   {
@@ -4186,7 +4268,7 @@ struct http_ctx {
   int header_lines_size = 0;
   std::function<bool(const char*, int)> write;
   std::function<int(char*, int)> read;
-  std::function<void(int)> listen_to_new_fd;
+  std::function<void(int)> listen_to_new_fd, unsubscribe;
   char headers_buffer_space[1000];
   output_buffer headers_stream;
   bool response_written_ = false;
@@ -4201,14 +4283,15 @@ struct http_ctx {
 template <typename F>
 auto make_http_processor(F handler)
 {
-  return [handler] (int fd, auto read, auto write, auto listen_to_new_fd) {
+  return [handler] (int fd, auto read, auto write,
+                    auto listen_to_new_fd, auto unsubscribe) {
 
     try {
       read_buffer rb;
       bool socket_is_valid = true;
 
       //http_ctx& ctx = *new http_ctx(rb, read, write);
-      http_ctx ctx = http_ctx(rb, read, write, listen_to_new_fd);
+      http_ctx ctx = http_ctx(rb, read, write, listen_to_new_fd, unsubscribe);
       ctx.socket_fd = fd;
       //ctx.header_lines = new const char*[10];
       
@@ -4532,6 +4615,7 @@ struct async_yield
     ctx.write(nullptr, 0);
      }
   void listen_to_fd(int fd) { ctx.listen_to_new_fd(fd); }
+  void unsubscribe(int fd) { ctx.unsubscribe(fd); }
   C& ctx;
 };
 

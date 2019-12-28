@@ -7,52 +7,52 @@
 
 #pragma once
 
+#include <stdlib.h>
+#include <variant>
+#include <map>
+#include <string.h>
+#include <sys/stat.h>
+#include <mutex>
+#include <sys/mman.h>
+#include <boost/lexical_cast.hpp>
+#include <thread>
+#include <netdb.h>
+#include <random>
+#include <utility>
+#include <functional>
+#include <sys/uio.h>
+#include <string>
+#include <cstring>
+#include <signal.h>
+#include <sys/socket.h>
+#include <errno.h>
+#include <string_view>
+#include <netinet/tcp.h>
+#include <sys/epoll.h>
+#include <sstream>
+#include <mysql.h>
 #include <cmath>
 #include <unordered_map>
-#include <string.h>
-#include <boost/lexical_cast.hpp>
-#include <optional>
+#include <fcntl.h>
+#include <set>
+#include <sys/sendfile.h>
 #include <sqlite3.h>
-#include <mysql.h>
-#include <netinet/tcp.h>
-#include <cstring>
-#include <variant>
+#include <deque>
+#include <vector>
+#include <stdio.h>
+#include <iostream>
+#include <sys/types.h>
+#include <optional>
+#include <tuple>
+#include <unistd.h>
+#include <memory>
 #include <atomic>
 #include <boost/context/continuation.hpp>
-#include <random>
-#include <stdlib.h>
-#include <netdb.h>
-#include <functional>
-#include <vector>
-#include <sys/types.h>
-#include <utility>
-#include <string_view>
-#include <sys/uio.h>
-#include <fcntl.h>
-#include <tuple>
-#include <sys/epoll.h>
-#include <signal.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#include <sstream>
 #include <cassert>
-#include <map>
-#include <set>
-#include <thread>
-#include <sys/mman.h>
-#include <deque>
-#include <iostream>
-#include <sys/sendfile.h>
-#include <string>
-#include <sys/socket.h>
-#include <stdio.h>
-#include <mutex>
-#include <memory>
-#include <errno.h>
 
 #if defined(_MSC_VER)
-#include <io.h>
 #include <ciso646>
+#include <io.h>
 #endif // _MSC_VER
 
 
@@ -869,6 +869,21 @@ template <unsigned SIZE> struct sql_varchar : public std::string {
     LI_SYMBOL(database)
 #endif
 
+#ifndef LI_SYMBOL_exists
+#define LI_SYMBOL_exists
+    LI_SYMBOL(exists)
+#endif
+
+#ifndef LI_SYMBOL_find_one
+#define LI_SYMBOL_find_one
+    LI_SYMBOL(find_one)
+#endif
+
+#ifndef LI_SYMBOL_forall
+#define LI_SYMBOL_forall
+    LI_SYMBOL(forall)
+#endif
+
 #ifndef LI_SYMBOL_host
 #define LI_SYMBOL_host
     LI_SYMBOL(host)
@@ -877,6 +892,11 @@ template <unsigned SIZE> struct sql_varchar : public std::string {
 #ifndef LI_SYMBOL_id
 #define LI_SYMBOL_id
     LI_SYMBOL(id)
+#endif
+
+#ifndef LI_SYMBOL_insert
+#define LI_SYMBOL_insert
+    LI_SYMBOL(insert)
 #endif
 
 #ifndef LI_SYMBOL_password
@@ -909,6 +929,11 @@ template <unsigned SIZE> struct sql_varchar : public std::string {
     LI_SYMBOL(synchronous)
 #endif
 
+#ifndef LI_SYMBOL_update
+#define LI_SYMBOL_update
+    LI_SYMBOL(update)
+#endif
+
 #ifndef LI_SYMBOL_user
 #define LI_SYMBOL_user
     LI_SYMBOL(user)
@@ -926,6 +951,30 @@ template <unsigned SIZE> struct sql_varchar : public std::string {
 
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SYMBOLS
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_TYPE_HASHMAP
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_TYPE_HASHMAP
+
+
+namespace li {
+
+template <typename V>
+struct type_hashmap {
+
+  template <typename... T> V& operator()(T&&...)
+  {
+    static int hash = values.size();
+    values.resize(hash+1);
+    return values[hash];
+  }
+
+private:
+  std::vector<V> values;
+};
+
+}
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_TYPE_HASHMAP
 
 
 namespace li {
@@ -1169,6 +1218,19 @@ struct sqlite_connection {
     format_error(err, args...);
   }
 
+  template <typename... T>
+  bool has_cached_statement(T&&... key) {
+    return statements_hashmap(key...).stmt_sptr_.get() != nullptr;
+  }
+  template <typename... T>
+  sqlite_statement  get_cached_statement(T&&... key) {
+    return statements_hashmap(key...);
+  }
+  template <typename... T>
+  void cache_statement(sqlite_statement& stmt, T&&... key) {
+    statements_hashmap(key...) = stmt;
+  }
+
   sqlite_statement prepare(const std::string& req) {
     // std::cout << req << std::endl;
     auto it = stm_cache_->find(req);
@@ -1210,6 +1272,7 @@ struct sqlite_connection {
   sqlite3* db_;
   db_sptr db_sptr_;
   stmt_map_ptr stm_cache_;
+  type_hashmap<sqlite_statement> statements_hashmap;
 };
 
 struct sqlite_database {
@@ -1425,7 +1488,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
       if (std::is_same<typename C::db_tag, pgsql_tag>::value) {
         if (auto_increment)
-          ss << " SERIAL ";
+          ss << " SERIAL PRIMARY KEY ";
       }
 
       first = false;
@@ -1466,26 +1529,36 @@ template <typename SCHEMA, typename C> struct sql_orm {
   }
 
   template <typename... W, typename... A> auto find_one(metamap<W...> where, A&&... cb_args) {
-    std::ostringstream ss;
-    O o;
-    placeholder_pos_ = 0;
-    ss << "SELECT ";
-    bool first = true;
-    li::map(o, [&](auto k, auto v) {
-      if (!first)
-        ss << ",";
-      first = false;
-      ss << li::symbol_string(k);
-    });
 
-    ss << " FROM " << schema_.table_name();
-    where_clause(where, ss);
-    ss << "LIMIT 1";
-    auto stmt = con_.prepare(ss.str());
+    auto get_statement = [&] (){ 
+      if (!con_.has_cached_statement(s::find_one, where))
+      {
+        std::ostringstream ss;
+        placeholder_pos_ = 0;
+        ss << "SELECT ";
+        bool first = true;
+        O o;
+        li::map(o, [&](auto k, auto v) {
+          if (!first)
+            ss << ",";
+          first = false;
+          ss << li::symbol_string(k);
+        });
 
+        ss << " FROM " << schema_.table_name();
+        where_clause(where, ss);
+        ss << "LIMIT 1";
+        auto stmt = con_.prepare(ss.str());
+        con_.cache_statement(stmt, s::find_one, where);
+        return stmt;
+      }
+      else return con_.get_cached_statement(s::find_one, where);
+    };
+
+    auto stmt = get_statement();
     auto res = li::tuple_reduce(metamap_values(where), stmt).template read_optional<O>();
     if (res)
-      call_callback(s::read_access, o, cb_args...);
+      call_callback(s::read_access, *res, cb_args...);
     return res;
   }
 
@@ -1498,15 +1571,24 @@ template <typename SCHEMA, typename C> struct sql_orm {
   }
 
   template <typename W> bool exists(W&& cond) {
-    std::ostringstream ss;
+
     O o;
-    placeholder_pos_ = 0;
-    ss << "SELECT count(*) FROM " << schema_.table_name();
-    where_clause(cond, ss);
-    ss << "LIMIT 1";
+    auto get_statement = [&] (){ 
+      if (!con_.has_cached_statement(s::exists, o, cond))
+      {
+        std::ostringstream ss;
+        placeholder_pos_ = 0;
+        ss << "SELECT count(*) FROM " << schema_.table_name();
+        where_clause(cond, ss);
+        ss << "LIMIT 1";
+        auto stmt = con_.prepare(ss.str());
+        con_.cache_statement(stmt, s::exists, o, cond);
+        return stmt;
+      }
+      else return con_.get_cached_statement(s::exists, o, cond);
+    };
 
-    auto stmt = con_.prepare(ss.str());
-
+    auto stmt = get_statement();
     return li::tuple_reduce(metamap_values(cond), stmt).template read<int>();
   }
 
@@ -1516,46 +1598,55 @@ template <typename SCHEMA, typename C> struct sql_orm {
   // Save a ll fields except auto increment.
   // The db will automatically fill auto increment keys.
   template <typename N, typename... A> auto insert(N&& o, A&&... cb_args) {
-    std::ostringstream ss;
-    std::ostringstream vs;
 
     auto values = schema_.without_auto_increment();
     map(o, [&](auto k, auto& v) { values[k] = o[k]; });
-    // auto values = intersection(o, schema_.without_auto_increment());
 
     call_callback(s::validate, values, cb_args...);
     call_callback(s::before_insert, values, cb_args...);
-    placeholder_pos_ = 0;
-    ss << "INSERT into " << schema_.table_name() << "(";
 
-    bool first = true;
-    li::map(values, [&](auto k, auto v) {
-      if (!first) {
-        ss << ",";
-        vs << ",";
+
+    auto get_statement = [&] (){ 
+      if (!con_.has_cached_statement(s::insert, o))
+      {
+        std::ostringstream ss;
+        std::ostringstream vs;
+
+        placeholder_pos_ = 0;
+        ss << "INSERT into " << schema_.table_name() << "(";
+
+        bool first = true;
+        li::map(values, [&](auto k, auto v) {
+          if (!first) {
+            ss << ",";
+            vs << ",";
+          }
+          first = false;
+          ss << li::symbol_string(k);
+          vs << placeholder_string();
+        });
+
+        ss << ") VALUES (" << vs.str() << ")";
+
+        if (std::is_same<typename C::db_tag, pgsql_tag>::value &&
+            has_key(schema_.all_fields(), s::id))
+          ss << " returning id;";
+
+        auto stmt = con_.prepare(ss.str());
+        con_.cache_statement(stmt, s::insert, o);
+        return stmt;
       }
-      first = false;
-      ss << li::symbol_string(k);
-      vs << placeholder_string();
-    });
+      else return con_.get_cached_statement(s::insert, o);
+    };
 
-    ss << ") VALUES (" << vs.str() << ")";
-
-
-
-
-    if (std::is_same<typename C::db_tag, pgsql_tag>::value &&
-        has_key(schema_.all_fields(), s::id))
-      ss << " returning id;";
-
-    auto req = con_.prepare(ss.str());
-    li::reduce(values, req);
+    auto stmt = get_statement();
+    auto request_res = li::reduce(values, stmt);
 
     call_callback(s::after_insert, o, cb_args...);
 
     if constexpr(has_key<decltype(schema_.all_fields())>(s::id))
-      return req.last_insert_id();
-    else return req.wait();
+      return request_res.last_insert_id();
+    else return request_res.wait();
   };
 
   template <typename A, typename B, typename... O, typename... W>
@@ -1575,13 +1666,24 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
   // Iterate on all the rows of the table.
   template <typename F> void forall(F f) {
-    std::ostringstream ss;
-    placeholder_pos_ = 0;
-
-    ss << "SELECT * from " << schema_.table_name();
 
     typedef decltype(schema_.all_fields()) O;
-    con_(ss.str()).map([&](const O& o) { f(o); });
+
+    auto get_statement = [&] (){ 
+      if (!con_.has_cached_statement(s::forall, O{}))
+      {
+        std::ostringstream ss;
+        placeholder_pos_ = 0;
+        ss << "SELECT * from " << schema_.table_name();
+        auto stmt = con_.prepare(ss.str());
+        con_.cache_statement(stmt, s::forall, O{});
+        return stmt;
+      }
+      else return con_.get_cached_statement(s::forall, O{});
+    };
+
+    auto stmt = get_statement();
+    stmt().map([&](const O& o) { f(o); });
   }
 
   // Update N's members except auto increment members.
@@ -1596,26 +1698,36 @@ template <typename SCHEMA, typename C> struct sql_orm {
     // static_assert(metamap_size<decltype(intersect(o, schema_.read_only()))>(),
     //"You cannot give read only fields to the orm update method.");
 
-    auto pk = intersection(o, schema_.primary_key());
-    static_assert(metamap_size<decltype(pk)>() > 0,
-                  "You must provide at least one primary key to update an object.");
-    std::ostringstream ss;
-    placeholder_pos_ = 0;
-    ss << "UPDATE " << schema_.table_name() << " SET ";
-
-    bool first = true;
     auto to_update = substract(o, schema_.read_only());
+    auto pk = intersection(o, schema_.primary_key());
 
-    map(to_update, [&](auto k, auto v) {
-      if (!first)
-        ss << ",";
-      first = false;
-      ss << li::symbol_string(k) << " = " << placeholder_string();
-    });
+    auto get_statement = [&] (){ 
+      if (!con_.has_cached_statement(s::update, o))
+      {
+        static_assert(metamap_size<decltype(pk)>() > 0,
+                      "You must provide at least one primary key to update an object.");
+        std::ostringstream ss;
+        placeholder_pos_ = 0;
+        ss << "UPDATE " << schema_.table_name() << " SET ";
 
-    where_clause(pk, ss);
+        bool first = true;
 
-    auto stmt = con_.prepare(ss.str());
+        map(to_update, [&](auto k, auto v) {
+          if (!first)
+            ss << ",";
+          first = false;
+          ss << li::symbol_string(k) << " = " << placeholder_string();
+        });
+
+        where_clause(pk, ss);
+        auto stmt = con_.prepare(ss.str());
+        con_.cache_statement(stmt, s::update, o);
+        return stmt;
+      }
+      else return con_.get_cached_statement(s::update, o);
+    };
+
+    auto stmt = get_statement();//con_.prepare(ss.str());
     li::tuple_reduce(std::tuple_cat(metamap_values(to_update), metamap_values(pk)), stmt);
 
     call_callback(s::after_update, o, args...);
@@ -1630,7 +1742,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
   }
 
   inline int count() {
-    return con_(std::string("SELECT count(*) from ") + schema_.table_name()).template read<int>();
+    return con_.prepare(std::string("SELECT count(*) from ") + schema_.table_name())().template read<int>();
   }
 
   template <typename N, typename... CB> void remove(const N& o, CB&&... args) {
@@ -1663,6 +1775,8 @@ template <typename SCHEMA, typename C> struct sql_orm {
   }
 
   auto& schema() { return schema_; }
+
+  C& backend_connection() { return con_; }
 
   SCHEMA schema_;
   C con_;
@@ -1803,15 +1917,18 @@ struct mysql_functions_blocking {
 #define LI_MYSQL_BLOCKING_WRAPPER(ERR, FN)                                                              \
   template <typename A1, typename... A> auto FN(std::shared_ptr<int> connection_status, A1 a1, A&&... a) {\
     int ret = ::FN(a1, std::forward<A>(a)...); \
-    if (ret and ret != MYSQL_NO_DATA) \
+    if (ret and ret != MYSQL_NO_DATA and ret != MYSQL_DATA_TRUNCATED) \
     { \
       *connection_status = 1;\
       throw std::runtime_error(std::string("Mysql error: ") + ERR(a1));\
     } \
     return ret; }
 
-  LI_MYSQL_BLOCKING_WRAPPER(mysql_error, mysql_fetch_row)
+  MYSQL_ROW mysql_fetch_row(std::shared_ptr<int> connection_status, MYSQL_RES* res) { return ::mysql_fetch_row(res); }
+  int mysql_free_result(std::shared_ptr<int> connection_status, MYSQL_RES* res) { ::mysql_free_result(res); return 0; }
+  //LI_MYSQL_BLOCKING_WRAPPER(mysql_error, mysql_fetch_row)
   LI_MYSQL_BLOCKING_WRAPPER(mysql_error, mysql_real_query)
+  LI_MYSQL_BLOCKING_WRAPPER(mysql_error, mysql_free_result)
   LI_MYSQL_BLOCKING_WRAPPER(mysql_stmt_error, mysql_stmt_execute)
   LI_MYSQL_BLOCKING_WRAPPER(mysql_stmt_error, mysql_stmt_reset)
   LI_MYSQL_BLOCKING_WRAPPER(mysql_stmt_error, mysql_stmt_prepare)
@@ -1820,6 +1937,7 @@ struct mysql_functions_blocking {
   LI_MYSQL_BLOCKING_WRAPPER(mysql_stmt_error, mysql_stmt_store_result)
 
 #undef LI_MYSQL_BLOCKING_WRAPPER
+
 };
 
 // Non blocking version.
@@ -1865,6 +1983,7 @@ template <typename Y> struct mysql_functions_non_blocking {
 
   LI_MYSQL_NONBLOCKING_WRAPPER(mysql_error, mysql_fetch_row)
   LI_MYSQL_NONBLOCKING_WRAPPER(mysql_error, mysql_real_query)
+  LI_MYSQL_NONBLOCKING_WRAPPER(mysql_error, mysql_free_result)
   LI_MYSQL_NONBLOCKING_WRAPPER(mysql_stmt_error, mysql_stmt_execute)
   LI_MYSQL_NONBLOCKING_WRAPPER(mysql_stmt_error, mysql_stmt_reset)
   LI_MYSQL_NONBLOCKING_WRAPPER(mysql_stmt_error, mysql_stmt_prepare)
@@ -1908,7 +2027,13 @@ auto type_to_mysql_statement_buffer_type(const unsigned long long int&) {
   return MYSQL_TYPE_LONGLONG;
 }
 
-struct mysql_statement_data {
+
+struct mysql_statement_data : std::enable_shared_from_this<mysql_statement_data> {
+
+  MYSQL_STMT* stmt_ = nullptr;
+  int num_fields_ = -1;
+  MYSQL_RES* metadata_ = nullptr;
+  MYSQL_FIELD* fields_ = nullptr;
 
   mysql_statement_data(MYSQL_STMT* stmt) {
       stmt_ = stmt;
@@ -1927,80 +2052,148 @@ struct mysql_statement_data {
     mysql_stmt_close(stmt_);
   }
 
-  MYSQL_STMT* stmt_ = nullptr;
-  int num_fields_ = -1;
-  MYSQL_RES* metadata_ = nullptr;
-  MYSQL_FIELD* fields_ = nullptr;
-
 };
 
+// Bind parameter functions
+// Used to bind input parameters of prepared statement.
+template <unsigned N>
+struct mysql_bind_data
+{
+  mysql_bind_data() {  
+    memset(bind.data(), 0, N * sizeof(MYSQL_BIND)); 
+  }
+  std::array<unsigned long, N> real_lengths;
+  std::array<MYSQL_BIND, N> bind;
+};
+
+template <typename V> void mysql_bind_param(MYSQL_BIND& b, V& v) {
+  b.buffer = const_cast<std::remove_const_t<V>*>(&v);
+  b.buffer_type = type_to_mysql_statement_buffer_type(v);
+  b.is_unsigned = std::is_unsigned<V>::value;
+}
+
+void mysql_bind_param(MYSQL_BIND& b, std::string& s) {
+  b.buffer = &s[0];
+  b.buffer_type = MYSQL_TYPE_STRING;
+  b.buffer_length = s.size();
+}
+void mysql_bind_param(MYSQL_BIND& b, const std::string& s) { mysql_bind_param(b, *const_cast<std::string*>(&s)); }
+
+template <unsigned SIZE> void mysql_bind_param(MYSQL_BIND& b, const sql_varchar<SIZE>& s) {
+  mysql_bind_param(b, *const_cast<std::string*>(static_cast<const std::string*>(&s)));
+}
+
+void mysql_bind_param(MYSQL_BIND& b, char* s) {
+  b.buffer = s;
+  b.buffer_type = MYSQL_TYPE_STRING;
+  b.buffer_length = strlen(s);
+}
+void mysql_bind_param(MYSQL_BIND& b, const char* s) { mysql_bind_param(b, const_cast<char*>(s)); }
+
+void mysql_bind_param(MYSQL_BIND& b, sql_blob& s) {
+  b.buffer = &s[0];
+  b.buffer_type = MYSQL_TYPE_BLOB;
+  b.buffer_length = s.size();
+}
+void mysql_bind_param(MYSQL_BIND& b, const sql_blob& s) { mysql_bind_param(b, *const_cast<sql_blob*>(&s)); }
+
+void mysql_bind_param(MYSQL_BIND& b, sql_null_t n) { b.buffer_type = MYSQL_TYPE_NULL; }
+
+//
+// Bind output function.
+// Used to bind output values to result sets.
+//
+template <typename T> void mysql_bind_output(MYSQL_BIND& b, unsigned long* real_length, T& v) {
+  // Default to mysql_bind_param.
+  mysql_bind_param(b, v);
+}
+
+void mysql_bind_output(MYSQL_BIND& b, unsigned long* real_length, std::string& v) {
+  v.resize(100);
+  b.buffer_type = MYSQL_TYPE_STRING;
+  b.buffer_length = v.size();
+  b.buffer = &v[0];
+  b.length = real_length;
+}
+
+template <unsigned SIZE>
+void mysql_bind_output(MYSQL_BIND& b, unsigned long* real_length, sql_varchar<SIZE>& s) {
+  s.resize(SIZE);
+  b.buffer = &s[0];
+  b.buffer_type = MYSQL_TYPE_STRING;
+  b.buffer_length = s.size();
+  b.length = real_length;
+}
+
+template <typename A> mysql_bind_data<1> mysql_bind_output(mysql_statement_data& data, A& o) {
+  if (data.num_fields_ != 1)
+    throw std::runtime_error("mysql_statement error: The number of column in the result set "
+                              "shoud be 1. Use std::tuple or li::sio to fetch several columns or "
+                              "modify the request so that it returns a set of 1 column.");
+
+  mysql_bind_data<1> bind_data;
+  mysql_bind_output(bind_data.bind[0], &bind_data.real_lengths[0], o);
+  return bind_data;
+}
+
+template <typename... A>
+mysql_bind_data<sizeof...(A)>
+mysql_bind_output(mysql_statement_data& data, metamap<A...>& o) {
+  if (data.num_fields_ != sizeof...(A)) {
+    throw std::runtime_error(
+        "mysql_statement error: Not enough columns in the result set to fill the object.");
+  }
+
+  mysql_bind_data<sizeof...(A)> bind_data;
+  MYSQL_BIND* bind = bind_data.bind.data(); 
+  unsigned long* real_lengths = bind_data.real_lengths.data(); 
+
+  li::map(o, [&](auto k, auto& v) {
+    // Find li::symbol_string(k) position.
+    for (int i = 0; i < data.num_fields_; i++)
+      if (!strcmp(data.fields_[i].name, li::symbol_string(k)))
+      // bind the column.
+      {
+        mysql_bind_output(bind[i], real_lengths + i, v);
+      }
+  });
+
+  for (int i = 0; i < data.num_fields_; i++) {
+    if (!bind[i].buffer_type) {
+      std::ostringstream ss;
+      ss << "Error while binding the mysql request to a metamap object: " << std::endl
+          << "   Field " << data.fields_[i].name << " could not be bound." << std::endl;
+      throw std::runtime_error(ss.str());
+    }
+  }
+
+  return bind_data;
+}
+
+template <typename... A>
+mysql_bind_data<sizeof...(A)>
+mysql_bind_output(mysql_statement_data& data, std::tuple<A...>& o) {
+  if (data.num_fields_ != sizeof...(A))
+    throw std::runtime_error("mysql_statement error: The number of column in the result set does "
+                              "not match the number of attributes of the tuple to bind.");
+
+  mysql_bind_data<sizeof...(A)> bind_data;
+  MYSQL_BIND* bind = bind_data.bind.data(); 
+  unsigned long* real_lengths = bind_data.real_lengths.data(); 
+
+  int i = 0;
+  tuple_map(o, [&](auto& m) {
+    mysql_bind_output(bind[i], real_lengths + i, m);
+    i++;
+  });
+
+  return bind_data;
+}
 
 template <typename B>
-struct mysql_statement {
-
-  auto& operator()() {
-    if (mysql_wrapper_.mysql_stmt_execute(connection_status_, data_.stmt_) != 0)
-
-      throw std::runtime_error(std::string("mysql_stmt_execute error: ") + mysql_stmt_error(data_.stmt_));
-
-    return *this;
-  }
-
-  template <typename... T> auto& operator()(T&&... args) {
-    MYSQL_BIND bind[sizeof...(T)];
-    memset(bind, 0, sizeof(bind));
-
-    int i = 0;
-    tuple_map(std::forward_as_tuple(args...), [&](auto& m) {
-      this->bind(bind[i], m);
-      i++;
-    });
-
-    if (mysql_stmt_bind_param(data_.stmt_, bind) != 0)
-    {
-      *connection_status_ = 1;
-      throw std::runtime_error(std::string("mysql_stmt_bind_param error: ") +
-                               mysql_stmt_error(data_.stmt_));
-    }
-    if (mysql_wrapper_.mysql_stmt_execute(connection_status_, data_.stmt_) != 0)
-      throw std::runtime_error(std::string("mysql_stmt_execute error: ") + mysql_stmt_error(data_.stmt_));
-    return *this;
-  }
+struct mysql_statement_result {
 
   long long int affected_rows() { return mysql_stmt_affected_rows(data_.stmt_); }
-
-  template <typename V> void bind(MYSQL_BIND& b, V& v) {
-    b.buffer = const_cast<std::remove_const_t<V>*>(&v);
-    b.buffer_type = type_to_mysql_statement_buffer_type(v);
-    b.is_unsigned = std::is_unsigned<V>::value;
-  }
-
-  void bind(MYSQL_BIND& b, std::string& s) {
-    b.buffer = &s[0];
-    b.buffer_type = MYSQL_TYPE_STRING;
-    b.buffer_length = s.size();
-  }
-  void bind(MYSQL_BIND& b, const std::string& s) { bind(b, *const_cast<std::string*>(&s)); }
-
-  template <unsigned SIZE> void bind(MYSQL_BIND& b, const sql_varchar<SIZE>& s) {
-    bind(b, *const_cast<std::string*>(static_cast<const std::string*>(&s)));
-  }
-
-  void bind(MYSQL_BIND& b, char* s) {
-    b.buffer = s;
-    b.buffer_type = MYSQL_TYPE_STRING;
-    b.buffer_length = strlen(s);
-  }
-  void bind(MYSQL_BIND& b, const char* s) { bind(b, const_cast<char*>(s)); }
-
-  void bind(MYSQL_BIND& b, sql_blob& s) {
-    b.buffer = &s[0];
-    b.buffer_type = MYSQL_TYPE_BLOB;
-    b.buffer_length = s.size();
-  }
-  void bind(MYSQL_BIND& b, const sql_blob& s) { bind(b, *const_cast<sql_blob*>(&s)); }
-
-  void bind(MYSQL_BIND& b, sql_null_t n) { b.buffer_type = MYSQL_TYPE_NULL; }
 
   template <typename T> void fetch_column(MYSQL_BIND*, unsigned long, T&, int) {}
   void fetch_column(MYSQL_BIND* b, unsigned long real_length, std::string& v, int i) {
@@ -2026,45 +2219,15 @@ struct mysql_statement {
     v.resize(real_length);
   }
 
-  template <typename T> void bind_output(MYSQL_BIND& b, unsigned long* real_length, T& v) {
-    bind(b, v);
-  }
-
-  void bind_output(MYSQL_BIND& b, unsigned long* real_length, std::string& v) {
-    v.resize(100);
-    b.buffer_type = MYSQL_TYPE_STRING;
-    b.buffer_length = v.size();
-    b.buffer = &v[0];
-    b.length = real_length;
-  }
-
-  template <unsigned SIZE>
-  void bind_output(MYSQL_BIND& b, sql_varchar<SIZE>& s) {
-    s.resize(SIZE);
-    b.buffer = &s[0];
-    b.buffer_type = MYSQL_TYPE_STRING;
-    b.buffer_length = s.size();
-  }
-
-  template <typename A> static constexpr auto number_of_fields(const A&) {
-    return std::integral_constant<int, 1>();
-  }
-  template <typename... A> static constexpr auto number_of_fields(const metamap<A...>&) {
-    return std::integral_constant<int, sizeof...(A)>();
-  }
-  template <typename... A> static constexpr auto number_of_fields(const std::tuple<A...>&) {
-    return std::integral_constant<int, sizeof...(A)>();
-  }
-
   template <typename T> int fetch(T&& o) {
 
-    constexpr int size = decltype(number_of_fields(o))::value;
-    unsigned long real_lengths[size];
-    MYSQL_BIND bind[size];
-    memset(bind, 0, sizeof(bind));
+    auto bind_data = mysql_bind_output(data_, o);
+    unsigned long* real_lengths = bind_data.real_lengths.data();
+    MYSQL_BIND* bind = bind_data.bind.data();
+    
+    mysql_stmt_bind_result(data_.stmt_, bind);
 
-    prepare_fetch(bind, real_lengths, o);
-    int f = fetch();
+    int f = mysql_wrapper_.mysql_stmt_fetch(connection_status_, data_.stmt_);
     int res = 1;
     if (f == MYSQL_NO_DATA)
       res = 0;
@@ -2108,86 +2271,22 @@ struct mysql_statement {
 
     typedef typename unconstref_tuple_elements<callable_arguments_tuple_t<F>>::ret tp;
     typedef std::remove_const_t<std::remove_reference_t<std::tuple_element_t<0, tp>>> T;
-    if constexpr (li::is_metamap<T>::ret) {
-      T o;
 
-      unsigned long real_lengths[decltype(number_of_fields(T()))::value];
-      MYSQL_BIND bind[decltype(number_of_fields(T()))::value];
-      memset(bind, 0, sizeof(bind));
-      this->prepare_fetch(bind, real_lengths, o);
-      while (this->fetch() != MYSQL_NO_DATA) {
-        this->finalize_fetch(bind, real_lengths, o);
+    auto o = []() { if constexpr (li::is_metamap<T>::ret) return T{}; else return tp{}; }();
+
+    auto bind_data = mysql_bind_output(data_, o);
+    mysql_stmt_bind_result(data_.stmt_, bind_data.bind.data());
+    
+    while (mysql_wrapper_.mysql_stmt_fetch(connection_status_, data_.stmt_) != MYSQL_NO_DATA) {
+      this->finalize_fetch(bind_data.bind.data(), bind_data.real_lengths.data(), o);
+      if constexpr (li::is_metamap<T>::ret) 
         f(o);
-      }
-      mysql_wrapper_.mysql_stmt_free_result(connection_status_, data_.stmt_);
-    } else {
-      tp o;
-
-      unsigned long real_lengths[std::tuple_size<tp>::value];
-      MYSQL_BIND bind[std::tuple_size<tp>::value];
-      memset(bind, 0, sizeof(bind));
-      this->prepare_fetch(bind, real_lengths, o);
-      while (this->fetch() != MYSQL_NO_DATA) {
-        this->finalize_fetch(bind, real_lengths, o);
-        apply(std::move(o), f);
-      }
-      mysql_wrapper_.mysql_stmt_free_result(connection_status_, data_.stmt_);
-    }
-  }
-
-  template <typename A> void prepare_fetch(MYSQL_BIND* bind, unsigned long* real_lengths, A& o) {
-    if (data_.num_fields_ != 1)
-      throw std::runtime_error("mysql_statement error: The number of column in the result set "
-                               "shoud be 1. Use std::tuple or li::sio to fetch several columns or "
-                               "modify the request so that it returns a set of 1 column.");
-
-    this->bind_output(bind[0], real_lengths, o);
-    mysql_stmt_bind_result(data_.stmt_, bind);
-  }
-
-  template <typename... A>
-  void prepare_fetch(MYSQL_BIND* bind, unsigned long* real_lengths, metamap<A...>& o) {
-    if (data_.num_fields_ != sizeof...(A)) {
-      throw std::runtime_error(
-          "mysql_statement error: Not enough columns in the result set to fill the object.");
+      else apply(o, f);
     }
 
-    li::map(o, [&](auto k, auto& v) {
-      // Find li::symbol_string(k) position.
-      for (int i = 0; i < data_.num_fields_; i++)
-        if (!strcmp(data_.fields_[i].name, li::symbol_string(k)))
-        // bind the column.
-        {
-          this->bind_output(bind[i], real_lengths + i, v);
-        }
-    });
-
-    for (int i = 0; i < data_.num_fields_; i++) {
-      if (!bind[i].buffer_type) {
-        std::ostringstream ss;
-        ss << "Error while binding the mysql request to a SIO object: " << std::endl
-           << "   Field " << data_.fields_[i].name << " could not be bound." << std::endl;
-        throw std::runtime_error(ss.str());
-      }
-    }
-
-    mysql_stmt_bind_result(data_.stmt_, bind);
+    mysql_wrapper_.mysql_stmt_free_result(connection_status_, data_.stmt_);
   }
 
-  template <typename... A>
-  void prepare_fetch(MYSQL_BIND* bind, unsigned long* real_lengths, std::tuple<A...>& o) {
-    if (data_.num_fields_ != sizeof...(A))
-      throw std::runtime_error("mysql_statement error: The number of column in the result set does "
-                               "not match the number of attributes of the tuple to bind.");
-
-    int i = 0;
-    tuple_map(o, [&](auto& m) {
-      this->bind_output(bind[i], real_lengths + i, m);
-      i++;
-    });
-
-    mysql_stmt_bind_result(data_.stmt_, bind);
-  }
 
   template <typename... A>
   void finalize_fetch(MYSQL_BIND* bind, unsigned long* real_lengths, metamap<A...>& o) {
@@ -2211,15 +2310,6 @@ struct mysql_statement {
     this->fetch_column(bind, real_lengths[0], o, 0);
   }
 
-  int fetch() {
-    int f = mysql_wrapper_.mysql_stmt_fetch(connection_status_, data_.stmt_);
-    if (f == 1)
-    {
-      throw std::runtime_error(std::string("mysql_stmt_fetch error: ") + mysql_stmt_error(data_.stmt_));
-    }
-    return f;
-  }
-  
   void wait () {}
 
   long long int last_insert_id() { return mysql_stmt_insert_id(data_.stmt_); }
@@ -2231,10 +2321,42 @@ struct mysql_statement {
   std::shared_ptr<int> connection_status_;
 };
 
+template <typename B>
+struct mysql_statement {
+
+  mysql_statement_result<B> operator()() {
+    mysql_wrapper_.mysql_stmt_execute(connection_status_, data_.stmt_);
+    return mysql_statement_result<B>{mysql_wrapper_, data_, connection_status_};
+  }
+
+  template <typename... T> auto operator()(T&&... args) {
+    MYSQL_BIND bind[sizeof...(T)];
+    memset(bind, 0, sizeof(bind));
+
+    int i = 0;
+    tuple_map(std::forward_as_tuple(args...), [&](auto& m) {
+      mysql_bind_param(bind[i], m);
+      i++;
+    });
+
+    if (mysql_stmt_bind_param(data_.stmt_, bind) != 0)
+    {
+      *connection_status_ = 1;
+      throw std::runtime_error(std::string("mysql_stmt_bind_param error: ") +
+                               mysql_stmt_error(data_.stmt_));
+    }
+    mysql_wrapper_.mysql_stmt_execute(connection_status_, data_.stmt_);
+    return mysql_statement_result<B>{mysql_wrapper_, data_, connection_status_};
+  }
+
+  B& mysql_wrapper_;
+  mysql_statement_data& data_;
+  std::shared_ptr<int> connection_status_;
+};
+
 }
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_STATEMENT
-
 
 
 namespace li {
@@ -2253,11 +2375,32 @@ struct mysql_connection_data {
 
   MYSQL* connection;
   std::unordered_map<std::string, std::shared_ptr<mysql_statement_data>> statements;
+  type_hashmap<std::shared_ptr<mysql_statement_data>> statements_hashmap;
 };
 
 thread_local std::deque<std::shared_ptr<mysql_connection_data>> mysql_connection_pool;
 thread_local std::deque<std::shared_ptr<mysql_connection_data>> mysql_connection_async_pool;
 thread_local int total_number_of_mysql_connections = 0;
+
+template <typename B> // must be mysql_functions_blocking or mysql_functions_non_blocking
+struct mysql_result {
+
+  B& mysql_wrapper_;
+  MYSQL* con_;
+  std::shared_ptr<int> connection_status_;
+  MYSQL_RES* result_ = nullptr;
+
+  template <typename T>
+  T read() {
+    result_ = mysql_use_result(con_);
+    MYSQL_ROW row = mysql_wrapper_.mysql_fetch_row(connection_status_, result_);
+    return boost::lexical_cast<T>(row[0]);
+    mysql_wrapper_.mysql_free_result(connection_status_, result_); 
+  } 
+
+  void wait() {}
+
+};
 
 template <typename B> // must be mysql_functions_blocking or mysql_functions_non_blocking
 struct mysql_connection {
@@ -2268,10 +2411,12 @@ struct mysql_connection {
       : mysql_wrapper_(mysql_wrapper), data_(data), stm_cache_(data->statements),
         con_(data->connection){
 
-    connection_status_ = std::shared_ptr<int>(new int(0), [=](int* p) { 
+    connection_status_ = std::shared_ptr<int>(new int(0), [=](int* p) mutable { 
       if (*p) 
       {
-        total_number_of_mysql_connections--;
+      //  if constexpr (!B::is_blocking)
+      //    mysql_wrapper.yield_.unsubscribe(mysql_get_socket(data->connection));
+       total_number_of_mysql_connections--;
         //std::cerr << "Discarding broken mysql connection." << std::endl;
         return;
       }
@@ -2287,7 +2432,25 @@ struct mysql_connection {
 
   long long int last_insert_rowid() { return mysql_insert_id(con_); }
 
-  mysql_statement<B> operator()(const std::string& rq) { return prepare(rq)(); }
+  mysql_result<B> operator()(const std::string& rq) { 
+    mysql_wrapper_.mysql_real_query(connection_status_, con_, rq.c_str(), rq.size());
+    return mysql_result<B>{mysql_wrapper_, con_, connection_status_};
+  }
+
+  template <typename... T>
+  bool has_cached_statement(T&&... key) {
+    return data_->statements_hashmap(key...).get() != nullptr;
+  }
+  template <typename... T>
+  mysql_statement<B> get_cached_statement(T&&... key) {
+    return mysql_statement<B>{mysql_wrapper_, 
+                              *data_->statements_hashmap(key...), 
+                              connection_status_};
+  }
+  template <typename... T>
+  void cache_statement(mysql_statement<B>& stmt, T&&... key) {
+    data_->statements_hashmap(key...) = stmt.data_.shared_from_this();
+  }
 
   mysql_statement<B> prepare(const std::string& rq) {
     auto it = stm_cache_.find(rq);
@@ -4193,17 +4356,21 @@ int moustique_listen_fd(int listen_fd,
       MOUSTIQUE_CHECK_CALL(::epoll_ctl(epoll_fd, EPOLL_CTL_MOD, fd, &event));
       return true;
     };
-    auto epoll_ctl_del = [epoll_fd] (int fd)
-    { 
-      MOUSTIQUE_CHECK_CALL(::epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, nullptr));
-      return true;
-    };
     
     epoll_ctl(listen_fd, EPOLLIN | EPOLLET);
 
     const int MAXEVENTS = 64;
     std::vector<ctx::continuation> fibers;
     std::vector<int> secondary_map;
+
+    auto epoll_ctl_del = [epoll_fd, &secondary_map] (int fd)
+    {
+      // std::cout << "del " << fd << std::endl; 
+      if (fd < secondary_map.size()) secondary_map[fd] = -1;
+      MOUSTIQUE_CHECK_CALL(::epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, nullptr));
+      return true;
+    };
+
     // fibers.reserve(1000);
     // Even loop.
     epoll_event events[MAXEVENTS];
@@ -4275,7 +4442,7 @@ int moustique_listen_fd(int listen_fd,
             auto listen_to_new_fd = [original_fd=infd,epoll_ctl,&secondary_map] (int new_fd) {
               // Listen to the fd if not already done before.
               if (new_fd >= secondary_map.size() || secondary_map[new_fd] == -1)
-                epoll_ctl(new_fd, EPOLLIN | EPOLLOUT | EPOLLET);
+                epoll_ctl(new_fd, EPOLLIN | EPOLLOUT | EPOLLET | EPOLLRDHUP);
               // Associate new_fd to the original_fd.
               if (int(secondary_map.size()) < new_fd + 1)
                 secondary_map.resize(new_fd+1, -1);             
@@ -4329,8 +4496,8 @@ int moustique_listen_fd(int listen_fd,
                                            return true;
                                          };
               
-                                         conn_handler(fd, read, write, listen_to_new_fd);
-                                         //epoll_ctl_del(fd);
+                                         conn_handler(fd, read, write, listen_to_new_fd, epoll_ctl_del);
+                                         epoll_ctl_del(fd);
                                          close(fd);
                                          // unsubscribe to fd in secondary map.
                                         //  for (int i = 0; i < secondary_map.size(); i++)
@@ -4717,12 +4884,14 @@ struct http_ctx {
   http_ctx(read_buffer& _rb,
            std::function<int(char*, int)> _read,
            std::function<bool(const char*, int)> _write,
-           std::function<void(int)> _listen_to_new_fd
+           std::function<void(int)> _listen_to_new_fd,
+           std::function<void(int)> _unsubscribe
            )
     : rb(_rb),
       read(_read),
       write(_write),
       listen_to_new_fd(_listen_to_new_fd),
+      unsubscribe(_unsubscribe),
       output_buffer_space(new char[100 * 1024]),
       json_buffer(new char[100 * 1024])
   {
@@ -5299,7 +5468,7 @@ struct http_ctx {
   int header_lines_size = 0;
   std::function<bool(const char*, int)> write;
   std::function<int(char*, int)> read;
-  std::function<void(int)> listen_to_new_fd;
+  std::function<void(int)> listen_to_new_fd, unsubscribe;
   char headers_buffer_space[1000];
   output_buffer headers_stream;
   bool response_written_ = false;
@@ -5314,14 +5483,15 @@ struct http_ctx {
 template <typename F>
 auto make_http_processor(F handler)
 {
-  return [handler] (int fd, auto read, auto write, auto listen_to_new_fd) {
+  return [handler] (int fd, auto read, auto write,
+                    auto listen_to_new_fd, auto unsubscribe) {
 
     try {
       read_buffer rb;
       bool socket_is_valid = true;
 
       //http_ctx& ctx = *new http_ctx(rb, read, write);
-      http_ctx ctx = http_ctx(rb, read, write, listen_to_new_fd);
+      http_ctx ctx = http_ctx(rb, read, write, listen_to_new_fd, unsubscribe);
       ctx.socket_fd = fd;
       //ctx.header_lines = new const char*[10];
       
@@ -5645,6 +5815,7 @@ struct async_yield
     ctx.write(nullptr, 0);
      }
   void listen_to_fd(int fd) { ctx.listen_to_new_fd(fd); }
+  void unsubscribe(int fd) { ctx.unsubscribe(fd); }
   C& ctx;
 };
 
