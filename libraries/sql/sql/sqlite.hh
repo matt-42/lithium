@@ -260,17 +260,12 @@ struct sqlite_connection {
     format_error(err, args...);
   }
 
-  template <typename... T>
-  bool has_cached_statement(T&&... key) {
-    return statements_hashmap(key...).stmt_sptr_.get() != nullptr;
-  }
-  template <typename... T>
-  sqlite_statement  get_cached_statement(T&&... key) {
-    return statements_hashmap(key...);
-  }
-  template <typename... T>
-  void cache_statement(sqlite_statement& stmt, T&&... key) {
-    statements_hashmap(key...) = stmt;
+  template <typename F>
+  sqlite_statement cached_statement(F f) {
+    if (statements_hashmap(f).stmt_sptr_.get() == nullptr)
+      return prepare(f());
+    else
+      return statements_hashmap(f);
   }
 
   sqlite_statement prepare(const std::string& req) {

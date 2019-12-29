@@ -133,21 +133,15 @@ struct pgsql_connection {
     }
   }
 
-  template <typename... T>
-  bool has_cached_statement(T&&... key) {
-    return data_->statements_hashmap(key...).get() != nullptr;
+  template <typename F>
+  pgsql_statement<Y> cached_statement(F f) {
+    if (data_->statements_hashmap(f).get() == nullptr)
+      return prepare(f());
+    else
+      return pgsql_statement<Y>{connection_, yield_, 
+                               *data_->statements_hashmap(f),
+                               connection_status_};
   }
-  template <typename... T>
-  pgsql_statement<Y> get_cached_statement(T&&... key) {
-    return pgsql_statement<Y>{connection_, yield_, 
-                              *data_->statements_hashmap(key...), 
-                              connection_status_};
-  }
-  template <typename... T>
-  void cache_statement(pgsql_statement<Y>& stmt, T&&... key) {
-    data_->statements_hashmap(key...) = stmt.data_.shared_from_this();
-  }
-
 
   pgsql_statement<Y> prepare(const std::string& rq) {
     auto it = stm_cache_.find(rq);

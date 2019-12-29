@@ -66,8 +66,6 @@ script:
     - docker run -p=32768:5432 --name test_postgres -e POSTGRES_PASSWORD=lithium_test -d postgres
     - cd $HOME/build/$TRAVIS_REPO_SLUG/build 
     - bash ../libraries/sql/tests/mysql_test_server.sh start
-    - make all
-    - ./libraries/http_backend/tests/serve_directory
     - make all test
 
 after_script:

@@ -102,19 +102,14 @@ struct mysql_connection {
     return mysql_result<B>{mysql_wrapper_, con_, connection_status_};
   }
 
-  template <typename... T>
-  bool has_cached_statement(T&&... key) {
-    return data_->statements_hashmap(key...).get() != nullptr;
-  }
-  template <typename... T>
-  mysql_statement<B> get_cached_statement(T&&... key) {
-    return mysql_statement<B>{mysql_wrapper_, 
-                              *data_->statements_hashmap(key...), 
-                              connection_status_};
-  }
-  template <typename... T>
-  void cache_statement(mysql_statement<B>& stmt, T&&... key) {
-    data_->statements_hashmap(key...) = stmt.data_.shared_from_this();
+  template <typename F>
+  mysql_statement<B> cached_statement(F f) {
+    if (data_->statements_hashmap(f).get() == nullptr)
+      return prepare(f());
+    else
+      return mysql_statement<B>{mysql_wrapper_, 
+                                *data_->statements_hashmap(f), 
+                                 connection_status_};
   }
 
   mysql_statement<B> prepare(const std::string& rq) {

@@ -7,23 +7,23 @@
 
 #pragma once
 
-#include <unordered_map>
-#include <iostream>
 #include <cstring>
+#include <tuple>
+#include <unordered_map>
+#include <curl/curl.h>
+#include <sstream>
+#include <functional>
+#include <map>
+#include <string_view>
+#include <iostream>
+#include <variant>
 #include <cassert>
 #include <optional>
-#include <functional>
 #include <memory>
 #include <string>
-#include <curl/curl.h>
-#include <vector>
-#include <sstream>
-#include <string_view>
-#include <tuple>
-#include <utility>
 #include <cmath>
-#include <variant>
-#include <map>
+#include <utility>
+#include <vector>
 
 #if defined(_MSC_VER)
 #include <ciso646>

@@ -7,24 +7,24 @@
 
 #pragma once
 
-#include <atomic>
-#include <unordered_map>
-#include <iostream>
-#include <cassert>
 #include <cstring>
-#include <mutex>
-#include <optional>
-#include <mysql.h>
-#include <deque>
-#include <memory>
+#include <atomic>
 #include <tuple>
-#include <vector>
-#include <sstream>
-#include <string>
-#include <boost/lexical_cast.hpp>
-#include <utility>
+#include <unordered_map>
 #include <thread>
+#include <mutex>
+#include <sstream>
+#include <vector>
+#include <deque>
 #include <map>
+#include <iostream>
+#include <optional>
+#include <memory>
+#include <string>
+#include <mysql.h>
+#include <utility>
+#include <boost/lexical_cast.hpp>
+#include <cassert>
 
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL
@@ -838,21 +838,6 @@ template <unsigned SIZE> struct sql_varchar : public std::string {
     LI_SYMBOL(database)
 #endif
 
-#ifndef LI_SYMBOL_exists
-#define LI_SYMBOL_exists
-    LI_SYMBOL(exists)
-#endif
-
-#ifndef LI_SYMBOL_find_one
-#define LI_SYMBOL_find_one
-    LI_SYMBOL(find_one)
-#endif
-
-#ifndef LI_SYMBOL_forall
-#define LI_SYMBOL_forall
-    LI_SYMBOL(forall)
-#endif
-
 #ifndef LI_SYMBOL_host
 #define LI_SYMBOL_host
     LI_SYMBOL(host)
@@ -861,11 +846,6 @@ template <unsigned SIZE> struct sql_varchar : public std::string {
 #ifndef LI_SYMBOL_id
 #define LI_SYMBOL_id
     LI_SYMBOL(id)
-#endif
-
-#ifndef LI_SYMBOL_insert
-#define LI_SYMBOL_insert
-    LI_SYMBOL(insert)
 #endif
 
 #ifndef LI_SYMBOL_password
@@ -896,11 +876,6 @@ template <unsigned SIZE> struct sql_varchar : public std::string {
 #ifndef LI_SYMBOL_synchronous
 #define LI_SYMBOL_synchronous
     LI_SYMBOL(synchronous)
-#endif
-
-#ifndef LI_SYMBOL_update
-#define LI_SYMBOL_update
-    LI_SYMBOL(update)
 #endif
 
 #ifndef LI_SYMBOL_user
@@ -1479,19 +1454,14 @@ struct mysql_connection {
     return mysql_result<B>{mysql_wrapper_, con_, connection_status_};
   }
 
-  template <typename... T>
-  bool has_cached_statement(T&&... key) {
-    return data_->statements_hashmap(key...).get() != nullptr;
-  }
-  template <typename... T>
-  mysql_statement<B> get_cached_statement(T&&... key) {
-    return mysql_statement<B>{mysql_wrapper_, 
-                              *data_->statements_hashmap(key...), 
-                              connection_status_};
-  }
-  template <typename... T>
-  void cache_statement(mysql_statement<B>& stmt, T&&... key) {
-    data_->statements_hashmap(key...) = stmt.data_.shared_from_this();
+  template <typename F>
+  mysql_statement<B> cached_statement(F f) {
+    if (data_->statements_hashmap(f).get() == nullptr)
+      return prepare(f());
+    else
+      return mysql_statement<B>{mysql_wrapper_, 
+                                *data_->statements_hashmap(f), 
+                                 connection_status_};
   }
 
   mysql_statement<B> prepare(const std::string& rq) {
@@ -1906,9 +1876,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
   template <typename... W, typename... A> auto find_one(metamap<W...> where, A&&... cb_args) {
 
-    auto get_statement = [&] (){ 
-      if (!con_.has_cached_statement(s::find_one, where))
-      {
+    auto stmt = con_.cached_statement([&] (){ 
         std::ostringstream ss;
         placeholder_pos_ = 0;
         ss << "SELECT ";
@@ -1924,14 +1892,9 @@ template <typename SCHEMA, typename C> struct sql_orm {
         ss << " FROM " << schema_.table_name();
         where_clause(where, ss);
         ss << "LIMIT 1";
-        auto stmt = con_.prepare(ss.str());
-        con_.cache_statement(stmt, s::find_one, where);
-        return stmt;
-      }
-      else return con_.get_cached_statement(s::find_one, where);
-    };
+        return ss.str();
+    });
 
-    auto stmt = get_statement();
     auto res = li::tuple_reduce(metamap_values(where), stmt).template read_optional<O>();
     if (res)
       call_callback(s::read_access, *res, cb_args...);
@@ -1949,22 +1912,15 @@ template <typename SCHEMA, typename C> struct sql_orm {
   template <typename W> bool exists(W&& cond) {
 
     O o;
-    auto get_statement = [&] (){ 
-      if (!con_.has_cached_statement(s::exists, o, cond))
-      {
+    auto stmt = con_.cached_statement([&] { 
         std::ostringstream ss;
         placeholder_pos_ = 0;
         ss << "SELECT count(*) FROM " << schema_.table_name();
         where_clause(cond, ss);
         ss << "LIMIT 1";
-        auto stmt = con_.prepare(ss.str());
-        con_.cache_statement(stmt, s::exists, o, cond);
-        return stmt;
-      }
-      else return con_.get_cached_statement(s::exists, o, cond);
-    };
+        return ss.str();
+    });
 
-    auto stmt = get_statement();
     return li::tuple_reduce(metamap_values(cond), stmt).template read<int>();
   }
 
@@ -1982,9 +1938,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     call_callback(s::before_insert, values, cb_args...);
 
 
-    auto get_statement = [&] (){ 
-      if (!con_.has_cached_statement(s::insert, o))
-      {
+    auto stmt = con_.cached_statement([&] { 
         std::ostringstream ss;
         std::ostringstream vs;
 
@@ -2007,15 +1961,9 @@ template <typename SCHEMA, typename C> struct sql_orm {
         if (std::is_same<typename C::db_tag, pgsql_tag>::value &&
             has_key(schema_.all_fields(), s::id))
           ss << " returning id;";
+        return ss.str();
+    });
 
-        auto stmt = con_.prepare(ss.str());
-        con_.cache_statement(stmt, s::insert, o);
-        return stmt;
-      }
-      else return con_.get_cached_statement(s::insert, o);
-    };
-
-    auto stmt = get_statement();
     auto request_res = li::reduce(values, stmt);
 
     call_callback(s::after_insert, o, cb_args...);
@@ -2045,20 +1993,12 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
     typedef decltype(schema_.all_fields()) O;
 
-    auto get_statement = [&] (){ 
-      if (!con_.has_cached_statement(s::forall, O{}))
-      {
+    auto stmt = con_.cached_statement([&] { 
         std::ostringstream ss;
         placeholder_pos_ = 0;
         ss << "SELECT * from " << schema_.table_name();
-        auto stmt = con_.prepare(ss.str());
-        con_.cache_statement(stmt, s::forall, O{});
-        return stmt;
-      }
-      else return con_.get_cached_statement(s::forall, O{});
-    };
-
-    auto stmt = get_statement();
+        return ss.str();
+    });
     stmt().map([&](const O& o) { f(o); });
   }
 
@@ -2077,9 +2017,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     auto to_update = substract(o, schema_.read_only());
     auto pk = intersection(o, schema_.primary_key());
 
-    auto get_statement = [&] (){ 
-      if (!con_.has_cached_statement(s::update, o))
-      {
+    auto stmt = con_.cached_statement([&] { 
         static_assert(metamap_size<decltype(pk)>() > 0,
                       "You must provide at least one primary key to update an object.");
         std::ostringstream ss;
@@ -2096,14 +2034,9 @@ template <typename SCHEMA, typename C> struct sql_orm {
         });
 
         where_clause(pk, ss);
-        auto stmt = con_.prepare(ss.str());
-        con_.cache_statement(stmt, s::update, o);
-        return stmt;
-      }
-      else return con_.get_cached_statement(s::update, o);
-    };
+        return ss.str();
+    });
 
-    auto stmt = get_statement();//con_.prepare(ss.str());
     li::tuple_reduce(std::tuple_cat(metamap_values(to_update), metamap_values(pk)), stmt);
 
     call_callback(s::after_update, o, args...);
@@ -2125,20 +2058,23 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
     call_callback(s::before_remove, o, args...);
 
-    std::ostringstream ss;
-    placeholder_pos_ = 0;
-    ss << "DELETE from " << schema_.table_name() << " WHERE ";
+    auto stmt = con_.cached_statement([&] { 
+      std::ostringstream ss;
+      placeholder_pos_ = 0;
+      ss << "DELETE from " << schema_.table_name() << " WHERE ";
 
-    bool first = true;
-    map(schema_.primary_key(), [&](auto k, auto v) {
-      if (!first)
-        ss << " and ";
-      first = false;
-      ss << li::symbol_string(k) << " = " << placeholder_string();
+      bool first = true;
+      map(schema_.primary_key(), [&](auto k, auto v) {
+        if (!first)
+          ss << " and ";
+        first = false;
+        ss << li::symbol_string(k) << " = " << placeholder_string();
+      });
+      return ss.str();
     });
 
     auto pks = intersection(o, schema_.primary_key());
-    li::reduce(pks, con_.prepare(ss.str()));
+    li::reduce(pks, stmt);
 
     call_callback(s::after_remove, o, args...);
   }

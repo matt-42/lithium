@@ -15,6 +15,11 @@
     LI_SYMBOL(auto_increment)
 #endif
 
+#ifndef LI_SYMBOL_bulk_insert
+#define LI_SYMBOL_bulk_insert
+    LI_SYMBOL(bulk_insert)
+#endif
+
 #ifndef LI_SYMBOL_charset
 #define LI_SYMBOL_charset
     LI_SYMBOL(charset)
