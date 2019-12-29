@@ -193,7 +193,8 @@ int moustique_listen_fd(int listen_fd,
     {
       // std::cout << "del " << fd << std::endl; 
       if (fd < secondary_map.size()) secondary_map[fd] = -1;
-      MOUSTIQUE_CHECK_CALL(::epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, nullptr));
+      ::epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, nullptr);
+      //MOUSTIQUE_CHECK_CALL(::epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, nullptr));
       return true;
     };
 
@@ -326,21 +327,37 @@ int moustique_listen_fd(int listen_fd,
                                          epoll_ctl_del(fd);
                                          close(fd);
                                          // unsubscribe to fd in secondary map.
-                                        //  for (int i = 0; i < secondary_map.size(); i++)
-                                        //  {
-                                        //    if (secondary_map[i] == fd)
-                                        //      epoll_ctl_del(i);
-                                        //  }
+                                         for (int i = 0; i < secondary_map.size(); i++)
+                                           if (secondary_map[i] == fd)
+                                           {
+                                             epoll_ctl_del(i);
+                                             secondary_map[i] = -1;
+                                           }
                                          is_running[fd] = false;
                                          }
                                          catch (fiber_exception& ex) {
-                                            //std::cerr << "my_exception: " << ex.what << std::endl;
                                             is_running[fd] = false;
+                                            epoll_ctl_del(fd);
+                                            close(fd);
+                                            for (int i = 0; i < secondary_map.size(); i++)
+                                              if (secondary_map[i] == fd)
+                                                {
+                                                  epoll_ctl_del(i);
+                                                  secondary_map[i] = -1;
+                                                }
+                                            // //std::cerr << "my_exception: " << ex.what << std::endl;
                                             return std::move(ex.c);
                                          }
-                                         //nrunning--;
-                                         //std::cout << "nrunning: " << nrunning << std::endl;
-                                         //epoll_ctl_del(fd);
+                                         catch (std::runtime_error e) {
+                                           std::cerr << "FATAL ERRROR: Uncaughted exception in fiber: " << e.what() << std::endl;
+                                           assert(0);
+                                           throw std::runtime_error("Uncaughted exception in fiber.");
+                                         }
+                                         catch (std::exception e) {
+                                           std::cerr << "FATAL ERRROR: Uncaughted exception in fiber: " << e.what() << std::endl;
+                                           assert(0);
+                                           throw std::runtime_error("Uncaughted exception in fiber.");
+                                         }
                                          
                                          return std::move(sink);
 
@@ -355,11 +372,11 @@ int moustique_listen_fd(int listen_fd,
           if (events[i].data.fd < secondary_map.size() && secondary_map[events[i].data.fd] != -1)
           {
             int original_fd = secondary_map[events[i].data.fd];
-            if (fibers[original_fd])
+            if (fibers[original_fd] and is_running[original_fd])
               fibers[original_fd] = fibers[original_fd].resume();
           }
           else
-            if (fibers[events[i].data.fd])
+            if (fibers[events[i].data.fd] and is_running[events[i].data.fd])
               fibers[events[i].data.fd] = fibers[events[i].data.fd].resume();
         }
       }

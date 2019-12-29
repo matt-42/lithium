@@ -78,7 +78,7 @@ struct pgsql_connection {
     connection_status_ = std::shared_ptr<int>(new int(0), [data, yield](int* p) mutable {
       if (*p) 
       {
-        yield.unsubscribe(data->fd);
+        //yield.unsubscribe(data->fd);
         //std::cerr << "Discarding broken pgsql connection." << std::endl;
         return;
       }

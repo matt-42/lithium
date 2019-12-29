@@ -7,19 +7,19 @@
 
 #pragma once
 
-#include <string>
-#include <cstring>
-#include <variant>
-#include <string_view>
-#include <sstream>
-#include <vector>
-#include <memory>
-#include <tuple>
 #include <optional>
+#include <cstring>
+#include <cassert>
+#include <functional>
+#include <memory>
+#include <string>
+#include <string_view>
+#include <vector>
+#include <sstream>
 #include <cmath>
 #include <utility>
-#include <functional>
-#include <cassert>
+#include <variant>
+#include <tuple>
 
 #if defined(_MSC_VER)
 #include <ciso646>

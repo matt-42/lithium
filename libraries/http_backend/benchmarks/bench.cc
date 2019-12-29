@@ -21,7 +21,7 @@ void escape_html_entities(B& buffer, const std::string& data)
 }
 
 #define PGSQL
-//#define MYSQL
+#define MYSQL
 
 int main(int argc, char* argv[]) {
 
@@ -66,7 +66,9 @@ int main(int argc, char* argv[]) {
     response.write_json(s::message = "Hello world!");
   };
   my_api.get("/db") = [&](http_request& request, http_response& response) {
+    //std::cout << "start" << std::endl;
     response.write_json(random_numbers.connect(request.yield).find_one(s::id = 14).value());
+    //std::cout << "end" << std::endl;
   };
 
   my_api.get("/queries") = [&](http_request& request, http_response& response) {
@@ -80,11 +82,11 @@ int main(int argc, char* argv[]) {
     auto& raw_c = c.backend_connection();
     //raw_c("START TRANSACTION");
     std::vector<decltype(random_numbers.all_fields())> numbers(N);
-    //auto stm = c.backend_connection().prepare("SELECT randomNumber from World where id=?");
+    auto stm = c.backend_connection().prepare("SELECT randomNumber from World where id=$1");
     for (int i = 0; i < N; i++)
-      numbers[i] = c.find_one(s::id = 1 + rand() % 99).value();
+      //numbers[i] = c.find_one(s::id = 1 + rand() % 99).value();
       //numbers[i] = stm(1 + rand() % 99).read<std::remove_reference_t<decltype(numbers[i])>>();
-      //numbers[i].randomNumber = stm(1 + rand() % 99).read<int>();
+      numbers[i].randomNumber = stm(1 + rand() % 99).read<int>();
     //raw_c("COMMIT");
 
     response.write_json(numbers);
@@ -107,7 +109,6 @@ int main(int argc, char* argv[]) {
     std::vector<int> random_v(random.begin(), random.end());
     for (int i = 0; i < N; i++)
     {
-      //numbers[i] = c.find_one(s::id = 1 + rand() % 99).value();
       numbers[i] = c.find_one(s::id = random_v[i]).value();
       numbers[i].randomNumber = 1 + rand() % 99;
     }
@@ -116,25 +117,24 @@ int main(int argc, char* argv[]) {
 
 
 #ifdef MYSQL
-    // for (int i = 0; i < N; i++)
-    //   c.update(numbers[i]);
-    std::ostringstream ss;
-    ss << "INSERT INTO World VALUES ";
     for (int i = 0; i < N; i++)
-      ss << "(" << numbers[i].id << ", " << numbers[i].randomNumber << ")" << (i == N-1 ? "": ",");
-    ss << " ON DUPLICATE KEY UPDATE randomNumber=VALUES(randomNumber)";
-    raw_c(ss.str()).wait();
+      c.update(numbers[i]);
 #else
-    // for (int i = 0; i < N; i++)
-    //   c.update(numbers[i]);
+
+    std::ostringstream ss_lock;
+    ss_lock << "select * from World for update where id in ("; 
+    for (int i = 0; i < N; i++)
+      ss_lock << numbers[i].id << (i == N-1 ? "": ",");
+    ss_lock << ")";
+    raw_c(ss_lock.str()).wait();
+
     std::ostringstream ss;
-    ss << "INSERT INTO World VALUES ";
+    ss << "UPDATE World SET randomNumber=tmp.randomNumber FROM (VALUES ";
     for (int i = 0; i < N; i++)
       ss << "(" << numbers[i].id << ", " << numbers[i].randomNumber << ")" << (i == N-1 ? "": ",");
-    ss << " ON CONFLICT(id) DO UPDATE SET randomNumber=excluded.randomNumber";
-    raw_c(ss.str()).wait();
+    ss << " ORDER BY 1) AS tmp(id, randomNumber) WHERE tmp.id = World.id";
+    raw_c(ss.str()).wait();    
 #endif
-
     raw_c("COMMIT");
     
     response.write_json(numbers);
@@ -177,8 +177,9 @@ int main(int argc, char* argv[]) {
   li::max_mysql_connections_per_thread = (mysql_max_connection / nthread);
 
 #else
-  int mysql_max_connection = atoi(sql_db.connect()("SHOW max_connections;").read<std::string>().c_str()) * 0.75;
+  int mysql_max_connection = 75;//atoi(sql_db.connect()("SHOW max_connections;").read<std::string>().c_str()) * 0.75;
   std::cout << "sql max connection " << mysql_max_connection << std::endl;
+  //int port = atoi(argv[1]);
   int port = atoi(argv[1]);
   int nthread = 4;
   li::max_pgsql_connections_per_thread = (mysql_max_connection / nthread);

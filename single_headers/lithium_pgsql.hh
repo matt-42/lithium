@@ -7,26 +7,26 @@
 
 #pragma once
 
-#include <map>
+#include <unistd.h>
+#include <libpq-fe.h>
+#include <iostream>
 #include <mutex>
-#include <boost/lexical_cast.hpp>
-#include <thread>
-#include <utility>
+#include <deque>
 #include <string>
+#include <vector>
+#include <utility>
+#include <thread>
+#include <optional>
 #include <cstring>
 #include <sstream>
-#include <arpa/inet.h>
-#include <unordered_map>
-#include <deque>
-#include <vector>
-#include <iostream>
-#include <optional>
-#include <tuple>
-#include <libpq-fe.h>
-#include <unistd.h>
-#include <memory>
+#include <map>
 #include <atomic>
+#include <unordered_map>
 #include <cassert>
+#include <arpa/inet.h>
+#include <memory>
+#include <boost/lexical_cast.hpp>
+#include <tuple>
 
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL
@@ -1342,7 +1342,7 @@ struct pgsql_connection {
     connection_status_ = std::shared_ptr<int>(new int(0), [data, yield](int* p) mutable {
       if (*p) 
       {
-        yield.unsubscribe(data->fd);
+        //yield.unsubscribe(data->fd);
         //std::cerr << "Discarding broken pgsql connection." << std::endl;
         return;
       }
