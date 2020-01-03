@@ -7,48 +7,48 @@
 
 #pragma once
 
-#include <netdb.h>
-#include <vector>
-#include <functional>
-#include <string.h>
-#include <cstring>
-#include <memory>
-#include <unistd.h>
-#include <sys/types.h>
-#include <boost/lexical_cast.hpp>
-#include <set>
-#include <cmath>
-#include <sys/epoll.h>
-#include <stdlib.h>
-#include <thread>
-#include <stdio.h>
-#include <sys/uio.h>
-#include <fcntl.h>
-#include <unordered_map>
-#include <random>
-#include <atomic>
-#include <errno.h>
-#include <string_view>
-#include <sys/socket.h>
-#include <cassert>
-#include <mutex>
-#include <netinet/tcp.h>
-#include <sqlite3.h>
-#include <boost/context/continuation.hpp>
-#include <mysql.h>
-#include <tuple>
-#include <variant>
 #include <sys/sendfile.h>
-#include <map>
-#include <iostream>
+#include <fcntl.h>
+#include <functional>
+#include <set>
+#include <sys/uio.h>
 #include <deque>
+#include <sys/epoll.h>
+#include <cstring>
 #include <signal.h>
-#include <string>
-#include <sys/mman.h>
-#include <optional>
-#include <sstream>
+#include <sys/types.h>
+#include <tuple>
+#include <sqlite3.h>
+#include <sys/socket.h>
+#include <mutex>
 #include <sys/stat.h>
+#include <stdio.h>
+#include <string_view>
+#include <cassert>
+#include <sys/mman.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <variant>
+#include <netdb.h>
+#include <string.h>
+#include <vector>
+#include <thread>
+#include <mysql.h>
+#include <iostream>
+#include <cmath>
+#include <errno.h>
 #include <utility>
+#include <boost/lexical_cast.hpp>
+#include <memory>
+#include <map>
+#include <sstream>
+#include <string>
+#include <atomic>
+#include <netinet/tcp.h>
+#include <optional>
+#include <random>
+#include <boost/context/continuation.hpp>
+#include <unordered_map>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -4365,7 +4365,6 @@ int moustique_listen_fd(int listen_fd,
             if (infd == -1)
               break;
 
-
             // Subscribe epoll to the socket file descriptor.
             MOUSTIQUE_CHECK_CALL(fcntl(infd, F_SETFL, fcntl(infd, F_GETFL, 0) | O_NONBLOCK));
             epoll_ctl(infd, EPOLLIN | EPOLLOUT | EPOLLET | EPOLLRDHUP);
@@ -4394,15 +4393,15 @@ int moustique_listen_fd(int listen_fd,
               }
               if (!is_running[fd]) return;
               is_running[fd] = false;
-              epoll_ctl_del(fd);
               close(fd);
+              //epoll_ctl_del(fd);
               // unsubscribe to fd in secondary map.
-              for (int i = 0; i < secondary_map.size(); i++)
-                if (secondary_map[i] == fd)
-                {
-                  epoll_ctl_del(i);
-                  secondary_map[i] = -1;
-                }
+              // for (int i = 0; i < secondary_map.size(); i++)
+              //   if (secondary_map[i] == fd)
+              //   {
+              //     epoll_ctl_del(i);
+              //     secondary_map[i] = -1;
+              //   }
             };
 
             struct end_of_file {};

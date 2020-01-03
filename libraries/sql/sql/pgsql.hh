@@ -41,12 +41,15 @@ struct pgsql_connection_data {
   ~pgsql_connection_data() {
     if (connection)
     {
+      // Cancel any pending request.
+      PGcancel* cancel = PQgetCancel(connection);
+      PQcancel(cancel, nullptr, 0);
+      PQfreeCancel(cancel);
       PQfinish(connection);
       // std::cerr << " DISCONNECT " << fd << std::endl;
       total_number_of_pgsql_connections--;
     }
   }
-
   PGconn* connection = nullptr;
   int fd = -1;
   std::unordered_map<std::string, std::shared_ptr<pgsql_statement_data>> statements;

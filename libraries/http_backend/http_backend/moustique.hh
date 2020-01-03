@@ -260,7 +260,6 @@ int moustique_listen_fd(int listen_fd,
             if (infd == -1)
               break;
 
-
             // Subscribe epoll to the socket file descriptor.
             MOUSTIQUE_CHECK_CALL(fcntl(infd, F_SETFL, fcntl(infd, F_GETFL, 0) | O_NONBLOCK));
             epoll_ctl(infd, EPOLLIN | EPOLLOUT | EPOLLET | EPOLLRDHUP);
@@ -289,15 +288,15 @@ int moustique_listen_fd(int listen_fd,
               }
               if (!is_running[fd]) return;
               is_running[fd] = false;
-              epoll_ctl_del(fd);
               close(fd);
+              //epoll_ctl_del(fd);
               // unsubscribe to fd in secondary map.
-              for (int i = 0; i < secondary_map.size(); i++)
-                if (secondary_map[i] == fd)
-                {
-                  epoll_ctl_del(i);
-                  secondary_map[i] = -1;
-                }
+              // for (int i = 0; i < secondary_map.size(); i++)
+              //   if (secondary_map[i] == fd)
+              //   {
+              //     epoll_ctl_del(i);
+              //     secondary_map[i] = -1;
+              //   }
             };
 
             struct end_of_file {};

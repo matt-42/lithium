@@ -7,26 +7,26 @@
 
 #pragma once
 
-#include <vector>
 #include <libpq-fe.h>
-#include <cstring>
-#include <memory>
-#include <unistd.h>
-#include <boost/lexical_cast.hpp>
-#include <thread>
-#include <unordered_map>
-#include <atomic>
-#include <cassert>
-#include <mutex>
-#include <tuple>
-#include <map>
-#include <iostream>
 #include <deque>
-#include <string>
-#include <optional>
-#include <sstream>
+#include <cstring>
+#include <tuple>
+#include <mutex>
 #include <arpa/inet.h>
+#include <cassert>
+#include <unistd.h>
+#include <vector>
+#include <thread>
+#include <iostream>
 #include <utility>
+#include <boost/lexical_cast.hpp>
+#include <memory>
+#include <map>
+#include <sstream>
+#include <string>
+#include <atomic>
+#include <optional>
+#include <unordered_map>
 
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL
@@ -1280,12 +1280,15 @@ struct pgsql_connection_data {
   ~pgsql_connection_data() {
     if (connection)
     {
+      // Cancel any pending request.
+      PGcancel* cancel = PQgetCancel(connection);
+      PQcancel(cancel, nullptr, 0);
+      PQfreeCancel(cancel);
       PQfinish(connection);
       // std::cerr << " DISCONNECT " << fd << std::endl;
       total_number_of_pgsql_connections--;
     }
   }
-
   PGconn* connection = nullptr;
   int fd = -1;
   std::unordered_map<std::string, std::shared_ptr<pgsql_statement_data>> statements;
