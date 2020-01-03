@@ -7,48 +7,48 @@
 
 #pragma once
 
-#include <iostream>
-#include <sys/stat.h>
-#include <thread>
-#include <string.h>
-#include <tuple>
-#include <boost/context/continuation.hpp>
-#include <netinet/tcp.h>
-#include <sys/mman.h>
 #include <deque>
-#include <unordered_map>
-#include <unistd.h>
-#include <set>
-#include <random>
-#include <string_view>
-#include <boost/lexical_cast.hpp>
-#include <atomic>
-#include <netdb.h>
-#include <string>
-#include <sstream>
-#include <stdio.h>
+#include <cmath>
 #include <cstring>
+#include <memory>
+#include <unordered_map>
+#include <vector>
+#include <optional>
+#include <string.h>
+#include <netdb.h>
+#include <thread>
+#include <sys/socket.h>
 #include <cassert>
-#include <sys/epoll.h>
-#include <fcntl.h>
+#include <tuple>
 #include <functional>
 #include <errno.h>
-#include <signal.h>
-#include <vector>
-#include <sys/socket.h>
-#include <optional>
-#include <utility>
-#include <sys/types.h>
-#include <sys/uio.h>
-#include <cmath>
-#include <sys/sendfile.h>
-#include <stdlib.h>
-#include <mutex>
-#include <sqlite3.h>
-#include <map>
-#include <memory>
-#include <mysql.h>
+#include <fcntl.h>
 #include <variant>
+#include <mysql.h>
+#include <sys/sendfile.h>
+#include <unistd.h>
+#include <set>
+#include <sys/epoll.h>
+#include <stdio.h>
+#include <boost/context/continuation.hpp>
+#include <mutex>
+#include <string>
+#include <sys/uio.h>
+#include <boost/lexical_cast.hpp>
+#include <stdlib.h>
+#include <netinet/tcp.h>
+#include <iostream>
+#include <atomic>
+#include <random>
+#include <sys/types.h>
+#include <string_view>
+#include <sstream>
+#include <sys/stat.h>
+#include <signal.h>
+#include <sys/mman.h>
+#include <utility>
+#include <map>
+#include <sqlite3.h>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -4393,15 +4393,15 @@ int moustique_listen_fd(int listen_fd,
               }
               if (!is_running[fd]) return;
               is_running[fd] = false;
+              epoll_ctl_del(fd);
               close(fd);
-              //epoll_ctl_del(fd);
               // unsubscribe to fd in secondary map.
-              // for (int i = 0; i < secondary_map.size(); i++)
-              //   if (secondary_map[i] == fd)
-              //   {
-              //     epoll_ctl_del(i);
-              //     secondary_map[i] = -1;
-              //   }
+              for (int i = 0; i < secondary_map.size(); i++)
+                if (secondary_map[i] == fd)
+                {
+                  epoll_ctl_del(i);
+                  secondary_map[i] = -1;
+                }
             };
 
             struct end_of_file {};
