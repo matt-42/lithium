@@ -7,44 +7,44 @@
 
 #pragma once
 
-#include <sys/sendfile.h>
+#include <iostream>
+#include <sys/stat.h>
+#include <string.h>
+#include <thread>
+#include <tuple>
+#include <boost/context/continuation.hpp>
+#include <netinet/tcp.h>
+#include <sys/mman.h>
+#include <unordered_map>
+#include <unistd.h>
+#include <set>
+#include <random>
+#include <string_view>
+#include <boost/lexical_cast.hpp>
+#include <netdb.h>
+#include <string>
+#include <sstream>
+#include <stdio.h>
+#include <cstring>
+#include <cassert>
+#include <sys/epoll.h>
 #include <fcntl.h>
 #include <functional>
-#include <set>
-#include <sys/uio.h>
-#include <sys/epoll.h>
-#include <cstring>
-#include <signal.h>
-#include <sys/types.h>
-#include <tuple>
-#include <sys/socket.h>
-#include <mutex>
-#include <sys/stat.h>
-#include <stdio.h>
-#include <string_view>
-#include <cassert>
-#include <sys/mman.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <variant>
-#include <netdb.h>
-#include <string.h>
-#include <cmath>
-#include <vector>
-#include <thread>
-#include <iostream>
 #include <errno.h>
+#include <signal.h>
+#include <vector>
+#include <sys/socket.h>
 #include <utility>
-#include <memory>
-#include <map>
-#include <boost/lexical_cast.hpp>
-#include <sstream>
-#include <string>
-#include <netinet/tcp.h>
 #include <optional>
-#include <random>
-#include <boost/context/continuation.hpp>
-#include <unordered_map>
+#include <sys/types.h>
+#include <sys/uio.h>
+#include <cmath>
+#include <sys/sendfile.h>
+#include <stdlib.h>
+#include <mutex>
+#include <map>
+#include <memory>
+#include <variant>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -3030,8 +3030,7 @@ namespace moustique_impl
     int ret = CALL;                                                     \
     if (-1 == ret)                                                      \
     {                                                                   \
-      fprintf(stderr, "Error at %s:%i  error is: %s\n", __PRETTY_FUNCTION__, __LINE__, strerror(ret)); \
-      return false;                                                     \
+      fprintf(stderr, "Error at %s:%i  error is: %s\n", __PRETTY_FUNCTION__, __LINE__, strerror(errno)); \
     }                                                                   \
   }
 
@@ -3176,7 +3175,8 @@ int moustique_listen_fd(int listen_fd,
               break;
 
             // Subscribe epoll to the socket file descriptor.
-            MOUSTIQUE_CHECK_CALL(fcntl(infd, F_SETFL, fcntl(infd, F_GETFL, 0) | O_NONBLOCK));
+            if(-1 == fcntl(infd, F_SETFL, fcntl(infd, F_GETFL, 0) | O_NONBLOCK))
+              continue;
             epoll_ctl(infd, EPOLLIN | EPOLLOUT | EPOLLET | EPOLLRDHUP);
 
             // Function to subscribe to other files descriptor.
@@ -3287,14 +3287,16 @@ int moustique_listen_fd(int listen_fd,
         else // Data available on existing sockets. Wake up the fiber associated with events[i].data.fd.
         {
 
-          if (events[i].data.fd < secondary_map.size() && secondary_map[events[i].data.fd] != -1)
+          if (events[i].data.fd >= 0 && events[i].data.fd < secondary_map.size() && secondary_map[events[i].data.fd] != -1)
           {
             int original_fd = secondary_map[events[i].data.fd];
-            if (fibers[original_fd] and is_running[original_fd])
+            if (original_fd >= 0 and original_fd < fibers.size() and fibers[original_fd])
               fibers[original_fd] = fibers[original_fd].resume();
           }
           else
-            if (fibers[events[i].data.fd] and is_running[events[i].data.fd])
+            if (events[i].data.fd >= 0 and 
+                events[i].data.fd < fibers.size() and 
+                fibers[events[i].data.fd])
               fibers[events[i].data.fd] = fibers[events[i].data.fd].resume();
         }
       }

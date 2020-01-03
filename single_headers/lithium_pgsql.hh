@@ -7,26 +7,26 @@
 
 #pragma once
 
-#include <libpq-fe.h>
-#include <deque>
-#include <cstring>
-#include <tuple>
-#include <mutex>
-#include <arpa/inet.h>
-#include <cassert>
-#include <unistd.h>
-#include <vector>
-#include <thread>
 #include <iostream>
-#include <utility>
-#include <boost/lexical_cast.hpp>
-#include <memory>
-#include <map>
-#include <sstream>
-#include <string>
-#include <atomic>
-#include <optional>
+#include <thread>
+#include <tuple>
+#include <deque>
 #include <unordered_map>
+#include <unistd.h>
+#include <libpq-fe.h>
+#include <boost/lexical_cast.hpp>
+#include <atomic>
+#include <string>
+#include <sstream>
+#include <cstring>
+#include <cassert>
+#include <vector>
+#include <optional>
+#include <utility>
+#include <mutex>
+#include <map>
+#include <memory>
+#include <arpa/inet.h>
 
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL
@@ -1282,8 +1282,12 @@ struct pgsql_connection_data {
     {
       // Cancel any pending request.
       PGcancel* cancel = PQgetCancel(connection);
-      PQcancel(cancel, nullptr, 0);
-      PQfreeCancel(cancel);
+      char x[256];
+      if (cancel)
+      {
+        PQcancel(cancel, x, 256);
+        PQfreeCancel(cancel);
+      }
       PQfinish(connection);
       // std::cerr << " DISCONNECT " << fd << std::endl;
       total_number_of_pgsql_connections--;
@@ -1461,6 +1465,9 @@ struct pgsql_database : std::enable_shared_from_this<pgsql_database> {
     passwd_ = options.password;
     port_ = get_or(options, s::port, 0);
     character_set_ = get_or(options, s::charset, "utf8");
+
+    if (!PQisthreadsafe())
+      throw std::runtime_error("LibPQ is not threadsafe.");
   }
 
   template <typename Y>
@@ -1478,6 +1485,7 @@ struct pgsql_database : std::enable_shared_from_this<pgsql_database> {
       if (!pgsql_connection_pool.empty()) {
         data = pgsql_connection_pool.back();
         pgsql_connection_pool.pop_back();
+        yield.listen_to_fd(data->fd);
       }
       else
       {
@@ -1493,18 +1501,14 @@ struct pgsql_database : std::enable_shared_from_this<pgsql_database> {
         int pgsql_fd = -1;
         std::stringstream coninfo;
         coninfo << "postgresql://" << user_ << ":" << passwd_ << "@" << host_ << ":" << port_ << "/" << database_;
-        connection = PQconnectdb(coninfo.str().c_str());
-        //std::cout << "CONNECT " << total_number_of_pgsql_connections << std::endl;
-        if (PQstatus(connection) != CONNECTION_OK)
+        // connection = PQconnectdb(coninfo.str().c_str());
+        connection = PQconnectStart(coninfo.str().c_str());
+        if (!connection)
         {
-          std::cerr << "Warning: cannot connect to the postgresql server " << host_  << ": " << PQerrorMessage(connection) << std::endl;
-          std::cerr<< "thread allocated connection == " << total_number_of_pgsql_connections <<  std::endl;
-          std::cerr<< "Maximum is " << max_pgsql_connections_per_thread <<  std::endl;
           total_number_of_pgsql_connections--;
           yield();
           continue;
         }
-
         if (PQsetnonblocking(connection, 1) == -1)
         {
           std::cerr << "Warning: PQsetnonblocking returned -1: " << PQerrorMessage(connection) << std::endl;
@@ -1524,13 +1528,46 @@ struct pgsql_database : std::enable_shared_from_this<pgsql_database> {
           yield();
           continue;
         }
+        yield.listen_to_fd(pgsql_fd);
+
+        int status = PQconnectPoll(connection);
+
+        try
+        {
+          while (status != PGRES_POLLING_FAILED and status != PGRES_POLLING_OK)
+          {
+            yield();
+            status = PQconnectPoll(connection);
+            // if (pgsql_fd != PQsocket(connection) and PQsocket(connection) != -1)
+            // {
+            //   pgsql_fd = PQsocket(connection);
+            //   yield.listen_to_fd(pgsql_fd);
+            // }
+          }
+        } catch (typename Y::exception_type& e) {
+          // Yield thrown a exception (probably because a closed connection).
+          total_number_of_pgsql_connections--;
+          PQfinish(connection);
+          throw std::move(e);
+        }
+        //std::cout << "CONNECT " << total_number_of_pgsql_connections << std::endl;
+        if (status != PGRES_POLLING_OK)
+        {
+          std::cerr << "Warning: cannot connect to the postgresql server " << host_  << ": " << PQerrorMessage(connection) << std::endl;
+          std::cerr<< "thread allocated connection == " << total_number_of_pgsql_connections <<  std::endl;
+          std::cerr<< "Maximum is " << max_pgsql_connections_per_thread <<  std::endl;
+          total_number_of_pgsql_connections--;
+          PQfinish(connection);
+          yield();
+          continue;
+        }
+
 
         //pgsql_set_character_set(pgsql, character_set_.c_str());
         data = std::shared_ptr<pgsql_connection_data>(new pgsql_connection_data{connection, pgsql_fd});
       }
     }
     assert(data);
-    yield.listen_to_fd(data->fd);
     return pgsql_connection(yield, data);
   }
   struct active_yield {
