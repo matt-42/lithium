@@ -7,25 +7,25 @@
 
 #pragma once
 
+#include <vector>
+#include <libpq-fe.h>
 #include <cstring>
-#include <atomic>
+#include <memory>
+#include <unistd.h>
+#include <boost/lexical_cast.hpp>
+#include <thread>
 #include <unordered_map>
-#include <sstream>
+#include <atomic>
+#include <cassert>
+#include <mutex>
+#include <tuple>
 #include <map>
+#include <iostream>
+#include <deque>
 #include <string>
 #include <optional>
-#include <cassert>
-#include <unistd.h>
-#include <mutex>
-#include <deque>
-#include <memory>
-#include <boost/lexical_cast.hpp>
-#include <tuple>
-#include <vector>
+#include <sstream>
 #include <arpa/inet.h>
-#include <thread>
-#include <libpq-fe.h>
-#include <iostream>
 #include <utility>
 
 
@@ -1494,7 +1494,7 @@ struct pgsql_database : std::enable_shared_from_this<pgsql_database> {
         //std::cout << "CONNECT " << total_number_of_pgsql_connections << std::endl;
         if (PQstatus(connection) != CONNECTION_OK)
         {
-          std::cerr << "Warning: cannot connect to the postresql server " << host_  << ": " << PQerrorMessage(connection) << std::endl;
+          std::cerr << "Warning: cannot connect to the postgresql server " << host_  << ": " << PQerrorMessage(connection) << std::endl;
           std::cerr<< "thread allocated connection == " << total_number_of_pgsql_connections <<  std::endl;
           std::cerr<< "Maximum is " << max_pgsql_connections_per_thread <<  std::endl;
           total_number_of_pgsql_connections--;

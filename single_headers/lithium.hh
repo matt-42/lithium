@@ -7,52 +7,52 @@
 
 #pragma once
 
-#include <cstring>
-#include <atomic>
-#include <unordered_map>
-#include <sstream>
-#include <fcntl.h>
-#include <map>
-#include <sqlite3.h>
-#include <string>
-#include <stdlib.h>
-#include <mysql.h>
-#include <sys/sendfile.h>
-#include <netinet/tcp.h>
-#include <cassert>
-#include <optional>
-#include <unistd.h>
-#include <mutex>
-#include <errno.h>
-#include <functional>
-#include <deque>
-#include <sys/uio.h>
-#include <sys/stat.h>
-#include <memory>
-#include <cmath>
-#include <boost/lexical_cast.hpp>
-#include <tuple>
-#include <sys/socket.h>
-#include <random>
-#include <boost/context/continuation.hpp>
-#include <variant>
-#include <sys/types.h>
 #include <netdb.h>
-#include <stdio.h>
 #include <vector>
-#include <signal.h>
-#include <sys/mman.h>
-#include <thread>
-#include <set>
-#include <string_view>
-#include <iostream>
+#include <functional>
 #include <string.h>
+#include <cstring>
+#include <memory>
+#include <unistd.h>
+#include <sys/types.h>
+#include <boost/lexical_cast.hpp>
+#include <set>
+#include <cmath>
 #include <sys/epoll.h>
+#include <stdlib.h>
+#include <thread>
+#include <stdio.h>
+#include <sys/uio.h>
+#include <fcntl.h>
+#include <unordered_map>
+#include <random>
+#include <atomic>
+#include <errno.h>
+#include <string_view>
+#include <sys/socket.h>
+#include <cassert>
+#include <mutex>
+#include <netinet/tcp.h>
+#include <sqlite3.h>
+#include <boost/context/continuation.hpp>
+#include <mysql.h>
+#include <tuple>
+#include <variant>
+#include <sys/sendfile.h>
+#include <map>
+#include <iostream>
+#include <deque>
+#include <signal.h>
+#include <string>
+#include <sys/mman.h>
+#include <optional>
+#include <sstream>
+#include <sys/stat.h>
 #include <utility>
 
 #if defined(_MSC_VER)
-#include <io.h>
 #include <ciso646>
+#include <io.h>
 #endif // _MSC_VER
 
 
@@ -4386,8 +4386,27 @@ int moustique_listen_fd(int listen_fd,
               fibers.resize(infd + 10);
               is_running.resize(infd + 10, false);
             }
+            auto terminate_fiber = [&] (int fd) {
+              if (fd < 0 or fd >= is_running.size())
+              {
+                std::cerr << "terminate_fiber: Bad fd " << fd << std::endl;
+                return;
+              }
+              if (!is_running[fd]) return;
+              is_running[fd] = false;
+              epoll_ctl_del(fd);
+              close(fd);
+              // unsubscribe to fd in secondary map.
+              for (int i = 0; i < secondary_map.size(); i++)
+                if (secondary_map[i] == fd)
+                {
+                  epoll_ctl_del(i);
+                  secondary_map[i] = -1;
+                }
+            };
+
             struct end_of_file {};
-            fibers[infd] = ctx::callcc([fd=infd, &conn_handler, epoll_ctl_del, listen_to_new_fd, &is_running,&secondary_map]
+            fibers[infd] = ctx::callcc([fd=infd, &conn_handler, epoll_ctl_del, listen_to_new_fd, &is_running,&secondary_map,terminate_fiber]
                                        (ctx::continuation&& sink) {
                                          try {
                                         //nrunning++;
@@ -4429,40 +4448,25 @@ int moustique_listen_fd(int listen_fd,
                                          };
               
                                          conn_handler(fd, read, write, listen_to_new_fd, epoll_ctl_del);
-                                         epoll_ctl_del(fd);
-                                         close(fd);
-                                         // unsubscribe to fd in secondary map.
-                                         for (int i = 0; i < secondary_map.size(); i++)
-                                           if (secondary_map[i] == fd)
-                                           {
-                                             epoll_ctl_del(i);
-                                             secondary_map[i] = -1;
-                                           }
-                                         is_running[fd] = false;
+                                         terminate_fiber(fd);
                                          }
                                          catch (fiber_exception& ex) {
-                                            is_running[fd] = false;
-                                            epoll_ctl_del(fd);
-                                            close(fd);
-                                            for (int i = 0; i < secondary_map.size(); i++)
-                                              if (secondary_map[i] == fd)
-                                                {
-                                                  epoll_ctl_del(i);
-                                                  secondary_map[i] = -1;
-                                                }
-                                            // //std::cerr << "my_exception: " << ex.what << std::endl;
+                                            terminate_fiber(fd);
                                             return std::move(ex.c);
                                          }
-                                         catch (std::runtime_error e) {
-                                           std::cerr << "FATAL ERRROR: Uncaughted exception in fiber: " << e.what() << std::endl;
+                                         catch (const std::runtime_error& e) {
+                                           terminate_fiber(fd);
+                                           std::cerr << "FATAL ERRROR: exception in fiber: " << e.what() << std::endl;
                                            assert(0);
-                                           throw std::runtime_error("Uncaughted exception in fiber.");
+                                           return std::move(sink);
+                                           //throw std::runtime_error("caught exception in fiber.");
                                          }
-                                         catch (std::exception e) {
-                                           std::cerr << "FATAL ERRROR: Uncaughted exception in fiber: " << e.what() << std::endl;
-                                           assert(0);
-                                           throw std::runtime_error("Uncaughted exception in fiber.");
-                                         }
+                                        //  catch (const std::exception& e) {
+                                        //    terminate_fiber(fd);
+                                        //    std::cerr << "FATAL ERRROR: exception in fiber: " << e.what() << std::endl;
+                                        //    assert(0);
+                                        //    return std::move(sink);
+                                        //  }
                                          
                                          return std::move(sink);
 

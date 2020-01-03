@@ -255,7 +255,7 @@ struct pgsql_database : std::enable_shared_from_this<pgsql_database> {
         //std::cout << "CONNECT " << total_number_of_pgsql_connections << std::endl;
         if (PQstatus(connection) != CONNECTION_OK)
         {
-          std::cerr << "Warning: cannot connect to the postresql server " << host_  << ": " << PQerrorMessage(connection) << std::endl;
+          std::cerr << "Warning: cannot connect to the postgresql server " << host_  << ": " << PQerrorMessage(connection) << std::endl;
           std::cerr<< "thread allocated connection == " << total_number_of_pgsql_connections <<  std::endl;
           std::cerr<< "Maximum is " << max_pgsql_connections_per_thread <<  std::endl;
           total_number_of_pgsql_connections--;
