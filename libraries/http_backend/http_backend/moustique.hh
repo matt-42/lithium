@@ -200,9 +200,7 @@ int moustique_listen_fd(int listen_fd,
     // fibers.reserve(1000);
     // Even loop.
     epoll_event events[MAXEVENTS];
-    //int nrunning = 0;
-    std::vector<int> is_running;
-
+    
     while (!moustique_exit_request)
     {
 
@@ -216,7 +214,7 @@ int moustique_listen_fd(int listen_fd,
       {
         //int cpt = 0;
         for (int i = 0; i < fibers.size(); i++)
-          if (is_running[i])
+          if (fibers[i])
           {
             //cpt++;
             fibers[i] = fibers[i].resume();
@@ -232,9 +230,7 @@ int moustique_listen_fd(int listen_fd,
             (events[i].events & EPOLLRDHUP)
             )
         {
-          close (events[i].data.fd);
-          //std::cout << "socket closed" << std::endl;
-          if (is_running[events[i].data.fd])
+          if (fibers[events[i].data.fd])
 
             fibers[events[i].data.fd] = fibers[events[i].data.fd].resume_with(std::move([] (auto&& sink)  { 
               //std::cout << "throw socket closed" << std::endl;
@@ -249,7 +245,6 @@ int moustique_listen_fd(int listen_fd,
         {
           while(true)
           {
-            //std::cout << "new connection" << std::endl;
             struct sockaddr in_addr;
             socklen_t in_len;
             int infd;
@@ -276,18 +271,15 @@ int moustique_listen_fd(int listen_fd,
             };
 
             if (int(fibers.size()) < infd + 1)
-            {
               fibers.resize(infd + 10);
-              is_running.resize(infd + 10, false);
-            }
+
             auto terminate_fiber = [&] (int fd) {
-              if (fd < 0 or fd >= is_running.size())
+              if (fd < 0 or fd >= fibers.size())
               {
                 std::cerr << "terminate_fiber: Bad fd " << fd << std::endl;
                 return;
               }
-              if (!is_running[fd]) return;
-              is_running[fd] = false;
+              //if (!fibers[fd]) return;
               epoll_ctl_del(fd);
               close(fd);
               // unsubscribe to fd in secondary map.
@@ -300,12 +292,9 @@ int moustique_listen_fd(int listen_fd,
             };
 
             struct end_of_file {};
-            fibers[infd] = ctx::callcc([fd=infd, &conn_handler, epoll_ctl_del, listen_to_new_fd, &is_running,&secondary_map,terminate_fiber]
+            fibers[infd] = ctx::callcc([fd=infd, &conn_handler, epoll_ctl_del, listen_to_new_fd, &secondary_map,terminate_fiber]
                                        (ctx::continuation&& sink) {
                                          try {
-                                        //nrunning++;
-                                        is_running[fd] = true;
-                                        //std::cout << "nrunning: " << nrunning << std::endl;
 
                                          //ctx::continuation sink = std::move(_sink);
                                          auto read = [fd, &sink] (char* buf, int max_size) {
@@ -386,6 +375,7 @@ int moustique_listen_fd(int listen_fd,
         }
       }
     }
+    std::cout << "END OF EVENT LOOP" << std::endl;
     close(epoll_fd);
     return true;  
   };

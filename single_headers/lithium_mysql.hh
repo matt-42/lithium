@@ -7,24 +7,24 @@
 
 #pragma once
 
-#include <sstream>
-#include <cassert>
-#include <tuple>
-#include <boost/lexical_cast.hpp>
-#include <deque>
-#include <iostream>
-#include <utility>
-#include <cstring>
-#include <map>
-#include <memory>
-#include <mysql.h>
-#include <optional>
-#include <atomic>
-#include <unordered_map>
 #include <vector>
-#include <mutex>
-#include <string>
 #include <thread>
+#include <boost/lexical_cast.hpp>
+#include <unordered_map>
+#include <atomic>
+#include <memory>
+#include <optional>
+#include <cassert>
+#include <deque>
+#include <cstring>
+#include <mutex>
+#include <sstream>
+#include <utility>
+#include <tuple>
+#include <iostream>
+#include <map>
+#include <string>
+#include <mysql.h>
 
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL
@@ -1589,6 +1589,7 @@ struct mysql_database : std::enable_shared_from_this<mysql_database> {
           {
             //std::cout << "Invalid mysql connection bad mysql_get_socket " << status << " " << mysql << std::endl;
             mysql_close(mysql);
+            total_number_of_mysql_connections--;
             //usleep(1e6);
             yield();
             continue;
@@ -1603,6 +1604,7 @@ struct mysql_database : std::enable_shared_from_this<mysql_database> {
         if (!connection)
         {
           //std::cout << "Error in mysql_real_connect_cont" << std::endl;
+          total_number_of_mysql_connections--;
           yield();
           continue;
         }

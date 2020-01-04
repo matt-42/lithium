@@ -237,6 +237,7 @@ struct mysql_database : std::enable_shared_from_this<mysql_database> {
           {
             //std::cout << "Invalid mysql connection bad mysql_get_socket " << status << " " << mysql << std::endl;
             mysql_close(mysql);
+            total_number_of_mysql_connections--;
             //usleep(1e6);
             yield();
             continue;
@@ -251,6 +252,7 @@ struct mysql_database : std::enable_shared_from_this<mysql_database> {
         if (!connection)
         {
           //std::cout << "Error in mysql_real_connect_cont" << std::endl;
+          total_number_of_mysql_connections--;
           yield();
           continue;
         }

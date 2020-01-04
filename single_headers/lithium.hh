@@ -7,48 +7,49 @@
 
 #pragma once
 
-#include <deque>
-#include <cmath>
-#include <cstring>
-#include <memory>
-#include <unordered_map>
-#include <vector>
-#include <optional>
-#include <string.h>
-#include <netdb.h>
-#include <thread>
-#include <sys/socket.h>
-#include <cassert>
-#include <tuple>
+#include <stdio.h>
 #include <functional>
-#include <errno.h>
-#include <fcntl.h>
-#include <variant>
+#include <unordered_map>
+#include <memory>
+#include <cstring>
+#include <sys/socket.h>
+#include <iostream>
+#include <boost/lexical_cast.hpp>
 #include <mysql.h>
+#include <vector>
+#include <cmath>
 #include <sys/sendfile.h>
 #include <unistd.h>
-#include <set>
-#include <sys/epoll.h>
-#include <stdio.h>
-#include <boost/context/continuation.hpp>
-#include <mutex>
-#include <string>
-#include <sys/uio.h>
-#include <boost/lexical_cast.hpp>
-#include <stdlib.h>
-#include <netinet/tcp.h>
-#include <iostream>
-#include <atomic>
-#include <random>
-#include <sys/types.h>
-#include <string_view>
-#include <sstream>
-#include <sys/stat.h>
-#include <signal.h>
 #include <sys/mman.h>
-#include <utility>
+#include <sys/epoll.h>
+#include <cassert>
+#include <netdb.h>
+#include <boost/context/continuation.hpp>
+#include <sys/uio.h>
+#include <boost/context/protected_fixedsize_stack.hpp>
 #include <map>
+#include <string>
+#include <sys/types.h>
+#include <stdlib.h>
+#include <errno.h>
 #include <sqlite3.h>
+#include <atomic>
+#include <set>
+#include <tuple>
+#include <variant>
+#include <signal.h>
+#include <string.h>
+#include <fcntl.h>
+#include <netinet/tcp.h>
+#include <optional>
+#include <mutex>
+#include <utility>
+#include <deque>
+#include <sys/stat.h>
+#include <sstream>
+#include <string_view>
+#include <thread>
+#include <random>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -2508,6 +2509,7 @@ struct mysql_database : std::enable_shared_from_this<mysql_database> {
           {
             //std::cout << "Invalid mysql connection bad mysql_get_socket " << status << " " << mysql << std::endl;
             mysql_close(mysql);
+            total_number_of_mysql_connections--;
             //usleep(1e6);
             yield();
             continue;
@@ -2522,6 +2524,7 @@ struct mysql_database : std::enable_shared_from_this<mysql_database> {
         if (!connection)
         {
           //std::cout << "Error in mysql_real_connect_cont" << std::endl;
+          total_number_of_mysql_connections--;
           yield();
           continue;
         }
@@ -4305,9 +4308,7 @@ int moustique_listen_fd(int listen_fd,
     // fibers.reserve(1000);
     // Even loop.
     epoll_event events[MAXEVENTS];
-    //int nrunning = 0;
-    std::vector<int> is_running;
-
+    
     while (!moustique_exit_request)
     {
 
@@ -4321,7 +4322,7 @@ int moustique_listen_fd(int listen_fd,
       {
         //int cpt = 0;
         for (int i = 0; i < fibers.size(); i++)
-          if (is_running[i])
+          if (fibers[i])
           {
             //cpt++;
             fibers[i] = fibers[i].resume();
@@ -4337,9 +4338,9 @@ int moustique_listen_fd(int listen_fd,
             (events[i].events & EPOLLRDHUP)
             )
         {
-          close (events[i].data.fd);
+          //close (events[i].data.fd);
           //std::cout << "socket closed" << std::endl;
-          if (is_running[events[i].data.fd])
+          if (fibers[events[i].data.fd])
 
             fibers[events[i].data.fd] = fibers[events[i].data.fd].resume_with(std::move([] (auto&& sink)  { 
               //std::cout << "throw socket closed" << std::endl;
@@ -4354,7 +4355,6 @@ int moustique_listen_fd(int listen_fd,
         {
           while(true)
           {
-            //std::cout << "new connection" << std::endl;
             struct sockaddr in_addr;
             socklen_t in_len;
             int infd;
@@ -4381,18 +4381,15 @@ int moustique_listen_fd(int listen_fd,
             };
 
             if (int(fibers.size()) < infd + 1)
-            {
               fibers.resize(infd + 10);
-              is_running.resize(infd + 10, false);
-            }
+
             auto terminate_fiber = [&] (int fd) {
-              if (fd < 0 or fd >= is_running.size())
+              if (fd < 0 or fd >= fibers.size())
               {
                 std::cerr << "terminate_fiber: Bad fd " << fd << std::endl;
                 return;
               }
-              if (!is_running[fd]) return;
-              is_running[fd] = false;
+              //if (!fibers[fd]) return;
               epoll_ctl_del(fd);
               close(fd);
               // unsubscribe to fd in secondary map.
@@ -4405,12 +4402,9 @@ int moustique_listen_fd(int listen_fd,
             };
 
             struct end_of_file {};
-            fibers[infd] = ctx::callcc([fd=infd, &conn_handler, epoll_ctl_del, listen_to_new_fd, &is_running,&secondary_map,terminate_fiber]
+            fibers[infd] = ctx::callcc([fd=infd, &conn_handler, epoll_ctl_del, listen_to_new_fd, &secondary_map,terminate_fiber]
                                        (ctx::continuation&& sink) {
                                          try {
-                                        //nrunning++;
-                                        is_running[fd] = true;
-                                        //std::cout << "nrunning: " << nrunning << std::endl;
 
                                          //ctx::continuation sink = std::move(_sink);
                                          auto read = [fd, &sink] (char* buf, int max_size) {
@@ -4491,6 +4485,7 @@ int moustique_listen_fd(int listen_fd,
         }
       }
     }
+    std::cout << "END OF EVENT LOOP" << std::endl;
     close(epoll_fd);
     return true;  
   };

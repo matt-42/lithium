@@ -7,26 +7,26 @@
 
 #pragma once
 
-#include <deque>
-#include <arpa/inet.h>
-#include <libpq-fe.h>
-#include <cstring>
-#include <memory>
 #include <unordered_map>
-#include <vector>
-#include <optional>
-#include <thread>
-#include <cassert>
-#include <tuple>
-#include <unistd.h>
-#include <mutex>
-#include <string>
-#include <boost/lexical_cast.hpp>
+#include <memory>
+#include <cstring>
+#include <libpq-fe.h>
 #include <iostream>
-#include <atomic>
-#include <sstream>
-#include <utility>
+#include <boost/lexical_cast.hpp>
+#include <vector>
+#include <arpa/inet.h>
+#include <unistd.h>
+#include <cassert>
 #include <map>
+#include <string>
+#include <atomic>
+#include <tuple>
+#include <optional>
+#include <mutex>
+#include <deque>
+#include <utility>
+#include <sstream>
+#include <thread>
 
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL
