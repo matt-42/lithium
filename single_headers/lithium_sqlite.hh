@@ -7,18 +7,18 @@
 
 #pragma once
 
+#include <mutex>
+#include <sstream>
+#include <memory>
+#include <cstring>
 #include <vector>
 #include <unordered_map>
-#include <sqlite3.h>
-#include <memory>
-#include <optional>
-#include <mutex>
+#include <string>
 #include <utility>
-#include <cstring>
-#include <sstream>
+#include <sqlite3.h>
+#include <optional>
 #include <tuple>
 #include <iostream>
-#include <string>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -234,10 +234,10 @@ template <typename K, typename M, typename O> constexpr auto get_or(M&& map, K k
 }
 
 template <typename X> struct is_metamap {
-  enum { ret = false };
+  enum { value = false };
 };
 template <typename... M> struct is_metamap<metamap<M...>> {
-  enum { ret = true };
+  enum { value = true };
 };
 
 } // namespace li
@@ -907,14 +907,27 @@ struct type_hashmap {
 
   template <typename... T> V& operator()(T&&...)
   {
-    static int hash = values.size();
-    values.resize(hash+1);
-    return values[hash];
+    static int hash = -1;
+    if (hash == -1)
+    {
+      std::lock_guard lock(mutex_);
+      if (hash == -1)
+        hash = counter_++;
+    }
+    values_.resize(hash+1);
+    return values_[hash];
   }
 
 private:
-  std::vector<V> values;
+  static std::mutex mutex_;
+  static int counter_;
+  std::vector<V> values_;
 };
+
+template <typename V>
+std::mutex type_hashmap<V>::mutex_;
+template <typename V>
+int type_hashmap<V>::counter_ = 0;
 
 }
 
@@ -1062,7 +1075,7 @@ struct sqlite_statement {
     while (last_step_ret_ == SQLITE_ROW) {
       typedef callable_arguments_tuple_t<F> tp;
       typedef std::remove_reference_t<std::tuple_element_t<0, tp>> T;
-      if constexpr (li::is_metamap<T>::ret) {
+      if constexpr (li::is_metamap<T>::value) {
         T o;
         row_to_metamap(o);
         f(o);
@@ -1594,6 +1607,32 @@ template <typename SCHEMA, typename C> struct sql_orm {
     });
     stmt().map([&](const O& o) { f(o); });
   }
+
+  // Update N's members except auto increment members.
+  // N must have at least one primary key.
+  // template <typename N, typename... CB> void bulk_update(const N& o, CB&&... args) {
+  //   auto stmt = con_.cached_statement([&] { 
+
+  //     // Select pk
+  //     std::ostringstream ss;
+  //     ss << "UPDATE World SET ";
+      
+  //     map(vector[0], [&](auto k, auto v) {
+  //       if (!first)
+  //         ss << ",";
+  //       first = false;
+  //       ss << li::symbol_string(k) << " = tmp." << li::symbol_string(k);
+  //     });
+
+  //     // randomNumber=tmp.randomNumber FROM (VALUES ";
+  //     ss << " FROM (VALUES ";
+  //     for (int i = 0; i < N; i++)
+  //       ss << "($" << i*2+1 << "::integer, $" << i*2+2 << "::integer) "<< (i == N-1 ? "": ",");
+  //     ss << ") AS tmp(id, randomNumber) WHERE tmp.id = World.id";
+  //     return ss.str();
+  //   });
+
+  // }
 
   // Update N's members except auto increment members.
   // N must have at least one primary key.

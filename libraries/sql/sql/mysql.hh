@@ -235,7 +235,7 @@ struct mysql_database : std::enable_shared_from_this<mysql_database> {
           mysql_fd = mysql_get_socket(mysql);
           if (mysql_fd == -1)
           {
-            //std::cout << "Invalid mysql connection bad mysql_get_socket " << status << " " << mysql << std::endl;
+             //std::cout << "Invalid mysql connection bad mysql_get_socket " << status << " " << mysql << std::endl;
             mysql_close(mysql);
             total_number_of_mysql_connections--;
             //usleep(1e6);
@@ -245,9 +245,16 @@ struct mysql_database : std::enable_shared_from_this<mysql_database> {
         }
         if (status)
           yield.listen_to_fd(mysql_fd);
-        while (status) {
+        while (status) try {
           yield();
           status = mysql_real_connect_cont(&connection, mysql, status);
+        }  catch (typename Y::exception_type& e) {
+          // Yield thrown a exception (probably because a closed connection).
+          // std::cerr << "Warning: yield threw an exception while connecting to mysql: "
+          //  << total_number_of_mysql_connections << std::endl;
+          total_number_of_mysql_connections--;
+          mysql_close(mysql);
+          throw std::move(e);
         }
         if (!connection)
         {

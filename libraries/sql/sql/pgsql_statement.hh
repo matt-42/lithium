@@ -73,79 +73,116 @@ struct pgsql_statement {
 
   // Execute a request with placeholders.
   template <unsigned N>
-  void bind_param(sql_varchar<N>&& m, const char*& values, int& lengths, int& binary)
+  void bind_param(sql_varchar<N>&& m, const char** values, int* lengths, int* binary)
   {
     //std::cout << "send param varchar " << m << std::endl;
-    values = m.c_str(); lengths = m.size(); binary = 0;
+    *values = m.c_str(); *lengths = m.size(); *binary = 0;
   }
   template <unsigned N>
-  void bind_param(const sql_varchar<N>&& m, const char*& values, int& lengths, int& binary)
+  void bind_param(const sql_varchar<N>& m, const char** values, int* lengths, int* binary)
   {
     //std::cout << "send param const varchar " << m << std::endl;
-    values = m.c_str(); lengths = m.size(); binary = 0;
+    *values = m.c_str(); *lengths = m.size(); *binary = 0;
   }
-  void bind_param(const char* m, const char*& values, int& lengths, int& binary)
+  void bind_param(const char* m, const char** values, int* lengths, int* binary)
   {
     //std::cout << "send param const char*[N] " << m << std::endl;
-    values = m; lengths = strlen(m); binary = 0;
+    *values = m; *lengths = strlen(m); *binary = 0;
   }
 
-  template <typename... T> auto& operator()(T&&... args) {
-
-    constexpr int nparams = sizeof...(T); 
-    const char* values[nparams];
-    int lengths[nparams];;
-    int binary[nparams];
+  template <typename T>
+  void bind_param(const std::vector<T>& m, const char** values, int* lengths, int* binary)
+  {
+    int tsize = [&] {
+      if constexpr (is_metamap<T>::value) return metamap_size<T>();
+      else return 1; }();
 
     int i = 0;
-    tuple_map(std::forward_as_tuple(std::forward<T>(args)...), [&](auto&& m) {
-      if constexpr(std::is_same<std::decay_t<decltype(m)>, std::string>::value or
-                   std::is_same<std::decay_t<decltype(m)>, std::string_view>::value)
-      {
-        //std::cout << "send param string: " << m << std::endl;
-        values[i] = m.c_str();
-        lengths[i] = m.size();
-        binary[i] = 0;
-      }
-      else if constexpr(std::is_same<std::remove_reference_t<decltype(m)>, const char*>::value)
-      {
-        //std::cout << "send param const char* " << m << std::endl;
-        values[i] = m;
-        lengths[i] = strlen(m);
-        binary[i] = 0;
-      }
-      else if constexpr(std::is_same<std::decay_t<decltype(m)>, int>::value)
-      {
-        values[i] = (char*)new int(htonl(m));
-        lengths[i] = sizeof(m);
-        binary[i] = 1;
-      }
-      else if constexpr(std::is_same<std::decay_t<decltype(m)>, long long int>::value)
-      {
-        // FIXME send 64bit values.
-        //std::cout << "long long int param: " << m << std::endl;
-        values[i] = (char*)new int(htonl(uint32_t(m)));
-        lengths[i] = sizeof(uint32_t);
-        // does not work:
-        //values[i] = (char*)new uint64_t(htobe64((uint64_t) m));
-        //lengths[i] = sizeof(uint64_t);
-        binary[i] = 1;
-      }
-      else 
-      {
-        bind_param(std::move(m), values[i], lengths[i], binary[i]);
-      }
-      // Fixme other types.
+    for (int i = 0; i < m.size(); i++)
+      bind_param(m[i], values + i * tsize, lengths + i * tsize, binary + i * tsize);
+  }
+
+  template <typename T>
+  void bind_param(const T& m, const char** values, int* lengths, int* binary)
+  { 
+    if constexpr(is_metamap<std::decay_t<decltype(m)>>::value)
+    {
+      int i = 0;
+      li::map(m, [&] (auto k, const auto& m) {
+        bind_param(m, values + i, lengths + i, binary + i);
+        i++;
+      });
+    }
+    else
+     if constexpr(std::is_same<std::decay_t<decltype(m)>, std::string>::value or
+                  std::is_same<std::decay_t<decltype(m)>, std::string_view>::value)
+    {
+      //std::cout << "send param string: " << m << std::endl;
+      *values = m.c_str();
+      *lengths = m.size();
+      *binary = 0;
+    }
+    else if constexpr(std::is_same<std::remove_reference_t<decltype(m)>, const char*>::value)
+    {
+      //std::cout << "send param const char* " << m << std::endl;
+      *values = m;
+      *lengths = strlen(m);
+      *binary = 0;
+    }
+    else if constexpr(std::is_same<std::decay_t<decltype(m)>, int>::value)
+    {
+      *values = (char*)new int(htonl(m));
+      *lengths = sizeof(m);
+      *binary = 1;
+    }
+    else if constexpr(std::is_same<std::decay_t<decltype(m)>, long long int>::value)
+    {
+      // FIXME send 64bit values.
+      //std::cout << "long long int param: " << m << std::endl;
+      *values = (char*)new int(htonl(uint32_t(m)));
+      *lengths = sizeof(uint32_t);
+      // does not work:
+      //values = (char*)new uint64_t(htobe64((uint64_t) m));
+      //lengths = sizeof(uint64_t);
+      *binary = 1;
+    }
+  }
+
+  template <typename T>
+  unsigned int bind_compute_nparam(const T& arg) { return 1; }
+  template <typename... T>
+  unsigned int bind_compute_nparam(const metamap<T...>& arg) { return sizeof...(T); }
+  template <typename T>
+  unsigned int bind_compute_nparam(const std::vector<T>& arg){ 
+    return arg.size() * bind_compute_nparam(arg[0]);
+  }
+
+  // Bind parameter to the prepared statement and execute it.
+  template <typename... T> auto& operator()(T&&... args) {
+
+    unsigned int nparams = (bind_compute_nparam(std::forward<T>(args))+...); 
+    const char* values_[nparams];
+    int lengths_[nparams];
+    int binary_[nparams];
+
+    const char** values = values_;
+    int* lengths = lengths_;
+    int* binary = binary_;
+    
+    int i = 0;
+    tuple_map(std::forward_as_tuple(args...), [&] (const auto& a) {
+      bind_param(a, values + i, lengths + i, binary + i);
       i++;
     });
 
     flush_results();
-    //std::cout << "sending " << data_.stmt_name.c_str() << " with " << nparams << " params" << std::endl;
+    // std::cout << "sending " << data_.stmt_name.c_str() << " with " << nparams << " params" << std::endl;
     if (!PQsendQueryPrepared(connection_, data_.stmt_name.c_str(), nparams, values, lengths, binary, 1))
       throw std::runtime_error(std::string("Postresql error:") + PQerrorMessage(connection_));
     
     return *this;
   }
+
 
   //FIXME long long int affected_rows() { return pgsql_stmt_affected_rows(data_.stmt_); }
 
@@ -289,7 +326,7 @@ struct pgsql_statement {
       int nrows = PQntuples(res);
       for (int row_i = 0; row_i < nrows; row_i++)
       {
-        if constexpr (li::is_metamap<T>::ret) {
+        if constexpr (li::is_metamap<T>::value) {
           T o;
           fetch(res, row_i, o);
           f(o);

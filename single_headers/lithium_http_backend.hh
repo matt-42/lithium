@@ -7,45 +7,44 @@
 
 #pragma once
 
-#include <stdio.h>
-#include <functional>
-#include <unordered_map>
+#include <mutex>
+#include <set>
+#include <thread>
+#include <string.h>
 #include <memory>
 #include <cstring>
-#include <sys/socket.h>
-#include <iostream>
 #include <boost/lexical_cast.hpp>
-#include <vector>
-#include <sys/sendfile.h>
-#include <unistd.h>
-#include <sys/mman.h>
-#include <sys/epoll.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <cmath>
+#include <tuple>
 #include <cassert>
+#include <variant>
+#include <sys/sendfile.h>
+#include <random>
+#include <functional>
+#include <utility>
+#include <iostream>
+#include <sys/epoll.h>
+#include <map>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sstream>
+#include <signal.h>
+#include <sys/mman.h>
+#include <string>
+#include <netinet/tcp.h>
 #include <netdb.h>
+#include <stdlib.h>
+#include <vector>
+#include <string_view>
+#include <unordered_map>
+#include <sys/socket.h>
+#include <unistd.h>
 #include <boost/context/continuation.hpp>
 #include <sys/uio.h>
-#include <boost/context/protected_fixedsize_stack.hpp>
-#include <map>
-#include <string>
-#include <sys/types.h>
-#include <stdlib.h>
-#include <errno.h>
-#include <set>
-#include <tuple>
-#include <variant>
-#include <thread>
-#include <signal.h>
-#include <string.h>
-#include <fcntl.h>
-#include <netinet/tcp.h>
-#include <utility>
+#include <stdio.h>
 #include <optional>
-#include <sys/stat.h>
-#include <mutex>
-#include <sstream>
-#include <string_view>
-#include <cmath>
-#include <random>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -385,10 +384,10 @@ template <typename K, typename M, typename O> constexpr auto get_or(M&& map, K k
 }
 
 template <typename X> struct is_metamap {
-  enum { ret = false };
+  enum { value = false };
 };
 template <typename... M> struct is_metamap<metamap<M...>> {
-  enum { ret = true };
+  enum { value = true };
 };
 
 } // namespace li
@@ -2420,6 +2419,32 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
   // Update N's members except auto increment members.
   // N must have at least one primary key.
+  // template <typename N, typename... CB> void bulk_update(const N& o, CB&&... args) {
+  //   auto stmt = con_.cached_statement([&] { 
+
+  //     // Select pk
+  //     std::ostringstream ss;
+  //     ss << "UPDATE World SET ";
+      
+  //     map(vector[0], [&](auto k, auto v) {
+  //       if (!first)
+  //         ss << ",";
+  //       first = false;
+  //       ss << li::symbol_string(k) << " = tmp." << li::symbol_string(k);
+  //     });
+
+  //     // randomNumber=tmp.randomNumber FROM (VALUES ";
+  //     ss << " FROM (VALUES ";
+  //     for (int i = 0; i < N; i++)
+  //       ss << "($" << i*2+1 << "::integer, $" << i*2+2 << "::integer) "<< (i == N-1 ? "": ",");
+  //     ss << ") AS tmp(id, randomNumber) WHERE tmp.id = World.id";
+  //     return ss.str();
+  //   });
+
+  // }
+
+  // Update N's members except auto increment members.
+  // N must have at least one primary key.
   template <typename N, typename... CB> void update(const N& o, CB&&... args) {
     // check if N has at least one member of PKS.
 
@@ -3146,13 +3171,10 @@ int moustique_listen_fd(int listen_fd,
             (events[i].events & EPOLLRDHUP)
             )
         {
-          //close (events[i].data.fd);
-          //std::cout << "socket closed" << std::endl;
           if (fibers[events[i].data.fd])
 
             fibers[events[i].data.fd] = fibers[events[i].data.fd].resume_with(std::move([] (auto&& sink)  { 
-              //std::cout << "throw socket closed" << std::endl;
-              throw fiber_exception(std::move(sink), "Socket closed"); 
+              throw fiber_exception(std::move(sink), "EPOLLRDHUP");
               return std::move(sink);
             }));
 
@@ -3199,7 +3221,9 @@ int moustique_listen_fd(int listen_fd,
               }
               //if (!fibers[fd]) return;
               epoll_ctl_del(fd);
-              close(fd);
+              if (0 != close(fd))
+                std::cerr << "Error when closing file descriptor " << fd << ": " << strerror(errno) << std::endl;
+
               // unsubscribe to fd in secondary map.
               for (int i = 0; i < secondary_map.size(); i++)
                 if (secondary_map[i] == fd)

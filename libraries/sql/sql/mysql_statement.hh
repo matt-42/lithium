@@ -275,14 +275,14 @@ struct mysql_statement_result {
     typedef typename unconstref_tuple_elements<callable_arguments_tuple_t<F>>::ret tp;
     typedef std::remove_const_t<std::remove_reference_t<std::tuple_element_t<0, tp>>> T;
 
-    auto o = []() { if constexpr (li::is_metamap<T>::ret) return T{}; else return tp{}; }();
+    auto o = []() { if constexpr (li::is_metamap<T>::value) return T{}; else return tp{}; }();
 
     auto bind_data = mysql_bind_output(data_, o);
     mysql_stmt_bind_result(data_.stmt_, bind_data.bind.data());
     
     while (mysql_wrapper_.mysql_stmt_fetch(connection_status_, data_.stmt_) != MYSQL_NO_DATA) {
       this->finalize_fetch(bind_data.bind.data(), bind_data.real_lengths.data(), o);
-      if constexpr (li::is_metamap<T>::ret) 
+      if constexpr (li::is_metamap<T>::value) 
         f(o);
       else apply(o, f);
     }

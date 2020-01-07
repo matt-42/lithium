@@ -7,8 +7,8 @@
 
 #pragma once
 
-#include <tuple>
 #include <utility>
+#include <tuple>
 #include <vector>
 
 
@@ -117,10 +117,10 @@ template <typename K, typename M, typename O> constexpr auto get_or(M&& map, K k
 }
 
 template <typename X> struct is_metamap {
-  enum { ret = false };
+  enum { value = false };
 };
 template <typename... M> struct is_metamap<metamap<M...>> {
-  enum { ret = true };
+  enum { value = true };
 };
 
 } // namespace li

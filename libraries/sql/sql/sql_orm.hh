@@ -250,6 +250,32 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
   // Update N's members except auto increment members.
   // N must have at least one primary key.
+  // template <typename N, typename... CB> void bulk_update(const N& o, CB&&... args) {
+  //   auto stmt = con_.cached_statement([&] { 
+
+  //     // Select pk
+  //     std::ostringstream ss;
+  //     ss << "UPDATE World SET ";
+      
+  //     map(vector[0], [&](auto k, auto v) {
+  //       if (!first)
+  //         ss << ",";
+  //       first = false;
+  //       ss << li::symbol_string(k) << " = tmp." << li::symbol_string(k);
+  //     });
+
+  //     // randomNumber=tmp.randomNumber FROM (VALUES ";
+  //     ss << " FROM (VALUES ";
+  //     for (int i = 0; i < N; i++)
+  //       ss << "($" << i*2+1 << "::integer, $" << i*2+2 << "::integer) "<< (i == N-1 ? "": ",");
+  //     ss << ") AS tmp(id, randomNumber) WHERE tmp.id = World.id";
+  //     return ss.str();
+  //   });
+
+  // }
+
+  // Update N's members except auto increment members.
+  // N must have at least one primary key.
   template <typename N, typename... CB> void update(const N& o, CB&&... args) {
     // check if N has at least one member of PKS.
 

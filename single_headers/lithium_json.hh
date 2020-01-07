@@ -7,19 +7,19 @@
 
 #pragma once
 
-#include <vector>
-#include <functional>
-#include <memory>
-#include <utility>
 #include <cassert>
-#include <optional>
-#include <cstring>
-#include <sstream>
-#include <string_view>
-#include <tuple>
-#include <cmath>
-#include <string>
 #include <variant>
+#include <sstream>
+#include <memory>
+#include <cstring>
+#include <string_view>
+#include <vector>
+#include <string>
+#include <cmath>
+#include <functional>
+#include <utility>
+#include <optional>
+#include <tuple>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -355,10 +355,10 @@ template <typename K, typename M, typename O> constexpr auto get_or(M&& map, K k
 }
 
 template <typename X> struct is_metamap {
-  enum { ret = false };
+  enum { value = false };
 };
 template <typename... M> struct is_metamap<metamap<M...>> {
-  enum { ret = true };
+  enum { value = true };
 };
 
 } // namespace li

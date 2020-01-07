@@ -7,26 +7,26 @@
 
 #pragma once
 
-#include <unordered_map>
+#include <mutex>
+#include <thread>
 #include <memory>
 #include <cstring>
-#include <libpq-fe.h>
-#include <iostream>
 #include <boost/lexical_cast.hpp>
-#include <vector>
-#include <arpa/inet.h>
-#include <unistd.h>
-#include <cassert>
-#include <map>
-#include <string>
-#include <atomic>
+#include <libpq-fe.h>
 #include <tuple>
-#include <optional>
-#include <mutex>
-#include <deque>
+#include <cassert>
 #include <utility>
+#include <iostream>
+#include <map>
 #include <sstream>
-#include <thread>
+#include <string>
+#include <arpa/inet.h>
+#include <atomic>
+#include <deque>
+#include <vector>
+#include <unordered_map>
+#include <unistd.h>
+#include <optional>
 
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL
@@ -238,10 +238,10 @@ template <typename K, typename M, typename O> constexpr auto get_or(M&& map, K k
 }
 
 template <typename X> struct is_metamap {
-  enum { ret = false };
+  enum { value = false };
 };
 template <typename... M> struct is_metamap<metamap<M...>> {
-  enum { ret = true };
+  enum { value = true };
 };
 
 } // namespace li
@@ -969,79 +969,116 @@ struct pgsql_statement {
 
   // Execute a request with placeholders.
   template <unsigned N>
-  void bind_param(sql_varchar<N>&& m, const char*& values, int& lengths, int& binary)
+  void bind_param(sql_varchar<N>&& m, const char** values, int* lengths, int* binary)
   {
     //std::cout << "send param varchar " << m << std::endl;
-    values = m.c_str(); lengths = m.size(); binary = 0;
+    *values = m.c_str(); *lengths = m.size(); *binary = 0;
   }
   template <unsigned N>
-  void bind_param(const sql_varchar<N>&& m, const char*& values, int& lengths, int& binary)
+  void bind_param(const sql_varchar<N>& m, const char** values, int* lengths, int* binary)
   {
     //std::cout << "send param const varchar " << m << std::endl;
-    values = m.c_str(); lengths = m.size(); binary = 0;
+    *values = m.c_str(); *lengths = m.size(); *binary = 0;
   }
-  void bind_param(const char* m, const char*& values, int& lengths, int& binary)
+  void bind_param(const char* m, const char** values, int* lengths, int* binary)
   {
     //std::cout << "send param const char*[N] " << m << std::endl;
-    values = m; lengths = strlen(m); binary = 0;
+    *values = m; *lengths = strlen(m); *binary = 0;
   }
 
-  template <typename... T> auto& operator()(T&&... args) {
-
-    constexpr int nparams = sizeof...(T); 
-    const char* values[nparams];
-    int lengths[nparams];;
-    int binary[nparams];
+  template <typename T>
+  void bind_param(const std::vector<T>& m, const char** values, int* lengths, int* binary)
+  {
+    int tsize = [&] {
+      if constexpr (is_metamap<T>::value) return metamap_size<T>();
+      else return 1; }();
 
     int i = 0;
-    tuple_map(std::forward_as_tuple(std::forward<T>(args)...), [&](auto&& m) {
-      if constexpr(std::is_same<std::decay_t<decltype(m)>, std::string>::value or
-                   std::is_same<std::decay_t<decltype(m)>, std::string_view>::value)
-      {
-        //std::cout << "send param string: " << m << std::endl;
-        values[i] = m.c_str();
-        lengths[i] = m.size();
-        binary[i] = 0;
-      }
-      else if constexpr(std::is_same<std::remove_reference_t<decltype(m)>, const char*>::value)
-      {
-        //std::cout << "send param const char* " << m << std::endl;
-        values[i] = m;
-        lengths[i] = strlen(m);
-        binary[i] = 0;
-      }
-      else if constexpr(std::is_same<std::decay_t<decltype(m)>, int>::value)
-      {
-        values[i] = (char*)new int(htonl(m));
-        lengths[i] = sizeof(m);
-        binary[i] = 1;
-      }
-      else if constexpr(std::is_same<std::decay_t<decltype(m)>, long long int>::value)
-      {
-        // FIXME send 64bit values.
-        //std::cout << "long long int param: " << m << std::endl;
-        values[i] = (char*)new int(htonl(uint32_t(m)));
-        lengths[i] = sizeof(uint32_t);
-        // does not work:
-        //values[i] = (char*)new uint64_t(htobe64((uint64_t) m));
-        //lengths[i] = sizeof(uint64_t);
-        binary[i] = 1;
-      }
-      else 
-      {
-        bind_param(std::move(m), values[i], lengths[i], binary[i]);
-      }
-      // Fixme other types.
+    for (int i = 0; i < m.size(); i++)
+      bind_param(m[i], values + i * tsize, lengths + i * tsize, binary + i * tsize);
+  }
+
+  template <typename T>
+  void bind_param(const T& m, const char** values, int* lengths, int* binary)
+  { 
+    if constexpr(is_metamap<std::decay_t<decltype(m)>>::value)
+    {
+      int i = 0;
+      li::map(m, [&] (auto k, const auto& m) {
+        bind_param(m, values + i, lengths + i, binary + i);
+        i++;
+      });
+    }
+    else
+     if constexpr(std::is_same<std::decay_t<decltype(m)>, std::string>::value or
+                  std::is_same<std::decay_t<decltype(m)>, std::string_view>::value)
+    {
+      //std::cout << "send param string: " << m << std::endl;
+      *values = m.c_str();
+      *lengths = m.size();
+      *binary = 0;
+    }
+    else if constexpr(std::is_same<std::remove_reference_t<decltype(m)>, const char*>::value)
+    {
+      //std::cout << "send param const char* " << m << std::endl;
+      *values = m;
+      *lengths = strlen(m);
+      *binary = 0;
+    }
+    else if constexpr(std::is_same<std::decay_t<decltype(m)>, int>::value)
+    {
+      *values = (char*)new int(htonl(m));
+      *lengths = sizeof(m);
+      *binary = 1;
+    }
+    else if constexpr(std::is_same<std::decay_t<decltype(m)>, long long int>::value)
+    {
+      // FIXME send 64bit values.
+      //std::cout << "long long int param: " << m << std::endl;
+      *values = (char*)new int(htonl(uint32_t(m)));
+      *lengths = sizeof(uint32_t);
+      // does not work:
+      //values = (char*)new uint64_t(htobe64((uint64_t) m));
+      //lengths = sizeof(uint64_t);
+      *binary = 1;
+    }
+  }
+
+  template <typename T>
+  unsigned int bind_compute_nparam(const T& arg) { return 1; }
+  template <typename... T>
+  unsigned int bind_compute_nparam(const metamap<T...>& arg) { return sizeof...(T); }
+  template <typename T>
+  unsigned int bind_compute_nparam(const std::vector<T>& arg){ 
+    return arg.size() * bind_compute_nparam(arg[0]);
+  }
+
+  // Bind parameter to the prepared statement and execute it.
+  template <typename... T> auto& operator()(T&&... args) {
+
+    unsigned int nparams = (bind_compute_nparam(std::forward<T>(args))+...); 
+    const char* values_[nparams];
+    int lengths_[nparams];
+    int binary_[nparams];
+
+    const char** values = values_;
+    int* lengths = lengths_;
+    int* binary = binary_;
+    
+    int i = 0;
+    tuple_map(std::forward_as_tuple(args...), [&] (const auto& a) {
+      bind_param(a, values + i, lengths + i, binary + i);
       i++;
     });
 
     flush_results();
-    //std::cout << "sending " << data_.stmt_name.c_str() << " with " << nparams << " params" << std::endl;
+    // std::cout << "sending " << data_.stmt_name.c_str() << " with " << nparams << " params" << std::endl;
     if (!PQsendQueryPrepared(connection_, data_.stmt_name.c_str(), nparams, values, lengths, binary, 1))
       throw std::runtime_error(std::string("Postresql error:") + PQerrorMessage(connection_));
     
     return *this;
   }
+
 
   //FIXME long long int affected_rows() { return pgsql_stmt_affected_rows(data_.stmt_); }
 
@@ -1185,7 +1222,7 @@ struct pgsql_statement {
       int nrows = PQntuples(res);
       for (int row_i = 0; row_i < nrows; row_i++)
       {
-        if constexpr (li::is_metamap<T>::ret) {
+        if constexpr (li::is_metamap<T>::value) {
           T o;
           fetch(res, row_i, o);
           f(o);
@@ -1250,14 +1287,27 @@ struct type_hashmap {
 
   template <typename... T> V& operator()(T&&...)
   {
-    static int hash = values.size();
-    values.resize(hash+1);
-    return values[hash];
+    static int hash = -1;
+    if (hash == -1)
+    {
+      std::lock_guard lock(mutex_);
+      if (hash == -1)
+        hash = counter_++;
+    }
+    values_.resize(hash+1);
+    return values_[hash];
   }
 
 private:
-  std::vector<V> values;
+  static std::mutex mutex_;
+  static int counter_;
+  std::vector<V> values_;
 };
+
+template <typename V>
+std::mutex type_hashmap<V>::mutex_;
+template <typename V>
+int type_hashmap<V>::counter_ = 0;
 
 }
 
@@ -1280,6 +1330,15 @@ struct pgsql_connection_data {
   ~pgsql_connection_data() {
     if (connection)
     {
+      cancel();
+      PQfinish(connection);
+      // std::cerr << " DISCONNECT " << fd << std::endl;
+      total_number_of_pgsql_connections--;
+    }
+  }
+  void cancel() {
+    if (connection)
+    {
       // Cancel any pending request.
       PGcancel* cancel = PQgetCancel(connection);
       char x[256];
@@ -1288,11 +1347,9 @@ struct pgsql_connection_data {
         PQcancel(cancel, x, 256);
         PQfreeCancel(cancel);
       }
-      PQfinish(connection);
-      // std::cerr << " DISCONNECT " << fd << std::endl;
-      total_number_of_pgsql_connections--;
     }
-  }
+  } 
+
   PGconn* connection = nullptr;
   int fd = -1;
   std::unordered_map<std::string, std::shared_ptr<pgsql_statement_data>> statements;
@@ -1324,12 +1381,14 @@ struct pgsql_connection {
     connection_status_ = std::shared_ptr<int>(new int(0), [data, yield](int* p) mutable {
       if (*p) 
       {
+        assert(total_number_of_pgsql_connections >= 1);
         //yield.unsubscribe(data->fd);
         //std::cerr << "Discarding broken pgsql connection." << std::endl;
-        return;
       }
       else
+      {
          pgsql_connection_pool.push_back(data);
+      }
     });
   }
 
@@ -1474,13 +1533,9 @@ struct pgsql_database : std::enable_shared_from_this<pgsql_database> {
   inline pgsql_connection<Y> connect(Y yield) {
 
     //std::cout << "nconnection " << total_number_of_pgsql_connections << std::endl;
-    int ntry = 0;
     std::shared_ptr<pgsql_connection_data> data = nullptr;
     while (!data)
     {
-      // if (ntry > 20)
-      //   throw std::runtime_error("Cannot connect to the database");
-      ntry++;
 
       if (!pgsql_connection_pool.empty()) {
         data = pgsql_connection_pool.back();
@@ -1505,6 +1560,7 @@ struct pgsql_database : std::enable_shared_from_this<pgsql_database> {
         connection = PQconnectStart(coninfo.str().c_str());
         if (!connection)
         {
+          std::cerr << "Warning: PQconnectStart returned null." << std::endl;
           total_number_of_pgsql_connections--;
           yield();
           continue;
@@ -1538,11 +1594,6 @@ struct pgsql_database : std::enable_shared_from_this<pgsql_database> {
           {
             yield();
             status = PQconnectPoll(connection);
-            // if (pgsql_fd != PQsocket(connection) and PQsocket(connection) != -1)
-            // {
-            //   pgsql_fd = PQsocket(connection);
-            //   yield.listen_to_fd(pgsql_fd);
-            // }
           }
         } catch (typename Y::exception_type& e) {
           // Yield thrown a exception (probably because a closed connection).
@@ -1943,6 +1994,32 @@ template <typename SCHEMA, typename C> struct sql_orm {
     });
     stmt().map([&](const O& o) { f(o); });
   }
+
+  // Update N's members except auto increment members.
+  // N must have at least one primary key.
+  // template <typename N, typename... CB> void bulk_update(const N& o, CB&&... args) {
+  //   auto stmt = con_.cached_statement([&] { 
+
+  //     // Select pk
+  //     std::ostringstream ss;
+  //     ss << "UPDATE World SET ";
+      
+  //     map(vector[0], [&](auto k, auto v) {
+  //       if (!first)
+  //         ss << ",";
+  //       first = false;
+  //       ss << li::symbol_string(k) << " = tmp." << li::symbol_string(k);
+  //     });
+
+  //     // randomNumber=tmp.randomNumber FROM (VALUES ";
+  //     ss << " FROM (VALUES ";
+  //     for (int i = 0; i < N; i++)
+  //       ss << "($" << i*2+1 << "::integer, $" << i*2+2 << "::integer) "<< (i == N-1 ? "": ",");
+  //     ss << ") AS tmp(id, randomNumber) WHERE tmp.id = World.id";
+  //     return ss.str();
+  //   });
+
+  // }
 
   // Update N's members except auto increment members.
   // N must have at least one primary key.

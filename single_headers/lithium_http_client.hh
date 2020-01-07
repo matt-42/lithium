@@ -7,23 +7,23 @@
 
 #pragma once
 
-#include <vector>
-#include <cmath>
-#include <functional>
-#include <unordered_map>
-#include <memory>
-#include <variant>
-#include <utility>
 #include <cassert>
-#include <optional>
-#include <cstring>
+#include <map>
+#include <variant>
 #include <sstream>
+#include <memory>
+#include <vector>
+#include <cstring>
+#include <unordered_map>
+#include <string_view>
+#include <string>
 #include <curl/curl.h>
+#include <functional>
+#include <cmath>
+#include <utility>
+#include <optional>
 #include <tuple>
 #include <iostream>
-#include <map>
-#include <string>
-#include <string_view>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -657,10 +657,10 @@ template <typename K, typename M, typename O> constexpr auto get_or(M&& map, K k
 }
 
 template <typename X> struct is_metamap {
-  enum { ret = false };
+  enum { value = false };
 };
 template <typename... M> struct is_metamap<metamap<M...>> {
-  enum { ret = true };
+  enum { value = true };
 };
 
 } // namespace li

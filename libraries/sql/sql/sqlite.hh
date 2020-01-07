@@ -160,7 +160,7 @@ struct sqlite_statement {
     while (last_step_ret_ == SQLITE_ROW) {
       typedef callable_arguments_tuple_t<F> tp;
       typedef std::remove_reference_t<std::tuple_element_t<0, tp>> T;
-      if constexpr (li::is_metamap<T>::ret) {
+      if constexpr (li::is_metamap<T>::value) {
         T o;
         row_to_metamap(o);
         f(o);

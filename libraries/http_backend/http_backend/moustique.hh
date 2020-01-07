@@ -233,8 +233,7 @@ int moustique_listen_fd(int listen_fd,
           if (fibers[events[i].data.fd])
 
             fibers[events[i].data.fd] = fibers[events[i].data.fd].resume_with(std::move([] (auto&& sink)  { 
-              //std::cout << "throw socket closed" << std::endl;
-              throw fiber_exception(std::move(sink), "Socket closed"); 
+              throw fiber_exception(std::move(sink), "EPOLLRDHUP");
               return std::move(sink);
             }));
 
@@ -281,7 +280,9 @@ int moustique_listen_fd(int listen_fd,
               }
               //if (!fibers[fd]) return;
               epoll_ctl_del(fd);
-              close(fd);
+              if (0 != close(fd))
+                std::cerr << "Error when closing file descriptor " << fd << ": " << strerror(errno) << std::endl;
+
               // unsubscribe to fd in secondary map.
               for (int i = 0; i < secondary_map.size(); i++)
                 if (secondary_map[i] == fd)

@@ -41,6 +41,15 @@ struct pgsql_connection_data {
   ~pgsql_connection_data() {
     if (connection)
     {
+      cancel();
+      PQfinish(connection);
+      // std::cerr << " DISCONNECT " << fd << std::endl;
+      total_number_of_pgsql_connections--;
+    }
+  }
+  void cancel() {
+    if (connection)
+    {
       // Cancel any pending request.
       PGcancel* cancel = PQgetCancel(connection);
       char x[256];
@@ -49,11 +58,9 @@ struct pgsql_connection_data {
         PQcancel(cancel, x, 256);
         PQfreeCancel(cancel);
       }
-      PQfinish(connection);
-      // std::cerr << " DISCONNECT " << fd << std::endl;
-      total_number_of_pgsql_connections--;
     }
-  }
+  } 
+
   PGconn* connection = nullptr;
   int fd = -1;
   std::unordered_map<std::string, std::shared_ptr<pgsql_statement_data>> statements;
@@ -85,12 +92,14 @@ struct pgsql_connection {
     connection_status_ = std::shared_ptr<int>(new int(0), [data, yield](int* p) mutable {
       if (*p) 
       {
+        assert(total_number_of_pgsql_connections >= 1);
         //yield.unsubscribe(data->fd);
         //std::cerr << "Discarding broken pgsql connection." << std::endl;
-        return;
       }
       else
+      {
          pgsql_connection_pool.push_back(data);
+      }
     });
   }
 
@@ -235,13 +244,9 @@ struct pgsql_database : std::enable_shared_from_this<pgsql_database> {
   inline pgsql_connection<Y> connect(Y yield) {
 
     //std::cout << "nconnection " << total_number_of_pgsql_connections << std::endl;
-    int ntry = 0;
     std::shared_ptr<pgsql_connection_data> data = nullptr;
     while (!data)
     {
-      // if (ntry > 20)
-      //   throw std::runtime_error("Cannot connect to the database");
-      ntry++;
 
       if (!pgsql_connection_pool.empty()) {
         data = pgsql_connection_pool.back();
@@ -266,6 +271,7 @@ struct pgsql_database : std::enable_shared_from_this<pgsql_database> {
         connection = PQconnectStart(coninfo.str().c_str());
         if (!connection)
         {
+          std::cerr << "Warning: PQconnectStart returned null." << std::endl;
           total_number_of_pgsql_connections--;
           yield();
           continue;
@@ -299,11 +305,6 @@ struct pgsql_database : std::enable_shared_from_this<pgsql_database> {
           {
             yield();
             status = PQconnectPoll(connection);
-            // if (pgsql_fd != PQsocket(connection) and PQsocket(connection) != -1)
-            // {
-            //   pgsql_fd = PQsocket(connection);
-            //   yield.listen_to_fd(pgsql_fd);
-            // }
           }
         } catch (typename Y::exception_type& e) {
           // Yield thrown a exception (probably because a closed connection).

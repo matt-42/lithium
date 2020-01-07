@@ -7,24 +7,24 @@
 
 #pragma once
 
-#include <vector>
-#include <thread>
-#include <boost/lexical_cast.hpp>
-#include <unordered_map>
-#include <atomic>
-#include <memory>
-#include <optional>
-#include <cassert>
-#include <deque>
-#include <cstring>
 #include <mutex>
-#include <sstream>
-#include <utility>
-#include <tuple>
-#include <iostream>
+#include <atomic>
+#include <deque>
+#include <cassert>
 #include <map>
+#include <thread>
+#include <sstream>
+#include <memory>
+#include <cstring>
+#include <vector>
+#include <unordered_map>
+#include <boost/lexical_cast.hpp>
 #include <string>
 #include <mysql.h>
+#include <utility>
+#include <optional>
+#include <tuple>
+#include <iostream>
 
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL
@@ -234,10 +234,10 @@ template <typename K, typename M, typename O> constexpr auto get_or(M&& map, K k
 }
 
 template <typename X> struct is_metamap {
-  enum { ret = false };
+  enum { value = false };
 };
 template <typename... M> struct is_metamap<metamap<M...>> {
-  enum { ret = true };
+  enum { value = true };
 };
 
 } // namespace li
@@ -1265,14 +1265,14 @@ struct mysql_statement_result {
     typedef typename unconstref_tuple_elements<callable_arguments_tuple_t<F>>::ret tp;
     typedef std::remove_const_t<std::remove_reference_t<std::tuple_element_t<0, tp>>> T;
 
-    auto o = []() { if constexpr (li::is_metamap<T>::ret) return T{}; else return tp{}; }();
+    auto o = []() { if constexpr (li::is_metamap<T>::value) return T{}; else return tp{}; }();
 
     auto bind_data = mysql_bind_output(data_, o);
     mysql_stmt_bind_result(data_.stmt_, bind_data.bind.data());
     
     while (mysql_wrapper_.mysql_stmt_fetch(connection_status_, data_.stmt_) != MYSQL_NO_DATA) {
       this->finalize_fetch(bind_data.bind.data(), bind_data.real_lengths.data(), o);
-      if constexpr (li::is_metamap<T>::ret) 
+      if constexpr (li::is_metamap<T>::value) 
         f(o);
       else apply(o, f);
     }
@@ -1362,14 +1362,27 @@ struct type_hashmap {
 
   template <typename... T> V& operator()(T&&...)
   {
-    static int hash = values.size();
-    values.resize(hash+1);
-    return values[hash];
+    static int hash = -1;
+    if (hash == -1)
+    {
+      std::lock_guard lock(mutex_);
+      if (hash == -1)
+        hash = counter_++;
+    }
+    values_.resize(hash+1);
+    return values_[hash];
   }
 
 private:
-  std::vector<V> values;
+  static std::mutex mutex_;
+  static int counter_;
+  std::vector<V> values_;
 };
+
+template <typename V>
+std::mutex type_hashmap<V>::mutex_;
+template <typename V>
+int type_hashmap<V>::counter_ = 0;
 
 }
 
@@ -1587,7 +1600,7 @@ struct mysql_database : std::enable_shared_from_this<mysql_database> {
           mysql_fd = mysql_get_socket(mysql);
           if (mysql_fd == -1)
           {
-            //std::cout << "Invalid mysql connection bad mysql_get_socket " << status << " " << mysql << std::endl;
+             //std::cout << "Invalid mysql connection bad mysql_get_socket " << status << " " << mysql << std::endl;
             mysql_close(mysql);
             total_number_of_mysql_connections--;
             //usleep(1e6);
@@ -1597,9 +1610,16 @@ struct mysql_database : std::enable_shared_from_this<mysql_database> {
         }
         if (status)
           yield.listen_to_fd(mysql_fd);
-        while (status) {
+        while (status) try {
           yield();
           status = mysql_real_connect_cont(&connection, mysql, status);
+        }  catch (typename Y::exception_type& e) {
+          // Yield thrown a exception (probably because a closed connection).
+          // std::cerr << "Warning: yield threw an exception while connecting to mysql: "
+          //  << total_number_of_mysql_connections << std::endl;
+          total_number_of_mysql_connections--;
+          mysql_close(mysql);
+          throw std::move(e);
         }
         if (!connection)
         {
@@ -2003,6 +2023,32 @@ template <typename SCHEMA, typename C> struct sql_orm {
     });
     stmt().map([&](const O& o) { f(o); });
   }
+
+  // Update N's members except auto increment members.
+  // N must have at least one primary key.
+  // template <typename N, typename... CB> void bulk_update(const N& o, CB&&... args) {
+  //   auto stmt = con_.cached_statement([&] { 
+
+  //     // Select pk
+  //     std::ostringstream ss;
+  //     ss << "UPDATE World SET ";
+      
+  //     map(vector[0], [&](auto k, auto v) {
+  //       if (!first)
+  //         ss << ",";
+  //       first = false;
+  //       ss << li::symbol_string(k) << " = tmp." << li::symbol_string(k);
+  //     });
+
+  //     // randomNumber=tmp.randomNumber FROM (VALUES ";
+  //     ss << " FROM (VALUES ";
+  //     for (int i = 0; i < N; i++)
+  //       ss << "($" << i*2+1 << "::integer, $" << i*2+2 << "::integer) "<< (i == N-1 ? "": ",");
+  //     ss << ") AS tmp(id, randomNumber) WHERE tmp.id = World.id";
+  //     return ss.str();
+  //   });
+
+  // }
 
   // Update N's members except auto increment members.
   // N must have at least one primary key.
