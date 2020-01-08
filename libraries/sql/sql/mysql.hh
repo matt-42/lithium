@@ -102,13 +102,17 @@ struct mysql_connection {
     return mysql_result<B>{mysql_wrapper_, con_, connection_status_};
   }
 
-  template <typename F>
-  mysql_statement<B> cached_statement(F f) {
+  template <typename F, typename... K>
+  mysql_statement<B> cached_statement(F f, K... keys) {
     if (data_->statements_hashmap(f).get() == nullptr)
-      return prepare(f());
+    {
+      mysql_statement<B> res = prepare(f());
+      data_->statements_hashmap(f, keys...) = res.data_.shared_from_this();
+      return res;
+    }
     else
       return mysql_statement<B>{mysql_wrapper_, 
-                                *data_->statements_hashmap(f), 
+                                *data_->statements_hashmap(f, keys...), 
                                  connection_status_};
   }
 

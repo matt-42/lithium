@@ -7,26 +7,27 @@
 
 #pragma once
 
-#include <mutex>
+#include <string>
+#include <any>
 #include <thread>
-#include <memory>
+#include <iostream>
+#include <sstream>
+#include <optional>
+#include <vector>
+#include <deque>
+#include <mutex>
+#include <map>
 #include <cstring>
+#include <unordered_map>
 #include <boost/lexical_cast.hpp>
 #include <libpq-fe.h>
-#include <tuple>
-#include <cassert>
 #include <utility>
-#include <iostream>
-#include <map>
-#include <sstream>
-#include <string>
-#include <arpa/inet.h>
 #include <atomic>
-#include <deque>
-#include <vector>
-#include <unordered_map>
+#include <tuple>
 #include <unistd.h>
-#include <optional>
+#include <cassert>
+#include <arpa/inet.h>
+#include <memory>
 
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL
@@ -1285,23 +1286,42 @@ namespace li {
 template <typename V>
 struct type_hashmap {
 
-  template <typename... T> V& operator()(T&&...)
+  template <typename E, typename F> E& get_cache_entry(int& hash, F)
   {
-    static int hash = -1;
+    // Init hash if needed.
     if (hash == -1)
     {
       std::lock_guard lock(mutex_);
       if (hash == -1)
         hash = counter_++;
     }
-    values_.resize(hash+1);
-    return values_[hash];
+    // Init cache if miss.
+    if (hash >= values_.size() or !values_[hash].has_value())
+    {
+      if (values_.size() < hash + 1)
+        values_.resize(hash+1);
+      values_[hash] = E();
+    }
+
+    // Return existing cache entry.
+    return std::any_cast<E&>(values_[hash]);
+  }
+  template <typename K, typename F> V& operator()(F f, K key)
+  {
+    static int hash = -1;
+    return this->template get_cache_entry<std::unordered_map<K, V>>(hash, f)[key];
+  }
+
+  template <typename F> V& operator()(F f)
+  {
+    static int hash = -1;
+    return this->template get_cache_entry<V>(hash, f);
   }
 
 private:
   static std::mutex mutex_;
   static int counter_;
-  std::vector<V> values_;
+  std::vector<std::any> values_;
 };
 
 template <typename V>
@@ -1438,13 +1458,17 @@ struct pgsql_connection {
     }
   }
 
-  template <typename F>
-  pgsql_statement<Y> cached_statement(F f) {
-    if (data_->statements_hashmap(f).get() == nullptr)
-      return prepare(f());
+  template <typename F, typename... K>
+  pgsql_statement<Y> cached_statement(F f, K... keys) {
+    if (data_->statements_hashmap(f, keys...).get() == nullptr)
+    {
+      pgsql_statement<Y> res = prepare(f());
+      data_->statements_hashmap(f, keys...) = res.data_.shared_from_this();
+      return res;
+    }
     else
       return pgsql_statement<Y>{connection_, yield_, 
-                               *data_->statements_hashmap(f),
+                               *data_->statements_hashmap(f, keys...),
                                connection_status_};
   }
 

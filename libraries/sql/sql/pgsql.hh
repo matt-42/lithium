@@ -149,13 +149,17 @@ struct pgsql_connection {
     }
   }
 
-  template <typename F>
-  pgsql_statement<Y> cached_statement(F f) {
-    if (data_->statements_hashmap(f).get() == nullptr)
-      return prepare(f());
+  template <typename F, typename... K>
+  pgsql_statement<Y> cached_statement(F f, K... keys) {
+    if (data_->statements_hashmap(f, keys...).get() == nullptr)
+    {
+      pgsql_statement<Y> res = prepare(f());
+      data_->statements_hashmap(f, keys...) = res.data_.shared_from_this();
+      return res;
+    }
     else
       return pgsql_statement<Y>{connection_, yield_, 
-                               *data_->statements_hashmap(f),
+                               *data_->statements_hashmap(f, keys...),
                                connection_status_};
   }
 
