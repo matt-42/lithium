@@ -20,20 +20,36 @@ also server <-> database (except SQLite which does not use the network).
 
 Only linux is supported (epoll), linux and windows may be supported later.
 
-# Quick tour
+# Installation / Compilation
 
-## Hello world
+The quickest way to start developing an api is to use the single header distribution:
+```sh
+wget https://raw.githubusercontent.com/matt-42/lithium/master/single_headers/lithium_http_backend.hh
+```
+
+Write an api:
 ```c++
-// Build an api.
-http_api api;
+// hello_lithium.cc
+#include "lithium_http_backend.hh"
 
-// Define a HTTP GET endpoint.
-api.get("/hello_world") = [&](http_request& request, http_response& response) {
-  response.write("hello world.");
-};
+int main() {
+  // Build an api.
+  http_api api;
 
-//Start a http server.
-http_serve(my_api, 12345);
+  // Define a HTTP GET endpoint.
+  api.get("/hello_world") = [&](http_request& request, http_response& response) {
+    response.write("hello world.");
+  };
+
+  //Start a http server.
+  http_serve(my_api, 12345);
+}
+```
+
+Compile it and run it.
+```
+g++ -std=c++17 ./hello_lithium.cc -lpthread -lboost_context -o ./hello_lithium
+./hello_lithium
 ```
 
 ## Request parameters
@@ -92,6 +108,11 @@ api.get("/unauthorized") = [&](http_request& request, http_response& response) {
 ```
 
 ## SQL Databases
+
+The sqlite, mysql, postgresql single headers library are located here:
+https://github.com/matt-42/lithium/tree/master/single_headers
+
+Download the one suited for your project and ```#include``` it in your code.
 
 ```c++
 // Declare a sqlite database.
