@@ -31,6 +31,17 @@ struct output_buffer
   {
   }
 
+  output_buffer(output_buffer&& o)
+    : buffer_(o.buffer_),
+      own_buffer_(o.own_buffer_),
+      cursor_(o.cursor_),
+      end_(o.end_),
+      flush_(o.flush_)
+  {
+    o.buffer_ = nullptr;
+    o.own_buffer_ = false;
+  }
+
   output_buffer(int capacity, 
                 std::function<void(const char*, int)> flush_ = [] (const char*, int) {})
     : buffer_(new char[capacity]),
@@ -42,10 +53,6 @@ struct output_buffer
     assert(buffer_);
   }
 
-  ~output_buffer() {
-    if (own_buffer_)
-      delete[] buffer_;
-  }
   output_buffer(void* buffer, int capacity, 
                 std::function<void(const char*, int)> flush_ = [] (const char*, int) {})
     : buffer_((char*)buffer),
@@ -55,6 +62,23 @@ struct output_buffer
       flush_(flush_)
   {
     assert(buffer_);
+  }
+
+  ~output_buffer() {
+    if (own_buffer_)
+      delete[] buffer_;
+  }
+  
+  output_buffer& operator=(output_buffer&& o)
+  {
+    buffer_ = o.buffer_;
+    own_buffer_ = o.own_buffer_;
+    cursor_ = o.cursor_;
+    end_ = o.end_;
+    flush_ = o.flush_;
+    o.buffer_ = nullptr;
+    o.own_buffer_ = false;
+    return *this;
   }
 
   void reset() 
@@ -152,8 +176,7 @@ struct read_buffer
   int end = 0; // Index of the last read character
   
   read_buffer()
-    : buffer_(50 * 1024),
-      //buffer_(500),
+    : buffer_(5 * 1024),
       cursor(0),
       end(0)
   {}
@@ -317,38 +340,23 @@ struct http_ctx {
       read(_read),
       write(_write),
       listen_to_new_fd(_listen_to_new_fd),
-      unsubscribe(_unsubscribe),
-      output_buffer_space(new char[100 * 1024]),
-      json_buffer(new char[100 * 1024])
+      unsubscribe(_unsubscribe)
   {
     get_parameters_map.reserve(10);
     response_headers.reserve(20);
 
-    output_stream = output_buffer(output_buffer_space, 100 * 1024, 
+    output_stream = output_buffer(50 * 1024, 
                                   [&] (const char* d, int s) { 
-      // iovec iov[1];
-      // iov[0].iov_base = (char*)d;
-      // iov[0].iov_len = s;
-
-      // int ret = 0;
-      // do
-      // {
-      //   ret = writev(socket_fd, iov, 1);
-      //   if (ret == -1 and errno == EAGAIN)
-      //     write(nullptr, 0);// yield
-      //   assert(ret < 0 or ret == s);
-      // } while (ret == -1 and errno == EAGAIN);
-      write(d, s); 
+                                        write(d, s); 
                                     });
 
-    headers_stream = output_buffer(headers_buffer_space, sizeof(headers_buffer_space),
+    headers_stream = output_buffer(1000,
                                   [&] (const char* d,int s) { output_stream << std::string_view(d, s); });
 
-    json_stream = output_buffer(json_buffer, 100 * 1024,
+    json_stream = output_buffer(50 * 1024,
                                 [&] (const char* d,int s) { output_stream << std::string_view(d, s); });
 
   }
-  ~http_ctx() { delete[] output_buffer_space; delete[] json_buffer; }
 
   http_ctx& operator=(const http_ctx&) = delete;
   http_ctx(const http_ctx&) = delete;
@@ -895,14 +903,11 @@ struct http_ctx {
   std::function<bool(const char*, int)> write;
   std::function<int(char*, int)> read;
   std::function<void(int)> listen_to_new_fd, unsubscribe;
-  char headers_buffer_space[1000];
+
   output_buffer headers_stream;
   bool response_written_ = false;
 
-  //char output_buffer_space[4*1024];
-  char* output_buffer_space;
   output_buffer output_stream;
-  char* json_buffer;
   output_buffer json_stream;
 };  
 
