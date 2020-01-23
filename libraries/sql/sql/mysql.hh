@@ -77,7 +77,8 @@ struct mysql_connection {
         con_(data->connection){
 
     connection_status_ = std::shared_ptr<int>(new int(0), [=](int* p) mutable { 
-      if (*p) 
+
+      if (*p or (mysql_connection_pool.size() + mysql_connection_async_pool.size())  > max_mysql_connections_per_thread)
       {
       //  if constexpr (!B::is_blocking)
       //    mysql_wrapper.yield_.unsubscribe(mysql_get_socket(data->connection));

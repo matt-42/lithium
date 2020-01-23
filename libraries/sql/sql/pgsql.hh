@@ -90,7 +90,7 @@ struct pgsql_connection {
         connection_(data->connection){
 
     connection_status_ = std::shared_ptr<int>(new int(0), [data, yield](int* p) mutable {
-      if (*p) 
+      if (*p or pgsql_connection_pool.size() > max_pgsql_connections_per_thread)
       {
         assert(total_number_of_pgsql_connections >= 1);
         //yield.unsubscribe(data->fd);
