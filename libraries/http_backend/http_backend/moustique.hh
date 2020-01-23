@@ -205,7 +205,7 @@ int moustique_listen_fd(int listen_fd,
     {
 
       //std::cout << "before wait" << std::endl;
-      int n_events = epoll_wait (epoll_fd, events, MAXEVENTS, 100);
+      int n_events = epoll_wait (epoll_fd, events, MAXEVENTS, 10);
       //std::cout << "end wait" << std::endl;
       if (moustique_exit_request) 
         break;
@@ -256,7 +256,7 @@ int moustique_listen_fd(int listen_fd,
             // Subscribe epoll to the socket file descriptor.
             if(-1 == fcntl(infd, F_SETFL, fcntl(infd, F_GETFL, 0) | O_NONBLOCK))
               continue;
-            epoll_ctl(infd, EPOLLIN | EPOLLOUT | EPOLLET | EPOLLRDHUP);
+            epoll_ctl(infd, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET );
 
             // Function to subscribe to other files descriptor.
             auto listen_to_new_fd = [original_fd=infd,epoll_ctl,&secondary_map] (int new_fd) {
