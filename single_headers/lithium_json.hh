@@ -7,18 +7,18 @@
 
 #pragma once
 
-#include <variant>
-#include <cmath>
-#include <cassert>
 #include <sstream>
+#include <string>
+#include <tuple>
+#include <vector>
+#include <cmath>
+#include <cstring>
+#include <utility>
+#include <variant>
+#include <cassert>
 #include <optional>
 #include <string_view>
-#include <vector>
-#include <cstring>
 #include <memory>
-#include <string>
-#include <utility>
-#include <tuple>
 #include <functional>
 
 #if defined(_MSC_VER)

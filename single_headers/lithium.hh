@@ -7,50 +7,50 @@
 
 #pragma once
 
-#include <chrono>
-#include <cmath>
-#include <netdb.h>
-#include <unordered_map>
-#include <atomic>
-#include <stdlib.h>
-#include <tuple>
-#include <sstream>
-#include <sys/epoll.h>
-#include <iostream>
-#include <string_view>
-#include <sys/uio.h>
 #include <stdio.h>
-#include <mutex>
-#include <string>
-#include <utility>
-#include <netinet/tcp.h>
-#include <set>
-#include <unistd.h>
-#include <sys/stat.h>
-#include <sys/mman.h>
-#include <sqlite3.h>
-#include <random>
 #include <errno.h>
-#include <fcntl.h>
-#include <any>
-#include <functional>
-#include <mysql.h>
-#include <signal.h>
-#include <variant>
-#include <sys/sendfile.h>
-#include <cassert>
-#include <sys/socket.h>
-#include <optional>
-#include <deque>
-#include <string.h>
-#include <vector>
+#include <sqlite3.h>
+#include <sys/epoll.h>
+#include <sys/stat.h>
 #include <cstring>
-#include <map>
+#include <sys/socket.h>
+#include <sys/sendfile.h>
+#include <fcntl.h>
+#include <chrono>
+#include <netinet/tcp.h>
+#include <sys/mman.h>
+#include <unistd.h>
+#include <string>
+#include <unordered_map>
+#include <mysql.h>
+#include <stdlib.h>
+#include <random>
+#include <netdb.h>
+#include <string_view>
+#include <string.h>
 #include <memory>
 #include <thread>
+#include <sstream>
+#include <functional>
+#include <signal.h>
+#include <iostream>
+#include <any>
+#include <mutex>
+#include <utility>
+#include <atomic>
+#include <cassert>
+#include <optional>
+#include <variant>
 #include <boost/lexical_cast.hpp>
-#include <boost/context/continuation.hpp>
+#include <map>
+#include <sys/uio.h>
+#include <set>
+#include <tuple>
+#include <vector>
+#include <cmath>
 #include <sys/types.h>
+#include <deque>
+#include <boost/context/continuation.hpp>
 
 #if defined(_MSC_VER)
 #include <io.h>
@@ -6461,8 +6461,8 @@ private:
   std::chrono::time_point<std::chrono::high_resolution_clock> start_, end_;
 };
 
-void error(const char* msg) {
-  perror(msg);
+void error(std::string msg) {
+  perror(msg.c_str());
   exit(0);
 }
 
@@ -6501,13 +6501,7 @@ float http_benchmark(int NCONNECTIONS, int NTHREADS, int duration_in_ms, int por
     bcopy((char*)server->h_addr, (char*)&serveraddr.sin_addr.s_addr, server->h_length);
     serveraddr.sin_port = htons(portno);
 
-    /* connect: create a connection with the server */
-    for (int i = 0; i < NCONNECTIONS; i++)
-      if (connect(sockets[i], (const sockaddr*)&serveraddr, sizeof(serveraddr)) < 0)
-        http_benchmark_impl::error("ERROR connecting");
 
-    for (int i = 0; i < NCONNECTIONS; i++)
-      fcntl(sockets[i], F_SETFL, fcntl(sockets[i], F_GETFL, 0) | O_NONBLOCK);
 
     int epoll_fd = epoll_create1(0);
 
@@ -6519,8 +6513,35 @@ float http_benchmark(int NCONNECTIONS, int NTHREADS, int duration_in_ms, int por
       return true;
     };
 
+    // Set sockets non blocking.
+    for (int i = 0; i < NCONNECTIONS; i++)
+      fcntl(sockets[i], F_SETFL, fcntl(sockets[i], F_GETFL, 0) | O_NONBLOCK);
+
     for (int i = 0; i < NCONNECTIONS; i++)
       epoll_ctl(sockets[i], EPOLL_CTL_ADD, EPOLLIN | EPOLLOUT | EPOLLET);
+
+    /* connect: create a connection with the server */
+    std::vector<bool> opened(NCONNECTIONS, false);
+    while (true)
+    {
+      for (int i = 0; i < NCONNECTIONS; i++)
+      {
+        if (opened[i]) continue;
+        int ret = connect(sockets[i], (const sockaddr*)&serveraddr, sizeof(serveraddr));
+        if (ret == 0)
+          opened[i] = true;
+        else if (errno == EINPROGRESS || errno == EALREADY)
+          continue;
+        else
+          http_benchmark_impl::error(std::string("Cannot connect to server: ") + strerror(errno));
+      }
+
+      int nopened = 0;
+      for (int i = 0; i < NCONNECTIONS; i++)
+        nopened += opened[i];
+      if (nopened == NCONNECTIONS)
+        break;
+    }
 
     const int MAXEVENTS = 64;
     std::vector<ctx::continuation> fibers;
