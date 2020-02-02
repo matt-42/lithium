@@ -7,50 +7,50 @@
 
 #pragma once
 
-#include <stdio.h>
-#include <errno.h>
+#include <unordered_map>
 #include <sqlite3.h>
+#include <chrono>
+#include <sstream>
+#include <optional>
+#include <netinet/tcp.h>
+#include <atomic>
 #include <sys/epoll.h>
-#include <sys/stat.h>
+#include <unistd.h>
+#include <utility>
+#include <mutex>
 #include <cstring>
+#include <iostream>
+#include <signal.h>
+#include <string_view>
+#include <cmath>
 #include <sys/socket.h>
+#include <boost/context/continuation.hpp>
+#include <random>
+#include <tuple>
+#include <any>
+#include <string>
+#include <deque>
+#include <variant>
+#include <memory>
+#include <functional>
+#include <stdlib.h>
+#include <set>
+#include <map>
+#include <netdb.h>
+#include <sys/uio.h>
+#include <sys/stat.h>
+#include <mysql.h>
 #include <sys/sendfile.h>
 #include <fcntl.h>
-#include <chrono>
-#include <netinet/tcp.h>
-#include <sys/mman.h>
-#include <unistd.h>
-#include <string>
-#include <unordered_map>
-#include <mysql.h>
-#include <stdlib.h>
-#include <random>
-#include <netdb.h>
-#include <string_view>
-#include <string.h>
-#include <memory>
-#include <thread>
-#include <sstream>
-#include <functional>
-#include <signal.h>
-#include <iostream>
-#include <any>
-#include <mutex>
-#include <utility>
-#include <atomic>
 #include <cassert>
-#include <optional>
-#include <variant>
 #include <boost/lexical_cast.hpp>
-#include <map>
-#include <sys/uio.h>
-#include <set>
-#include <tuple>
 #include <vector>
-#include <cmath>
+#include <string.h>
+#include <errno.h>
+#include <stdio.h>
 #include <sys/types.h>
-#include <deque>
-#include <boost/context/continuation.hpp>
+#include <sys/mman.h>
+#include <thread>
 
 #if defined(_MSC_VER)
 #include <io.h>
@@ -6591,8 +6591,6 @@ float http_benchmark(int NCONNECTIONS, int NTHREADS, int duration_in_ms, int por
       int n_events = epoll_wait(epoll_fd, events, MAXEVENTS, 1);
       for (int i = 0; i < n_events; i++) {
         if ((events[i].events & EPOLLERR) || (events[i].events & EPOLLHUP)) {
-          close(events[i].data.fd);
-          fibers[events[i].data.fd] = fibers[events[i].data.fd].resume();
         } else // Data available on existing sockets. Wake up the fiber associated with
                // events[i].data.fd.
           fibers[events[i].data.fd] = fibers[events[i].data.fd].resume();

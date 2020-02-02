@@ -163,8 +163,6 @@ float http_benchmark(int NCONNECTIONS, int NTHREADS, int duration_in_ms, int por
       int n_events = epoll_wait(epoll_fd, events, MAXEVENTS, 1);
       for (int i = 0; i < n_events; i++) {
         if ((events[i].events & EPOLLERR) || (events[i].events & EPOLLHUP)) {
-          close(events[i].data.fd);
-          fibers[events[i].data.fd] = fibers[events[i].data.fd].resume();
         } else // Data available on existing sockets. Wake up the fiber associated with
                // events[i].data.fd.
           fibers[events[i].data.fd] = fibers[events[i].data.fd].resume();

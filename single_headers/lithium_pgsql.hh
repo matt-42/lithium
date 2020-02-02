@@ -7,28 +7,28 @@
 
 #pragma once
 
+#include <unordered_map>
+#include <sstream>
+#include <optional>
+#include <atomic>
+#include <unistd.h>
 #include <sys/epoll.h>
+#include <utility>
+#include <mutex>
 #include <cstring>
+#include <iostream>
+#include <tuple>
+#include <any>
+#include <string>
+#include <deque>
+#include <memory>
+#include <map>
+#include <cassert>
+#include <boost/lexical_cast.hpp>
+#include <vector>
 #include <libpq-fe.h>
 #include <arpa/inet.h>
-#include <unistd.h>
-#include <string>
-#include <unordered_map>
-#include <memory>
 #include <thread>
-#include <sstream>
-#include <iostream>
-#include <any>
-#include <atomic>
-#include <mutex>
-#include <utility>
-#include <cassert>
-#include <optional>
-#include <boost/lexical_cast.hpp>
-#include <map>
-#include <tuple>
-#include <vector>
-#include <deque>
 
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL
@@ -1421,6 +1421,21 @@ struct pgsql_connection {
     });
   }
 
+  ~pgsql_connection() {
+    if (connection_status_ && *connection_status_ == 0)
+    {
+      // flush results if needed.
+      while(PGresult* ret = PQgetResult(connection_))
+      {
+        if (PQresultStatus(ret) == PGRES_FATAL_ERROR)
+          return;
+        if (PQresultStatus(ret) == PGRES_NONFATAL_ERROR)
+          std::cerr << "Postgresql non fatal error: " << PQerrorMessage(connection_) << std::endl;
+        PQclear(ret);
+      }
+    }
+  }
+
   //FIXME long long int last_insert_rowid() { return pgsql_insert_id(connection_); }
 
   //pgsql_statement<Y> operator()(const std::string& rq) { return prepare(rq)(); }
@@ -1662,7 +1677,7 @@ struct pgsql_database : std::enable_shared_from_this<pgsql_database> {
     assert(data);
     return pgsql_connection(fiber, data);
   }
-  
+
   struct active_yield {
     typedef std::runtime_error exception_type;
     void epoll_add(int, int) {}
