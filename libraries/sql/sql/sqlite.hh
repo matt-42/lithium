@@ -330,7 +330,7 @@ struct sqlite_database {
   }
 
   template <typename Y>
-  inline sqlite_connection connect(Y y) { return con_; }
+  inline sqlite_connection connect(Y& y) { return con_; }
   inline sqlite_connection connect() { return con_; }
 
   sqlite_connection con_;

@@ -21,8 +21,8 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
-
 #include <boost/context/continuation.hpp>
+
 #include <thread>
 #include <vector>
 
@@ -208,7 +208,7 @@ template <typename H> int moustique_listen_fd(int listen_fd, int nthreads, H con
       // }
 
       // std::cout << "before wait" << std::endl;
-      int n_events = epoll_wait(epoll_fd, events, MAXEVENTS, 1);
+      int n_events = epoll_wait(epoll_fd, events, MAXEVENTS, 2000);
       // std::cout << "end wait" << std::endl;
       if (moustique_exit_request)
         break;
@@ -220,6 +220,8 @@ template <typename H> int moustique_listen_fd(int listen_fd, int nthreads, H con
       
       for (int i = 0; i < n_events; i++)
       {
+        // std::cout << " WAKEUP " << events[i].data.fd << std::endl;
+
         if ((events[i].events & EPOLLERR) || (events[i].events & EPOLLHUP) ||
             (events[i].events & EPOLLRDHUP)) {
           ctx::continuation& fiber = fiber_from_fd(events[i].data.fd);
@@ -256,6 +258,7 @@ template <typename H> int moustique_listen_fd(int listen_fd, int nthreads, H con
 
             // Function to subscribe to other files descriptor.
             auto listen_to_new_fd = [epoll_fd, &fd_to_fiber_idx, fiber_idx](int new_fd, int flags = EPOLLET) {
+              // std::cout << " SUBSCRIBE " << new_fd << std::endl;
               // Listen to the fd if not already done before.
               epoll_ctl(epoll_fd, new_fd, EPOLL_CTL_ADD, EPOLLIN | EPOLLOUT | EPOLLRDHUP | flags);
               // Associate new_fd to the fiber.

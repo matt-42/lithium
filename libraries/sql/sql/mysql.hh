@@ -13,7 +13,7 @@
 #include <thread>
 #include <unordered_map>
 #include <boost/lexical_cast.hpp>
-
+#include <sys/epoll.h>
 #include <mysql.h>
 
 #include <li/callable_traits/callable_traits.hh>
@@ -196,7 +196,7 @@ struct mysql_database : std::enable_shared_from_this<mysql_database> {
   ~mysql_database() { mysql_library_end(); }
 
   template <typename Y>
-  inline mysql_connection<mysql_functions_non_blocking<Y>> connect(Y yield) {
+  inline mysql_connection<mysql_functions_non_blocking<Y>> connect(Y& fiber) {
 
     //std::cout << "nconnection " << total_number_of_mysql_connections << std::endl;
     int ntry = 0;
@@ -210,7 +210,7 @@ struct mysql_database : std::enable_shared_from_this<mysql_database> {
       if (!mysql_connection_async_pool.empty()) {
         data = mysql_connection_async_pool.back();
         mysql_connection_async_pool.pop_back();
-        yield.listen_to_fd(mysql_get_socket(data->connection));
+        fiber.epoll_add(mysql_get_socket(data->connection), EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
       }
       else
       {
@@ -218,7 +218,7 @@ struct mysql_database : std::enable_shared_from_this<mysql_database> {
         if (total_number_of_mysql_connections > max_mysql_connections_per_thread)
         {
           //std::cout << "Waiting for a free mysql connection..." << std::endl;
-          yield();
+          fiber.yield();
           continue;
         }
         total_number_of_mysql_connections++;
@@ -244,14 +244,14 @@ struct mysql_database : std::enable_shared_from_this<mysql_database> {
             mysql_close(mysql);
             total_number_of_mysql_connections--;
             //usleep(1e6);
-            yield();
+            fiber.yield();
             continue;
           }
         }
         if (status)
-          yield.listen_to_fd(mysql_fd);
+          fiber.epoll_add(mysql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
         while (status) try {
-          yield();
+          fiber.yield();
           status = mysql_real_connect_cont(&connection, mysql, status);
         }  catch (typename Y::exception_type& e) {
           // Yield thrown a exception (probably because a closed connection).
@@ -265,7 +265,7 @@ struct mysql_database : std::enable_shared_from_this<mysql_database> {
         {
           //std::cout << "Error in mysql_real_connect_cont" << std::endl;
           total_number_of_mysql_connections--;
-          yield();
+          fiber.yield();
           continue;
         }
           //throw std::runtime_error("Cannot connect to the database");
@@ -274,7 +274,7 @@ struct mysql_database : std::enable_shared_from_this<mysql_database> {
       }
     }
     assert(data);
-    return std::move(mysql_connection(mysql_functions_non_blocking<decltype(yield)>{yield}, data));
+    return std::move(mysql_connection(mysql_functions_non_blocking<Y>{fiber}, data));
   }
 
   inline mysql_connection<mysql_functions_blocking> connect() {

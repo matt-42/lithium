@@ -7,27 +7,28 @@
 
 #pragma once
 
-#include <string>
-#include <any>
-#include <thread>
-#include <iostream>
-#include <sstream>
-#include <optional>
-#include <vector>
-#include <deque>
-#include <mutex>
-#include <map>
-#include <cstring>
 #include <unordered_map>
-#include <boost/lexical_cast.hpp>
-#include <libpq-fe.h>
-#include <utility>
 #include <atomic>
 #include <tuple>
+#include <sstream>
+#include <sys/epoll.h>
+#include <iostream>
+#include <mutex>
+#include <string>
+#include <utility>
 #include <unistd.h>
-#include <cassert>
+#include <libpq-fe.h>
 #include <arpa/inet.h>
+#include <any>
+#include <cassert>
+#include <optional>
+#include <deque>
+#include <map>
+#include <cstring>
+#include <thread>
 #include <memory>
+#include <boost/lexical_cast.hpp>
+#include <vector>
 
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL
@@ -917,6 +918,12 @@ struct pgsql_statement_data : std::enable_shared_from_this<pgsql_statement_data>
 template <typename Y>
 struct pgsql_statement {
 
+  PGconn* connection_;
+  Y& fiber_;
+  pgsql_statement_data& data_;
+  std::shared_ptr<int> connection_status_;
+  int last_insert_id_ = -1;
+
   // Wait for the next result.
   PGresult* wait_for_next_result() {
     //std::cout << "WAIT ======================" << std::endl;
@@ -929,7 +936,7 @@ struct pgsql_statement {
       {
         //std::cout << "isbusy" << std::endl;
         try {
-          yield_();
+          fiber_.yield();
         } catch (typename Y::exception_type& e) {
           // Yield thrown a exception (probably because a closed connection).
           // Mark the connection as broken because it is left in a undefined state.
@@ -1072,7 +1079,9 @@ struct pgsql_statement {
       i++;
     });
 
+    // std::cout << "flush" << std::endl;
     flush_results();
+    // std::cout << "flushed" << std::endl;
     // std::cout << "sending " << data_.stmt_name.c_str() << " with " << nparams << " params" << std::endl;
     if (!PQsendQueryPrepared(connection_, data_.stmt_name.c_str(), nparams, values, lengths, binary, 1))
       throw std::runtime_error(std::string("Postresql error:") + PQerrorMessage(connection_));
@@ -1265,12 +1274,6 @@ struct pgsql_statement {
     while (PGresult* res = wait_for_next_result())
       PQclear(res);
   }
-
-  PGconn* connection_;
-  Y& yield_;
-  pgsql_statement_data& data_;
-  std::shared_ptr<int> connection_status_;
-  int last_insert_id_ = -1;
 };
 
 }
@@ -1388,18 +1391,24 @@ void pq_wait(Y& yield, PGconn* con)
 template <typename Y>
 struct pgsql_connection {
 
+  Y& fiber_;
+  std::shared_ptr<pgsql_connection_data> data_;
+  std::unordered_map<std::string, std::shared_ptr<pgsql_statement_data>>& stm_cache_;
+  PGconn* connection_;
+  std::shared_ptr<int> connection_status_;
+
   typedef pgsql_tag db_tag;
 
   inline pgsql_connection(const pgsql_connection&) = delete;
   inline pgsql_connection& operator=(const pgsql_connection&) = delete;
   inline pgsql_connection(pgsql_connection&&) = default;
   
-  inline pgsql_connection(Y yield, std::shared_ptr<li::pgsql_connection_data> data)
-      : yield_(yield), data_(data), stm_cache_(data->statements),
+  inline pgsql_connection(Y& fiber, std::shared_ptr<li::pgsql_connection_data> data)
+      : fiber_(fiber), data_(data), stm_cache_(data->statements),
         connection_(data->connection){
 
-    connection_status_ = std::shared_ptr<int>(new int(0), [data, yield](int* p) mutable {
-      if (*p) 
+    connection_status_ = std::shared_ptr<int>(new int(0), [data](int* p) mutable {
+      if (*p or pgsql_connection_pool.size() > max_pgsql_connections_per_thread)
       {
         assert(total_number_of_pgsql_connections >= 1);
         //yield.unsubscribe(data->fd);
@@ -1445,7 +1454,7 @@ struct pgsql_connection {
       if (PQisBusy(connection_))
       {
         try {
-          yield_();
+          fiber_.yield();
         } catch (typename Y::exception_type& e) {
           // Yield thrown a exception (probably because a closed connection).
           // Mark the connection as broken because it is left in a undefined state.
@@ -1467,7 +1476,7 @@ struct pgsql_connection {
       return res;
     }
     else
-      return pgsql_statement<Y>{connection_, yield_, 
+      return pgsql_statement<Y>{connection_, fiber_, 
                                *data_->statements_hashmap(f, keys...),
                                connection_status_};
   }
@@ -1478,7 +1487,7 @@ struct pgsql_connection {
     {
       //pgsql_wrapper_.pgsql_stmt_free_result(it->second->stmt_);
       //pgsql_wrapper_.pgsql_stmt_reset(it->second->stmt_);
-      return pgsql_statement<Y>{connection_, yield_, *it->second, connection_status_};
+      return pgsql_statement<Y>{connection_, fiber_, *it->second, connection_status_};
     }
     std::stringstream stmt_name;
     stmt_name << (void*)connection_ << stm_cache_.size();
@@ -1502,7 +1511,7 @@ struct pgsql_connection {
     //pq_wait(yield_, connection_);
 
     auto pair = stm_cache_.emplace(rq, std::make_shared<pgsql_statement_data>(stmt_name.str()));
-    return pgsql_statement<Y>{connection_, yield_, *pair.first->second, connection_status_};
+    return pgsql_statement<Y>{connection_, fiber_, *pair.first->second, connection_status_};
   }
 
   template <typename T>
@@ -1522,15 +1531,15 @@ struct pgsql_connection {
     return ss.str();
   }
 
-  Y yield_;
-  std::shared_ptr<pgsql_connection_data> data_;
-  std::unordered_map<std::string, std::shared_ptr<pgsql_statement_data>>& stm_cache_;
-  PGconn* connection_;
-  std::shared_ptr<int> connection_status_;
 };
 
 
 struct pgsql_database : std::enable_shared_from_this<pgsql_database> {
+
+  std::mutex mutex_;
+  std::string host_, user_, passwd_, database_;
+  unsigned int port_;
+  std::string character_set_;
 
   template <typename... O> inline pgsql_database(O... opts) {
 
@@ -1554,7 +1563,7 @@ struct pgsql_database : std::enable_shared_from_this<pgsql_database> {
   }
 
   template <typename Y>
-  inline pgsql_connection<Y> connect(Y yield) {
+  inline pgsql_connection<Y> connect(Y& fiber) {
 
     //std::cout << "nconnection " << total_number_of_pgsql_connections << std::endl;
     std::shared_ptr<pgsql_connection_data> data = nullptr;
@@ -1564,7 +1573,7 @@ struct pgsql_database : std::enable_shared_from_this<pgsql_database> {
       if (!pgsql_connection_pool.empty()) {
         data = pgsql_connection_pool.back();
         pgsql_connection_pool.pop_back();
-        yield.listen_to_fd(data->fd);
+        fiber.epoll_add(data->fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
       }
       else
       {
@@ -1572,7 +1581,7 @@ struct pgsql_database : std::enable_shared_from_this<pgsql_database> {
         if (total_number_of_pgsql_connections >= max_pgsql_connections_per_thread)
         {
           //std::cout << "Waiting for a free pgsql connection..." << std::endl;
-          yield();
+          fiber.yield();
           continue;
         }
         total_number_of_pgsql_connections++;
@@ -1586,7 +1595,7 @@ struct pgsql_database : std::enable_shared_from_this<pgsql_database> {
         {
           std::cerr << "Warning: PQconnectStart returned null." << std::endl;
           total_number_of_pgsql_connections--;
-          yield();
+          fiber.yield();
           continue;
         }
         if (PQsetnonblocking(connection, 1) == -1)
@@ -1594,9 +1603,12 @@ struct pgsql_database : std::enable_shared_from_this<pgsql_database> {
           std::cerr << "Warning: PQsetnonblocking returned -1: " << PQerrorMessage(connection) << std::endl;
           PQfinish(connection);
           total_number_of_pgsql_connections--;
-          yield();
+          fiber.yield();
           continue;
         }
+
+
+        int status = PQconnectPoll(connection);
 
         pgsql_fd = PQsocket(connection);
         if (pgsql_fd == -1)
@@ -1605,18 +1617,22 @@ struct pgsql_database : std::enable_shared_from_this<pgsql_database> {
           // If PQsocket return -1, retry later.
           PQfinish(connection);
           total_number_of_pgsql_connections--;
-          yield();
+          fiber.yield();
           continue;
         }
-        yield.listen_to_fd(pgsql_fd);
-
-        int status = PQconnectPoll(connection);
+        fiber.epoll_add(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP);
 
         try
         {
           while (status != PGRES_POLLING_FAILED and status != PGRES_POLLING_OK)
           {
-            yield();
+            int new_pgsql_fd = PQsocket(connection);
+            if (new_pgsql_fd != pgsql_fd)
+            {
+              pgsql_fd = new_pgsql_fd;
+              fiber.epoll_add(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP);
+            }
+            fiber.yield();
             status = PQconnectPoll(connection);
           }
         } catch (typename Y::exception_type& e) {
@@ -1625,7 +1641,8 @@ struct pgsql_database : std::enable_shared_from_this<pgsql_database> {
           PQfinish(connection);
           throw std::move(e);
         }
-        //std::cout << "CONNECT " << total_number_of_pgsql_connections << std::endl;
+        // std::cout << "CONNECTED " << std::endl;
+        fiber.epoll_mod(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
         if (status != PGRES_POLLING_OK)
         {
           std::cerr << "Warning: cannot connect to the postgresql server " << host_  << ": " << PQerrorMessage(connection) << std::endl;
@@ -1633,7 +1650,7 @@ struct pgsql_database : std::enable_shared_from_this<pgsql_database> {
           std::cerr<< "Maximum is " << max_pgsql_connections_per_thread <<  std::endl;
           total_number_of_pgsql_connections--;
           PQfinish(connection);
-          yield();
+          fiber.yield();
           continue;
         }
 
@@ -1643,23 +1660,19 @@ struct pgsql_database : std::enable_shared_from_this<pgsql_database> {
       }
     }
     assert(data);
-    return pgsql_connection(yield, data);
+    return pgsql_connection(fiber, data);
   }
+  
   struct active_yield {
     typedef std::runtime_error exception_type;
-    void operator()() {}
-    void listen_to_fd(int) {}
-    void unsubscribe(int) {}
+    void epoll_add(int, int) {}
+    void epoll_mod(int, int) {}
+    void yield() {}
   };
 
   inline pgsql_connection<active_yield> connect() {
-    return connect(active_yield{});
+    return connect(*(active_yield*)0); // hack to make a reference to active_yield that holds no data.
   }
-
-  std::mutex mutex_;
-  std::string host_, user_, passwd_, database_;
-  unsigned int port_;
-  std::string character_set_;
 };
 
 

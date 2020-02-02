@@ -56,7 +56,7 @@ template <typename Y> struct mysql_functions_non_blocking {
     bool error = false;
     while (status) {
       try {
-        yield_();
+        fiber_.yield();
       } catch (typename Y::exception_type& e) {
         // Yield thrown a exception (probably because a closed connection).
         // Mark the connection as broken because it is left in a undefined state.
@@ -92,7 +92,7 @@ template <typename Y> struct mysql_functions_non_blocking {
 
 #undef LI_MYSQL_NONBLOCKING_WRAPPER
 
-  Y yield_;
+  Y& fiber_;
 };
 
 } // namespace li

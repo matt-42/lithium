@@ -10,28 +10,15 @@
 
 #include <li/http_backend/error.hh>
 #include <li/http_backend/url_decode.hh>
-//#include <li/http_backend/http_listen2.hh>
 
 #include <li/metamap/metamap.hh>
 
 
 namespace li {
 
-template <typename C>
-struct async_yield
-{
-  typedef fiber_exception exception_type;
-  void operator()() { 
-    ctx.write(nullptr, 0);
-     }
-  void listen_to_fd(int fd) { ctx.listen_to_new_fd(fd); }
-  void unsubscribe(int fd) { ctx.unsubscribe(fd); }
-  C& ctx;
-};
-
 struct http_request {
 
-  http_request(http_async_impl::http_ctx& http_ctx) : http_ctx(http_ctx), yield{http_ctx} {}
+  http_request(http_async_impl::http_ctx& http_ctx) : http_ctx(http_ctx), fiber(http_ctx.fiber) {}
   
   inline std::string_view header(const char* k) const;
   inline std::string_view cookie(const char* k) const;
@@ -55,7 +42,7 @@ struct http_request {
   template <typename O> auto post_parameters(O& res) const;
 
   http_async_impl::http_ctx& http_ctx;
-  async_yield<http_async_impl::http_ctx> yield;
+  async_fiber_context& fiber;
   std::string url_spec;
 };
 

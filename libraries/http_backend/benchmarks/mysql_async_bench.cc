@@ -107,7 +107,7 @@ int main(int argc, char* argv[]) {
       std::cout << "mysql_use_result() returns error" << std::endl;
 
     for (;;) {
-      //mysql_async_call(yield, mysql_fetch_row_start, mysql_fetch_row_cont, &row, res);
+      //mysql_async_call(fiber, mysql_fetch_row_start, mysql_fetch_row_cont, &row, res);
       status = mysql_fetch_row_start(&row, res);
       while (status) {
         // status= wait_for_mysql(mysql, status);

@@ -7,19 +7,19 @@
 
 #pragma once
 
-#include <mutex>
-#include <string>
-#include <sqlite3.h>
-#include <any>
-#include <cstring>
-#include <iostream>
-#include <sstream>
-#include <utility>
 #include <optional>
-#include <memory>
+#include <sstream>
+#include <sqlite3.h>
+#include <iostream>
 #include <vector>
-#include <tuple>
+#include <cstring>
+#include <mutex>
+#include <memory>
+#include <string>
+#include <utility>
 #include <unordered_map>
+#include <tuple>
+#include <any>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -1265,7 +1265,7 @@ struct sqlite_database {
   }
 
   template <typename Y>
-  inline sqlite_connection connect(Y y) { return con_; }
+  inline sqlite_connection connect(Y& y) { return con_; }
   inline sqlite_connection connect() { return con_; }
 
   sqlite_connection con_;

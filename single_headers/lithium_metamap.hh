@@ -7,9 +7,9 @@
 
 #pragma once
 
-#include <vector>
-#include <utility>
 #include <tuple>
+#include <utility>
+#include <vector>
 
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_METAMAP

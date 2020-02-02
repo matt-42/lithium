@@ -15,7 +15,7 @@
 
 #include <boost/lexical_cast.hpp>
 
-#include <li/http_backend/moustique.hh>
+#include <li/http_backend/tcp_server.hh>
 #include <li/http_backend/error.hh>
 #include <li/http_backend/symbols.hh>
 #include <li/http_backend/url_unescape.hh>
@@ -225,7 +225,7 @@ struct read_buffer
   // Read more data.
   // Return 0 on error.
   template <typename F>
-  int read_more(F&& read, int size = -1)
+  int read_more(F& fiber, int size = -1)
   {
     if (int(buffer_.size()) <= end - 100)
     {
@@ -241,7 +241,7 @@ struct read_buffer
     }
 
     if (size == -1) size = buffer_.size() - end;
-    int received = read(buffer_.data() + end, size);
+    int received = fiber.read(buffer_.data() + end, size);
 
     if (received == 0) return 0; // Socket closed, return.
     end = end + received;
@@ -254,14 +254,14 @@ struct read_buffer
     return received;
   }
   template <typename F>
-  std::string_view read_more_str(F&& read)
+  std::string_view read_more_str(F& fiber)
   {
-    int l = read_more(read);
+    int l = read_more(fiber);
     return std::string_view(buffer_.data() + end - l);
   }
 
   template <typename F>
-  std::string_view read_n(F&& read, const char* start, int size)
+  std::string_view read_n(F&& fiber, const char* start, int size)
   {
     int str_start = start - buffer_.data();
     int str_end = size + str_start;
@@ -270,13 +270,13 @@ struct read_buffer
       // Read more body on the socket.
       int current_size = end - str_start;
       while (current_size < size)
-          current_size += read_more(read);
+          current_size += read_more(fiber);
     }
     return std::string_view(start, size);
   }
   
   template <typename F>
-  std::string_view read_until(F&& read, const char*& start, char delimiter)
+  std::string_view read_until(F&& fiber, const char*& start, char delimiter)
   {
     const char* str_end = start;
 
@@ -287,7 +287,7 @@ struct read_buffer
 
       if (*str_end == delimiter) break;
       else {
-        if (!read_more(read)) break;
+        if (!read_more(fiber)) break;
       }
     }
 
@@ -331,23 +331,16 @@ struct read_buffer
 struct http_ctx {
 
   http_ctx(read_buffer& _rb,
-           std::function<int(char*, int)> _read,
-           std::function<bool(const char*, int)> _write,
-           std::function<void(int)> _listen_to_new_fd,
-           std::function<void(int)> _unsubscribe
-           )
+           async_fiber_context& _fiber)
     : rb(_rb),
-      read(_read),
-      write(_write),
-      listen_to_new_fd(_listen_to_new_fd),
-      unsubscribe(_unsubscribe)
+      fiber(_fiber)
   {
     get_parameters_map.reserve(10);
     response_headers.reserve(20);
 
     output_stream = output_buffer(50 * 1024, 
                                   [&] (const char* d, int s) { 
-                                        write(d, s); 
+                                        fiber.write(d, s); 
                                     });
 
     headers_stream = output_buffer(1000,
@@ -700,7 +693,7 @@ struct http_ctx {
       
       while (content_length_ > n_body_read)
       {
-        std::string_view part = rb.read_more_str(read);
+        std::string_view part = rb.read_more_str(fiber);
         int l = part.size();
         int bl = std::min(l, content_length_ - n_body_read);
         part = std::string_view(part.data(), bl);
@@ -746,7 +739,7 @@ struct http_ctx {
 
     if (content_length_)
     {
-      body_ = rb.read_n(read, body_start.data(), content_length_);
+      body_ = rb.read_n(fiber, body_start.data(), content_length_);
       body_end_ = body_.data() + content_length_;
     }
     else if (chunked_)
@@ -754,12 +747,12 @@ struct http_ctx {
       // Chunked decoding.
       char* out = (char*) body_start.data();
       const char* cur = body_start.data();
-      int chunked_size = strtol(rb.read_until(read, cur, '\r').data(), nullptr, 16);
+      int chunked_size = strtol(rb.read_until(fiber, cur, '\r').data(), nullptr, 16);
       cur++; // skip \n
       while (chunked_size > 0)
       {
         // Read chunk.
-        std::string_view chunk = rb.read_n(read, cur, chunked_size);
+        std::string_view chunk = rb.read_n(fiber, cur, chunked_size);
         cur += chunked_size + 2; // skip \r\n.
         // Copy the body into a contiguous string.
         if (out + chunk.size() > chunk.data()) // use memmove if overlap.
@@ -770,7 +763,7 @@ struct http_ctx {
         out += chunk.size();
 
         // Read next chunk size.
-        chunked_size = strtol(rb.read_until(read, cur, '\r').data(), nullptr, 16);
+        chunked_size = strtol(rb.read_until(fiber, cur, '\r').data(), nullptr, 16);
         cur++; // skip \n
       }
       cur += 2;// skip the terminaison chunk.
@@ -850,29 +843,6 @@ struct http_ctx {
 
   void flush_responses() {
     output_stream.flush();
-    // auto m = output_stream.to_string_view();
-    
-    // if (m.size() > 1) // writev for large responses.
-    // {
-    //   iovec iov[1];
-    //   iov[0].iov_base = (char*)m.data();
-    //   iov[0].iov_len = m.size();
-
-    //   int ret = 0;
-    //   do
-    //   {
-    //     ret = writev(socket_fd, iov, 1);
-    //     if (ret == -1 and errno == EAGAIN)
-    //       write(nullptr, 0);// yield
-    //     assert(ret < 0 or ret == m.size());
-    //   } while (ret == -1 and errno == EAGAIN);
-    // }
-    // else
-    // {
-    //   write(m.data(), m.size());
-    // }
-    // output_stream.reset();
-    
   }
 
   int socket_fd;
@@ -900,9 +870,7 @@ struct http_ctx {
   const char* body_end_ = nullptr;
   const char* header_lines[100];
   int header_lines_size = 0;
-  std::function<bool(const char*, int)> write;
-  std::function<int(char*, int)> read;
-  std::function<void(int)> listen_to_new_fd, unsubscribe;
+  async_fiber_context& fiber;
 
   output_buffer headers_stream;
   bool response_written_ = false;
@@ -914,17 +882,14 @@ struct http_ctx {
 template <typename F>
 auto make_http_processor(F handler)
 {
-  return [handler] (int fd, auto read, auto write,
-                    auto listen_to_new_fd, auto unsubscribe) {
+  return [handler] (async_fiber_context& fiber) {
 
     try {
       read_buffer rb;
       bool socket_is_valid = true;
 
-      //http_ctx& ctx = *new http_ctx(rb, read, write);
-      http_ctx ctx = http_ctx(rb, read, write, listen_to_new_fd, unsubscribe);
-      ctx.socket_fd = fd;
-      //ctx.header_lines = new const char*[10];
+      http_ctx ctx = http_ctx(rb, fiber);
+      ctx.socket_fd = fiber.socket_fd;
       
       while (true)
       {
@@ -937,7 +902,6 @@ auto make_http_processor(F handler)
         assert(header_end >= 0);
         assert(ctx.header_lines_size == 0);
         ctx.add_header_line(rb.data() + header_end);
-        //std::cout <<"set line0: " << uint64_t(rb.data() + header_end) << std::endl;
         assert(ctx.header_lines_size == 1);
 
         bool complete_header = false;
@@ -945,25 +909,22 @@ auto make_http_processor(F handler)
         {
           // Read more data from the socket.
           if (rb.empty())
-            if (!rb.read_more(read)) 
-            {
+            if (!rb.read_more(fiber)) 
               return;
-            }
 
           // Look for end of header and save header lines.
           {
             const char * cur = rb.data() + header_end;
             while ((cur - rb.data()) < rb.end - 3)
             {
-              //if (!strncmp(rb.data() + header_end, "\r\n", 2))
- 
+              //if (!strncmp(rb.data() + header_end, "\r\n", 2)) // slower 
               if (cur[0] == '\r' and cur[1] == '\n')
               {
                 ctx.add_header_line(cur + 2);
                 //header_end += 2;
                 cur+=2;
                 //if ((rb.data() + header_end)[0] == '\r' and (rb.data() + header_end)[1] == '\n')
-                if (cur[0] == '\r' and cur[1] == '\n')
+                if (cur[0] == '\r' and cur[1] == '\n') // Seems to be the fastest.
                 //if (!strncmp(rb.data() + header_end, "\r\n", 2))
                 {
                   complete_header = true;
@@ -973,10 +934,7 @@ auto make_http_processor(F handler)
                 }
               }
               else
-              {
-                //header_end++;
                 cur++;
-              }
             }
           }
         }
@@ -987,20 +945,15 @@ auto make_http_processor(F handler)
         ctx.body_start = std::string_view(rb.data() + header_end, rb.end - header_end);
         ctx.prepare_request();
         handler(ctx);
-        //std::cout << "request end." << std::endl;
-        //delete[] ctx.header_lines;
         assert(rb.cursor <= rb.end);
 
         // Update the cursor the beginning of the next request.
         ctx.prepare_next_request();
         // if read buffer is empty, we can flush the output buffer.
-        //std::cout << rb.current_size() << " " << rb.empty() << std::endl;
         if (rb.empty())// || ctx.output_stream.size() > 100000)
           ctx.flush_responses();
 
       }
-      // printf("conection lost %d.\n", fd);
-      //delete &ctx;
     }
     catch (const std::runtime_error& e) 
     {
@@ -1049,7 +1002,7 @@ template <typename... O> auto http_serve(api<http_request, http_response> api, i
       memset(a2, 0, sizeof(a2));
       char* date_buf_tmp1 = a1;
       char* date_buf_tmp2 = a2;
-      while (!moustique_exit_request)
+      while (!quit_signal_catched)
       {
         time_t t = time(NULL);
         const tm& tm = *gmtime(&t);
@@ -1063,7 +1016,8 @@ template <typename... O> auto http_serve(api<http_request, http_response> api, i
 
   auto server_thread = std::make_shared<std::thread>([=] () {
     std::cout << "Starting lithium::http_backend on port " << port << std::endl;
-    moustique_listen(port, SOCK_STREAM, nthreads, http_async_impl::make_http_processor(std::move(handler)));
+    //moustique_listen(port, SOCK_STREAM, nthreads, http_async_impl::make_http_processor(std::move(handler)));
+    start_tcp_server(port, SOCK_STREAM, nthreads, http_async_impl::make_http_processor(std::move(handler)));
     date_thread->join();
   });
 

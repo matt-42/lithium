@@ -32,7 +32,7 @@ struct http_authentication {
     if constexpr (has_key<decltype(callbacks_)>(s::hash_password))
       lp[password_field_] = callbacks_[s::hash_password](lp[login_field_], lp[password_field_]);
 
-    if (auto user = users_.connect(req.yield).find_one(lp)) {
+    if (auto user = users_.connect(req.fiber).find_one(lp)) {
       sessions_.connect(req, resp).store(s::user_id = user->id);
       return true;
     } else
@@ -44,14 +44,14 @@ struct http_authentication {
     if (sess.values().user_id != -1)
       return users_.connect().find_one(s::id = sess.values().user_id);
     else
-      return decltype(users_.connect(req.yield).find_one(s::id = sess.values().user_id)){};
+      return decltype(users_.connect(req.fiber).find_one(s::id = sess.values().user_id)){};
   }
 
   void logout(http_request& req, http_response& resp) { sessions_.connect(req, resp).logout(); }
 
   bool signup(http_request& req, http_response& resp) {
     auto new_user = req.post_parameters(users_.all_fields_except_computed());
-    auto users = users_.connect(req.yield);
+    auto users = users_.connect(req.fiber);
 
     if (users.exists(login_field_ = new_user[login_field_]))
       return false;

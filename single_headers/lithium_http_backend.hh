@@ -7,48 +7,50 @@
 
 #pragma once
 
-#include <string>
-#include <sys/types.h>
-#include <fcntl.h>
-#include <string.h>
-#include <thread>
-#include <iostream>
+#include <chrono>
+#include <cmath>
+#include <netdb.h>
+#include <unordered_map>
+#include <stdlib.h>
+#include <atomic>
+#include <tuple>
 #include <sstream>
+#include <sys/uio.h>
+#include <iostream>
+#include <string_view>
+#include <stdio.h>
+#include <sys/epoll.h>
+#include <mutex>
+#include <string>
+#include <utility>
+#include <netinet/tcp.h>
+#include <set>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <sys/mman.h>
+#include <random>
+#include <errno.h>
+#include <fcntl.h>
+#include <functional>
+#include <signal.h>
+#include <variant>
+#include <sys/sendfile.h>
+#include <cassert>
 #include <sys/socket.h>
 #include <optional>
-#include <netinet/tcp.h>
-#include <functional>
+#include <string.h>
 #include <vector>
-#include <stdio.h>
-#include <netdb.h>
-#include <boost/context/continuation.hpp>
-#include <mutex>
-#include <map>
-#include <sys/mman.h>
-#include <string_view>
 #include <cstring>
-#include <set>
-#include <unordered_map>
-#include <boost/lexical_cast.hpp>
-#include <sys/epoll.h>
-#include <sys/stat.h>
-#include <utility>
-#include <sys/sendfile.h>
-#include <stdlib.h>
-#include <tuple>
-#include <errno.h>
-#include <unistd.h>
-#include <signal.h>
-#include <cassert>
-#include <variant>
-#include <sys/uio.h>
-#include <random>
-#include <cmath>
+#include <map>
 #include <memory>
+#include <boost/lexical_cast.hpp>
+#include <thread>
+#include <boost/context/continuation.hpp>
+#include <sys/types.h>
 
 #if defined(_MSC_VER)
-#include <ciso646>
 #include <io.h>
+#include <ciso646>
 #endif // _MSC_VER
 
 
@@ -2953,396 +2955,326 @@ template <typename Req, typename Resp> struct api {
 
 
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_MOUSTIQUE
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_MOUSTIQUE
-/**
- * @file   moustique.hh
- * @author Matthieu Garrigues <matthieu.garrigues@gmail.com> <matthieu.garrigues@gmail.com>
- * @date   Sat Mar 31 23:52:51 2018
- * 
- * @brief  moustique wrapper.
- * 
- * 
- */
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_TCP_SERVER
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_TCP_SERVER
 
 
 
-/** 
- * Open a socket on port \port and call \conn_handler(int client_fd, auto read, auto write) 
- * to process each incomming connection. This handle takes 3 argments:
- *               - int client_fd: the file descriptor of the socket.
- *               - int read(buf, max_size_to_read):  
- *                       The callback that conn_handler can use to read on the socket.
- *                       If data is available, copy it into \buf, otherwise suspend the handler until
- *                       there is something to read.
- *                       Returns the number of char actually read, returns 0 if the connection has been lost.
- *               - bool write(buf, buf_size): return true on success, false on error.
- *                       The callback that conn_handler can use to write on the socket.
- *                       If the socket is ready to write, write \buf, otherwise suspend the handler until
- *                       it is ready.
- *                       Returns true on sucess, false if connection is lost.
- *
- * @param port  The server port.
- * @param socktype The socket type, SOCK_STREAM for TCP, SOCK_DGRAM for UDP.
- * @param nthreads Number of threads.
- * @param conn_handler The connection handler
- * @return false on error, true on success.
- */
-template <typename H>
-int moustique_listen(int port,
-                     int socktype,
-                     int nthreads,
-                     H conn_handler);
 
-// Same as above but take an already opened socket \listen_fd.
-template <typename H>
-int moustique_listen_fd(int listen_fd,
-                        int nthreads,
-                        H conn_handler);
 
-namespace moustique_impl
-{
-  static int create_and_bind(int port, int socktype)
-  {
-    struct addrinfo hints;
-    struct addrinfo *result, *rp;
-    int s, sfd;
+namespace li {
 
-    char port_str[20];
-    snprintf(port_str, sizeof(port_str), "%d", port);
-    memset (&hints, 0, sizeof (struct addrinfo));
-    hints.ai_family = AF_UNSPEC;     /* Return IPv4 and IPv6 choices */
-    hints.ai_socktype = socktype; /* We want a TCP socket */
-    hints.ai_flags = AI_PASSIVE;     /* All interfaces */
+namespace impl {
 
-    s = getaddrinfo (NULL, port_str, &hints, &result);
-    if (s != 0)
-    {
-      fprintf (stderr, "getaddrinfo: %s\n", gai_strerror (s));
-      return -1;
-    }
+// Helper to create a TCP/UDP server socket.
+static int create_and_bind(int port, int socktype) {
+  struct addrinfo hints;
+  struct addrinfo *result, *rp;
+  int s, sfd;
 
-    for (rp = result; rp != NULL; rp = rp->ai_next)
-    {
-      sfd = socket (rp->ai_family, rp->ai_socktype, rp->ai_protocol);
-      if (sfd == -1)
-        continue;
+  char port_str[20];
+  snprintf(port_str, sizeof(port_str), "%d", port);
+  memset(&hints, 0, sizeof(struct addrinfo));
+  hints.ai_family = AF_UNSPEC;  /* Return IPv4 and IPv6 choices */
+  hints.ai_socktype = socktype; /* We want a TCP socket */
+  hints.ai_flags = AI_PASSIVE;  /* All interfaces */
 
-      s = bind (sfd, rp->ai_addr, rp->ai_addrlen);
-      if (s == 0)
-      {
-        /* We managed to bind successfully! */
-        break;
-      }
-
-      close (sfd);
-    }
-
-    if (rp == NULL)
-    {
-      fprintf (stderr, "Could not bind: %s\n", strerror(errno));
-      return -1;
-    }
-
-    freeaddrinfo (result);
-
-    return sfd;
+  s = getaddrinfo(NULL, port_str, &hints, &result);
+  if (s != 0) {
+    fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(s));
+    return -1;
   }
 
-}
+  for (rp = result; rp != NULL; rp = rp->ai_next) {
+    sfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+    if (sfd == -1)
+      continue;
 
-#define MOUSTIQUE_CHECK_CALL(CALL)                                      \
-  {                                                                     \
-    int ret = CALL;                                                     \
-    if (-1 == ret)                                                      \
-    {                                                                   \
-      fprintf(stderr, "Error at %s:%i  error is: %s\n", __PRETTY_FUNCTION__, __LINE__, strerror(errno)); \
-    }                                                                   \
+    s = bind(sfd, rp->ai_addr, rp->ai_addrlen);
+    if (s == 0) {
+      /* We managed to bind successfully! */
+      break;
+    }
+
+    close(sfd);
   }
 
-template <typename H>
-int moustique_listen(int port,
-                     int socktype,
-                     int nthreads,
-                     H conn_handler)
-{
-  return moustique_listen_fd(moustique_impl::create_and_bind(port, socktype), nthreads, conn_handler);
+  if (rp == NULL) {
+    fprintf(stderr, "Could not bind: %s\n", strerror(errno));
+    return -1;
+  }
+
+  freeaddrinfo(result);
+
+  int flags = fcntl(sfd, F_GETFL, 0);
+  fcntl(sfd, F_SETFL, flags | O_NONBLOCK);
+  ::listen(sfd, SOMAXCONN);
+
+  return sfd;
 }
 
-static volatile int moustique_exit_request = 0;
+} // namespace impl
 
-static void shutdown_handler(int sig) {
-  moustique_exit_request = 1;
-  std::cout << "The server will shutdown..." << std::endl;
-}
+static volatile int quit_signal_catched = 0;
+
+struct async_fiber_context;
+
+// Epoll based Reactor:
+// Orchestrates a set of fiber (boost::context::continuation).
 
 struct fiber_exception {
 
-
-    std::string what;
-    boost::context::continuation    c;
-    fiber_exception(fiber_exception&& e) : what{std::move(e.what)}, c{std::move(e.c)} {}
-    fiber_exception(boost::context::continuation && c_,std::string const& what) :
-        what { what },
-        c{ std::move( c_) } {
-    }
+  std::string what;
+  boost::context::continuation c;
+  fiber_exception(fiber_exception&& e) : what{std::move(e.what)}, c{std::move(e.c)} {}
+  fiber_exception(boost::context::continuation&& c_, std::string const& what)
+      : what{what}, c{std::move(c_)} {}
 };
 
+struct async_reactor;
 
-template <typename H>
-int moustique_listen_fd(int listen_fd,
-                        int nthreads,
-                        H conn_handler)
-{
-  namespace ctx = boost::context;
+// The fiber context passed to all fibers so they can do
+//  yield, non blocking read/write on the socket fd, and subscribe to
+//  other file descriptors events.
+struct async_fiber_context {
 
-  if (listen_fd < 0) return 0;
-  int flags = fcntl (listen_fd, F_GETFL, 0);
-  MOUSTIQUE_CHECK_CALL(fcntl(listen_fd, F_SETFL, flags | O_NONBLOCK));
-  MOUSTIQUE_CHECK_CALL(::listen(listen_fd, SOMAXCONN));
+  typedef fiber_exception exception_type;
 
-  auto event_loop_fn = [listen_fd, conn_handler] () -> int {
+  async_reactor* reactor;
+  boost::context::continuation sink;
+  int continuation_idx;
+  int socket_fd;
 
-    int epoll_fd = epoll_create1(0);
+  void epoll_add(int fd, int flags);
+  void epoll_mod(int fd, int flags);
 
-    auto epoll_ctl = [epoll_fd] (int fd, uint32_t flags)
-    {
-      epoll_event event;
-      memset(&event, 0, sizeof(event));
-      event.data.fd = fd;
-      event.events = flags;
-      MOUSTIQUE_CHECK_CALL(::epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &event));
+  void yield() { sink = sink.resume(); }
+
+  int read(char* buf, int max_size) {
+    ssize_t count = ::recv(socket_fd, buf, max_size, 0);
+    while (count <= 0) {
+      if ((count < 0 and errno != EAGAIN) or count == 0)
+        return ssize_t(0);
+      sink = sink.resume();
+      count = ::recv(socket_fd, buf, max_size, 0);
+    }
+    return count;
+  };
+
+  bool write(const char* buf, int size) {
+    if (!buf or !size) {
+      // std::cout << "pause" << std::endl;
+      sink = sink.resume();
       return true;
-    };
-    auto epoll_ctl_mod = [epoll_fd] (int fd, uint32_t flags)
-    {
-      epoll_event event;
-      event.data.fd = fd;
-      event.events = flags;
-      MOUSTIQUE_CHECK_CALL(::epoll_ctl(epoll_fd, EPOLL_CTL_MOD, fd, &event));
-      return true;
-    };
+    }
+    const char* end = buf + size;
+    ssize_t count = ::send(socket_fd, buf, end - buf, MSG_NOSIGNAL);
+    if (count > 0)
+      buf += count;
+    while (buf != end) {
+      if ((count < 0 and errno != EAGAIN) or count == 0)
+        return false;
+      sink = sink.resume();
+      count = ::send(socket_fd, buf, end - buf, MSG_NOSIGNAL);
+      if (count > 0)
+        buf += count;
+    }
+    return true;
+  };
+};
+
+struct async_reactor {
+
+  typedef boost::context::continuation continuation;
+
+  int epoll_fd;
+  std::vector<continuation> fibers;
+  std::vector<int> fd_to_fiber_idx;
+
+  continuation& fd_to_fiber(int fd) {
+    assert(fd >= 0 and fd < fd_to_fiber_idx.size());
+    int fiber_idx = fd_to_fiber_idx[fd];
+    assert(fiber_idx >= 0 and fiber_idx < fibers.size());
     
-    epoll_ctl(listen_fd, EPOLLIN | EPOLLET);
+    return fibers[fiber_idx];
+  }
+
+  void epoll_ctl(int epoll_fd, int fd, int action, uint32_t flags) {
+    epoll_event event;
+    memset(&event, 0, sizeof(event));
+    event.data.fd = fd;
+    event.events = flags;
+    if (-1 == ::epoll_ctl(epoll_fd, action, fd, &event) and errno != EEXIST)
+      std::cout << "epoll_ctl error: " <<  strerror(errno) << std::endl;    
+  };
+
+  void epoll_add(int new_fd, int flags, int fiber_idx = -1) {
+    epoll_ctl(epoll_fd, new_fd, EPOLL_CTL_ADD, flags);
+    // Associate new_fd to the fiber.
+    if (int(fd_to_fiber_idx.size()) < new_fd + 1)
+      fd_to_fiber_idx.resize((new_fd + 1) * 2, -1);
+    fd_to_fiber_idx[new_fd] = fiber_idx;
+  }
+
+  void epoll_mod(int fd, int flags) { epoll_ctl(epoll_fd, fd, EPOLL_CTL_MOD, flags); }
+
+  template <typename H> void event_loop(int listen_fd, H handler) {
+
+    this->epoll_fd = epoll_create1(0);
+    epoll_ctl(epoll_fd, listen_fd, EPOLL_CTL_ADD, EPOLLIN | EPOLLET);
 
     const int MAXEVENTS = 64;
-    std::vector<ctx::continuation> fibers;
-    std::vector<int> secondary_map;
-
-    auto epoll_ctl_del = [epoll_fd, &secondary_map] (int fd)
-    {
-      // std::cout << "del " << fd << std::endl; 
-      if (fd < secondary_map.size()) secondary_map[fd] = -1;
-      ::epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, nullptr);
-      //MOUSTIQUE_CHECK_CALL(::epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, nullptr));
-      return true;
-    };
-
-    // fibers.reserve(1000);
-    // Even loop.
     epoll_event events[MAXEVENTS];
-    
-    while (!moustique_exit_request)
-    {
 
-      //std::cout << "before wait" << std::endl;
-      int n_events = epoll_wait (epoll_fd, events, MAXEVENTS, 100);
-      //std::cout << "end wait" << std::endl;
-      if (moustique_exit_request) 
+    // Main loop.
+    while (!quit_signal_catched) {
+
+      int n_events = epoll_wait(epoll_fd, events, MAXEVENTS, 1);
+      if (quit_signal_catched)
         break;
 
       if (n_events == 0)
-      {
-        //int cpt = 0;
         for (int i = 0; i < fibers.size(); i++)
           if (fibers[i])
-          {
-            //cpt++;
             fibers[i] = fibers[i].resume();
+
+      for (int i = 0; i < n_events; i++) {
+
+        int event_flags = events[i].events;
+        int event_fd = events[i].data.fd;
+
+        // Handle error on sockets.
+          if (event_flags & (EPOLLERR | EPOLLHUP | EPOLLRDHUP)) {
+          if (event_fd == listen_fd) {
+            std::cout << "FATAL ERROR: Error on server socket " << event_fd << std::endl;
+            quit_signal_catched = true;
+          } else {
+            continuation& fiber = fd_to_fiber(event_fd);
+            if (fiber)
+              fiber = fiber.resume_with(std::move([](auto&& sink) {
+                throw fiber_exception(std::move(sink), "EPOLLRDHUP");
+                return std::move(sink);
+              }));
           }
-        //std::cout << "count : " << cpt << std::endl;;
-      }
-
-      for (int i = 0; i < n_events; i++)
-      {
-
-        if ((events[i].events & EPOLLERR) ||
-            (events[i].events & EPOLLHUP) ||
-            (events[i].events & EPOLLRDHUP)
-            )
-        {
-          if (fibers[events[i].data.fd])
-
-            fibers[events[i].data.fd] = fibers[events[i].data.fd].resume_with(std::move([] (auto&& sink)  { 
-              throw fiber_exception(std::move(sink), "EPOLLRDHUP");
-              return std::move(sink);
-            }));
-
-          //nrunning--;
-          continue;
         }
-        else if (listen_fd == events[i].data.fd) // New connection.
-        {
-          while(true)
-          {
+        // Handle new connections.
+        else if (listen_fd == event_fd) {
+          while (true) {
+
+            // ============================================
+            // ACCEPT INCOMMING CONNECTION
             struct sockaddr in_addr;
             socklen_t in_len;
-            int infd;
-
+            int socket_fd;
             in_len = sizeof in_addr;
-            infd = accept (listen_fd, &in_addr, &in_len);
-            if (infd == -1)
+            socket_fd = accept(listen_fd, &in_addr, &in_len);
+            if (socket_fd == -1)
               break;
+            // ============================================
 
+            // ============================================
+            // Find a free fiber for this new connection.
+            int fiber_idx = 0;
+            while (fiber_idx < fibers.size() && fibers[fiber_idx])
+              fiber_idx++;
+            if (fiber_idx >= fibers.size())
+              fibers.resize((fibers.size() + 1) * 2);
+            assert(fiber_idx < fibers.size());
+            // ============================================
+
+            // ============================================
             // Subscribe epoll to the socket file descriptor.
-            if(-1 == fcntl(infd, F_SETFL, fcntl(infd, F_GETFL, 0) | O_NONBLOCK))
+            if (-1 == fcntl(socket_fd, F_SETFL, fcntl(socket_fd, F_GETFL, 0) | O_NONBLOCK))
               continue;
-            epoll_ctl(infd, EPOLLIN | EPOLLOUT | EPOLLET | EPOLLRDHUP);
+            this->epoll_add(socket_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET, fiber_idx);
+            // ============================================
 
-            // Function to subscribe to other files descriptor.
-            auto listen_to_new_fd = [original_fd=infd,epoll_ctl,&secondary_map] (int new_fd) {
-              // Listen to the fd if not already done before.
-              if (new_fd >= secondary_map.size() || secondary_map[new_fd] == -1)
-                epoll_ctl(new_fd, EPOLLIN | EPOLLOUT | EPOLLET | EPOLLRDHUP);
-              // Associate new_fd to the original_fd.
-              if (int(secondary_map.size()) < new_fd + 1)
-                secondary_map.resize(new_fd+1, -1);             
-              secondary_map[new_fd] = original_fd;
-            };
-
-            if (int(fibers.size()) < infd + 1)
-              fibers.resize(infd + 10);
-
-            auto terminate_fiber = [&] (int fd) {
-              if (fd < 0 or fd >= fibers.size())
-              {
-                std::cerr << "terminate_fiber: Bad fd " << fd << std::endl;
-                return;
+            // ============================================
+            // Simply utility to close fd at the end of a scope.
+            struct scoped_fd {
+              int fd;
+              ~scoped_fd() {
+                if (0 != close(fd))
+                  std::cerr << "Error when closing file descriptor " << fd << ": "
+                            << strerror(errno) << std::endl;
               }
-              //if (!fibers[fd]) return;
-              epoll_ctl_del(fd);
-              if (0 != close(fd))
-                std::cerr << "Error when closing file descriptor " << fd << ": " << strerror(errno) << std::endl;
-
-              // unsubscribe to fd in secondary map.
-              for (int i = 0; i < secondary_map.size(); i++)
-                if (secondary_map[i] == fd)
-                {
-                  epoll_ctl_del(i);
-                  secondary_map[i] = -1;
-                }
             };
+            // ============================================
 
-            struct end_of_file {};
-            fibers[infd] = ctx::callcc([fd=infd, &conn_handler, epoll_ctl_del, listen_to_new_fd, &secondary_map,terminate_fiber]
-                                       (ctx::continuation&& sink) {
-                                         try {
-
-                                         //ctx::continuation sink = std::move(_sink);
-                                         auto read = [fd, &sink] (char* buf, int max_size) {
-                                           ssize_t count = ::recv(fd, buf, max_size, 0);
-                                           while (count <= 0)
-                                           {
-                                             if ((count < 0 and errno != EAGAIN) or count == 0)
-                                               return ssize_t(0);
-                                             sink = sink.resume();
-                                             count = ::recv(fd, buf, max_size, 0);
-                                           }
-                                           return count;
-                                         };
-
-                                         auto write = [fd, &sink] (const char* buf, int size) {
-                                           if (!buf or !size)
-                                           {
-                                             //std::cout << "pause" << std::endl;
-                                             sink = sink.resume();
-                                             return true;
-                                           }
-                                           const char* end = buf + size;
-                                           ssize_t count = ::send(fd, buf, end - buf, MSG_NOSIGNAL);
-                                           if (count > 0) buf += count;
-                                           while (buf != end)
-                                           {
-                                             if ((count < 0 and errno != EAGAIN) or count == 0)
-                                               return false;
-                                             sink = sink.resume();
-                                             count = ::send(fd, buf, end - buf, MSG_NOSIGNAL);
-                                             if (count > 0) buf += count;
-                                           }
-                                           return true;
-                                         };
-              
-                                         conn_handler(fd, read, write, listen_to_new_fd, epoll_ctl_del);
-                                         terminate_fiber(fd);
-                                         }
-                                         catch (fiber_exception& ex) {
-                                            terminate_fiber(fd);
-                                            return std::move(ex.c);
-                                         }
-                                         catch (const std::runtime_error& e) {
-                                           terminate_fiber(fd);
-                                           std::cerr << "FATAL ERRROR: exception in fiber: " << e.what() << std::endl;
-                                           assert(0);
-                                           return std::move(sink);
-                                           //throw std::runtime_error("caught exception in fiber.");
-                                         }
-                                        //  catch (const std::exception& e) {
-                                        //    terminate_fiber(fd);
-                                        //    std::cerr << "FATAL ERRROR: exception in fiber: " << e.what() << std::endl;
-                                        //    assert(0);
-                                        //    return std::move(sink);
-                                        //  }
-                                         
-                                         return std::move(sink);
-
-                                       });
-          
+            // =============================================
+            // Spawn a new continuation to handle the connection.
+            fibers[fiber_idx] =
+                boost::context::callcc([this, socket_fd, fiber_idx, &handler](continuation&& sink) {
+                  scoped_fd sfd{socket_fd}; // Will finally close the fd.
+                  auto ctx = async_fiber_context{this, std::move(sink), fiber_idx, socket_fd};
+                  try {
+                    handler(ctx);
+                  } catch (fiber_exception& ex) {
+                    return std::move(ex.c);
+                  } catch (const std::runtime_error& e) {
+                    std::cerr << "FATAL ERRROR: exception in fiber: " << e.what() << std::endl;
+                    assert(0);
+                    return std::move(sink);
+                  }
+                  return std::move(ctx.sink);
+                });
+            // =============================================
           }
-          
-        }
-        else // Data available on existing sockets. Wake up the fiber associated with events[i].data.fd.
+        } else // Data available on existing sockets. Wake up the fiber associated with
+               // event_fd.
         {
-
-          if (events[i].data.fd >= 0 && events[i].data.fd < secondary_map.size() && secondary_map[events[i].data.fd] != -1)
-          {
-            int original_fd = secondary_map[events[i].data.fd];
-            if (original_fd >= 0 and original_fd < fibers.size() and fibers[original_fd])
-              fibers[original_fd] = fibers[original_fd].resume();
-          }
-          else
-            if (events[i].data.fd >= 0 and 
-                events[i].data.fd < fibers.size() and 
-                fibers[events[i].data.fd])
-              fibers[events[i].data.fd] = fibers[events[i].data.fd].resume();
+          if (event_fd >= 0 && event_fd < fd_to_fiber_idx.size()) {
+            auto& fiber = fd_to_fiber(event_fd);
+            if (fiber)
+              fiber = fiber.resume();
+          } else
+            std::cerr << "Epoll returned a file descriptor that we did not register: " << event_fd
+                      << std::endl;
         }
       }
     }
     std::cout << "END OF EVENT LOOP" << std::endl;
     close(epoll_fd);
-    return true;  
-  };
+  }
+};
+
+static void shutdown_handler(int sig) {
+  quit_signal_catched = 1;
+  std::cout << "The server will shutdown..." << std::endl;
+}
+
+void async_fiber_context::epoll_add(int fd, int flags) {
+  reactor->epoll_add(fd, flags, continuation_idx);
+}
+void async_fiber_context::epoll_mod(int fd, int flags) { reactor->epoll_mod(fd, flags); }
+
+template <typename H> void start_tcp_server(int port, int socktype, int nthreads, H conn_handler) {
 
   struct sigaction act;
-    memset (&act, 0, sizeof(act));
-	  act.sa_handler = shutdown_handler;
-  
+  memset(&act, 0, sizeof(act));
+  act.sa_handler = shutdown_handler;
+
   sigaction(SIGINT, &act, 0);
   sigaction(SIGTERM, &act, 0);
   sigaction(SIGQUIT, &act, 0);
-  
+
+  int server_fd = impl::create_and_bind(port, socktype);
   std::vector<std::thread> ths;
   for (int i = 0; i < nthreads; i++)
-    ths.push_back(std::thread([&] { event_loop_fn(); }));
+    ths.push_back(std::thread([&] {
+      async_reactor reactor;
+      reactor.event_loop(server_fd, conn_handler);
+    }));
 
   for (auto& t : ths)
     t.join();
 
-  close(listen_fd);
-
-  return true;
+  close(server_fd);
 }
 
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_MOUSTIQUE
+} // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_TCP_SERVER
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_URL_UNESCAPE
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_URL_UNESCAPE
@@ -3385,6 +3317,17 @@ struct output_buffer
   {
   }
 
+  output_buffer(output_buffer&& o)
+    : buffer_(o.buffer_),
+      own_buffer_(o.own_buffer_),
+      cursor_(o.cursor_),
+      end_(o.end_),
+      flush_(o.flush_)
+  {
+    o.buffer_ = nullptr;
+    o.own_buffer_ = false;
+  }
+
   output_buffer(int capacity, 
                 std::function<void(const char*, int)> flush_ = [] (const char*, int) {})
     : buffer_(new char[capacity]),
@@ -3396,10 +3339,6 @@ struct output_buffer
     assert(buffer_);
   }
 
-  ~output_buffer() {
-    if (own_buffer_)
-      delete[] buffer_;
-  }
   output_buffer(void* buffer, int capacity, 
                 std::function<void(const char*, int)> flush_ = [] (const char*, int) {})
     : buffer_((char*)buffer),
@@ -3409,6 +3348,23 @@ struct output_buffer
       flush_(flush_)
   {
     assert(buffer_);
+  }
+
+  ~output_buffer() {
+    if (own_buffer_)
+      delete[] buffer_;
+  }
+  
+  output_buffer& operator=(output_buffer&& o)
+  {
+    buffer_ = o.buffer_;
+    own_buffer_ = o.own_buffer_;
+    cursor_ = o.cursor_;
+    end_ = o.end_;
+    flush_ = o.flush_;
+    o.buffer_ = nullptr;
+    o.own_buffer_ = false;
+    return *this;
   }
 
   void reset() 
@@ -3506,8 +3462,7 @@ struct read_buffer
   int end = 0; // Index of the last read character
   
   read_buffer()
-    : buffer_(50 * 1024),
-      //buffer_(500),
+    : buffer_(5 * 1024),
       cursor(0),
       end(0)
   {}
@@ -3556,7 +3511,7 @@ struct read_buffer
   // Read more data.
   // Return 0 on error.
   template <typename F>
-  int read_more(F&& read, int size = -1)
+  int read_more(F& fiber, int size = -1)
   {
     if (int(buffer_.size()) <= end - 100)
     {
@@ -3572,7 +3527,7 @@ struct read_buffer
     }
 
     if (size == -1) size = buffer_.size() - end;
-    int received = read(buffer_.data() + end, size);
+    int received = fiber.read(buffer_.data() + end, size);
 
     if (received == 0) return 0; // Socket closed, return.
     end = end + received;
@@ -3585,14 +3540,14 @@ struct read_buffer
     return received;
   }
   template <typename F>
-  std::string_view read_more_str(F&& read)
+  std::string_view read_more_str(F& fiber)
   {
-    int l = read_more(read);
+    int l = read_more(fiber);
     return std::string_view(buffer_.data() + end - l);
   }
 
   template <typename F>
-  std::string_view read_n(F&& read, const char* start, int size)
+  std::string_view read_n(F&& fiber, const char* start, int size)
   {
     int str_start = start - buffer_.data();
     int str_end = size + str_start;
@@ -3601,13 +3556,13 @@ struct read_buffer
       // Read more body on the socket.
       int current_size = end - str_start;
       while (current_size < size)
-          current_size += read_more(read);
+          current_size += read_more(fiber);
     }
     return std::string_view(start, size);
   }
   
   template <typename F>
-  std::string_view read_until(F&& read, const char*& start, char delimiter)
+  std::string_view read_until(F&& fiber, const char*& start, char delimiter)
   {
     const char* str_end = start;
 
@@ -3618,7 +3573,7 @@ struct read_buffer
 
       if (*str_end == delimiter) break;
       else {
-        if (!read_more(read)) break;
+        if (!read_more(fiber)) break;
       }
     }
 
@@ -3662,47 +3617,25 @@ struct read_buffer
 struct http_ctx {
 
   http_ctx(read_buffer& _rb,
-           std::function<int(char*, int)> _read,
-           std::function<bool(const char*, int)> _write,
-           std::function<void(int)> _listen_to_new_fd,
-           std::function<void(int)> _unsubscribe
-           )
+           async_fiber_context& _fiber)
     : rb(_rb),
-      read(_read),
-      write(_write),
-      listen_to_new_fd(_listen_to_new_fd),
-      unsubscribe(_unsubscribe),
-      output_buffer_space(new char[100 * 1024]),
-      json_buffer(new char[100 * 1024])
+      fiber(_fiber)
   {
     get_parameters_map.reserve(10);
     response_headers.reserve(20);
 
-    output_stream = output_buffer(output_buffer_space, 100 * 1024, 
+    output_stream = output_buffer(50 * 1024, 
                                   [&] (const char* d, int s) { 
-      // iovec iov[1];
-      // iov[0].iov_base = (char*)d;
-      // iov[0].iov_len = s;
-
-      // int ret = 0;
-      // do
-      // {
-      //   ret = writev(socket_fd, iov, 1);
-      //   if (ret == -1 and errno == EAGAIN)
-      //     write(nullptr, 0);// yield
-      //   assert(ret < 0 or ret == s);
-      // } while (ret == -1 and errno == EAGAIN);
-      write(d, s); 
+                                        fiber.write(d, s); 
                                     });
 
-    headers_stream = output_buffer(headers_buffer_space, sizeof(headers_buffer_space),
+    headers_stream = output_buffer(1000,
                                   [&] (const char* d,int s) { output_stream << std::string_view(d, s); });
 
-    json_stream = output_buffer(json_buffer, 100 * 1024,
+    json_stream = output_buffer(50 * 1024,
                                 [&] (const char* d,int s) { output_stream << std::string_view(d, s); });
 
   }
-  ~http_ctx() { delete[] output_buffer_space; delete[] json_buffer; }
 
   http_ctx& operator=(const http_ctx&) = delete;
   http_ctx(const http_ctx&) = delete;
@@ -4046,7 +3979,7 @@ struct http_ctx {
       
       while (content_length_ > n_body_read)
       {
-        std::string_view part = rb.read_more_str(read);
+        std::string_view part = rb.read_more_str(fiber);
         int l = part.size();
         int bl = std::min(l, content_length_ - n_body_read);
         part = std::string_view(part.data(), bl);
@@ -4092,7 +4025,7 @@ struct http_ctx {
 
     if (content_length_)
     {
-      body_ = rb.read_n(read, body_start.data(), content_length_);
+      body_ = rb.read_n(fiber, body_start.data(), content_length_);
       body_end_ = body_.data() + content_length_;
     }
     else if (chunked_)
@@ -4100,12 +4033,12 @@ struct http_ctx {
       // Chunked decoding.
       char* out = (char*) body_start.data();
       const char* cur = body_start.data();
-      int chunked_size = strtol(rb.read_until(read, cur, '\r').data(), nullptr, 16);
+      int chunked_size = strtol(rb.read_until(fiber, cur, '\r').data(), nullptr, 16);
       cur++; // skip \n
       while (chunked_size > 0)
       {
         // Read chunk.
-        std::string_view chunk = rb.read_n(read, cur, chunked_size);
+        std::string_view chunk = rb.read_n(fiber, cur, chunked_size);
         cur += chunked_size + 2; // skip \r\n.
         // Copy the body into a contiguous string.
         if (out + chunk.size() > chunk.data()) // use memmove if overlap.
@@ -4116,7 +4049,7 @@ struct http_ctx {
         out += chunk.size();
 
         // Read next chunk size.
-        chunked_size = strtol(rb.read_until(read, cur, '\r').data(), nullptr, 16);
+        chunked_size = strtol(rb.read_until(fiber, cur, '\r').data(), nullptr, 16);
         cur++; // skip \n
       }
       cur += 2;// skip the terminaison chunk.
@@ -4196,29 +4129,6 @@ struct http_ctx {
 
   void flush_responses() {
     output_stream.flush();
-    // auto m = output_stream.to_string_view();
-    
-    // if (m.size() > 1) // writev for large responses.
-    // {
-    //   iovec iov[1];
-    //   iov[0].iov_base = (char*)m.data();
-    //   iov[0].iov_len = m.size();
-
-    //   int ret = 0;
-    //   do
-    //   {
-    //     ret = writev(socket_fd, iov, 1);
-    //     if (ret == -1 and errno == EAGAIN)
-    //       write(nullptr, 0);// yield
-    //     assert(ret < 0 or ret == m.size());
-    //   } while (ret == -1 and errno == EAGAIN);
-    // }
-    // else
-    // {
-    //   write(m.data(), m.size());
-    // }
-    // output_stream.reset();
-    
   }
 
   int socket_fd;
@@ -4246,34 +4156,26 @@ struct http_ctx {
   const char* body_end_ = nullptr;
   const char* header_lines[100];
   int header_lines_size = 0;
-  std::function<bool(const char*, int)> write;
-  std::function<int(char*, int)> read;
-  std::function<void(int)> listen_to_new_fd, unsubscribe;
-  char headers_buffer_space[1000];
+  async_fiber_context& fiber;
+
   output_buffer headers_stream;
   bool response_written_ = false;
 
-  //char output_buffer_space[4*1024];
-  char* output_buffer_space;
   output_buffer output_stream;
-  char* json_buffer;
   output_buffer json_stream;
 };  
 
 template <typename F>
 auto make_http_processor(F handler)
 {
-  return [handler] (int fd, auto read, auto write,
-                    auto listen_to_new_fd, auto unsubscribe) {
+  return [handler] (async_fiber_context& fiber) {
 
     try {
       read_buffer rb;
       bool socket_is_valid = true;
 
-      //http_ctx& ctx = *new http_ctx(rb, read, write);
-      http_ctx ctx = http_ctx(rb, read, write, listen_to_new_fd, unsubscribe);
-      ctx.socket_fd = fd;
-      //ctx.header_lines = new const char*[10];
+      http_ctx ctx = http_ctx(rb, fiber);
+      ctx.socket_fd = fiber.socket_fd;
       
       while (true)
       {
@@ -4286,7 +4188,6 @@ auto make_http_processor(F handler)
         assert(header_end >= 0);
         assert(ctx.header_lines_size == 0);
         ctx.add_header_line(rb.data() + header_end);
-        //std::cout <<"set line0: " << uint64_t(rb.data() + header_end) << std::endl;
         assert(ctx.header_lines_size == 1);
 
         bool complete_header = false;
@@ -4294,25 +4195,22 @@ auto make_http_processor(F handler)
         {
           // Read more data from the socket.
           if (rb.empty())
-            if (!rb.read_more(read)) 
-            {
+            if (!rb.read_more(fiber)) 
               return;
-            }
 
           // Look for end of header and save header lines.
           {
             const char * cur = rb.data() + header_end;
             while ((cur - rb.data()) < rb.end - 3)
             {
-              //if (!strncmp(rb.data() + header_end, "\r\n", 2))
- 
+              //if (!strncmp(rb.data() + header_end, "\r\n", 2)) // slower 
               if (cur[0] == '\r' and cur[1] == '\n')
               {
                 ctx.add_header_line(cur + 2);
                 //header_end += 2;
                 cur+=2;
                 //if ((rb.data() + header_end)[0] == '\r' and (rb.data() + header_end)[1] == '\n')
-                if (cur[0] == '\r' and cur[1] == '\n')
+                if (cur[0] == '\r' and cur[1] == '\n') // Seems to be the fastest.
                 //if (!strncmp(rb.data() + header_end, "\r\n", 2))
                 {
                   complete_header = true;
@@ -4322,10 +4220,7 @@ auto make_http_processor(F handler)
                 }
               }
               else
-              {
-                //header_end++;
                 cur++;
-              }
             }
           }
         }
@@ -4336,20 +4231,15 @@ auto make_http_processor(F handler)
         ctx.body_start = std::string_view(rb.data() + header_end, rb.end - header_end);
         ctx.prepare_request();
         handler(ctx);
-        //std::cout << "request end." << std::endl;
-        //delete[] ctx.header_lines;
         assert(rb.cursor <= rb.end);
 
         // Update the cursor the beginning of the next request.
         ctx.prepare_next_request();
         // if read buffer is empty, we can flush the output buffer.
-        //std::cout << rb.current_size() << " " << rb.empty() << std::endl;
         if (rb.empty())// || ctx.output_stream.size() > 100000)
           ctx.flush_responses();
 
       }
-      // printf("conection lost %d.\n", fd);
-      //delete &ctx;
     }
     catch (const std::runtime_error& e) 
     {
@@ -4581,27 +4471,14 @@ template <typename O> void url_decode(std::string_view str, O& obj) {
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_URL_DECODE
 
-//#include <li/http_backend/http_listen2.hh>
 
 
 
 namespace li {
 
-template <typename C>
-struct async_yield
-{
-  typedef fiber_exception exception_type;
-  void operator()() { 
-    ctx.write(nullptr, 0);
-     }
-  void listen_to_fd(int fd) { ctx.listen_to_new_fd(fd); }
-  void unsubscribe(int fd) { ctx.unsubscribe(fd); }
-  C& ctx;
-};
-
 struct http_request {
 
-  http_request(http_async_impl::http_ctx& http_ctx) : http_ctx(http_ctx), yield{http_ctx} {}
+  http_request(http_async_impl::http_ctx& http_ctx) : http_ctx(http_ctx), fiber(http_ctx.fiber) {}
   
   inline std::string_view header(const char* k) const;
   inline std::string_view cookie(const char* k) const;
@@ -4625,7 +4502,7 @@ struct http_request {
   template <typename O> auto post_parameters(O& res) const;
 
   http_async_impl::http_ctx& http_ctx;
-  async_yield<http_async_impl::http_ctx> yield;
+  async_fiber_context& fiber;
   std::string url_spec;
 };
 
@@ -4893,7 +4770,7 @@ template <typename... O> auto http_serve(api<http_request, http_response> api, i
       memset(a2, 0, sizeof(a2));
       char* date_buf_tmp1 = a1;
       char* date_buf_tmp2 = a2;
-      while (!moustique_exit_request)
+      while (!quit_signal_catched)
       {
         time_t t = time(NULL);
         const tm& tm = *gmtime(&t);
@@ -4907,7 +4784,8 @@ template <typename... O> auto http_serve(api<http_request, http_response> api, i
 
   auto server_thread = std::make_shared<std::thread>([=] () {
     std::cout << "Starting lithium::http_backend on port " << port << std::endl;
-    moustique_listen(port, SOCK_STREAM, nthreads, http_async_impl::make_http_processor(std::move(handler)));
+    //moustique_listen(port, SOCK_STREAM, nthreads, http_async_impl::make_http_processor(std::move(handler)));
+    start_tcp_server(port, SOCK_STREAM, nthreads, http_async_impl::make_http_processor(std::move(handler)));
     date_thread->join();
   });
 
@@ -5089,7 +4967,7 @@ template <typename DB, typename... F> struct sql_http_session {
         session_table_(create_session_orm(db, table_name, fields...)) {}
 
   auto connect(http_request& request, http_response& response) {
-    return connected_sql_http_session(default_values_, session_table_.connect(request.yield),
+    return connected_sql_http_session(default_values_, session_table_.connect(request.fiber),
                                       random_cookie(request, response, cookie_name_.c_str()));
   }
 
@@ -5135,7 +5013,7 @@ struct http_authentication {
     if constexpr (has_key<decltype(callbacks_)>(s::hash_password))
       lp[password_field_] = callbacks_[s::hash_password](lp[login_field_], lp[password_field_]);
 
-    if (auto user = users_.connect(req.yield).find_one(lp)) {
+    if (auto user = users_.connect(req.fiber).find_one(lp)) {
       sessions_.connect(req, resp).store(s::user_id = user->id);
       return true;
     } else
@@ -5147,14 +5025,14 @@ struct http_authentication {
     if (sess.values().user_id != -1)
       return users_.connect().find_one(s::id = sess.values().user_id);
     else
-      return decltype(users_.connect(req.yield).find_one(s::id = sess.values().user_id)){};
+      return decltype(users_.connect(req.fiber).find_one(s::id = sess.values().user_id)){};
   }
 
   void logout(http_request& req, http_response& resp) { sessions_.connect(req, resp).logout(); }
 
   bool signup(http_request& req, http_response& resp) {
     auto new_user = req.post_parameters(users_.all_fields_except_computed());
-    auto users = users_.connect(req.yield);
+    auto users = users_.connect(req.fiber);
 
     if (users.exists(login_field_ = new_user[login_field_]))
       return false;
@@ -5285,7 +5163,7 @@ auto sql_crud_api(sql_orm_schema<A, B, C>& orm_schema) {
 
   api.post("/find_by_id") = [&](http_request& request, http_response& response) {
     auto params = request.post_parameters(s::id = int());
-    if (auto obj = orm_schema.connect(request.yield).find_one(s::id = params.id, request, response))
+    if (auto obj = orm_schema.connect(request.fiber).find_one(s::id = params.id, request, response))
       response.write_json(obj);
     else
       throw http_error::not_found(orm_schema.table_name(), " with id ", params.id,
@@ -5295,18 +5173,18 @@ auto sql_crud_api(sql_orm_schema<A, B, C>& orm_schema) {
   api.post("/create") = [&](http_request& request, http_response& response) {
     auto insert_fields = orm_schema.all_fields_except_computed();
     auto obj = request.post_parameters(insert_fields);
-    long long int id = orm_schema.connect(request.yield).insert(obj, request, response);
+    long long int id = orm_schema.connect(request.fiber).insert(obj, request, response);
     response.write_json(s::id = id);
   };
 
   api.post("/update") = [&](http_request& request, http_response& response) {
     auto obj = request.post_parameters(orm_schema.all_fields());
-    orm_schema.connect(request.yield).update(obj, request, response);
+    orm_schema.connect(request.fiber).update(obj, request, response);
   };
 
   api.post("/remove") = [&](http_request& request, http_response& response) {
     auto obj = request.post_parameters(orm_schema.primary_key());
-    orm_schema.connect(request.yield).remove(obj, request, response);
+    orm_schema.connect(request.fiber).remove(obj, request, response);
   };
 
   return api;
@@ -5315,6 +5193,187 @@ auto sql_crud_api(sql_orm_schema<A, B, C>& orm_schema) {
 } // namespace li
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SQL_CRUD_API
+
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_HTTP_BENCHMARK
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_HTTP_BENCHMARK
+
+
+namespace ctx = boost::context;
+
+namespace li {
+
+namespace http_benchmark_impl {
+
+class timer {
+public:
+  void start() { start_ = std::chrono::high_resolution_clock::now(); }
+  void end() { end_ = std::chrono::high_resolution_clock::now(); }
+
+  unsigned long us() const {
+    return std::chrono::duration_cast<std::chrono::microseconds>(end_ - start_).count();
+  }
+
+  unsigned long ms() const {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(end_ - start_).count();
+  }
+
+  unsigned long ns() const {
+    return std::chrono::duration_cast<std::chrono::nanoseconds>(end_ - start_).count();
+  }
+
+private:
+  std::chrono::time_point<std::chrono::high_resolution_clock> start_, end_;
+};
+
+void error(const char* msg) {
+  perror(msg);
+  exit(0);
+}
+
+} // namespace http_benchmark_impl
+
+float http_benchmark(int NCONNECTIONS, int NTHREADS, int duration_in_ms, int port,
+                     std::string_view req) {
+  auto client_fn = [&](auto conn_handler) {
+    int sockets[NCONNECTIONS];
+    int portno, n;
+    struct sockaddr_in serveraddr;
+    struct hostent* server;
+    const char* hostname;
+
+    /* check command line arguments */
+    hostname = "0.0.0.0";
+    portno = port;
+
+    /* socket: create the socket */
+    for (int i = 0; i < NCONNECTIONS; i++) {
+      sockets[i] = socket(AF_INET, SOCK_STREAM, 0);
+      if (sockets[i] < 0)
+        http_benchmark_impl::error("ERROR opening socket");
+    }
+
+    /* gethostbyname: get the server's DNS entry */
+    server = gethostbyname(hostname);
+    if (server == NULL) {
+      fprintf(stderr, "ERROR, no such host as %s\n", hostname);
+      exit(0);
+    }
+
+    /* build the server's Internet address */
+    bzero((char*)&serveraddr, sizeof(serveraddr));
+    serveraddr.sin_family = AF_INET;
+    bcopy((char*)server->h_addr, (char*)&serveraddr.sin_addr.s_addr, server->h_length);
+    serveraddr.sin_port = htons(portno);
+
+    /* connect: create a connection with the server */
+    for (int i = 0; i < NCONNECTIONS; i++)
+      if (connect(sockets[i], (const sockaddr*)&serveraddr, sizeof(serveraddr)) < 0)
+        http_benchmark_impl::error("ERROR connecting");
+
+    for (int i = 0; i < NCONNECTIONS; i++)
+      fcntl(sockets[i], F_SETFL, fcntl(sockets[i], F_GETFL, 0) | O_NONBLOCK);
+
+    int epoll_fd = epoll_create1(0);
+
+    auto epoll_ctl = [epoll_fd](int fd, int op, uint32_t flags) {
+      epoll_event event;
+      event.data.fd = fd;
+      event.events = flags;
+      ::epoll_ctl(epoll_fd, op, fd, &event);
+      return true;
+    };
+
+    for (int i = 0; i < NCONNECTIONS; i++)
+      epoll_ctl(sockets[i], EPOLL_CTL_ADD, EPOLLIN | EPOLLOUT | EPOLLET);
+
+    const int MAXEVENTS = 64;
+    std::vector<ctx::continuation> fibers;
+    for (int i = 0; i < NCONNECTIONS; i++) {
+      int infd = sockets[i];
+      if (int(fibers.size()) < infd + 1)
+        fibers.resize(infd + 10);
+
+      fibers[infd] = ctx::callcc([fd = infd, &conn_handler, epoll_ctl](ctx::continuation&& sink) {
+        auto read = [fd, &sink, epoll_ctl](char* buf, int max_size) {
+          ssize_t count = ::recv(fd, buf, max_size, 0);
+          while (count <= 0) {
+            if ((count < 0 and errno != EAGAIN) or count == 0)
+              return ssize_t(0);
+            sink = sink.resume();
+            count = ::recv(fd, buf, max_size, 0);
+          }
+          return count;
+        };
+
+        auto write = [fd, &sink, epoll_ctl](const char* buf, int size) {
+          const char* end = buf + size;
+          ssize_t count = ::send(fd, buf, end - buf, MSG_NOSIGNAL);
+          if (count > 0)
+            buf += count;
+          while (buf != end) {
+            if ((count < 0 and errno != EAGAIN) or count == 0)
+              return false;
+            sink = sink.resume();
+            count = ::send(fd, buf, end - buf, MSG_NOSIGNAL);
+            if (count > 0)
+              buf += count;
+          }
+          return true;
+        };
+        conn_handler(fd, read, write);
+        return std::move(sink);
+      });
+    }
+
+    // Even loop.
+    epoll_event events[MAXEVENTS];
+    http_benchmark_impl::timer global_timer;
+    global_timer.start();
+    global_timer.end();
+    while (global_timer.ms() < duration_in_ms) {
+      int n_events = epoll_wait(epoll_fd, events, MAXEVENTS, 1);
+      for (int i = 0; i < n_events; i++) {
+        if ((events[i].events & EPOLLERR) || (events[i].events & EPOLLHUP)) {
+          close(events[i].data.fd);
+          fibers[events[i].data.fd] = fibers[events[i].data.fd].resume();
+        } else // Data available on existing sockets. Wake up the fiber associated with
+               // events[i].data.fd.
+          fibers[events[i].data.fd] = fibers[events[i].data.fd].resume();
+      }
+
+      global_timer.end();
+    }
+
+    // Close all client sockets.
+    for (int i = 0; i < NCONNECTIONS; i++)
+      close(sockets[i]);
+  };
+
+  std::atomic<int> nmessages = 0;
+
+  auto bench_tcp = [&]() {
+    client_fn([&](int fd, auto read, auto write) { // flood the server.
+      while (true) {
+        char buf_read[10000];
+        write(req.data(), req.size());
+        int rd = read(buf_read, sizeof(buf_read));
+        nmessages++;
+      }
+    });
+  };
+
+  int nthreads = NTHREADS;
+  std::vector<std::thread> ths;
+  for (int i = 0; i < nthreads; i++)
+    ths.push_back(std::thread(bench_tcp));
+  for (auto& t : ths)
+    t.join();
+  return (1000. * nmessages / duration_in_ms);
+}
+
+} // namespace li
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_HTTP_BENCHMARK
 
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_HTTP_BACKEND

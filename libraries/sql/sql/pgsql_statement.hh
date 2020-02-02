@@ -20,6 +20,12 @@ struct pgsql_statement_data : std::enable_shared_from_this<pgsql_statement_data>
 template <typename Y>
 struct pgsql_statement {
 
+  PGconn* connection_;
+  Y& fiber_;
+  pgsql_statement_data& data_;
+  std::shared_ptr<int> connection_status_;
+  int last_insert_id_ = -1;
+
   // Wait for the next result.
   PGresult* wait_for_next_result() {
     //std::cout << "WAIT ======================" << std::endl;
@@ -32,7 +38,7 @@ struct pgsql_statement {
       {
         //std::cout << "isbusy" << std::endl;
         try {
-          yield_();
+          fiber_.yield();
         } catch (typename Y::exception_type& e) {
           // Yield thrown a exception (probably because a closed connection).
           // Mark the connection as broken because it is left in a undefined state.
@@ -175,7 +181,9 @@ struct pgsql_statement {
       i++;
     });
 
+    // std::cout << "flush" << std::endl;
     flush_results();
+    // std::cout << "flushed" << std::endl;
     // std::cout << "sending " << data_.stmt_name.c_str() << " with " << nparams << " params" << std::endl;
     if (!PQsendQueryPrepared(connection_, data_.stmt_name.c_str(), nparams, values, lengths, binary, 1))
       throw std::runtime_error(std::string("Postresql error:") + PQerrorMessage(connection_));
@@ -368,12 +376,6 @@ struct pgsql_statement {
     while (PGresult* res = wait_for_next_result())
       PQclear(res);
   }
-
-  PGconn* connection_;
-  Y& yield_;
-  pgsql_statement_data& data_;
-  std::shared_ptr<int> connection_status_;
-  int last_insert_id_ = -1;
 };
 
 }

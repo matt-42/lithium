@@ -2,6 +2,7 @@
 #include <li/sql/mysql.hh>
 #include <li/sql/pgsql.hh>
 
+
 #include "symbols.hh"
 using namespace li;
 
@@ -20,11 +21,8 @@ void escape_html_entities(B& buffer, const std::string& data)
     }
 }
 
-//#define PGSQL
-#define BENCH_MYSQL
-
-int main(int argc, char* argv[]) {
-
+#define PGSQL
+// #define BENCH_MYSQL
 #ifdef BENCH_MYSQL
   auto sql_db =
       mysql_database(s::host = "127.0.0.1", s::database = "silicon_test", s::user = "root",
@@ -36,6 +34,7 @@ int main(int argc, char* argv[]) {
 
 #endif
 
+
   auto fortunes = sql_orm_schema(sql_db, "Fortune").fields(
     s::id(s::auto_increment, s::primary_key) = int(),
     s::message = std::string());
@@ -44,17 +43,21 @@ int main(int argc, char* argv[]) {
     s::id(s::auto_increment, s::primary_key) = int(),
     s::randomNumber = int());
 
-    // { // init.
+void set_max_sql_connections_per_thread(int max)
+{
+// #ifdef BENCH_MYSQL
+//   li::max_mysql_connections_per_thread = max;
+// #elif PGSQL
+  li::max_pgsql_connections_per_thread = max;
+// #endif
+}
 
-    //   auto c = random_numbers.connect();
-    //   c.drop_table_if_exists().create_table_if_not_exists();
-    //   for (int i = 0; i < 10000; i++)
-    //     c.insert(s::randomNumber = i);
-    //   auto f = fortunes.connect();
-    //   f.drop_table_if_exists().create_table_if_not_exists();
-    //   for (int i = 0; i < 100; i++)
-    //     f.insert(s::message = "testmessagetestmessagetestmessagetestmessagetestmessagetestmessage");
-    // }
+int db_nconn = 64;
+int queries_nconn = 64;
+int fortunes_nconn = 64;
+int udpate_nconn = 64;
+
+auto make_api() {
   http_api my_api;
 
   my_api.get("/plaintext") = [&](http_request& request, http_response& response) {
@@ -67,7 +70,7 @@ int main(int argc, char* argv[]) {
   };
   my_api.get("/db") = [&](http_request& request, http_response& response) {
     //std::cout << "start" << std::endl;
-    response.write_json(random_numbers.connect(request.yield).find_one(s::id = 14).value());
+    response.write_json(random_numbers.connect(request.fiber).find_one(s::id = 14).value());
     //std::cout << "end" << std::endl;
   };
 
@@ -78,7 +81,7 @@ int main(int argc, char* argv[]) {
     
     N = std::max(1, std::min(N, 500));
     
-    auto c = random_numbers.connect(request.yield);
+    auto c = random_numbers.connect(request.fiber);
     auto& raw_c = c.backend_connection();
     //raw_c("START TRANSACTION");
     std::vector<decltype(random_numbers.all_fields())> numbers(N);
@@ -98,112 +101,52 @@ int main(int argc, char* argv[]) {
     std::string N_str = request.get_parameters(s::N = std::optional<std::string>()).N.value_or("1");
     int N = atoi(N_str.c_str());
     N = std::max(1, std::min(N, 500));
-    
-    auto c = random_numbers.connect(request.yield);
-    auto& raw_c = c.backend_connection();
     std::vector<decltype(random_numbers.all_fields())> numbers(N);
     
-    // raw_c("START TRANSACTION ISOLATION LEVEL REPEATABLE READ");
-#ifdef BENCH_MYSQL
-    raw_c("START TRANSACTION");
-#endif
-
-    for (int i = 0; i < N; i++)
     {
-      numbers[i] = c.find_one(s::id = 1 + rand() % 9999).value();
-      numbers[i].randomNumber = 1 + rand() % 9999;
-    }
+        auto c = random_numbers.connect(request.fiber);
+        auto& raw_c = c.backend_connection();
+      
+      {
+        // auto c2 = random_numbers.connect(request.fiber);
+        // auto& raw_c2 = c2.backend_connection();
 
-    std::sort(numbers.begin(), numbers.end(), [] (auto a, auto b) { return a.id < b.id; });
-    
-#ifdef BENCH_MYSQL
-    for (int i = 0; i < N; i++)
-      c.update(numbers[i]);
-#else
-    // std::ostringstream ss_lock;
-    // ss_lock << "select * from World where id in ("; 
-    // for (int i = 0; i < N; i++)
-    //   ss_lock << numbers[i].id << (i == N-1 ? "": ",");
-    // ss_lock << ") for update";
-    // // std::cout << ss_lock.str() << std::endl; 
-    // raw_c(ss_lock.str());
+        // raw_c("START TRANSACTION ISOLATION LEVEL REPEATABLE READ");
+    // #ifdef BENCH_MYSQL
+        // raw_c("START TRANSACTION");
+    // #endif
 
-    // for (int i = 0; i < N; i++)
-    //   c.update(numbers[i]);
-
-    // std::ostringstream ss;
-    // ss << "UPDATE World SET randomNumber=tmp.randomNumber FROM (VALUES ";
-    // for (int i = 0; i < N; i++)
-    //   ss << "(" << numbers[i].id << ", " << numbers[i].randomNumber << ") "<< (i == N-1 ? "": ",");
-    //   //ss << "(" << numbers[i].id << ", " << numbers[i].randomNumber << ") "<< (i == N-1 ? "": ",");
-    // ss << " ORDER BY 1) AS tmp(id, randomNumber) WHERE tmp.id = World.id";
-    // // std::cout << ss.str() << std::endl;
-    // raw_c(ss.str());
-
-
-    // auto get_statement = [&] (){ 
-    //   if (!raw_c.has_cached_statement(s::bulk_insert))
-    //   {
-    //     std::ostringstream ss;
-    //     ss << "UPDATE World SET randomNumber=tmp.randomNumber FROM (VALUES ";
-    //     for (int i = 0; i < N; i++)
-    //       ss << "($" << i*2+1 << "::integer, $" << i*2+2 << "::integer) "<< (i == N-1 ? "": ",");
-    //     ss << ") AS tmp(id, randomNumber) WHERE tmp.id = World.id";
-    //     auto stmt = raw_c.prepare(ss.str());
-    //     raw_c.cache_statement(stmt, s::bulk_insert);
-    //     return stmt;
-    //   }
-    //   else return raw_c.get_cached_statement(s::bulk_insert);
-    // };
-
-    //std::cout << ss.str() << std::endl;
-    raw_c.cached_statement([N] {
-        std::ostringstream ss;
-        ss << "UPDATE World SET randomNumber=tmp.randomNumber FROM (VALUES ";
         for (int i = 0; i < N; i++)
-          ss << "($" << i*2+1 << "::integer, $" << i*2+2 << "::integer) "<< (i == N-1 ? "": ",");
-        ss << ") AS tmp(id, randomNumber) WHERE tmp.id = World.id";
-        return ss.str();
-    }, N)(numbers);
-    // (
-    //   numbers[0].id, numbers[0].randomNumber,
-    //   numbers[1].id, numbers[1].randomNumber,
-    //   numbers[2].id, numbers[2].randomNumber,
-    //   numbers[3].id, numbers[3].randomNumber,
-    //   numbers[4].id, numbers[4].randomNumber,
-    //   numbers[5].id, numbers[5].randomNumber,
-    //   numbers[6].id, numbers[6].randomNumber,
-    //   numbers[7].id, numbers[7].randomNumber,
-    //   numbers[8].id, numbers[8].randomNumber,
-    //   numbers[9].id, numbers[9].randomNumber,
+        {
+          numbers[i] = c.find_one(s::id = 1 + rand() % 9999).value();
+          // numbers[i].id = 1 + rand() % 9999;
+          // numbers[i].randomNumber = raw_c2.cached_statement([] { return "select randomNumber from World where id=$1"; })(numbers[i].id).read<int>();
+          numbers[i].randomNumber = 1 + rand() % 9999;
+        }
+        // raw_c("COMMIT");
+      }
 
-    //   numbers[10].id, numbers[10].randomNumber,
-    //   numbers[11].id, numbers[11].randomNumber,
-    //   numbers[12].id, numbers[12].randomNumber,
-    //   numbers[13].id, numbers[13].randomNumber,
-    //   numbers[14].id, numbers[14].randomNumber,
-    //   numbers[15].id, numbers[15].randomNumber,
-    //   numbers[16].id, numbers[16].randomNumber,
-    //   numbers[17].id, numbers[17].randomNumber,
-    //   numbers[18].id, numbers[18].randomNumber,
-    //   numbers[19].id, numbers[19].randomNumber
-    // );
+      std::sort(numbers.begin(), numbers.end(), [] (auto a, auto b) { return a.id < b.id; });
 
-    // std::ostringstream ss;
-    // ss << "UPDATE World SET randomNumber=case id ";
-    // for (int i = 0; i < N; i++)
-    //   ss << " when " << numbers[i].id << " then " << numbers[i].randomNumber;
-    // ss << " else randomNumber end where id in (";
-    // for (int i = 0; i < N; i++)
-    //   ss << numbers[i].id << (i == N-1 ? "": ",");
-    // ss << ")";
-    // //std::cout << ss.str() << std::endl;
-    // raw_c(ss.str());
 
-#endif
-#ifdef BENCH_MYSQL
-    raw_c("COMMIT");
-#endif
+  #ifdef BENCH_MYSQL
+      for (int i = 0; i < N; i++)
+        c.update(numbers[i]);
+  #else
+      raw_c.cached_statement([N] {
+          std::ostringstream ss;
+          ss << "UPDATE World SET randomNumber=tmp.randomNumber FROM (VALUES ";
+          for (int i = 0; i < N; i++)
+            ss << "($" << i*2+1 << "::int, $" << i*2+2 << "::int) "<< (i == N-1 ? "": ",");
+          ss << " ) AS tmp(id, randomNumber) WHERE tmp.id = World.id";
+          return ss.str();
+      }, N)(numbers);
+
+  #endif
+  // #ifdef BENCH_MYSQL
+      // raw_c("COMMIT");
+  // #endif
+    }
 
     // std::cout << raw_c.prepare("select randomNumber from World where id=$1")(numbers[0].id).read<int>() << " " << numbers[0].randomNumber << std::endl;   
     response.write_json(numbers);
@@ -215,7 +158,7 @@ int main(int argc, char* argv[]) {
 
     std::vector<fortune> table;
 
-    auto c = fortunes.connect(request.yield);
+    auto c = fortunes.connect(request.fiber);
     c.forall([&] (auto f) { table.emplace_back(std::move(f)); });
     table.emplace_back(0, std::string("Additional fortune added at request time."));
 
@@ -237,26 +180,87 @@ int main(int argc, char* argv[]) {
     response.write(ss.to_string_view());
   };
 
+  return my_api;
+}
+
+float tune_n_sql_connections(std::string http_req, int port, int max) {
+
+  std::cout << std::endl << "Benchmark " << http_req << std::endl;
+
+  // Warmup;
+  set_max_sql_connections_per_thread(max);
+  http_benchmark(512, 1, 1000, port, http_req);
+
+  // auto my_api = make_api();
+  float max_req_per_s = 0;
+  int best_nconn = -1;
+  for (int nc : {1, 2, 3, 4, 8, 32, 64, 128, 256, 512})
+  {
+    if (nc >= max) break;
+    set_max_sql_connections_per_thread(nc);
+    float req_per_s = http_benchmark(512, 1, 400, port, http_req);
+    std::cout << nc << " -> " << req_per_s << " req/s." << std::endl;
+    if (req_per_s > max_req_per_s)
+    {
+      max_req_per_s = req_per_s;
+      best_nconn = nc;
+    }
+  }
+  std::cout << "best: " << best_nconn << " (" << max_req_per_s << " req/s)."<< std::endl;
+
+  return best_nconn;
+}
+
+int main(int argc, char* argv[]) {
+
+
+  if (argc == 3)
+    { // init.
+
+      auto c = random_numbers.connect();
+      c.backend_connection()("START TRANSACTION");
+      c.drop_table_if_exists().create_table_if_not_exists();
+      for (int i = 0; i < 10000; i++)
+        c.insert(s::randomNumber = i);
+      c.backend_connection()("COMMIT");
+      auto f = fortunes.connect();
+      f.drop_table_if_exists().create_table_if_not_exists();
+      for (int i = 0; i < 100; i++)
+        f.insert(s::message = "testmessagetestmessagetestmessagetestmessagetestmessagetestmessage");
+    }
+
+  int port = atoi(argv[1]);
+
+  auto my_api = make_api();
+
+  int nthread = 4;
+  std::thread server_thread([&] {
+    http_serve(my_api, port, s::nthreads = 4);
+  });
+  usleep(1e5);
+
+
 #ifdef BENCH_MYSQL  
-  int mysql_max_connection = sql_db.connect()("SELECT @@GLOBAL.max_connections;").read<int>() * 0.75;
-  std::cout << "mysql max connection " << mysql_max_connection << std::endl;
+  int sql_max_connection = sql_db.connect()("SELECT @@GLOBAL.max_connections;").template read<int>() - 10;
+  std::cout << "mysql max connection " << sql_max_connection << std::endl;
   int port = atoi(argv[1]);
   // int port = 12667;
-  int nthread = 4;
-  li::max_mysql_connections_per_thread = (mysql_max_connection / nthread);
+  li::max_mysql_connections_per_thread = (sql_max_connection / nthread);
 
 #else
-  int mysql_max_connection = atoi(sql_db.connect()("SHOW max_connections;").read<std::string>().c_str()) * 0.75;
-  std::cout << "sql max connection " << mysql_max_connection << std::endl;
-  int port = atoi(argv[1]);
-  // int port = 12543;
-  
-  int nthread = 4;
-  li::max_pgsql_connections_per_thread = (mysql_max_connection / nthread);
+  int sql_max_connection = atoi(sql_db.connect()("SHOW max_connections;").template read<std::string>().c_str()) - 10;
+  std::cout << "sql max connection " << sql_max_connection << std::endl;
+  // int port = 12543;  
+  li::max_pgsql_connections_per_thread = (sql_max_connection / nthread);
 #endif
 
-  http_serve(my_api, port, s::nthreads = nthread); 
-  
-  return 0;
+  db_nconn = tune_n_sql_connections("GET /db HTTP/1.1\r\n\r\n", port, sql_max_connection / nthread);
+  queries_nconn = tune_n_sql_connections("GET /queries?N=20 HTTP/1.1\r\n\r\n", port, sql_max_connection / nthread);
+  fortunes_nconn = tune_n_sql_connections("GET /fortunes HTTP/1.1\r\n\r\n", port, sql_max_connection / nthread);
+  udpate_nconn = tune_n_sql_connections("GET /updates?N=20 HTTP/1.1\r\n\r\n", port, sql_max_connection / nthread);
 
+  // http_serve(my_api, port, s::nthreads = nthread); 
+  server_thread.join();
+
+  return 0;
 }
