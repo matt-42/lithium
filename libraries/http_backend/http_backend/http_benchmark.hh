@@ -33,8 +33,8 @@ private:
   std::chrono::time_point<std::chrono::high_resolution_clock> start_, end_;
 };
 
-void error(const char* msg) {
-  perror(msg);
+void error(std::string msg) {
+  perror(msg.c_str());
   exit(0);
 }
 
@@ -73,13 +73,7 @@ float http_benchmark(int NCONNECTIONS, int NTHREADS, int duration_in_ms, int por
     bcopy((char*)server->h_addr, (char*)&serveraddr.sin_addr.s_addr, server->h_length);
     serveraddr.sin_port = htons(portno);
 
-    /* connect: create a connection with the server */
-    for (int i = 0; i < NCONNECTIONS; i++)
-      if (connect(sockets[i], (const sockaddr*)&serveraddr, sizeof(serveraddr)) < 0)
-        http_benchmark_impl::error("ERROR connecting");
 
-    for (int i = 0; i < NCONNECTIONS; i++)
-      fcntl(sockets[i], F_SETFL, fcntl(sockets[i], F_GETFL, 0) | O_NONBLOCK);
 
     int epoll_fd = epoll_create1(0);
 
@@ -91,8 +85,35 @@ float http_benchmark(int NCONNECTIONS, int NTHREADS, int duration_in_ms, int por
       return true;
     };
 
+    // Set sockets non blocking.
+    for (int i = 0; i < NCONNECTIONS; i++)
+      fcntl(sockets[i], F_SETFL, fcntl(sockets[i], F_GETFL, 0) | O_NONBLOCK);
+
     for (int i = 0; i < NCONNECTIONS; i++)
       epoll_ctl(sockets[i], EPOLL_CTL_ADD, EPOLLIN | EPOLLOUT | EPOLLET);
+
+    /* connect: create a connection with the server */
+    std::vector<bool> opened(NCONNECTIONS, false);
+    while (true)
+    {
+      for (int i = 0; i < NCONNECTIONS; i++)
+      {
+        if (opened[i]) continue;
+        int ret = connect(sockets[i], (const sockaddr*)&serveraddr, sizeof(serveraddr));
+        if (ret == 0)
+          opened[i] = true;
+        else if (errno == EINPROGRESS || errno == EALREADY)
+          continue;
+        else
+          http_benchmark_impl::error(std::string("Cannot connect to server: ") + strerror(errno));
+      }
+
+      int nopened = 0;
+      for (int i = 0; i < NCONNECTIONS; i++)
+        nopened += opened[i];
+      if (nopened == NCONNECTIONS)
+        break;
+    }
 
     const int MAXEVENTS = 64;
     std::vector<ctx::continuation> fibers;
