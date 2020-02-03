@@ -114,14 +114,8 @@ struct pgsql_connection {
     if (connection_status_ && *connection_status_ == 0)
     {
       // flush results if needed.
-      while(PGresult* ret = PQgetResult(connection_))
-      {
-        if (PQresultStatus(ret) == PGRES_FATAL_ERROR)
-          return;
-        if (PQresultStatus(ret) == PGRES_NONFATAL_ERROR)
-          std::cerr << "Postgresql non fatal error: " << PQerrorMessage(connection_) << std::endl;
-        PQclear(ret);
-      }
+      while (PGresult* res = wait_for_next_result())
+        PQclear(res);
     }
   }
 
