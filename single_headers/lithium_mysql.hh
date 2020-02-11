@@ -7,25 +7,25 @@
 
 #pragma once
 
-#include <cstring>
-#include <unordered_map>
 #include <string>
-#include <optional>
-#include <vector>
-#include <memory>
-#include <boost/lexical_cast.hpp>
-#include <cassert>
-#include <thread>
 #include <any>
-#include <atomic>
+#include <sys/epoll.h>
+#include <cassert>
 #include <tuple>
 #include <mysql.h>
+#include <vector>
+#include <optional>
+#include <boost/lexical_cast.hpp>
+#include <iostream>
 #include <mutex>
 #include <sstream>
-#include <sys/epoll.h>
-#include <deque>
+#include <unordered_map>
+#include <atomic>
 #include <utility>
-#include <iostream>
+#include <deque>
+#include <cstring>
+#include <memory>
+#include <thread>
 #include <map>
 
 
@@ -2053,7 +2053,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
   // N must have at least one primary key.
   template <typename N, typename... CB> void bulk_update(const N& elements, CB&&... args) {
 
-    if (!std::is_same<typename C::db_tag, pgsql_tag>::value)
+    if constexpr(!std::is_same<typename C::db_tag, pgsql_tag>::value)
       for (const auto& o : elements)
         this->update(o);
     else

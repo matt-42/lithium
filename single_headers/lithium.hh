@@ -7,49 +7,49 @@
 
 #pragma once
 
-#include <cstring>
-#include <unistd.h>
-#include <unordered_map>
-#include <string>
-#include <sqlite3.h>
-#include <string.h>
-#include <stdio.h>
-#include <optional>
-#include <fcntl.h>
-#include <sys/mman.h>
-#include <vector>
-#include <functional>
-#include <memory>
-#include <boost/lexical_cast.hpp>
 #include <sys/types.h>
-#include <cassert>
-#include <sys/socket.h>
-#include <sys/sendfile.h>
-#include <chrono>
-#include <thread>
-#include <netinet/tcp.h>
-#include <sys/stat.h>
-#include <variant>
-#include <any>
-#include <boost/context/continuation.hpp>
-#include <set>
+#include <sqlite3.h>
 #include <string_view>
+#include <string>
+#include <any>
+#include <sys/stat.h>
 #include <sys/uio.h>
-#include <atomic>
-#include <tuple>
-#include <stdlib.h>
-#include <netdb.h>
-#include <mysql.h>
-#include <mutex>
-#include <sstream>
 #include <sys/epoll.h>
-#include <random>
+#include <cassert>
+#include <sys/mman.h>
+#include <netdb.h>
+#include <tuple>
+#include <mysql.h>
+#include <vector>
+#include <stdlib.h>
+#include <optional>
+#include <functional>
+#include <boost/lexical_cast.hpp>
+#include <boost/context/continuation.hpp>
+#include <iostream>
+#include <mutex>
+#include <variant>
+#include <string.h>
+#include <unistd.h>
 #include <signal.h>
+#include <sstream>
+#include <chrono>
+#include <set>
+#include <stdio.h>
+#include <unordered_map>
+#include <atomic>
+#include <utility>
+#include <sys/sendfile.h>
+#include <cmath>
 #include <errno.h>
 #include <deque>
-#include <utility>
-#include <cmath>
-#include <iostream>
+#include <cstring>
+#include <fcntl.h>
+#include <random>
+#include <memory>
+#include <netinet/tcp.h>
+#include <sys/socket.h>
+#include <thread>
 #include <map>
 
 #if defined(_MSC_VER)
@@ -1664,7 +1664,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
   // N must have at least one primary key.
   template <typename N, typename... CB> void bulk_update(const N& elements, CB&&... args) {
 
-    if (!std::is_same<typename C::db_tag, pgsql_tag>::value)
+    if constexpr(!std::is_same<typename C::db_tag, pgsql_tag>::value)
       for (const auto& o : elements)
         this->update(o);
     else

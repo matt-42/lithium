@@ -252,7 +252,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
   // N must have at least one primary key.
   template <typename N, typename... CB> void bulk_update(const N& elements, CB&&... args) {
 
-    if (!std::is_same<typename C::db_tag, pgsql_tag>::value)
+    if constexpr(!std::is_same<typename C::db_tag, pgsql_tag>::value)
       for (const auto& o : elements)
         this->update(o);
     else

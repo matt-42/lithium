@@ -8,18 +8,18 @@
 #pragma once
 
 #include <cstring>
-#include <unordered_map>
-#include <string>
-#include <vector>
-#include <mutex>
-#include <memory>
-#include <sstream>
-#include <sqlite3.h>
 #include <tuple>
-#include <any>
-#include <utility>
+#include <vector>
+#include <memory>
 #include <optional>
+#include <sqlite3.h>
+#include <unordered_map>
 #include <iostream>
+#include <string>
+#include <any>
+#include <mutex>
+#include <utility>
+#include <sstream>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -1632,7 +1632,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
   // N must have at least one primary key.
   template <typename N, typename... CB> void bulk_update(const N& elements, CB&&... args) {
 
-    if (!std::is_same<typename C::db_tag, pgsql_tag>::value)
+    if constexpr(!std::is_same<typename C::db_tag, pgsql_tag>::value)
       for (const auto& o : elements)
         this->update(o);
     else
