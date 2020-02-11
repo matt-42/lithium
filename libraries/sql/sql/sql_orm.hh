@@ -305,7 +305,6 @@ template <typename SCHEMA, typename C> struct sql_orm {
         call_callback(s::validate, o, args...);
         call_callback(s::write_access, o, args...);
         call_callback(s::before_update, o, args...);
-        this->update(o);
       }
 
       stmt(elements).flush_results();
