@@ -7,28 +7,28 @@
 
 #pragma once
 
-#include <arpa/inet.h>
-#include <atomic>
-#include <unistd.h>
-#include <any>
-#include <map>
-#include <optional>
-#include <utility>
-#include <vector>
-#include <thread>
-#include <iostream>
-#include <unordered_map>
-#include <tuple>
-#include <memory>
-#include <cassert>
-#include <sys/epoll.h>
-#include <deque>
 #include <cstring>
-#include <boost/lexical_cast.hpp>
-#include <sstream>
-#include <libpq-fe.h>
-#include <mutex>
+#include <unistd.h>
+#include <unordered_map>
 #include <string>
+#include <libpq-fe.h>
+#include <optional>
+#include <vector>
+#include <memory>
+#include <boost/lexical_cast.hpp>
+#include <cassert>
+#include <thread>
+#include <any>
+#include <atomic>
+#include <tuple>
+#include <mutex>
+#include <sstream>
+#include <sys/epoll.h>
+#include <arpa/inet.h>
+#include <deque>
+#include <utility>
+#include <iostream>
+#include <map>
 
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL
@@ -1425,8 +1425,8 @@ struct pgsql_connection {
     if (connection_status_ && *connection_status_ == 0)
     {
       // flush results if needed.
-      while (PGresult* res = wait_for_next_result())
-        PQclear(res);
+      // while (PGresult* res = wait_for_next_result())
+      //   PQclear(res);
     }
   }
 

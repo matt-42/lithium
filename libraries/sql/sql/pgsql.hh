@@ -114,8 +114,8 @@ struct pgsql_connection {
     if (connection_status_ && *connection_status_ == 0)
     {
       // flush results if needed.
-      while (PGresult* res = wait_for_next_result())
-        PQclear(res);
+      // while (PGresult* res = wait_for_next_result())
+      //   PQclear(res);
     }
   }
 

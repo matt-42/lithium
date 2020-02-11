@@ -8,18 +8,18 @@
 #pragma once
 
 #include <cstring>
-#include <iostream>
-#include <sqlite3.h>
 #include <unordered_map>
-#include <vector>
-#include <tuple>
-#include <sstream>
-#include <any>
-#include <mutex>
 #include <string>
+#include <vector>
+#include <mutex>
 #include <memory>
-#include <optional>
+#include <sstream>
+#include <sqlite3.h>
+#include <tuple>
+#include <any>
 #include <utility>
+#include <optional>
+#include <iostream>
 
 #if defined(_MSC_VER)
 #include <ciso646>
