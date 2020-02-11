@@ -7,19 +7,19 @@
 
 #pragma once
 
-#include <cstring>
-#include <tuple>
-#include <vector>
-#include <memory>
-#include <optional>
-#include <sqlite3.h>
-#include <unordered_map>
-#include <iostream>
-#include <string>
-#include <any>
 #include <mutex>
+#include <any>
 #include <utility>
+#include <iostream>
+#include <unordered_map>
+#include <string>
+#include <sqlite3.h>
+#include <vector>
+#include <optional>
+#include <tuple>
+#include <cstring>
 #include <sstream>
+#include <memory>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -1685,7 +1685,6 @@ template <typename SCHEMA, typename C> struct sql_orm {
         call_callback(s::validate, o, args...);
         call_callback(s::write_access, o, args...);
         call_callback(s::before_update, o, args...);
-        this->update(o);
       }
 
       stmt(elements).flush_results();

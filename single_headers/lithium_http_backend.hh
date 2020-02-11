@@ -7,50 +7,50 @@
 
 #pragma once
 
-#include <sys/types.h>
-#include <string_view>
-#include <string>
-#include <sys/stat.h>
-#include <sys/uio.h>
-#include <sys/epoll.h>
-#include <cassert>
 #include <sys/mman.h>
-#include <netdb.h>
-#include <tuple>
-#include <vector>
-#include <stdlib.h>
-#include <optional>
-#include <functional>
-#include <boost/lexical_cast.hpp>
-#include <boost/context/continuation.hpp>
-#include <iostream>
-#include <variant>
-#include <mutex>
+#include <random>
+#include <sys/uio.h>
+#include <map>
+#include <unordered_map>
+#include <sys/types.h>
+#include <chrono>
+#include <sys/epoll.h>
 #include <string.h>
 #include <unistd.h>
-#include <signal.h>
-#include <sstream>
-#include <chrono>
-#include <set>
-#include <stdio.h>
-#include <unordered_map>
-#include <atomic>
-#include <utility>
-#include <sys/sendfile.h>
-#include <cmath>
-#include <errno.h>
-#include <cstring>
-#include <fcntl.h>
-#include <random>
 #include <memory>
-#include <netinet/tcp.h>
-#include <sys/socket.h>
+#include <variant>
+#include <errno.h>
+#include <utility>
+#include <atomic>
+#include <boost/context/continuation.hpp>
+#include <cassert>
+#include <string_view>
+#include <vector>
+#include <sys/sendfile.h>
+#include <fcntl.h>
+#include <stdlib.h>
+#include <iostream>
+#include <cmath>
+#include <functional>
+#include <string>
+#include <stdio.h>
+#include <optional>
+#include <tuple>
+#include <sstream>
 #include <thread>
-#include <map>
+#include <mutex>
+#include <sys/socket.h>
+#include <boost/lexical_cast.hpp>
+#include <sys/stat.h>
+#include <signal.h>
+#include <netinet/tcp.h>
+#include <set>
+#include <cstring>
+#include <netdb.h>
 
 #if defined(_MSC_VER)
-#include <io.h>
 #include <ciso646>
+#include <io.h>
 #endif // _MSC_VER
 
 
@@ -2476,7 +2476,6 @@ template <typename SCHEMA, typename C> struct sql_orm {
         call_callback(s::validate, o, args...);
         call_callback(s::write_access, o, args...);
         call_callback(s::before_update, o, args...);
-        this->update(o);
       }
 
       stmt(elements).flush_results();

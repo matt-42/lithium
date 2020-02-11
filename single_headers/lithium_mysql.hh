@@ -7,26 +7,26 @@
 
 #pragma once
 
-#include <string>
-#include <any>
-#include <sys/epoll.h>
-#include <cassert>
-#include <tuple>
-#include <mysql.h>
-#include <vector>
-#include <optional>
-#include <boost/lexical_cast.hpp>
-#include <iostream>
-#include <mutex>
-#include <sstream>
-#include <unordered_map>
-#include <atomic>
-#include <utility>
-#include <deque>
-#include <cstring>
-#include <memory>
-#include <thread>
 #include <map>
+#include <unordered_map>
+#include <sys/epoll.h>
+#include <memory>
+#include <utility>
+#include <atomic>
+#include <cassert>
+#include <deque>
+#include <vector>
+#include <iostream>
+#include <string>
+#include <optional>
+#include <tuple>
+#include <sstream>
+#include <thread>
+#include <mutex>
+#include <boost/lexical_cast.hpp>
+#include <mysql.h>
+#include <cstring>
+#include <any>
 
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL
@@ -2106,7 +2106,6 @@ template <typename SCHEMA, typename C> struct sql_orm {
         call_callback(s::validate, o, args...);
         call_callback(s::write_access, o, args...);
         call_callback(s::before_update, o, args...);
-        this->update(o);
       }
 
       stmt(elements).flush_results();
