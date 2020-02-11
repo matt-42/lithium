@@ -7,46 +7,46 @@
 
 #pragma once
 
-#include <unordered_map>
-#include <chrono>
-#include <sstream>
-#include <optional>
-#include <netinet/tcp.h>
 #include <atomic>
 #include <unistd.h>
-#include <sys/epoll.h>
+#include <variant>
+#include <sys/stat.h>
+#include <map>
+#include <fcntl.h>
+#include <optional>
 #include <utility>
-#include <cstring>
-#include <iostream>
-#include <signal.h>
-#include <mutex>
-#include <thread>
-#include <cmath>
-#include <sys/socket.h>
 #include <boost/context/continuation.hpp>
 #include <random>
-#include <tuple>
-#include <string>
-#include <variant>
-#include <memory>
-#include <functional>
-#include <stdlib.h>
-#include <set>
-#include <map>
-#include <netdb.h>
-#include <sys/uio.h>
-#include <sys/stat.h>
-#include <sys/sendfile.h>
-#include <fcntl.h>
-#include <cassert>
-#include <boost/lexical_cast.hpp>
 #include <vector>
-#include <string.h>
-#include <errno.h>
-#include <stdio.h>
+#include <sys/uio.h>
 #include <sys/types.h>
+#include <thread>
 #include <sys/mman.h>
+#include <stdlib.h>
+#include <chrono>
+#include <set>
+#include <iostream>
+#include <unordered_map>
+#include <cmath>
+#include <tuple>
+#include <sys/socket.h>
+#include <functional>
+#include <memory>
+#include <string.h>
+#include <cassert>
+#include <sys/epoll.h>
+#include <netdb.h>
+#include <netinet/tcp.h>
+#include <cstring>
+#include <errno.h>
+#include <signal.h>
+#include <boost/lexical_cast.hpp>
 #include <string_view>
+#include <stdio.h>
+#include <sstream>
+#include <string>
+#include <mutex>
+#include <sys/sendfile.h>
 
 #if defined(_MSC_VER)
 #include <io.h>
@@ -2421,29 +2421,67 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
   // Update N's members except auto increment members.
   // N must have at least one primary key.
-  // template <typename N, typename... CB> void bulk_update(const N& o, CB&&... args) {
-  //   auto stmt = con_.cached_statement([&] { 
+  template <typename N, typename... CB> void bulk_update(const N& elements, CB&&... args) {
 
-  //     // Select pk
-  //     std::ostringstream ss;
-  //     ss << "UPDATE World SET ";
+    if (!std::is_same<typename C::db_tag, pgsql_tag>::value)
+      for (const auto& o : elements)
+        this->update(o);
+    else
+    {
       
-  //     map(vector[0], [&](auto k, auto v) {
-  //       if (!first)
-  //         ss << ",";
-  //       first = false;
-  //       ss << li::symbol_string(k) << " = tmp." << li::symbol_string(k);
-  //     });
+      auto stmt = con_.cached_statement([&] { 
+        std::ostringstream ss;
+        ss << "UPDATE " << schema_.table_name() << " SET ";
 
-  //     // randomNumber=tmp.randomNumber FROM (VALUES ";
-  //     ss << " FROM (VALUES ";
-  //     for (int i = 0; i < N; i++)
-  //       ss << "($" << i*2+1 << "::integer, $" << i*2+2 << "::integer) "<< (i == N-1 ? "": ",");
-  //     ss << ") AS tmp(id, randomNumber) WHERE tmp.id = World.id";
-  //     return ss.str();
-  //   });
+        int nfields = metamap_size<decltype(elements[0])>();
+        bool first = true;
+        map(elements[0], [&](auto k, auto v) {
+          if (!first)
+            ss << ",";
+          if (not li::has_key(schema_.primary_key(), k))
+          {
+            ss << li::symbol_string(k) << " = tmp." << li::symbol_string(k);
+            first = false;
+          }
+        });
 
-  // }
+        ss << " FROM (VALUES ";
+        for (int i = 0; i < elements.size(); i++)
+        {
+          if (i != 0) ss << ',';
+          ss << "(";
+          for (int j = 0; j < nfields; j++)
+          {
+            if (j != 0) ss << ",";
+            ss << "$" <<  1+i*nfields+j << "::int";
+          }
+          ss << ")";
+        }
+      
+        ss << ") AS tmp(";
+        first = true;
+        map(elements[0], [&](auto k, auto v) {
+          if (!first)
+            ss << ",";
+          first = false;
+          ss << li::symbol_string(k);
+        });
+        ss << ") WHERE tmp.id = " << schema_.table_name() << ".id";      
+        // std::cout << ss.str() << std::endl;
+        return ss.str();
+      }, elements.size());
+
+      for (const auto& o : elements)
+      {
+        call_callback(s::validate, o, args...);
+        call_callback(s::write_access, o, args...);
+        call_callback(s::before_update, o, args...);
+        this->update(o);
+      }
+
+      stmt(elements).flush_results();
+    }
+  }
 
   // Update N's members except auto increment members.
   // N must have at least one primary key.

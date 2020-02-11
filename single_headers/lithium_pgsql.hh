@@ -7,28 +7,28 @@
 
 #pragma once
 
-#include <unordered_map>
-#include <sstream>
-#include <optional>
+#include <arpa/inet.h>
 #include <atomic>
 #include <unistd.h>
-#include <sys/epoll.h>
-#include <utility>
-#include <mutex>
-#include <cstring>
-#include <iostream>
-#include <tuple>
 #include <any>
-#include <string>
-#include <deque>
-#include <memory>
 #include <map>
-#include <cassert>
-#include <boost/lexical_cast.hpp>
+#include <optional>
+#include <utility>
 #include <vector>
-#include <libpq-fe.h>
-#include <arpa/inet.h>
 #include <thread>
+#include <iostream>
+#include <unordered_map>
+#include <tuple>
+#include <memory>
+#include <cassert>
+#include <sys/epoll.h>
+#include <deque>
+#include <cstring>
+#include <boost/lexical_cast.hpp>
+#include <sstream>
+#include <libpq-fe.h>
+#include <mutex>
+#include <string>
 
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL
@@ -1425,14 +1425,8 @@ struct pgsql_connection {
     if (connection_status_ && *connection_status_ == 0)
     {
       // flush results if needed.
-      while(PGresult* ret = PQgetResult(connection_))
-      {
-        if (PQresultStatus(ret) == PGRES_FATAL_ERROR)
-          return;
-        if (PQresultStatus(ret) == PGRES_NONFATAL_ERROR)
-          std::cerr << "Postgresql non fatal error: " << PQerrorMessage(connection_) << std::endl;
-        PQclear(ret);
-      }
+      while (PGresult* res = wait_for_next_result())
+        PQclear(res);
     }
   }
 
@@ -2049,29 +2043,67 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
   // Update N's members except auto increment members.
   // N must have at least one primary key.
-  // template <typename N, typename... CB> void bulk_update(const N& o, CB&&... args) {
-  //   auto stmt = con_.cached_statement([&] { 
+  template <typename N, typename... CB> void bulk_update(const N& elements, CB&&... args) {
 
-  //     // Select pk
-  //     std::ostringstream ss;
-  //     ss << "UPDATE World SET ";
+    if (!std::is_same<typename C::db_tag, pgsql_tag>::value)
+      for (const auto& o : elements)
+        this->update(o);
+    else
+    {
       
-  //     map(vector[0], [&](auto k, auto v) {
-  //       if (!first)
-  //         ss << ",";
-  //       first = false;
-  //       ss << li::symbol_string(k) << " = tmp." << li::symbol_string(k);
-  //     });
+      auto stmt = con_.cached_statement([&] { 
+        std::ostringstream ss;
+        ss << "UPDATE " << schema_.table_name() << " SET ";
 
-  //     // randomNumber=tmp.randomNumber FROM (VALUES ";
-  //     ss << " FROM (VALUES ";
-  //     for (int i = 0; i < N; i++)
-  //       ss << "($" << i*2+1 << "::integer, $" << i*2+2 << "::integer) "<< (i == N-1 ? "": ",");
-  //     ss << ") AS tmp(id, randomNumber) WHERE tmp.id = World.id";
-  //     return ss.str();
-  //   });
+        int nfields = metamap_size<decltype(elements[0])>();
+        bool first = true;
+        map(elements[0], [&](auto k, auto v) {
+          if (!first)
+            ss << ",";
+          if (not li::has_key(schema_.primary_key(), k))
+          {
+            ss << li::symbol_string(k) << " = tmp." << li::symbol_string(k);
+            first = false;
+          }
+        });
 
-  // }
+        ss << " FROM (VALUES ";
+        for (int i = 0; i < elements.size(); i++)
+        {
+          if (i != 0) ss << ',';
+          ss << "(";
+          for (int j = 0; j < nfields; j++)
+          {
+            if (j != 0) ss << ",";
+            ss << "$" <<  1+i*nfields+j << "::int";
+          }
+          ss << ")";
+        }
+      
+        ss << ") AS tmp(";
+        first = true;
+        map(elements[0], [&](auto k, auto v) {
+          if (!first)
+            ss << ",";
+          first = false;
+          ss << li::symbol_string(k);
+        });
+        ss << ") WHERE tmp.id = " << schema_.table_name() << ".id";      
+        // std::cout << ss.str() << std::endl;
+        return ss.str();
+      }, elements.size());
+
+      for (const auto& o : elements)
+      {
+        call_callback(s::validate, o, args...);
+        call_callback(s::write_access, o, args...);
+        call_callback(s::before_update, o, args...);
+        this->update(o);
+      }
+
+      stmt(elements).flush_results();
+    }
+  }
 
   // Update N's members except auto increment members.
   // N must have at least one primary key.
