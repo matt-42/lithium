@@ -7,51 +7,51 @@
 
 #pragma once
 
-#include <random>
-#include <sys/socket.h>
-#include <utility>
-#include <atomic>
-#include <functional>
-#include <cstring>
-#include <errno.h>
-#include <cmath>
-#include <sys/types.h>
-#include <boost/lexical_cast.hpp>
-#include <iostream>
-#include <unordered_map>
-#include <stdio.h>
-#include <vector>
-#include <optional>
-#include <tuple>
-#include <memory>
-#include <cassert>
-#include <fcntl.h>
-#include <variant>
-#include <arpa/inet.h>
-#include <thread>
-#include <netinet/tcp.h>
-#include <unistd.h>
-#include <sys/uio.h>
-#include <string>
-#include <sqlite3.h>
-#include <sys/mman.h>
-#include <string.h>
-#include <sstream>
-#include <signal.h>
-#include <string_view>
-#include <stdlib.h>
-#include <netdb.h>
-#include <sys/stat.h>
 #include <map>
-#include <boost/context/continuation.hpp>
-#include <deque>
-#include <mysql.h>
-#include <any>
+#include <tuple>
+#include <sqlite3.h>
+#include <unistd.h>
 #include <sys/sendfile.h>
-#include <sys/epoll.h>
+#include <sys/uio.h>
+#include <vector>
+#include <netinet/tcp.h>
+#include <thread>
+#include <boost/lexical_cast.hpp>
+#include <deque>
+#include <sys/stat.h>
+#include <sys/socket.h>
+#include <sys/mman.h>
+#include <mysql.h>
+#include <sys/types.h>
+#include <netdb.h>
+#include <iostream>
 #include <set>
 #include <chrono>
+#include <fcntl.h>
+#include <sys/epoll.h>
+#include <sstream>
+#include <functional>
+#include <random>
+#include <optional>
+#include <utility>
+#include <unordered_map>
+#include <cstring>
+#include <arpa/inet.h>
+#include <errno.h>
+#include <atomic>
+#include <memory>
 #include <mutex>
+#include <stdio.h>
+#include <string>
+#include <string_view>
+#include <stdlib.h>
+#include <string.h>
+#include <boost/context/continuation.hpp>
+#include <any>
+#include <cassert>
+#include <signal.h>
+#include <cmath>
+#include <variant>
 
 #if defined(_MSC_VER)
 #include <io.h>
@@ -6589,10 +6589,6 @@ float http_benchmark(const std::vector<int>& sockets, int NTHREADS, int duration
       return true;
     };
 
-    // for (int i = 0; i < sockets.size(); i++)
-    //   fcntl(sockets[i], F_SETFL, fcntl(sockets[i], F_GETFL, 0) | O_NONBLOCK);
-
-std::cout << i_start << " " << i_end << " " << sockets.size() << std::endl;
     for (int i = i_start; i < i_end; i++) {
       epoll_ctl(sockets[i], EPOLL_CTL_ADD, EPOLLIN | EPOLLOUT | EPOLLET);
     }
