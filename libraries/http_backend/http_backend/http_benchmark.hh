@@ -127,6 +127,7 @@ float http_benchmark(const std::vector<int>& sockets, int NTHREADS, int duration
     // for (int i = 0; i < sockets.size(); i++)
     //   fcntl(sockets[i], F_SETFL, fcntl(sockets[i], F_GETFL, 0) | O_NONBLOCK);
 
+std::cout << i_start << " " << i_end << " " << sockets.size() << std::endl;
     for (int i = i_start; i < i_end; i++) {
       epoll_ctl(sockets[i], EPOLL_CTL_ADD, EPOLLIN | EPOLLOUT | EPOLLET);
     }
@@ -193,7 +194,7 @@ float http_benchmark(const std::vector<int>& sockets, int NTHREADS, int duration
   std::atomic<int> nmessages = 0;
 
   auto bench_tcp = [&](int thread_id) {
-    return [&]() {
+    return [=, &nmessages]() {
       client_fn(
           [&](int fd, auto read, auto write) { // flood the server.
             while (true) {

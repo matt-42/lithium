@@ -7,51 +7,51 @@
 
 #pragma once
 
-#include <mutex>
-#include <sys/uio.h>
-#include <fcntl.h>
-#include <sys/mman.h>
-#include <thread>
-#include <chrono>
-#include <unordered_map>
-#include <memory>
-#include <sys/types.h>
-#include <stdlib.h>
-#include <utility>
-#include <optional>
-#include <arpa/inet.h>
-#include <sys/sendfile.h>
 #include <random>
-#include <cassert>
-#include <sstream>
-#include <string.h>
 #include <sys/socket.h>
-#include <stdio.h>
-#include <errno.h>
-#include <sys/stat.h>
+#include <utility>
 #include <atomic>
-#include <set>
-#include <tuple>
-#include <string>
-#include <map>
-#include <netdb.h>
-#include <cmath>
 #include <functional>
-#include <netinet/tcp.h>
-#include <boost/lexical_cast.hpp>
-#include <boost/context/continuation.hpp>
-#include <vector>
-#include <string_view>
 #include <cstring>
-#include <sys/epoll.h>
+#include <errno.h>
+#include <cmath>
+#include <sys/types.h>
+#include <boost/lexical_cast.hpp>
 #include <iostream>
+#include <unordered_map>
+#include <stdio.h>
+#include <vector>
+#include <tuple>
+#include <cassert>
+#include <memory>
+#include <optional>
+#include <fcntl.h>
 #include <variant>
-#include <signal.h>
+#include <arpa/inet.h>
+#include <netinet/tcp.h>
+#include <thread>
 #include <unistd.h>
+#include <sys/uio.h>
+#include <string>
+#include <sys/mman.h>
+#include <string.h>
+#include <sstream>
+#include <signal.h>
+#include <string_view>
+#include <stdlib.h>
+#include <netdb.h>
+#include <sys/stat.h>
+#include <map>
+#include <boost/context/continuation.hpp>
+#include <sys/sendfile.h>
+#include <sys/epoll.h>
+#include <set>
+#include <chrono>
+#include <mutex>
 
 #if defined(_MSC_VER)
-#include <ciso646>
 #include <io.h>
+#include <ciso646>
 #endif // _MSC_VER
 
 
@@ -5357,6 +5357,7 @@ float http_benchmark(const std::vector<int>& sockets, int NTHREADS, int duration
     // for (int i = 0; i < sockets.size(); i++)
     //   fcntl(sockets[i], F_SETFL, fcntl(sockets[i], F_GETFL, 0) | O_NONBLOCK);
 
+std::cout << i_start << " " << i_end << " " << sockets.size() << std::endl;
     for (int i = i_start; i < i_end; i++) {
       epoll_ctl(sockets[i], EPOLL_CTL_ADD, EPOLLIN | EPOLLOUT | EPOLLET);
     }
@@ -5423,7 +5424,7 @@ float http_benchmark(const std::vector<int>& sockets, int NTHREADS, int duration
   std::atomic<int> nmessages = 0;
 
   auto bench_tcp = [&](int thread_id) {
-    return [&]() {
+    return [=, &nmessages]() {
       client_fn(
           [&](int fd, auto read, auto write) { // flood the server.
             while (true) {
