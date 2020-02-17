@@ -7,54 +7,54 @@
 
 #pragma once
 
-#include <sys/mman.h>
-#include <random>
-#include <sys/uio.h>
-#include <map>
-#include <unordered_map>
-#include <sys/types.h>
-#include <chrono>
-#include <sys/epoll.h>
-#include <string.h>
-#include <unistd.h>
-#include <memory>
-#include <variant>
-#include <errno.h>
-#include <utility>
-#include <atomic>
-#include <boost/context/continuation.hpp>
-#include <cassert>
-#include <deque>
-#include <vector>
-#include <string_view>
-#include <sys/sendfile.h>
-#include <fcntl.h>
-#include <stdlib.h>
-#include <iostream>
-#include <cmath>
-#include <functional>
-#include <string>
-#include <stdio.h>
-#include <sqlite3.h>
-#include <optional>
-#include <tuple>
-#include <sstream>
-#include <thread>
-#include <mutex>
-#include <sys/socket.h>
-#include <boost/lexical_cast.hpp>
-#include <mysql.h>
-#include <sys/stat.h>
-#include <signal.h>
-#include <netinet/tcp.h>
-#include <set>
 #include <cstring>
-#include <any>
+#include <vector>
+#include <boost/lexical_cast.hpp>
+#include <sys/epoll.h>
+#include <string_view>
+#include <sys/socket.h>
+#include <stdlib.h>
+#include <random>
+#include <iostream>
+#include <tuple>
+#include <variant>
+#include <sys/types.h>
+#include <errno.h>
 #include <netdb.h>
+#include <thread>
+#include <functional>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sqlite3.h>
+#include <boost/context/continuation.hpp>
+#include <chrono>
+#include <sys/sendfile.h>
+#include <map>
+#include <mutex>
+#include <deque>
+#include <cmath>
+#include <atomic>
+#include <utility>
+#include <set>
+#include <sys/mman.h>
+#include <string.h>
+#include <unordered_map>
+#include <optional>
+#include <stdio.h>
+#include <mysql.h>
+#include <netinet/tcp.h>
+#include <string>
+#include <sys/stat.h>
+#include <memory>
+#include <sstream>
+#include <cassert>
+#include <signal.h>
+#include <any>
+#include <sys/uio.h>
 
 #if defined(_MSC_VER)
-#include <ciso646>
 #include <io.h>
+#include <ciso646>
 #endif // _MSC_VER
 
 
@@ -5014,7 +5014,7 @@ struct http_ctx {
     content_length_ = 0;
     chunked_ = 0;
     
-    for (int i = 1; i < header_lines_size - 1; i++)
+    for (int i = 1; i < header_lines.size() - 1; i++)
     {
       const char* line_end = header_lines[i + 1]; // last line is just an empty line.
       const char* cur = header_lines[i];
@@ -5133,8 +5133,8 @@ struct http_ctx {
   
   //private:
 
-  void add_header_line(const char* l) { header_lines[header_lines_size++] = l; }
-  const char* last_header_line() { return header_lines[header_lines_size - 1]; }
+  void add_header_line(const char* l) { header_lines.push_back(l); }
+  const char* last_header_line() { return header_lines.back(); }
 
   // split a string, starting from cur and ending with split_char.
   // Advance cur to the end of the split.
@@ -5155,7 +5155,7 @@ struct http_ctx {
   
   void index_headers()
   {
-    for (int i = 1; i < header_lines_size - 1; i++)
+    for (int i = 1; i < header_lines.size() - 1; i++)
     {
       const char* line_end = header_lines[i + 1]; // last line is just an empty line.
       const char* cur = header_lines[i];
@@ -5426,8 +5426,7 @@ struct http_ctx {
   std::string_view body_;
   std::string_view body_start;
   const char* body_end_ = nullptr;
-  const char* header_lines[100];
-  int header_lines_size = 0;
+  std::vector<const char*> header_lines;
   async_fiber_context& fiber;
 
   output_buffer headers_stream;
@@ -5452,15 +5451,16 @@ auto make_http_processor(F handler)
       while (true)
       {
         ctx.is_body_read_ = false;
-        ctx.header_lines_size = 0;
+        ctx.header_lines.clear();
+        ctx.header_lines.reserve(100);
         // Read until there is a complete header.
         int header_start = rb.cursor;
         int header_end = rb.cursor;
         assert(header_start >= 0);
         assert(header_end >= 0);
-        assert(ctx.header_lines_size == 0);
+        assert(ctx.header_lines.size() == 0);
         ctx.add_header_line(rb.data() + header_end);
-        assert(ctx.header_lines_size == 1);
+        assert(ctx.header_lines.size() == 1);
 
         bool complete_header = false;
         while (!complete_header)

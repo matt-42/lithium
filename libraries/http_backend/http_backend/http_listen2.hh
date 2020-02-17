@@ -456,7 +456,7 @@ struct http_ctx {
     content_length_ = 0;
     chunked_ = 0;
     
-    for (int i = 1; i < header_lines_size - 1; i++)
+    for (int i = 1; i < header_lines.size() - 1; i++)
     {
       const char* line_end = header_lines[i + 1]; // last line is just an empty line.
       const char* cur = header_lines[i];
@@ -575,8 +575,8 @@ struct http_ctx {
   
   //private:
 
-  void add_header_line(const char* l) { header_lines[header_lines_size++] = l; }
-  const char* last_header_line() { return header_lines[header_lines_size - 1]; }
+  void add_header_line(const char* l) { header_lines.push_back(l); }
+  const char* last_header_line() { return header_lines.back(); }
 
   // split a string, starting from cur and ending with split_char.
   // Advance cur to the end of the split.
@@ -597,7 +597,7 @@ struct http_ctx {
   
   void index_headers()
   {
-    for (int i = 1; i < header_lines_size - 1; i++)
+    for (int i = 1; i < header_lines.size() - 1; i++)
     {
       const char* line_end = header_lines[i + 1]; // last line is just an empty line.
       const char* cur = header_lines[i];
@@ -868,8 +868,7 @@ struct http_ctx {
   std::string_view body_;
   std::string_view body_start;
   const char* body_end_ = nullptr;
-  const char* header_lines[100];
-  int header_lines_size = 0;
+  std::vector<const char*> header_lines;
   async_fiber_context& fiber;
 
   output_buffer headers_stream;
@@ -894,15 +893,16 @@ auto make_http_processor(F handler)
       while (true)
       {
         ctx.is_body_read_ = false;
-        ctx.header_lines_size = 0;
+        ctx.header_lines.clear();
+        ctx.header_lines.reserve(100);
         // Read until there is a complete header.
         int header_start = rb.cursor;
         int header_end = rb.cursor;
         assert(header_start >= 0);
         assert(header_end >= 0);
-        assert(ctx.header_lines_size == 0);
+        assert(ctx.header_lines.size() == 0);
         ctx.add_header_line(rb.data() + header_end);
-        assert(ctx.header_lines_size == 1);
+        assert(ctx.header_lines.size() == 1);
 
         bool complete_header = false;
         while (!complete_header)
