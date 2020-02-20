@@ -256,7 +256,7 @@ json_error_code json_decode2(P& p, O& obj, json_object_<S> schema) {
     bool found = false;
     if ((err = p.eat('"')))
       return err;
-    char symbol[50];
+    char symbol[50 + 1];
     int symbol_size = 0;
     while (!p.eof() and p.peek() != '"' and symbol_size < 50)
       symbol[symbol_size++] = p.get();
