@@ -55,7 +55,7 @@ void set_max_sql_connections_per_thread(int max)
 int db_nconn = 64;
 int queries_nconn = 64;
 int fortunes_nconn = 64;
-int udpate_nconn = 64;
+int update_nconn = 64;
 
 auto make_api() {
   http_api my_api;
@@ -133,14 +133,15 @@ auto make_api() {
       for (int i = 0; i < N; i++)
         c.update(numbers[i]);
   #else
-      raw_c.cached_statement([N] {
-          std::ostringstream ss;
-          ss << "UPDATE World SET randomNumber=tmp.randomNumber FROM (VALUES ";
-          for (int i = 0; i < N; i++)
-            ss << "($" << i*2+1 << "::int, $" << i*2+2 << "::int) "<< (i == N-1 ? "": ",");
-          ss << " ) AS tmp(id, randomNumber) WHERE tmp.id = World.id";
-          return ss.str();
-      }, N)(numbers);
+      c.bulk_update(numbers);
+      // raw_c.cached_statement([N] {
+      //     std::ostringstream ss;
+      //     ss << "UPDATE World SET randomNumber=tmp.randomNumber FROM (VALUES ";
+      //     for (int i = 0; i < N; i++)
+      //       ss << "($" << i*2+1 << "::int, $" << i*2+2 << "::int) "<< (i == N-1 ? "": ",");
+      //     ss << " ) AS tmp(id, randomNumber) WHERE tmp.id = World.id";
+      //     return ss.str();
+      // }, N)(numbers);
 
   #endif
   // #ifdef BENCH_MYSQL
@@ -183,22 +184,20 @@ auto make_api() {
   return my_api;
 }
 
-float tune_n_sql_connections(std::string http_req, int port, int max) {
+float tune_n_sql_connections(int& nc_to_tune, std::string http_req, int port, int max, int nprocs) {
+
+
+  auto sockets = http_benchmark_connect(512, port);
 
   std::cout << std::endl << "Benchmark " << http_req << std::endl;
 
-  // Warmup;
-  set_max_sql_connections_per_thread(max);
-  http_benchmark(512, 1, 1000, port, http_req);
-
-  // auto my_api = make_api();
   float max_req_per_s = 0;
-  int best_nconn = -1;
-  for (int nc : {1, 2, 3, 4, 8, 32, 64, 128, 256, 512})
+  int best_nconn = 2;
+  for (int nc : {1, 2, 4, 8, 32, 64, 128})
   {
-    if (nc >= max) break;
-    set_max_sql_connections_per_thread(nc);
-    float req_per_s = http_benchmark(512, 1, 400, port, http_req);
+    if (nc*nprocs >= max) break;
+    nc_to_tune = nc;
+    float req_per_s = http_benchmark(sockets, 1, 5000, http_req);
     std::cout << nc << " -> " << req_per_s << " req/s." << std::endl;
     if (req_per_s > max_req_per_s)
     {
@@ -206,11 +205,12 @@ float tune_n_sql_connections(std::string http_req, int port, int max) {
       best_nconn = nc;
     }
   }
-  std::cout << "best: " << best_nconn << " (" << max_req_per_s << " req/s)."<< std::endl;
+  http_benchmark_close(sockets);
 
+  std::cout << "best: " << best_nconn << " (" << max_req_per_s << " req/s)."<< std::endl;
+  nc_to_tune = best_nconn;
   return best_nconn;
 }
-
 int main(int argc, char* argv[]) {
 
 
@@ -234,11 +234,18 @@ int main(int argc, char* argv[]) {
   auto my_api = make_api();
 
   int nthread = 4;
-  std::thread server_thread([&] {
-    http_serve(my_api, port, s::nthreads = 4);
-  });
-  usleep(1e5);
+  // std::thread server_thread([&] {
+  //   http_serve(my_api, port, s::nthreads = 4);
+  // });
+  // usleep(1e5);
 
+  // std::cout << http_benchmark(512, 1, 5000, port, "GET /db HTTP/1.1\r\n\r\n") << std::endl;
+  // std::cout << http_benchmark(512, 1, 5000, port, "GET /db HTTP/1.1\r\n\r\n") << std::endl;
+  // std::cout << http_benchmark(512, 1, 5000, port, "GET /db HTTP/1.1\r\n\r\n") << std::endl;
+  // std::cout << http_benchmark(512, 1, 5000, port, "GET /db HTTP/1.1\r\n\r\n") << std::endl;
+  // server_thread.join();
+
+  // return 0;
 
 #ifdef BENCH_MYSQL  
   int sql_max_connection = sql_db.connect()("SELECT @@GLOBAL.max_connections;").template read<int>() - 10;
@@ -254,13 +261,22 @@ int main(int argc, char* argv[]) {
   li::max_pgsql_connections_per_thread = (sql_max_connection / nthread);
 #endif
 
-  db_nconn = tune_n_sql_connections("GET /db HTTP/1.1\r\n\r\n", port, sql_max_connection / nthread);
-  queries_nconn = tune_n_sql_connections("GET /queries?N=20 HTTP/1.1\r\n\r\n", port, sql_max_connection / nthread);
-  fortunes_nconn = tune_n_sql_connections("GET /fortunes HTTP/1.1\r\n\r\n", port, sql_max_connection / nthread);
-  udpate_nconn = tune_n_sql_connections("GET /updates?N=20 HTTP/1.1\r\n\r\n", port, sql_max_connection / nthread);
+  int tunning_port = port+1;
+  std::thread server_thread([&] {
+    http_serve(my_api, tunning_port, s::nthreads = nthread);
+  });
+  usleep(3e5);
 
-  // http_serve(my_api, port, s::nthreads = nthread); 
+  // // db_nconn = tune_n_sql_connections("GET /db HTTP/1.1\r\n\r\n", port, sql_max_connection / nthread);
+  // // queries_nconn = tune_n_sql_connections("GET /queries?N=20 HTTP/1.1\r\n\r\n", port, sql_max_connection / nthread);
+  // // fortunes_nconn = tune_n_sql_connections("GET /fortunes HTTP/1.1\r\n\r\n", port, sql_max_connection / nthread);
+  update_nconn = tune_n_sql_connections(update_nconn, "GET /updates?N=20 HTTP/1.1\r\n\r\n", tunning_port, sql_max_connection, nthread);
+  li::quit_signal_catched = true;
   server_thread.join();
+  li::quit_signal_catched = false;
+
+  http_serve(my_api, port, s::nthreads = nthread); 
+  //server_thread.join();
 
   return 0;
 }
