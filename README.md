@@ -48,8 +48,8 @@ cmake .. -DCMAKE_INSTALL_PREFIX=_your_prefix_; make -j4 install;
 
 ## Supported compilers:
     - Linux: G++ 9.2, Clang++ 9.0
-    - Macos: Clang 11
-    - Windows: MSVC 19
+    - Macos: Clang 11 (everything except http_backend that relies on epoll)
+    - ~~Windows: MSVC 19~~
 
 # Support the project
 
