@@ -7,26 +7,26 @@
 
 #pragma once
 
-#include <map>
-#include <tuple>
-#include <vector>
-#include <thread>
-#include <boost/lexical_cast.hpp>
 #include <deque>
-#include <mysql.h>
 #include <iostream>
-#include <sys/epoll.h>
-#include <sstream>
 #include <optional>
-#include <utility>
-#include <unordered_map>
-#include <cstring>
-#include <atomic>
-#include <memory>
-#include <mutex>
-#include <string>
 #include <any>
+#include <boost/lexical_cast.hpp>
+#include <vector>
+#include <sys/epoll.h>
+#include <unordered_map>
+#include <tuple>
+#include <cstring>
+#include <sstream>
+#include <string>
+#include <memory>
+#include <atomic>
 #include <cassert>
+#include <thread>
+#include <mysql.h>
+#include <mutex>
+#include <map>
+#include <utility>
 
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL

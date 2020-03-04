@@ -7,23 +7,23 @@
 
 #pragma once
 
-#include <map>
-#include <sstream>
-#include <string_view>
 #include <functional>
-#include <curl/curl.h>
-#include <optional>
-#include <utility>
-#include <unordered_map>
-#include <cstring>
-#include <tuple>
-#include <iostream>
-#include <memory>
-#include <cassert>
-#include <vector>
 #include <cmath>
-#include <string>
+#include <map>
 #include <variant>
+#include <vector>
+#include <cstring>
+#include <sstream>
+#include <string>
+#include <memory>
+#include <string_view>
+#include <iostream>
+#include <tuple>
+#include <unordered_map>
+#include <utility>
+#include <optional>
+#include <cassert>
+#include <curl/curl.h>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -1647,7 +1647,7 @@ json_error_code json_decode2(P& p, O& obj, json_object_<S> schema) {
     bool found = false;
     if ((err = p.eat('"')))
       return err;
-    char symbol[50];
+    char symbol[50 + 1];
     int symbol_size = 0;
     while (!p.eof() and p.peek() != '"' and symbol_size < 50)
       symbol[symbol_size++] = p.get();

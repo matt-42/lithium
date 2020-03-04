@@ -7,19 +7,19 @@
 
 #pragma once
 
-#include <sstream>
-#include <string_view>
 #include <functional>
-#include <optional>
-#include <utility>
-#include <cstring>
-#include <tuple>
-#include <memory>
-#include <cassert>
-#include <vector>
 #include <cmath>
-#include <string>
+#include <utility>
 #include <variant>
+#include <cstring>
+#include <vector>
+#include <sstream>
+#include <string>
+#include <string_view>
+#include <memory>
+#include <tuple>
+#include <optional>
+#include <cassert>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -1592,7 +1592,7 @@ json_error_code json_decode2(P& p, O& obj, json_object_<S> schema) {
     bool found = false;
     if ((err = p.eat('"')))
       return err;
-    char symbol[50];
+    char symbol[50 + 1];
     int symbol_size = 0;
     while (!p.eof() and p.peek() != '"' and symbol_size < 50)
       symbol[symbol_size++] = p.get();

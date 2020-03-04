@@ -7,47 +7,47 @@
 
 #pragma once
 
-#include <map>
-#include <tuple>
-#include <unistd.h>
-#include <sys/sendfile.h>
-#include <sys/uio.h>
-#include <vector>
-#include <netinet/tcp.h>
-#include <thread>
-#include <boost/lexical_cast.hpp>
-#include <sys/stat.h>
 #include <sys/socket.h>
-#include <sys/mman.h>
-#include <sys/types.h>
-#include <netdb.h>
-#include <iostream>
-#include <set>
 #include <chrono>
-#include <fcntl.h>
-#include <sys/epoll.h>
-#include <sstream>
-#include <functional>
-#include <random>
-#include <optional>
-#include <utility>
-#include <unordered_map>
-#include <cstring>
-#include <arpa/inet.h>
-#include <errno.h>
-#include <atomic>
-#include <memory>
-#include <mutex>
-#include <stdio.h>
-#include <string>
-#include <string_view>
-#include <stdlib.h>
-#include <string.h>
 #include <boost/context/continuation.hpp>
-#include <cassert>
+#include <iostream>
+#include <optional>
+#include <fcntl.h>
+#include <sys/sendfile.h>
 #include <signal.h>
 #include <cmath>
+#include <sys/types.h>
+#include <netdb.h>
+#include <boost/lexical_cast.hpp>
+#include <sys/mman.h>
+#include <vector>
+#include <sys/epoll.h>
+#include <string_view>
+#include <string.h>
+#include <unordered_map>
+#include <tuple>
+#include <unistd.h>
+#include <functional>
+#include <sys/stat.h>
+#include <random>
+#include <cstring>
+#include <sstream>
+#include <string>
+#include <memory>
+#include <atomic>
+#include <sys/uio.h>
+#include <stdio.h>
 #include <variant>
+#include <cassert>
+#include <thread>
+#include <mutex>
+#include <map>
+#include <stdlib.h>
+#include <set>
+#include <arpa/inet.h>
+#include <errno.h>
+#include <utility>
+#include <netinet/tcp.h>
 
 #if defined(_MSC_VER)
 #include <io.h>
@@ -1624,7 +1624,7 @@ json_error_code json_decode2(P& p, O& obj, json_object_<S> schema) {
     bool found = false;
     if ((err = p.eat('"')))
       return err;
-    char symbol[50];
+    char symbol[50 + 1];
     int symbol_size = 0;
     while (!p.eof() and p.peek() != '"' and symbol_size < 50)
       symbol[symbol_size++] = p.get();
@@ -3344,47 +3344,31 @@ std::string_view url_unescape(std::string_view str) {
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_URL_UNESCAPE
 
 
-namespace li {  
+namespace li {
 
+struct output_buffer {
 
-struct output_buffer
-{
-
-  output_buffer() 
-  : flush_([] (const char*, int) {})
-  {
-  }
+  output_buffer() : flush_([](const char*, int) {}) {}
 
   output_buffer(output_buffer&& o)
-    : buffer_(o.buffer_),
-      own_buffer_(o.own_buffer_),
-      cursor_(o.cursor_),
-      end_(o.end_),
-      flush_(o.flush_)
-  {
+      : buffer_(o.buffer_), own_buffer_(o.own_buffer_), cursor_(o.cursor_), end_(o.end_),
+        flush_(o.flush_) {
     o.buffer_ = nullptr;
     o.own_buffer_ = false;
   }
 
-  output_buffer(int capacity, 
-                std::function<void(const char*, int)> flush_ = [] (const char*, int) {})
-    : buffer_(new char[capacity]),
-      own_buffer_(true),
-      cursor_(buffer_),
-      end_(buffer_ + capacity),
-      flush_(flush_)
-  {
+  output_buffer(
+      int capacity, std::function<void(const char*, int)> flush_ = [](const char*, int) {})
+      : buffer_(new char[capacity]), own_buffer_(true), cursor_(buffer_), end_(buffer_ + capacity),
+        flush_(flush_) {
     assert(buffer_);
   }
 
-  output_buffer(void* buffer, int capacity, 
-                std::function<void(const char*, int)> flush_ = [] (const char*, int) {})
-    : buffer_((char*)buffer),
-      own_buffer_(false),
-      cursor_(buffer_),
-      end_(buffer_ + capacity),
-      flush_(flush_)
-  {
+  output_buffer(
+      void* buffer, int capacity,
+      std::function<void(const char*, int)> flush_ = [](const char*, int) {})
+      : buffer_((char*)buffer), own_buffer_(false), cursor_(buffer_), end_(buffer_ + capacity),
+        flush_(flush_) {
     assert(buffer_);
   }
 
@@ -3392,9 +3376,8 @@ struct output_buffer
     if (own_buffer_)
       delete[] buffer_;
   }
-  
-  output_buffer& operator=(output_buffer&& o)
-  {
+
+  output_buffer& operator=(output_buffer&& o) {
     buffer_ = o.buffer_;
     own_buffer_ = o.own_buffer_;
     cursor_ = o.cursor_;
@@ -3405,23 +3388,15 @@ struct output_buffer
     return *this;
   }
 
-  void reset() 
-  {
-    cursor_ = buffer_;
-  }
+  void reset() { cursor_ = buffer_; }
 
-  std::size_t size()
-  {
-    return cursor_ - buffer_;
-  }
-  void flush()
-  {
+  std::size_t size() { return cursor_ - buffer_; }
+  void flush() {
     flush_(buffer_, size());
     reset();
   }
 
-  output_buffer& operator<<(std::string_view s)
-  {
+  output_buffer& operator<<(std::string_view s) {
     if (cursor_ + s.size() >= end_)
       flush();
 
@@ -3431,26 +3406,22 @@ struct output_buffer
     return *this;
   }
 
-  output_buffer& operator<<(const char* s)
-  {
-    return operator<<(std::string_view(s, strlen(s)));   
-  }
-  output_buffer& operator<<(char v)
-  {
+  output_buffer& operator<<(const char* s) { return operator<<(std::string_view(s, strlen(s))); }
+  output_buffer& operator<<(char v) {
     cursor_[0] = v;
     cursor_++;
     return *this;
   }
 
-  output_buffer& operator<<(std::size_t v)
-  {
-    if (v == 0) operator<<('0');
+  output_buffer& operator<<(std::size_t v) {
+    if (v == 0)
+      operator<<('0');
 
     char buffer[10];
     char* str_start = buffer;
-    for (int i = 0; i < 10; i++)
-    {
-      if (v > 0) str_start = buffer + 9 - i;
+    for (int i = 0; i < 10; i++) {
+      if (v > 0)
+        str_start = buffer + 9 - i;
       buffer[9 - i] = (v % 10) + '0';
       v /= 10;
     }
@@ -3465,51 +3436,40 @@ struct output_buffer
   //   return operator<<(std::string_view(b.begin(), strlen(b.begin())));
   // }
 
-
-  template <typename I>
-  output_buffer& operator<<(I v)
-  {
+  template <typename I> output_buffer& operator<<(I v) {
     typedef std::array<char, 150> buf_t;
     buf_t b = boost::lexical_cast<buf_t>(v);
     return operator<<(std::string_view(b.begin(), strlen(b.begin())));
   }
-  
+
   std::string_view to_string_view() { return std::string_view(buffer_, cursor_ - buffer_); }
 
   char* buffer_;
   bool own_buffer_;
   char* cursor_;
   char* end_;
-  std::function<void(const char*s, int d)> flush_;
+  std::function<void(const char* s, int d)> flush_;
 };
 
-
-namespace http_async_impl {  
+namespace http_async_impl {
 
 char* date_buf = nullptr;
 int date_buf_size = 0;
 
 thread_local std::unordered_map<std::string, std::string_view> static_files;
 
-struct read_buffer
-{
+struct read_buffer {
 
-  //std::array<char, 20*1024> buffer_;
+  // std::array<char, 20*1024> buffer_;
   std::vector<char> buffer_;
   int cursor = 0; // First index of the currently used buffer area
-  int end = 0; // Index of the last read character
-  
-  read_buffer()
-    : buffer_(5 * 1024),
-      cursor(0),
-      end(0)
-  {}
+  int end = 0;    // Index of the last read character
+
+  read_buffer() : buffer_(50 * 1024), cursor(0), end(0) {}
 
   // Free unused space in the buffer in [i1, i2[.
   // This may move data in [i2, end[ if needed.
-  // Return the
-  void free(int i1, int i2)
-  {
+  void free(int i1, int i2) {
     assert(i1 < i2);
     assert(i1 >= 0 and i1 < buffer_.size());
     assert(i2 > 0 and i2 <= buffer_.size());
@@ -3518,11 +3478,11 @@ struct read_buffer
       cursor = end = 0;
     else if (i1 == cursor) // eat the beggining of the buffer.
       cursor = i2;
-    else if (i2 == end) end = i1; // eat the end of the buffer.
+    else if (i2 == end)
+      end = i1;         // eat the end of the buffer.
     else if (i2 != end) // eat somewhere in the middle.
     {
-      if (buffer_.size() - end < buffer_.size() / 4)
-      {
+      if (buffer_.size() - end < buffer_.size() / 4) {
         if (end - i2 > i2 - i1) // use memmove if overlap.
           std::memmove(buffer_.data() + i1, buffer_.data() + i2, end - i2);
         else
@@ -3531,15 +3491,15 @@ struct read_buffer
     }
   }
 
-  void free(const char* i1, const char* i2) { 
+  void free(const char* i1, const char* i2) {
     assert(i1 >= buffer_.data());
     assert(i1 <= &buffer_.back());
-    //std::cout << (i2 - &buffer_.front()) << " " << buffer_.size() <<  << std::endl;
+    // std::cout << (i2 - &buffer_.front()) << " " << buffer_.size() <<  << std::endl;
     assert(i2 >= buffer_.data() and i2 <= &buffer_.back() + 1);
-    free(i1 - buffer_.data(), i2 - buffer_.data()); 
+    free(i1 - buffer_.data(), i2 - buffer_.data());
   }
   void free(const std::string_view& str) { free(str.data(), str.data() + str.size()); }
-  
+
   // private: Read more data
   // Read from ptr until character x.
   // read n more characters at address ptr.
@@ -3548,70 +3508,65 @@ struct read_buffer
 
   // Read more data.
   // Return 0 on error.
-  template <typename F>
-  int read_more(F& fiber, int size = -1)
-  {
-    if (int(buffer_.size()) <= end - 100)
-    {
+  template <typename F> int read_more(F& fiber, int size = -1) {
+    if (int(buffer_.size()) <= end - 100) {
       // reset buffer_.
-      cursor = 0; end = 0;
+      cursor = 0;
+      end = 0;
       // if (buffer_.size() > (10*1024*1024))
       //   return 0; // Buffer is full. Error and return.
-      // else 
+      // else
       {
         // std::cout << "RESIZE" << std::endl;
         // buffer_.resize(buffer_.size() * 2);
       }
     }
 
-    if (size == -1) size = buffer_.size() - end;
+    if (size == -1)
+      size = buffer_.size() - end;
     int received = fiber.read(buffer_.data() + end, size);
 
-    if (received == 0) return 0; // Socket closed, return.
+    if (received == 0)
+      return 0; // Socket closed, return.
     end = end + received;
-    if (end == buffer_.size())
-    {
-      //std::cerr << "Request too long." << std::endl;
+    if (end == buffer_.size()) {
+      end = cursor = 0; // reset read buffer.
+      // std::cerr << "Request too long." << std::endl;
       throw std::runtime_error("Request too long.");
     }
-    //std::cout << "read size " << end << std::endl;
+    // std::cout << "read size " << end << std::endl;
     return received;
   }
-  template <typename F>
-  std::string_view read_more_str(F& fiber)
-  {
+  template <typename F> std::string_view read_more_str(F& fiber) {
     int l = read_more(fiber);
     return std::string_view(buffer_.data() + end - l);
   }
 
-  template <typename F>
-  std::string_view read_n(F&& fiber, const char* start, int size)
-  {
+  template <typename F> std::string_view read_n(F&& fiber, const char* start, int size) {
     int str_start = start - buffer_.data();
     int str_end = size + str_start;
-    if (end < str_end)
-    {
+    if (end < str_end) {
       // Read more body on the socket.
       int current_size = end - str_start;
       while (current_size < size)
-          current_size += read_more(fiber);
+        current_size += read_more(fiber);
     }
     return std::string_view(start, size);
   }
-  
-  template <typename F>
-  std::string_view read_until(F&& fiber, const char*& start, char delimiter)
-  {
+
+  template <typename F> std::string_view read_until(F&& fiber, const char*& start, char delimiter) {
     const char* str_end = start;
 
-    while (true)
-    {
+    while (true) {
       const char* buffer_end = buffer_.data() + end;
-      while (str_end < buffer_end and *str_end != delimiter) str_end++;
+      while (str_end < buffer_end and *str_end != delimiter)
+        str_end++;
 
-      if (*str_end == delimiter) break;
+      if (*str_end == delimiter)
+        break;
       else {
-        if (!read_more(fiber)) break;
+        if (!read_more(fiber))
+          break;
       }
     }
 
@@ -3630,8 +3585,7 @@ struct read_buffer
     assert(cursor <= end);
     if (cursor == end)
       end = cursor = 0;
-    else
-    {
+    else {
       if (cursor > end - cursor) // use memmove if overlap.
         std::memmove(buffer_.data(), buffer_.data() + cursor, end - cursor);
       else
@@ -3643,7 +3597,6 @@ struct read_buffer
       end = end - cursor;
       cursor = 0;
     }
-
   }
 
   // On success return the number of bytes read.
@@ -3651,54 +3604,42 @@ struct read_buffer
   char* data() { return buffer_.data(); }
 };
 
-
 struct http_ctx {
 
-  http_ctx(read_buffer& _rb,
-           async_fiber_context& _fiber)
-    : rb(_rb),
-      fiber(_fiber)
-  {
+  http_ctx(read_buffer& _rb, async_fiber_context& _fiber) : rb(_rb), fiber(_fiber) {
     get_parameters_map.reserve(10);
     response_headers.reserve(20);
 
-    output_stream = output_buffer(50 * 1024, 
-                                  [&] (const char* d, int s) { 
-                                        fiber.write(d, s); 
-                                    });
+    output_stream = output_buffer(50*1024, [&](const char* d, int s) { fiber.write(d, s); });
 
-    headers_stream = output_buffer(1000,
-                                  [&] (const char* d,int s) { output_stream << std::string_view(d, s); });
+    headers_stream =
+        output_buffer(1000, [&](const char* d, int s) { output_stream << std::string_view(d, s); });
 
-    json_stream = output_buffer(50 * 1024,
-                                [&] (const char* d,int s) { output_stream << std::string_view(d, s); });
-
+    json_stream = output_buffer(
+        50 * 1024, [&](const char* d, int s) { output_stream << std::string_view(d, s); });
   }
 
   http_ctx& operator=(const http_ctx&) = delete;
   http_ctx(const http_ctx&) = delete;
 
-  std::string_view header(const char* key)
-  {
+  std::string_view header(const char* key) {
     if (!header_map.size())
       index_headers();
     return header_map[key];
   }
-  
-  std::string_view cookie(const char* key)
-  {
+
+  std::string_view cookie(const char* key) {
     if (!cookie_map.size())
       index_cookies();
     return cookie_map[key];
   }
 
-  std::string_view get_parameter(const char* key)
-  {
+  std::string_view get_parameter(const char* key) {
     if (!url_.size())
       parse_first_line();
     return get_parameters_map[key];
   }
-  
+
   // std::string_view post_parameter(const char* key)
   // {
   //   if (!is_body_read_)
@@ -3708,7 +3649,7 @@ struct http_ctx {
   //   }
   //   return post_parameters_map[key];
   // }
- 
+
   // std::string_view read_body(char* buf, int buf_size)
   // {
   //   // Try to read Content-Length
@@ -3723,20 +3664,19 @@ struct http_ctx {
   // void sendfile(std::string path)
   // {
   //   char buffer[10200];
-  //   //std::cout << uint64_t(output_stream.buffer_) << " " << uint64_t(output_buffer_space) << std::endl;
-  //   output_buffer output_stream(buffer, sizeof(buffer));
+  //   //std::cout << uint64_t(output_stream.buffer_) << " " << uint64_t(output_buffer_space) <<
+  //   std::endl; output_buffer output_stream(buffer, sizeof(buffer));
 
   //   struct stat stat_buf;
   //   int read_fd = open (path.c_str(), O_RDONLY);
   //   fstat (read_fd, &stat_buf);
-
 
   //   format_top_headers(output_stream);
   //   output_stream << headers_stream.to_string_view();
   //   output_stream << "Content-Length: " << size_t(stat_buf.st_size) << "\r\n\r\n"; //Add body
   //   auto m = output_stream.to_string_view();
   //   write(m.data(), m.size());
-    
+
   //   off_t offset = 0;
   //   while (true)
   //   {
@@ -3747,45 +3687,40 @@ struct http_ctx {
   //   }
   // }
 
-  std::string_view url()
-  {
+  std::string_view url() {
     if (!url_.size())
       parse_first_line();
     return url_;
   }
-  std::string_view method()
-  {
+  std::string_view method() {
     if (!method_.size())
       parse_first_line();
     return method_;
   }
-  std::string_view http_version()
-  {
+  std::string_view http_version() {
     if (!url_.size())
       parse_first_line();
     return http_version_;
   }
 
-  inline void format_top_headers(output_buffer& output_stream)
-  {
+  inline void format_top_headers(output_buffer& output_stream) {
     output_stream << "HTTP/1.1 " << status_ << "\r\n";
     output_stream << "Date: " << std::string_view(date_buf, date_buf_size) << "\r\n";
     output_stream << "Connection: keep-alive\r\nServer: Lithium\r\n";
   }
-  
-  void prepare_request()
-  {
-    //parse_first_line();
+
+  void prepare_request() {
+    // parse_first_line();
     response_headers.clear();
     content_length_ = 0;
     chunked_ = 0;
-    
-    for (int i = 1; i < header_lines.size() - 1; i++)
-    {
+
+    for (int i = 1; i < header_lines.size() - 1; i++) {
       const char* line_end = header_lines[i + 1]; // last line is just an empty line.
       const char* cur = header_lines[i];
 
-      if (*cur != 'C' and *cur != 'c') continue;
+      if (*cur != 'C' and *cur != 'c')
+        continue;
 
       std::string_view key = split(cur, line_end, ':');
 
@@ -3798,36 +3733,31 @@ struct http_ctx {
 
       if (key == "Content-Length")
         content_length_ = atoi(get_value().data());
-      else if (key == "Content-Type")
-      {
+      else if (key == "Content-Type") {
         content_type_ = get_value();
         chunked_ = (content_type_ == "chunked");
       }
-      
+
       // header_map[key] = value;
       // std::cout << key << " -> " << value << std::endl;
     }
-
   }
 
-  //void respond(std::string s) {return respond(std::string_view(s)); }
+  // void respond(std::string s) {return respond(std::string_view(s)); }
 
   // void respond(const char* s)
   // {
   //   return respond(std::string_view(s, strlen(s)));
   // }
 
-  void respond(const std::string_view& s)
-  {
+  void respond(const std::string_view& s) {
     response_written_ = true;
     format_top_headers(output_stream);
-    headers_stream.flush(); // flushes to output_stream.
-    output_stream << "Content-Length: " << s.size() << "\r\n\r\n" << s; //Add body
+    headers_stream.flush();                                             // flushes to output_stream.
+    output_stream << "Content-Length: " << s.size() << "\r\n\r\n" << s; // Add body
   }
 
-  template <typename O>
-  void respond_json(const O& obj)
-  {
+  template <typename O> void respond_json(const O& obj) {
     response_written_ = true;
     json_stream.reset();
     json_encode(json_stream, obj);
@@ -3837,92 +3767,106 @@ struct http_ctx {
     output_stream << "Content-Length: " << json_stream.to_string_view().size() << "\r\n\r\n";
     json_stream.flush(); // flushes to output_stream.
   }
-  
 
-  void respond_if_needed()
-  {
-    if (!response_written_)
-    {
+  void respond_if_needed() {
+    if (!response_written_) {
       response_written_ = true;
 
       format_top_headers(output_stream);
       output_stream << headers_stream.to_string_view();
-      output_stream << "Content-Length: 0\r\n\r\n"; //Add body
+      output_stream << "Content-Length: 0\r\n\r\n"; // Add body
     }
   }
 
-  
-  void set_header(std::string_view k, std::string_view v) { 
-    headers_stream << k << ": " << v << "\r\n"; 
+  void set_header(std::string_view k, std::string_view v) {
+    headers_stream << k << ": " << v << "\r\n";
   }
 
-  void set_cookie(std::string_view k, std::string_view v) { 
+  void set_cookie(std::string_view k, std::string_view v) {
     headers_stream << "Set-Cookie: " << k << '=' << v << "\r\n";
   }
 
   void set_status(int status) {
 
-    switch (status)
-    {
-    case 200: status_ = "200 OK"; break;
-    case 201: status_ = "201 Created"; break;
-    case 204: status_ = "204 No Content"; break;
-    case 304: status_ = "304 Not Modified"; break;
-    case 400: status_ = "400 Bad Request"; break;
-    case 401: status_ = "401 Unauthorized"; break;
-    case 402: status_ = "402 Not Found"; break;
-    case 403: status_ = "403 Forbidden"; break;
-    case 404: status_ = "404 Not Found"; break;
-    case 409: status_ = "409 Conflict"; break;
-    case 500: status_ = "500 Internal Server Error"; break;
-    default: status_ = "200 OK"; break;
+    switch (status) {
+    case 200:
+      status_ = "200 OK";
+      break;
+    case 201:
+      status_ = "201 Created";
+      break;
+    case 204:
+      status_ = "204 No Content";
+      break;
+    case 304:
+      status_ = "304 Not Modified";
+      break;
+    case 400:
+      status_ = "400 Bad Request";
+      break;
+    case 401:
+      status_ = "401 Unauthorized";
+      break;
+    case 402:
+      status_ = "402 Not Found";
+      break;
+    case 403:
+      status_ = "403 Forbidden";
+      break;
+    case 404:
+      status_ = "404 Not Found";
+      break;
+    case 409:
+      status_ = "409 Conflict";
+      break;
+    case 500:
+      status_ = "500 Internal Server Error";
+      break;
+    default:
+      status_ = "200 OK";
+      break;
     }
-    
   }
-  
-  void send_static_file(const char* path)
-  {
+
+  void send_static_file(const char* path) {
     auto it = static_files.find(path);
-    if (static_files.end() == it or !it->second.size())
-    {
+    if (static_files.end() == it or !it->second.size()) {
       int fd = open(path, O_RDONLY);
       if (fd == -1)
         throw http_error::not_found("File not found.");
       int file_size = lseek(fd, (size_t)0, SEEK_END);
-      auto content = std::string_view((char*)mmap(0, file_size, PROT_READ, MAP_SHARED, fd, 0), file_size);
+      auto content =
+          std::string_view((char*)mmap(0, file_size, PROT_READ, MAP_SHARED, fd, 0), file_size);
       static_files.insert({path, content});
       respond(content);
-    }
-    else
+    } else
       respond(it->second);
   }
-  
-  //private:
+
+  // private:
 
   void add_header_line(const char* l) { header_lines.push_back(l); }
   const char* last_header_line() { return header_lines.back(); }
 
   // split a string, starting from cur and ending with split_char.
   // Advance cur to the end of the split.
-  std::string_view split(const char*& cur,
-                         const char* line_end, char split_char)
-  {
+  std::string_view split(const char*& cur, const char* line_end, char split_char) {
 
     const char* start = cur;
-    while (start < (line_end-1) and *start == split_char) start++;
+    while (start < (line_end - 1) and *start == split_char)
+      start++;
     const char* end = start + 1;
-    while (end < (line_end-1) and *end != split_char) end++;
+    while (end < (line_end - 1) and *end != split_char)
+      end++;
     cur = end + 1;
     if (*end == split_char)
       return std::string_view(start, cur - start - 1);
     else
       return std::string_view(start, cur - start);
   }
-  
-  void index_headers()
-  {
-    for (int i = 1; i < header_lines.size() - 1; i++)
-    {
+
+  void index_headers() {
+    for (int i = 1; i < header_lines.size() - 1; i++) {
       const char* line_end = header_lines[i + 1]; // last line is just an empty line.
       const char* cur = header_lines[i];
 
@@ -3931,18 +3875,17 @@ struct http_ctx {
       while (value[0] == ' ')
         value = std::string_view(value.data() + 1, value.size() - 1);
       header_map[key] = value;
-      //std::cout << key << " -> " << value << std::endl;
+      // std::cout << key << " -> " << value << std::endl;
     }
   }
 
-  void index_cookies()
-  {
+  void index_cookies() {
     std::string_view cookies = header("Cookie");
-    if (!cookies.data()) return;
+    if (!cookies.data())
+      return;
     const char* line_end = &cookies.back() + 1;
     const char* cur = &cookies.front();
-    while(cur < line_end)
-    {
+    while (cur < line_end) {
 
       std::string_view key = split(cur, line_end, '=');
       std::string_view value = split(cur, line_end, ';');
@@ -3952,25 +3895,20 @@ struct http_ctx {
     }
   }
 
-  template <typename C>
-  void url_decode_parameters(std::string_view content, C kv_callback)
-  {
+  template <typename C> void url_decode_parameters(std::string_view content, C kv_callback) {
     const char* c = content.data();
     const char* end = c + content.size();
-    if (c < end)
-    {
-      while (c < end)
-      {
+    if (c < end) {
+      while (c < end) {
         std::string_view key = split(c, end, '=');
         std::string_view value = split(c, end, '&');
         kv_callback(key, value);
         // printf("kv: '%.*s' -> '%.*s'\n", key.size(), key.data(), value.size(), value.data());
       }
-    }    
+    }
   }
-    
-  void parse_first_line()
-  {    
+
+  void parse_first_line() {
     const char* c = header_lines[0];
     const char* end = header_lines[1];
 
@@ -3983,30 +3921,23 @@ struct http_ctx {
     end = c + url_.size();
     url_ = split(c, end, '?');
     get_parameters_string_ = std::string_view(c, end - c);
-
   }
 
-  std::string_view get_parameters_string()
-  {
+  std::string_view get_parameters_string() {
     if (!get_parameters_string_.data())
       parse_first_line();
     return get_parameters_string_;
   }
-  template <typename F>
-  void parse_get_parameters(F processor)
-  {
+  template <typename F> void parse_get_parameters(F processor) {
     url_decode_parameters(get_parameters_string(), processor);
   }
 
-  template <typename F>
-  void read_body(F callback)
-  {
+  template <typename F> void read_body(F callback) {
     is_body_read_ = true;
 
     if (!chunked_ and !content_length_)
       body_end_ = body_start.data();
-    else if (content_length_)
-    {
+    else if (content_length_) {
       std::string_view res;
       int n_body_read = 0;
 
@@ -4014,9 +3945,8 @@ struct http_ctx {
       int l = std::min(int(body_start.size()), content_length_);
       callback(std::string_view(body_start.data(), l));
       n_body_read += l;
-      
-      while (content_length_ > n_body_read)
-      {
+
+      while (content_length_ > n_body_read) {
         std::string_view part = rb.read_more_str(fiber);
         int l = part.size();
         int bl = std::min(l, content_length_ - n_body_read);
@@ -4027,15 +3957,12 @@ struct http_ctx {
         n_body_read += part.size();
       }
 
-    }
-    else if (chunked_)
-    {
+    } else if (chunked_) {
       // Chunked decoding.
       const char* cur = body_start.data();
       int chunked_size = strtol(rb.read_until(read, cur, '\r').data(), nullptr, 16);
       cur++; // skip \n
-      while (chunked_size > 0)
-      {
+      while (chunked_size > 0) {
         // Read chunk.
         std::string_view chunk = rb.read_n(read, cur, chunked_size);
         callback(chunk);
@@ -4046,35 +3973,29 @@ struct http_ctx {
         chunked_size = strtol(rb.read_until(read, cur, '\r').data(), nullptr, 16);
         cur++; // skip \n
       }
-      cur += 2;// skip the terminaison chunk.
+      cur += 2; // skip the terminaison chunk.
       body_end_ = cur;
       body_ = std::string_view(body_start.data(), cur - body_start.data());
     }
   }
-  
-  std::string_view read_whole_body()
-  {
-    if (!chunked_ and !content_length_)
-    {
+
+  std::string_view read_whole_body() {
+    if (!chunked_ and !content_length_) {
       is_body_read_ = true;
       body_end_ = body_start.data();
       return std::string_view(); // No body.
     }
 
-    if (content_length_)
-    {
+    if (content_length_) {
       body_ = rb.read_n(fiber, body_start.data(), content_length_);
       body_end_ = body_.data() + content_length_;
-    }
-    else if (chunked_)
-    {
+    } else if (chunked_) {
       // Chunked decoding.
-      char* out = (char*) body_start.data();
+      char* out = (char*)body_start.data();
       const char* cur = body_start.data();
       int chunked_size = strtol(rb.read_until(fiber, cur, '\r').data(), nullptr, 16);
       cur++; // skip \n
-      while (chunked_size > 0)
-      {
+      while (chunked_size > 0) {
         // Read chunk.
         std::string_view chunk = rb.read_n(fiber, cur, chunked_size);
         cur += chunked_size + 2; // skip \r\n.
@@ -4083,64 +4004,53 @@ struct http_ctx {
           std::memmove(out, chunk.data(), chunk.size());
         else
           std::memcpy(out, chunk.data(), chunk.size());
-        
+
         out += chunk.size();
 
         // Read next chunk size.
         chunked_size = strtol(rb.read_until(fiber, cur, '\r').data(), nullptr, 16);
         cur++; // skip \n
       }
-      cur += 2;// skip the terminaison chunk.
+      cur += 2; // skip the terminaison chunk.
       body_end_ = cur;
       body_ = std::string_view(body_start.data(), out - body_start.data());
     }
 
-    is_body_read_ = true;    
+    is_body_read_ = true;
     return body_;
   }
 
-  void read_multipart_formdata()
-  {
+  void read_multipart_formdata() {}
 
-  }
-
-  template <typename F>
-  void post_iterate(F kv_callback)
-  {
+  template <typename F> void post_iterate(F kv_callback) {
     if (is_body_read_) // already in memory.
       url_decode_parameters(body_, kv_callback);
     else // stream the body.
     {
       std::string_view current_key;
 
-      read_body([] (std::string_view part) {
-          // read key if needed.
-          //if (!current_key.size())
-          // call kv callback if some value is available.          
-        });
+      read_body([](std::string_view part) {
+        // read key if needed.
+        // if (!current_key.size())
+        // call kv callback if some value is available.
+      });
     }
   }
-  
+
   // Read post parameters in the body.
-  std::unordered_map<std::string_view, std::string_view> post_parameters()
-  {
-    if (content_type_ == "application/x-www-form-urlencoded")
-    {
+  std::unordered_map<std::string_view, std::string_view> post_parameters() {
+    if (content_type_ == "application/x-www-form-urlencoded") {
       if (!is_body_read_)
         read_whole_body();
-      url_decode_parameters(body_, [&] (auto key, auto value)
-                            { post_parameters_map[key] = value; });
+      url_decode_parameters(body_, [&](auto key, auto value) { post_parameters_map[key] = value; });
       return post_parameters_map;
-    }
-    else
-    {
+    } else {
       // fixme: return bad request here.
     }
     return post_parameters_map;
   }
 
-  void prepare_next_request()
-  {
+  void prepare_next_request() {
     if (!is_body_read_)
       read_whole_body();
 
@@ -4148,8 +4058,8 @@ struct http_ctx {
     // std::cout << rb.current_size() << " " << rb.cursor << std::endl;
     rb.free(header_lines[0], body_end_);
     // std::cout << rb.current_size() << " " << rb.cursor << std::endl;
-    //rb.cursor = rb.end = 0;
-    //assert(rb.cursor == 0);
+    // rb.cursor = rb.end = 0;
+    // assert(rb.cursor == 0);
     headers_stream.reset();
     status_ = "200 OK";
     method_ = std::string_view();
@@ -4165,9 +4075,7 @@ struct http_ctx {
     response_written_ = false;
   }
 
-  void flush_responses() {
-    output_stream.flush();
-  }
+  void flush_responses() { output_stream.flush(); }
 
   int socket_fd;
   read_buffer& rb;
@@ -4185,7 +4093,7 @@ struct http_ctx {
   std::unordered_map<std::string_view, std::string_view> get_parameters_map;
   std::unordered_map<std::string_view, std::string_view> post_parameters_map;
   std::string_view get_parameters_string_;
-  //std::vector<std::string> strings_saver;
+  // std::vector<std::string> strings_saver;
 
   bool is_body_read_ = false;
   std::string body_local_buffer_;
@@ -4200,22 +4108,19 @@ struct http_ctx {
 
   output_buffer output_stream;
   output_buffer json_stream;
-};  
+};
 
-template <typename F>
-auto make_http_processor(F handler)
-{
-  return [handler] (async_fiber_context& fiber) {
-
+template <typename F> auto make_http_processor(F handler) {
+  return [handler](async_fiber_context& fiber) {
     try {
       read_buffer rb;
       bool socket_is_valid = true;
 
       http_ctx ctx = http_ctx(rb, fiber);
       ctx.socket_fd = fiber.socket_fd;
-      
-      while (true)
-      {
+      int n_pipelined_requests = 0;
+
+      while (true) {
         ctx.is_body_read_ = false;
         ctx.header_lines.clear();
         ctx.header_lines.reserve(100);
@@ -4229,35 +4134,33 @@ auto make_http_processor(F handler)
         assert(ctx.header_lines.size() == 1);
 
         bool complete_header = false;
-        while (!complete_header)
-        {
+        while (!complete_header) {
           // Read more data from the socket.
           if (rb.empty())
-            if (!rb.read_more(fiber)) 
+            if (!rb.read_more(fiber))
               return;
 
           // Look for end of header and save header lines.
           {
-            const char * cur = rb.data() + header_end;
-            while ((cur - rb.data()) < rb.end - 3)
-            {
-              //if (!strncmp(rb.data() + header_end, "\r\n", 2)) // slower 
-              if (cur[0] == '\r' and cur[1] == '\n')
-              {
+            const char* cur = rb.data() + header_end;
+            while ((cur - rb.data()) < rb.end - 3) {
+              // if (!strncmp(rb.data() + header_end, "\r\n", 2)) // slower
+              if (cur[0] == '\r' and cur[1] == '\n') {
                 ctx.add_header_line(cur + 2);
-                //header_end += 2;
-                cur+=2;
-                //if ((rb.data() + header_end)[0] == '\r' and (rb.data() + header_end)[1] == '\n')
+                if (ctx.header_lines.size() > 1000)
+                  throw std::runtime_error("Maximum 1000 headers lines allowed.");
+                // header_end += 2;
+                cur += 2;
+                // if ((rb.data() + header_end)[0] == '\r' and (rb.data() + header_end)[1] == '\n')
                 if (cur[0] == '\r' and cur[1] == '\n') // Seems to be the fastest.
-                //if (!strncmp(rb.data() + header_end, "\r\n", 2))
+                // if (!strncmp(rb.data() + header_end, "\r\n", 2))
                 {
                   complete_header = true;
-                  cur+=2;
+                  cur += 2;
                   header_end = cur - rb.data();
                   break;
                 }
-              }
-              else
+              } else
                 cur++;
             }
           }
@@ -4274,23 +4177,22 @@ auto make_http_processor(F handler)
         // Update the cursor the beginning of the next request.
         ctx.prepare_next_request();
         // if read buffer is empty, we can flush the output buffer.
-        if (rb.empty())// || ctx.output_stream.size() > 100000)
+        if (rb.empty() || n_pipelined_requests >= 200) // || ctx.output_stream.size() > 100000)
+        {
           ctx.flush_responses();
-
+          n_pipelined_requests = 0;
+        }
+        n_pipelined_requests++;
       }
-    }
-    catch (const std::runtime_error& e) 
-    {
+    } catch (const std::runtime_error& e) {
       std::cerr << "Error: " << e.what() << std::endl;
       return;
     }
   };
-
 }
 
 } // namespace http_async_impl
-}
-
+} // namespace li
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_REQUEST
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_REQUEST
@@ -4779,13 +4681,14 @@ struct http_response {
 
 namespace li {
 
-template <typename... O> auto http_serve(api<http_request, http_response> api, int port, O... opts) {
+template <typename... O>
+auto http_serve(api<http_request, http_response> api, int port, O... opts) {
 
   auto options = mmm(opts...);
 
   int nthreads = get_or(options, s::nthreads, 4);
 
-  auto handler = [api] (http_async_impl::http_ctx& ctx) {
+  auto handler = [api](http_async_impl::http_ctx& ctx) {
     http_request rq{ctx};
     http_response resp(ctx);
     try {
@@ -4794,51 +4697,49 @@ template <typename... O> auto http_serve(api<http_request, http_response> api, i
       ctx.set_status(e.status());
       ctx.respond(e.what());
     } catch (const std::runtime_error& e) {
-      std::cerr << "INTERNAL SERVER ERROR: "<< e.what() << std::endl;
+      std::cerr << "INTERNAL SERVER ERROR: " << e.what() << std::endl;
       ctx.set_status(500);
       ctx.respond("Internal server error.");
     }
     ctx.respond_if_needed();
   };
 
-  auto date_thread = std::make_shared<std::thread>([&] () {
-      char a1[100];
-      char a2[100];
-      memset(a1, 0, sizeof(a1));
-      memset(a2, 0, sizeof(a2));
-      char* date_buf_tmp1 = a1;
-      char* date_buf_tmp2 = a2;
-      while (!quit_signal_catched)
-      {
-        time_t t = time(NULL);
-        const tm& tm = *gmtime(&t);
-        int size = strftime(date_buf_tmp1, sizeof(a1), "%a, %d %b %Y %T GMT", &tm);
-        http_async_impl::date_buf = date_buf_tmp1;
-        http_async_impl::date_buf_size = size;
-        std::swap(date_buf_tmp1, date_buf_tmp2);
-        usleep(1e6);
-      }
-    });
+  auto date_thread = std::make_shared<std::thread>([&]() {
+    char a1[100];
+    char a2[100];
+    memset(a1, 0, sizeof(a1));
+    memset(a2, 0, sizeof(a2));
+    char* date_buf_tmp1 = a1;
+    char* date_buf_tmp2 = a2;
+    while (!quit_signal_catched) {
+      time_t t = time(NULL);
+      const tm& tm = *gmtime(&t);
+      int size = strftime(date_buf_tmp1, sizeof(a1), "%a, %d %b %Y %T GMT", &tm);
+      http_async_impl::date_buf = date_buf_tmp1;
+      http_async_impl::date_buf_size = size;
+      std::swap(date_buf_tmp1, date_buf_tmp2);
+      usleep(1e6);
+    }
+  });
 
-  auto server_thread = std::make_shared<std::thread>([=] () {
+  auto server_thread = std::make_shared<std::thread>([=]() {
     std::cout << "Starting lithium::http_backend on port " << port << std::endl;
-    //moustique_listen(port, SOCK_STREAM, nthreads, http_async_impl::make_http_processor(std::move(handler)));
-    start_tcp_server(port, SOCK_STREAM, nthreads, http_async_impl::make_http_processor(std::move(handler)));
+    // moustique_listen(port, SOCK_STREAM, nthreads,
+    // http_async_impl::make_http_processor(std::move(handler)));
+    start_tcp_server(port, SOCK_STREAM, nthreads,
+                     http_async_impl::make_http_processor(std::move(handler)));
     date_thread->join();
   });
 
-  if constexpr (has_key<decltype(options), s::non_blocking_t>())
-  {
+  if constexpr (has_key<decltype(options), s::non_blocking_t>()) {
     usleep(0.1e6);
     date_thread->detach();
     server_thread->detach();
-    //return mmm(s::server_thread = server_thread, s::date_thread = date_thread);
-  }
-  else
+    // return mmm(s::server_thread = server_thread, s::date_thread = date_thread);
+  } else
     server_thread->join();
-
 }
-}
+} // namespace li
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_HTTP_LISTEN2
 
 
