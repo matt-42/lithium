@@ -7,6 +7,7 @@
 #include <li/symbol/ast.hh>
 #include <tuple>
 #include <map>
+#include <unordered_map>
 
 namespace li {
 
