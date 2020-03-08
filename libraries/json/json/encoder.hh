@@ -86,6 +86,28 @@ inline void json_encode(C& ss, const std::vector<T>& array, const json_vector_<E
   ss << ']';
 }
 
+template <typename V, typename C, typename M>
+inline void json_encode(C& ss, const M& map, const json_map_<V>& schema) {
+  ss << '{';
+  bool first = true;
+  for (const auto& pair : map) {
+    if (!first)
+      ss << ',';
+
+    json_encode_value(ss, pair.first);
+    ss << ':';
+
+    if constexpr (decltype(json_is_value(schema.mapped_schema)){})
+      json_encode_value(ss, pair.second);
+    else
+      json_encode(ss, pair.second, schema.mapped_schema);
+
+    first = false;
+  }
+
+  ss << '}';
+}
+
 template <typename F, typename... E, typename... T, std::size_t... I>
 inline void json_encode_tuple_elements(F& encode_fun, const std::tuple<T...>& tu,
                                        const std::tuple<E...>& schema, std::index_sequence<I...>) {

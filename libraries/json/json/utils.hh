@@ -6,6 +6,7 @@
 #include <li/metamap/metamap.hh>
 #include <li/symbol/ast.hh>
 #include <tuple>
+#include <map>
 
 namespace li {
 
@@ -14,6 +15,7 @@ template <typename T> struct json_object_base;
 template <typename T> struct json_object_;
 template <typename T> struct json_vector_;
 template <typename V> struct json_value_;
+template <typename V> struct json_map_;
 template <typename... T> struct json_tuple_;
 struct json_key;
 
@@ -41,6 +43,12 @@ template <typename V> auto to_json_schema(const std::vector<V>& arr) {
 
 template <typename... V> auto to_json_schema(const std::tuple<V...>& arr) {
   return json_tuple_<decltype(to_json_schema(V{}))...>(to_json_schema(V{})...);
+}
+template <typename K, typename V> auto to_json_schema(const std::unordered_map<K, V>& arr) {
+  return json_map_<decltype(to_json_schema(V{}))>(to_json_schema(V{}));
+}
+template <typename K, typename V> auto to_json_schema(const std::map<K, V>& arr) {
+  return json_map_<decltype(to_json_schema(V{}))>(to_json_schema(V{}));
 }
 
 template <typename... M> auto to_json_schema(const metamap<M...>& m) {

@@ -106,4 +106,14 @@ int main() {
     assert(json_decode(R"json({"test1":{"idx":0,"value":42}})json", obj).good());
     assert(std::get<int>(obj.test1) == 42);
   }
+
+  {
+    // Map.
+    auto obj = std::unordered_map<std::string, int>();
+
+    assert(json_decode(R"json({"test1":1, "test2": 4})json", obj).good());
+    assert(obj["test1"] == 1);
+    assert(obj["test2"] == 4);
+  }
+
 }

@@ -118,4 +118,23 @@ int main() {
            R"json({"idx":1,"value":"abc"})json");
     assert(json_encode(std::variant<int, std::string>{42}) == R"json({"idx":0,"value":42})json");
   }
+
+  {
+    // Maps.
+    std::unordered_map<std::string, int> test;
+    assert(json_encode(test) == "{}");
+
+    test["test1"] = 2;
+    test["test2"] = 4;
+
+    std::cout << json_encode(test) << std::endl;
+
+    std::string encoded = json_encode(test);
+    std::unordered_map<std::string, int> test2;
+
+    json_decode(encoded, test2);
+    assert(test2["test1"] == 2);
+    assert(test2["test2"] == 4);
+  }
+
 }

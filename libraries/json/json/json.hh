@@ -85,6 +85,14 @@ struct json_key {
   const char* key;
 };
 
+template <typename V> struct json_map_ : public json_object_base<json_map_<V>> {
+  json_map_() = default;
+  json_map_(const V& s) : mapped_schema(s) {}
+  V mapped_schema;
+};
+
+template <typename V> auto json_map() { return json_map_<V>(); }
+
 template <typename C, typename M> decltype(auto) json_decode(C& input, M& obj) {
   return impl::to_json_schema(obj).decode(input, obj);
 }

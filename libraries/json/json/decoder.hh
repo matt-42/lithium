@@ -10,6 +10,7 @@
 #include <string_view>
 #include <utility>
 #include <variant>
+#include <iostream>
 
 namespace li {
 
@@ -47,6 +48,18 @@ template <typename S> struct json_parser {
                                "' when parsing string ", str);
       str_it++;
     }
+    return JSON_OK;
+  }
+
+  json_error_code eat_json_key(char* buffer, int buffer_size, int& key_size) {
+    if (auto err = eat('"'))
+      return err;
+    key_size = 0;
+    while (!eof() and peek() != '"' and key_size < (buffer_size-1))
+      buffer[key_size++] = get();
+    buffer[key_size] = 0;
+    if (auto err = eat('"', false))
+      return err;
     return JSON_OK;
   }
 
@@ -197,6 +210,45 @@ json_error_code json_decode2(P& p, std::tuple<O...>& tu, json_tuple_<S...> schem
     return err;
   else
     return JSON_OK;
+}
+
+template <typename P, typename O, typename V>
+json_error_code json_decode2(json_parser<P>& p, O& obj, json_map_<V> schema) {
+  if (auto err = p.eat('{'))
+    return err;
+
+  p.eat_spaces();
+
+  using mapped_type = typename O::mapped_type;
+  while(true)
+  {
+    // Parse key:
+    char key[50];
+    int key_size = 0;
+    if (auto err = p.eat_json_key(key, sizeof(key), key_size))
+      return err;
+    
+    std::string_view key_str(key, key_size);
+
+    if (auto err = p.eat(':'))
+      return err;
+
+    // Parse value.
+    mapped_type& map_value = obj[std::string(key_str)];
+    if (auto err = json_decode2(p, map_value, V{}))
+      return err;
+
+    p.eat_spaces();
+    if (p.peek() == ',')
+      p.get();
+    else
+      break;
+  }
+
+  if (auto err = p.eat('}'))
+    return err;
+
+  return JSON_OK;
 }
 
 template <typename P, typename O, typename S>
