@@ -7,51 +7,51 @@
 
 #pragma once
 
-#include <sys/socket.h>
-#include <chrono>
-#include <boost/context/continuation.hpp>
-#include <iostream>
-#include <optional>
-#include <fcntl.h>
-#include <sys/sendfile.h>
-#include <signal.h>
-#include <cmath>
-#include <sys/types.h>
-#include <netdb.h>
-#include <boost/lexical_cast.hpp>
-#include <sys/mman.h>
-#include <vector>
-#include <sys/epoll.h>
-#include <string_view>
-#include <string.h>
-#include <unordered_map>
-#include <tuple>
-#include <unistd.h>
-#include <functional>
-#include <sys/stat.h>
-#include <random>
-#include <cstring>
-#include <sstream>
-#include <string>
-#include <memory>
-#include <atomic>
-#include <sys/uio.h>
-#include <stdio.h>
-#include <variant>
-#include <cassert>
-#include <thread>
-#include <mutex>
-#include <map>
-#include <stdlib.h>
-#include <set>
-#include <arpa/inet.h>
-#include <errno.h>
 #include <utility>
+#include <atomic>
+#include <sys/epoll.h>
+#include <string>
+#include <sys/types.h>
+#include <signal.h>
+#include <stdlib.h>
+#include <errno.h>
+#include <set>
+#include <chrono>
+#include <sys/socket.h>
+#include <boost/context/continuation.hpp>
+#include <map>
+#include <sys/uio.h>
+#include <variant>
+#include <unistd.h>
+#include <mutex>
+#include <vector>
 #include <netinet/tcp.h>
+#include <cstring>
+#include <random>
+#include <string.h>
+#include <thread>
+#include <sstream>
+#include <fcntl.h>
+#include <memory>
+#include <tuple>
+#include <sys/sendfile.h>
+#include <boost/lexical_cast.hpp>
+#include <cassert>
+#include <cmath>
+#include <sys/stat.h>
+#include <netdb.h>
+#include <functional>
+#include <string_view>
+#include <arpa/inet.h>
+#include <iostream>
+#include <sys/mman.h>
+#include <stdio.h>
+#include <optional>
+#include <unordered_map>
 
 #if defined(_MSC_VER)
-#include <io.h>
 #include <ciso646>
+#include <io.h>
 #endif // _MSC_VER
 
 
@@ -1280,6 +1280,7 @@ template <typename T> struct json_object_base;
 template <typename T> struct json_object_;
 template <typename T> struct json_vector_;
 template <typename V> struct json_value_;
+template <typename V> struct json_map_;
 template <typename... T> struct json_tuple_;
 struct json_key;
 
@@ -1307,6 +1308,12 @@ template <typename V> auto to_json_schema(const std::vector<V>& arr) {
 
 template <typename... V> auto to_json_schema(const std::tuple<V...>& arr) {
   return json_tuple_<decltype(to_json_schema(V{}))...>(to_json_schema(V{})...);
+}
+template <typename K, typename V> auto to_json_schema(const std::unordered_map<K, V>& arr) {
+  return json_map_<decltype(to_json_schema(V{}))>(to_json_schema(V{}));
+}
+template <typename K, typename V> auto to_json_schema(const std::map<K, V>& arr) {
+  return json_map_<decltype(to_json_schema(V{}))>(to_json_schema(V{}));
 }
 
 template <typename... M> auto to_json_schema(const metamap<M...>& m) {
@@ -1415,6 +1422,18 @@ template <typename S> struct json_parser {
                                "' when parsing string ", str);
       str_it++;
     }
+    return JSON_OK;
+  }
+
+  json_error_code eat_json_key(char* buffer, int buffer_size, int& key_size) {
+    if (auto err = eat('"'))
+      return err;
+    key_size = 0;
+    while (!eof() and peek() != '"' and key_size < (buffer_size-1))
+      buffer[key_size++] = get();
+    buffer[key_size] = 0;
+    if (auto err = eat('"', false))
+      return err;
     return JSON_OK;
   }
 
@@ -1565,6 +1584,45 @@ json_error_code json_decode2(P& p, std::tuple<O...>& tu, json_tuple_<S...> schem
     return err;
   else
     return JSON_OK;
+}
+
+template <typename P, typename O, typename V>
+json_error_code json_decode2(json_parser<P>& p, O& obj, json_map_<V> schema) {
+  if (auto err = p.eat('{'))
+    return err;
+
+  p.eat_spaces();
+
+  using mapped_type = typename O::mapped_type;
+  while(true)
+  {
+    // Parse key:
+    char key[50];
+    int key_size = 0;
+    if (auto err = p.eat_json_key(key, sizeof(key), key_size))
+      return err;
+    
+    std::string_view key_str(key, key_size);
+
+    if (auto err = p.eat(':'))
+      return err;
+
+    // Parse value.
+    mapped_type& map_value = obj[std::string(key_str)];
+    if (auto err = json_decode2(p, map_value, V{}))
+      return err;
+
+    p.eat_spaces();
+    if (p.peek() == ',')
+      p.get();
+    else
+      break;
+  }
+
+  if (auto err = p.eat('}'))
+    return err;
+
+  return JSON_OK;
 }
 
 template <typename P, typename O, typename S>
@@ -1762,6 +1820,28 @@ inline void json_encode(C& ss, const std::vector<T>& array, const json_vector_<E
   ss << ']';
 }
 
+template <typename V, typename C, typename M>
+inline void json_encode(C& ss, const M& map, const json_map_<V>& schema) {
+  ss << '{';
+  bool first = true;
+  for (const auto& pair : map) {
+    if (!first)
+      ss << ',';
+
+    json_encode_value(ss, pair.first);
+    ss << ':';
+
+    if constexpr (decltype(json_is_value(schema.mapped_schema)){})
+      json_encode_value(ss, pair.second);
+    else
+      json_encode(ss, pair.second, schema.mapped_schema);
+
+    first = false;
+  }
+
+  ss << '}';
+}
+
 template <typename F, typename... E, typename... T, std::size_t... I>
 inline void json_encode_tuple_elements(F& encode_fun, const std::tuple<T...>& tu,
                                        const std::tuple<E...>& schema, std::index_sequence<I...>) {
@@ -1905,6 +1985,14 @@ struct json_key {
   inline json_key(const char* c) : key(c) {}
   const char* key;
 };
+
+template <typename V> struct json_map_ : public json_object_base<json_map_<V>> {
+  json_map_() = default;
+  json_map_(const V& s) : mapped_schema(s) {}
+  V mapped_schema;
+};
+
+template <typename V> auto json_map() { return json_map_<V>(); }
 
 template <typename C, typename M> decltype(auto) json_decode(C& input, M& obj) {
   return impl::to_json_schema(obj).decode(input, obj);
