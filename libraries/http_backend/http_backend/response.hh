@@ -38,6 +38,10 @@ struct http_response {
     body += boost::lexical_cast<std::string>(std::forward<A1>(a1));
     write(std::forward<A>(a)...);
   }
+  template <typename A1, typename... A> inline void write(const char* a1, A&&... a) {
+    body.append(a1);
+    write(std::forward<A>(a)...);
+  }
   
   template <typename A1, typename... A> inline void write(std::string_view a1) 
   {
