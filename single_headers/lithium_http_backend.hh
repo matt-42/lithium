@@ -7,47 +7,47 @@
 
 #pragma once
 
-#include <tuple>
-#include <cmath>
-#include <stdlib.h>
-#include <chrono>
-#include <string.h>
-#include <atomic>
-#include <stdio.h>
-#include <sys/epoll.h>
-#include <string_view>
-#include <unordered_map>
-#include <sys/sendfile.h>
-#include <thread>
-#include <mutex>
-#include <functional>
-#include <sstream>
-#include <errno.h>
-#include <cstring>
-#include <sys/types.h>
-#include <iostream>
+#include <string>
 #include <unistd.h>
-#include <sys/mman.h>
-#include <set>
-#include <utility>
-#include <boost/lexical_cast.hpp>
-#include <netdb.h>
-#include <vector>
-#include <sys/uio.h>
-#include <map>
-#include <memory>
 #include <arpa/inet.h>
-#include <fcntl.h>
-#include <sys/socket.h>
-#include <signal.h>
-#include <netinet/tcp.h>
-#include <sys/stat.h>
+#include <sstream>
+#include <iostream>
+#include <set>
+#include <optional>
+#include <tuple>
+#include <sys/epoll.h>
 #include <boost/context/continuation.hpp>
 #include <cassert>
+#include <sys/types.h>
 #include <random>
+#include <fcntl.h>
+#include <cstring>
+#include <map>
+#include <sys/socket.h>
+#include <signal.h>
+#include <sys/sendfile.h>
+#include <vector>
+#include <netinet/tcp.h>
+#include <thread>
+#include <functional>
+#include <memory>
+#include <string_view>
+#include <stdlib.h>
+#include <sys/uio.h>
+#include <stdio.h>
+#include <errno.h>
+#include <cmath>
+#include <string.h>
+#include <chrono>
+#include <unordered_map>
+#include <utility>
+#include <sys/stat.h>
+#include <atomic>
+#include <sys/mman.h>
+#include <boost/lexical_cast.hpp>
+#include <mutex>
+#include <netdb.h>
 #include <variant>
-#include <optional>
-#include <string>
 
 #if defined(_MSC_VER)
 #include <io.h>
@@ -3597,34 +3597,20 @@ struct read_buffer {
   // Read more data.
   // Return 0 on error.
   template <typename F> int read_more(F& fiber, int size = -1) {
-    if (int(buffer_.size()) <= end - 100) {
-      // reset buffer_.
-      cursor = 0;
-      end = 0;
-      // if (buffer_.size() > (10*1024*1024))
-      //   return 0; // Buffer is full. Error and return.
-      // else
-      {
-        // std::cout << "RESIZE" << std::endl;
-        // buffer_.resize(buffer_.size() * 2);
-      }
-    }
 
+
+    // If size is not specified, read potentially until the end of the buffer.
     if (size == -1)
       size = buffer_.size() - end;
-    int received = fiber.read(buffer_.data() + end, size);
 
-    if (received == 0)
-      return 0; // Socket closed, return.
+    if (end == buffer_.size() || size > (buffer_.size() - end))
+      throw std::runtime_error("Error: request too long, read buffer full.");
+
+    int received = fiber.read(buffer_.data() + end, size);
     end = end + received;
-    if (end == buffer_.size()) {
-      end = cursor = 0; // reset read buffer.
-      // std::cerr << "Request too long." << std::endl;
-      throw std::runtime_error("Request too long.");
-    }
-    // std::cout << "read size " << end << std::endl;
     return received;
   }
+
   template <typename F> std::string_view read_more_str(F& fiber) {
     int l = read_more(fiber);
     return std::string_view(buffer_.data() + end - l);
@@ -3943,6 +3929,7 @@ struct http_ctx {
     const char* start = cur;
     while (start < (line_end - 1) and *start == split_char)
       start++;
+
     const char* end = start + 1;
     while (end < (line_end - 1) and *end != split_char)
       end++;
@@ -4206,8 +4193,7 @@ template <typename F> auto make_http_processor(F handler) {
 
       http_ctx ctx = http_ctx(rb, fiber);
       ctx.socket_fd = fiber.socket_fd;
-      int n_pipelined_requests = 0;
-
+      
       while (true) {
         ctx.is_body_read_ = false;
         ctx.header_lines.clear();
@@ -4222,36 +4208,39 @@ template <typename F> auto make_http_processor(F handler) {
         assert(ctx.header_lines.size() == 1);
 
         bool complete_header = false;
-        while (!complete_header) {
-          // Read more data from the socket.
-          if (rb.empty())
-            if (!rb.read_more(fiber))
-              return;
 
+        if (rb.empty())
+          if (!rb.read_more(fiber))
+            return;
+
+        const char* cur = rb.data() + header_end;
+        while (!complete_header) {
           // Look for end of header and save header lines.
-          {
-            const char* cur = rb.data() + header_end;
-            while ((cur - rb.data()) < rb.end - 3) {
-              // if (!strncmp(rb.data() + header_end, "\r\n", 2)) // slower
-              if (cur[0] == '\r' and cur[1] == '\n') {
-                ctx.add_header_line(cur + 2);
-                if (ctx.header_lines.size() > 1000)
-                  throw std::runtime_error("Maximum 1000 headers lines allowed.");
-                // header_end += 2;
+          while ((cur - rb.data()) < rb.end - 3) {
+            // if (!strncmp(rb.data() + header_end, "\r\n", 2)) // slower
+            // if (!strncmp(cur, "\r\n", 2)) {
+           if (cur[0] == '\r' and cur[1] == '\n') {
+              ctx.add_header_line(cur + 2);
+              // if (ctx.header_lines.size() > 1000)
+              //   throw std::runtime_error("Maximum 1000 headers lines allowed.");
+              // header_end += 2;
+              cur += 2;
+              // if ((rb.data() + header_end)[0] == '\r' and (rb.data() + header_end)[1] == '\n')
+              if (cur[0] == '\r' and cur[1] == '\n') // Seems to be the fastest.
+              // if (!strncmp(rb.data() + header_end, "\r\n", 2))
+              // if (!strncmp(cur, "\r\n", 2))
+              {
+                complete_header = true;
                 cur += 2;
-                // if ((rb.data() + header_end)[0] == '\r' and (rb.data() + header_end)[1] == '\n')
-                if (cur[0] == '\r' and cur[1] == '\n') // Seems to be the fastest.
-                // if (!strncmp(rb.data() + header_end, "\r\n", 2))
-                {
-                  complete_header = true;
-                  cur += 2;
-                  header_end = cur - rb.data();
-                  break;
-                }
-              } else
-                cur++;
-            }
+                header_end = cur - rb.data();
+                break;
+              }
+            } else
+              cur++;
           }
+
+          // Read more data from the socket if the headers are not complete.
+          if (!complete_header && 0 == rb.read_more(fiber)) return;
         }
 
         // Header is complete. Process it.
@@ -4265,12 +4254,8 @@ template <typename F> auto make_http_processor(F handler) {
         // Update the cursor the beginning of the next request.
         ctx.prepare_next_request();
         // if read buffer is empty, we can flush the output buffer.
-        if (rb.empty() || n_pipelined_requests >= 200) // || ctx.output_stream.size() > 100000)
-        {
+        if (rb.empty())
           ctx.flush_responses();
-          n_pipelined_requests = 0;
-        }
-        n_pipelined_requests++;
       }
     } catch (const std::runtime_error& e) {
       std::cerr << "Error: " << e.what() << std::endl;
@@ -4746,6 +4731,10 @@ struct http_response {
 
   template <typename A1, typename... A> inline void write(A1&& a1, A&&... a) {
     body += boost::lexical_cast<std::string>(std::forward<A1>(a1));
+    write(std::forward<A>(a)...);
+  }
+  template <typename A1, typename... A> inline void write(const char* a1, A&&... a) {
+    body.append(a1);
     write(std::forward<A>(a)...);
   }
   
