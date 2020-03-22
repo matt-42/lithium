@@ -1,13 +1,14 @@
 li::sql
 ================================
 
-This library aims to ease the communication with SQL databases within C++ code.
+``li::sql`` is a set of high performance and easy to use C++ SQL drivers.
 It provides an asynchronous and a synchronous mode (= blocking or non blocking mode).
 It features:
   - A MySQL sync & async C++ connector
   - A PostgreSQL sync & async C++ connector
-  - A SQLite sync C++ connector (async not implemented, it fallbacks on the synchronous mode)
+  - A SQLite sync C++ connector
   - An ORM-like class that allow to send requests without typing raw SQL code.
+  - Connection pooling for all databases.
 
 All the three connectors are following the same API so you can use the same way
 a SQLite, a MySQL and a PostgreSQL database.
@@ -40,10 +41,13 @@ auto db = li::pgsql_database(s::host = "127.0.0.1",
 // All function call are blocking.
 auto con = db.connect();
 
+// The db object manages a thread-safe pool of connections. connect() will
+// reuse any previously open connection if it is not currently used.
+
 // Connect to the database: ASYNCHRONOUS MODE.
 // All methods will call your_yield_object() whenever
 // it as to wait for a result.
-// It will also call your_yield_object.listen_to_fd((int) fd)
+// It will also call your_yield_object.epoll_add((int) fd)
 // So you can subscribe to event on the file descriptor of the
 // socket used to communicate with the database.
 auto con = db.connect(your_yield_object);
@@ -55,12 +59,12 @@ auto con = db.connect(your_yield_object);
 con("DROP table if exists users;");
 
 // Retrieve data from simple requests.
-int count = con("select count(*) from users;").template read<int>();
+int count = con("select count(*) from users;").read<int>();
 
 // Use placeholder to format your request according to some variables.
 // Note: PostgreSQL uses $1, ... $N placeholders, SQLite and Mysql use ?.
 auto login = con("select login from users where id = ? and name = ?;")(42, "John")
-              .template read_optional<std::string>();
+              .read_optional<std::string>();
 // Note: use read_optional when the request may not return data.
 //       it returns a std::optional object that allows you to check it:
 if (login)
@@ -115,13 +119,13 @@ int count = users.count();
 // it returns a std::optional object.
 auto u = users.find_one(s::id = 42);
 if (u) std::cout << u->name << std::endl;
-else  std::cout << "user not foudn" << std::endl;
+else  std::cout << "user not found" << std::endl;
 // Note: you can use any combination of user field:
 auto u = users.find_one(s::name = "John", s::age = 42); // look for name == John and age == 42;
 
 // Insert a new user.
 // Returns the id of the new object.
-long long int john_id = users.insert(s::name = "John", s::age = 42, s::login = "lol");
+long long int john_id = users.insert(s::name = "John", s::age = 42, s::login = "john_d");
 
 // Update.
 auto u = users.find_one(s::id = john_id);
@@ -152,16 +156,3 @@ api.post("/orm_test") = [&] (http_request& request, http_response& response) {
 # What is the s:: namespace ?
 
 Everything explained here: https://github.com/matt-42/lithium/tree/master/libraries/symbol#lisymbol
-
-# Installation / Supported compilers
-
-Everything explained here: https://github.com/matt-42/lithium#installation
-
-# Authors
-
-Matthieu Garrigues https://github.com/matt-42
-
-# Support the project
-
-If you find this project helpful, please consider donating:
-https://www.paypal.me/matthieugarrigues

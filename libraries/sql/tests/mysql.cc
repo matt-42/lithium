@@ -44,7 +44,7 @@ int main() {
     insert_user(1, "John", 42);
     insert_user(2, "Bob", 24);
 
-    int count = c("SELECT count(*) from users_test_mysql").template read<int>();
+    int count = c("SELECT count(*) from users_test_mysql").read<int>();
     std::cout << count << std::endl;
     assert(count == 2);
     // // multiple inserts.
