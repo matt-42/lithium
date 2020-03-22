@@ -156,3 +156,12 @@ api.post("/orm_test") = [&] (http_request& request, http_response& response) {
 # What is the s:: namespace ?
 
 Everything explained here: https://github.com/matt-42/lithium/tree/master/libraries/symbol#lisymbol
+
+# Connection pool size
+
+To tune the size of the PostgreSQL and MySQL pools (default to 200):
+
+```c++
+li::max_mysql_connections_per_thread = 42; // MySQL
+li::max_pgsql_connections_per_thread = 42; // PostgreSQL
+```
