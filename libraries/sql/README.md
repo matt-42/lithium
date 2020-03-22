@@ -15,7 +15,7 @@ a SQLite, a MySQL and a PostgreSQL database.
 
 # Benchmark
 
-According to the [Techempower benchmark](tfb-status.techempower.com/), the MySQL and PostgreSQL
+According to the [Techempower benchmark](http://tfb-status.techempower.com/), the MySQL and PostgreSQL
 are part of the fastest available SQL drivers.
 
 # Tutorial
