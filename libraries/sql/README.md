@@ -13,6 +13,11 @@ It features:
 All the three connectors are following the same API so you can use the same way
 a SQLite, a MySQL and a PostgreSQL database.
 
+# Benchmark
+
+According to the [Techempower benchmark](tfb-status.techempower.com/), the MySQL and PostgreSQL
+are part of the fastest available SQL drivers.
+
 # Tutorial
 
 ## Connectors
