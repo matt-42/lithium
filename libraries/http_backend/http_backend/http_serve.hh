@@ -15,117 +15,14 @@
 
 #include <boost/lexical_cast.hpp>
 
+#include <li/http_backend/output_buffer.hh>
+#include <li/http_backend/input_buffer.hh>
 #include <li/http_backend/error.hh>
 #include <li/http_backend/symbols.hh>
 #include <li/http_backend/tcp_server.hh>
 #include <li/http_backend/url_unescape.hh>
 
 namespace li {
-
-struct output_buffer {
-
-  output_buffer() : flush_([](const char*, int) {}) {}
-
-  output_buffer(output_buffer&& o)
-      : buffer_(o.buffer_), own_buffer_(o.own_buffer_), cursor_(o.cursor_), end_(o.end_),
-        flush_(o.flush_) {
-    o.buffer_ = nullptr;
-    o.own_buffer_ = false;
-  }
-
-  output_buffer(
-      int capacity, std::function<void(const char*, int)> flush_ = [](const char*, int) {})
-      : buffer_(new char[capacity]), own_buffer_(true), cursor_(buffer_), end_(buffer_ + capacity),
-        flush_(flush_) {
-    assert(buffer_);
-  }
-
-  output_buffer(
-      void* buffer, int capacity,
-      std::function<void(const char*, int)> flush_ = [](const char*, int) {})
-      : buffer_((char*)buffer), own_buffer_(false), cursor_(buffer_), end_(buffer_ + capacity),
-        flush_(flush_) {
-    assert(buffer_);
-  }
-
-  ~output_buffer() {
-    if (own_buffer_)
-      delete[] buffer_;
-  }
-
-  output_buffer& operator=(output_buffer&& o) {
-    buffer_ = o.buffer_;
-    own_buffer_ = o.own_buffer_;
-    cursor_ = o.cursor_;
-    end_ = o.end_;
-    flush_ = o.flush_;
-    o.buffer_ = nullptr;
-    o.own_buffer_ = false;
-    return *this;
-  }
-
-  void reset() { cursor_ = buffer_; }
-
-  std::size_t size() { return cursor_ - buffer_; }
-  void flush() {
-    flush_(buffer_, size());
-    reset();
-  }
-
-  output_buffer& operator<<(std::string_view s) {
-    if (cursor_ + s.size() >= end_)
-      flush();
-
-    assert(cursor_ + s.size() < end_);
-    memcpy(cursor_, s.data(), s.size());
-    cursor_ += s.size();
-    return *this;
-  }
-
-  output_buffer& operator<<(const char* s) { return operator<<(std::string_view(s, strlen(s))); }
-  output_buffer& operator<<(char v) {
-    cursor_[0] = v;
-    cursor_++;
-    return *this;
-  }
-
-  output_buffer& operator<<(std::size_t v) {
-    if (v == 0)
-      operator<<('0');
-
-    char buffer[10];
-    char* str_start = buffer;
-    for (int i = 0; i < 10; i++) {
-      if (v > 0)
-        str_start = buffer + 9 - i;
-      buffer[9 - i] = (v % 10) + '0';
-      v /= 10;
-    }
-    operator<<(std::string_view(str_start, buffer + 10 - str_start));
-    return *this;
-  }
-  // template <typename I>
-  // output_buffer& operator<<(unsigned long s)
-  // {
-  //   typedef std::array<char, 150> buf_t;
-  //   buf_t b = boost::lexical_cast<buf_t>(v);
-  //   return operator<<(std::string_view(b.begin(), strlen(b.begin())));
-  // }
-
-  template <typename I> output_buffer& operator<<(I v) {
-    typedef std::array<char, 150> buf_t;
-    buf_t b = boost::lexical_cast<buf_t>(v);
-    return operator<<(std::string_view(b.begin(), strlen(b.begin())));
-  }
-
-  std::string_view to_string_view() { return std::string_view(buffer_, cursor_ - buffer_); }
-
-  char* buffer_;
-  bool own_buffer_;
-  char* cursor_;
-  char* end_;
-  std::function<void(const char* s, int d)> flush_;
-};
 
 namespace http_async_impl {
 
@@ -134,141 +31,9 @@ int date_buf_size = 0;
 
 thread_local std::unordered_map<std::string, std::string_view> static_files;
 
-struct read_buffer {
-
-  // std::array<char, 20*1024> buffer_;
-  std::vector<char> buffer_;
-  int cursor = 0; // First index of the currently used buffer area
-  int end = 0;    // Index of the last read character
-
-  read_buffer() : buffer_(50 * 1024), cursor(0), end(0) {}
-
-  // Free unused space in the buffer in [i1, i2[.
-  // This may move data in [i2, end[ if needed.
-  void free(int i1, int i2) {
-    assert(i1 < i2);
-    assert(i1 >= 0 and i1 < buffer_.size());
-    assert(i2 > 0 and i2 <= buffer_.size());
-
-    if (i1 == cursor and i2 == end) // eat the whole buffer.
-      cursor = end = 0;
-    else if (i1 == cursor) // eat the beggining of the buffer.
-      cursor = i2;
-    else if (i2 == end)
-      end = i1;         // eat the end of the buffer.
-    else if (i2 != end) // eat somewhere in the middle.
-    {
-      if (buffer_.size() - end < buffer_.size() / 4) {
-        if (end - i2 > i2 - i1) // use memmove if overlap.
-          std::memmove(buffer_.data() + i1, buffer_.data() + i2, end - i2);
-        else
-          std::memcpy(buffer_.data() + i1, buffer_.data() + cursor, end - cursor);
-      }
-    }
-  }
-
-  void free(const char* i1, const char* i2) {
-    assert(i1 >= buffer_.data());
-    assert(i1 <= &buffer_.back());
-    // std::cout << (i2 - &buffer_.front()) << " " << buffer_.size() <<  << std::endl;
-    assert(i2 >= buffer_.data() and i2 <= &buffer_.back() + 1);
-    free(i1 - buffer_.data(), i2 - buffer_.data());
-  }
-  void free(const std::string_view& str) { free(str.data(), str.data() + str.size()); }
-
-  // private: Read more data
-  // Read from ptr until character x.
-  // read n more characters at address ptr.
-  // eat n first/last character.
-  // free part of the buffer and more data if needed.
-
-  // Read more data.
-  // Return 0 on error.
-  template <typename F> int read_more(F& fiber, int size = -1) {
-
-
-    // If size is not specified, read potentially until the end of the buffer.
-    if (size == -1)
-      size = buffer_.size() - end;
-
-    if (end == buffer_.size() || size > (buffer_.size() - end))
-      throw std::runtime_error("Error: request too long, read buffer full.");
-
-    int received = fiber.read(buffer_.data() + end, size);
-    end = end + received;
-    return received;
-  }
-
-  template <typename F> std::string_view read_more_str(F& fiber) {
-    int l = read_more(fiber);
-    return std::string_view(buffer_.data() + end - l);
-  }
-
-  template <typename F> std::string_view read_n(F&& fiber, const char* start, int size) {
-    int str_start = start - buffer_.data();
-    int str_end = size + str_start;
-    if (end < str_end) {
-      // Read more body on the socket.
-      int current_size = end - str_start;
-      while (current_size < size)
-        current_size += read_more(fiber);
-    }
-    return std::string_view(start, size);
-  }
-
-  template <typename F> std::string_view read_until(F&& fiber, const char*& start, char delimiter) {
-    const char* str_end = start;
-
-    while (true) {
-      const char* buffer_end = buffer_.data() + end;
-      while (str_end < buffer_end and *str_end != delimiter)
-        str_end++;
-
-      if (*str_end == delimiter)
-        break;
-      else {
-        if (!read_more(fiber))
-          break;
-      }
-    }
-
-    auto res = std::string_view(start, str_end - start);
-    start = str_end + 1;
-    return res;
-  }
-
-  bool empty() const { return cursor == end; }
-
-  // Return the amount of data currently available to read.
-  int current_size() { return end - cursor; }
-
-  // Reset the buffer. Copy remaining data at the beggining if there is some.
-  void reset() {
-    assert(cursor <= end);
-    if (cursor == end)
-      end = cursor = 0;
-    else {
-      if (cursor > end - cursor) // use memmove if overlap.
-        std::memmove(buffer_.data(), buffer_.data() + cursor, end - cursor);
-      else
-        std::memcpy(buffer_.data(), buffer_.data() + cursor, end - cursor);
-
-      // if (
-      // memcpy(buffer_.data(), buffer_.data() + cursor, end - cursor);
-
-      end = end - cursor;
-      cursor = 0;
-    }
-  }
-
-  // On success return the number of bytes read.
-  // On error return 0.
-  char* data() { return buffer_.data(); }
-};
-
 struct http_ctx {
 
-  http_ctx(read_buffer& _rb, async_fiber_context& _fiber) : rb(_rb), fiber(_fiber) {
+  http_ctx(input_buffer& _rb, async_fiber_context& _fiber) : rb(_rb), fiber(_fiber) {
     get_parameters_map.reserve(10);
     response_headers.reserve(20);
 
@@ -400,8 +165,6 @@ struct http_ctx {
         chunked_ = (content_type_ == "chunked");
       }
 
-      // header_map[key] = value;
-      // std::cout << key << " -> " << value << std::endl;
     }
   }
 
@@ -741,7 +504,7 @@ struct http_ctx {
   void flush_responses() { output_stream.flush(); }
 
   int socket_fd;
-  read_buffer& rb;
+  input_buffer& rb;
 
   const char* status_ = "200 OK";
   std::string_view method_;
@@ -776,7 +539,7 @@ struct http_ctx {
 template <typename F> auto make_http_processor(F handler) {
   return [handler](async_fiber_context& fiber) {
     try {
-      read_buffer rb;
+      input_buffer rb;
       bool socket_is_valid = true;
 
       http_ctx ctx = http_ctx(rb, fiber);
@@ -805,18 +568,10 @@ template <typename F> auto make_http_processor(F handler) {
         while (!complete_header) {
           // Look for end of header and save header lines.
           while ((cur - rb.data()) < rb.end - 3) {
-            // if (!strncmp(rb.data() + header_end, "\r\n", 2)) // slower
-            // if (!strncmp(cur, "\r\n", 2)) {
            if (cur[0] == '\r' and cur[1] == '\n') {
               ctx.add_header_line(cur + 2);
-              // if (ctx.header_lines.size() > 1000)
-              //   throw std::runtime_error("Maximum 1000 headers lines allowed.");
-              // header_end += 2;
               cur += 2;
-              // if ((rb.data() + header_end)[0] == '\r' and (rb.data() + header_end)[1] == '\n')
-              if (cur[0] == '\r' and cur[1] == '\n') // Seems to be the fastest.
-              // if (!strncmp(rb.data() + header_end, "\r\n", 2))
-              // if (!strncmp(cur, "\r\n", 2))
+              if (cur[0] == '\r' and cur[1] == '\n')
               {
                 complete_header = true;
                 cur += 2;
@@ -903,8 +658,6 @@ auto http_serve(api<http_request, http_response> api, int port, O... opts) {
 
   auto server_thread = std::make_shared<std::thread>([=]() {
     std::cout << "Starting lithium::http_backend on port " << port << std::endl;
-    // moustique_listen(port, SOCK_STREAM, nthreads,
-    // http_async_impl::make_http_processor(std::move(handler)));
     start_tcp_server(port, SOCK_STREAM, nthreads,
                      http_async_impl::make_http_processor(std::move(handler)));
     date_thread->join();
