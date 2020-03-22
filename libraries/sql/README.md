@@ -8,7 +8,7 @@ It features:
   - A PostgreSQL sync & async C++ connector
   - A SQLite sync C++ connector
   - An ORM-like class that allow to send requests without typing raw SQL code.
-  - Connection pooling for all databases.
+  - Thread-safe connection pooling for MySQL and PostgreSQL.
 
 All the three connectors are following the same API so you can use the same way
 a SQLite, a MySQL and a PostgreSQL database.
@@ -41,16 +41,16 @@ auto db = li::pgsql_database(s::host = "127.0.0.1",
 // All function call are blocking.
 auto con = db.connect();
 
-// The db object manages a thread-safe pool of connections. connect() will
+// For MySQL and Postgresql, the db object manages a thread-safe pool of connections. connect() will
 // reuse any previously open connection if it is not currently used.
+// For SQLite, one thread-safe connection open with the flag SQLITE_OPEN_FULLMUTEX is shared.
 
 // Connect to the database: ASYNCHRONOUS MODE.
-// All methods will call your_yield_object() whenever
-// it as to wait for a result.
-// It will also call your_yield_object.epoll_add((int) fd)
-// So you can subscribe to event on the file descriptor of the
-// socket used to communicate with the database.
-auto con = db.connect(your_yield_object);
+// You must provide as argument an object that implement these 3 methods:
+// your_async_fiber_wrapper.yield(): Yield the current fiber.
+// your_async_fiber_wrapper.epoll_add(int fd, int flags): wrapper to your epoll_add. For more info: man epoll
+// your_async_fiber_wrapper.epoll_mod(int fd, int flags): wrapper to your epoll_mod. For more info: man epoll
+auto con = db.connect(your_async_fiber_wrapper);
 
 // This was the only difference between using the async and the synchronous
 // connector. All the rest of the API is identical.
