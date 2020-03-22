@@ -136,7 +136,7 @@ users.update(*u);
 users.remove(*u);
 ```
 
-### Callbacks additional arguments
+### ORM Callbacks additional arguments
 
 Callbacks can also take additional arguments, it is used for example in the http_backend library to
 access the HTTP session.
