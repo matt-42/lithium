@@ -1,7 +1,16 @@
-The Lithium C++ Libraries ![Travis](https://travis-ci.com/matt-42/lithium.svg?branch=master)
+The Lithium C++ Libraries ![Travis](https://travis-ci.com/matt-42/lithium.svg?branch=master) [![Donate](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://www.paypal.me/matthieugarrigues)
+
 ========================
 
-Lithium provides a set of free C++17 multi-platform libraries based on the metamap paradigm including:
+Lithium's goal is to ease the development of C++ high performance HTTP
+APIs. As much effort is put into simplifying it's use as in optimizing its performances.
+According to the [TechEmpower
+benchmark](https://tfb-status.techempower.com), it is one of the
+fastest web framework available.
+
+It is a set of independent header only C++ libraries, each one of them can be used
+independently. Each library solves one problem and can be used
+separately.
 
 ### [li::metamap](https://github.com/matt-42/lithium/tree/master/libraries/metamap)
 
@@ -49,9 +58,9 @@ cmake .. -DCMAKE_INSTALL_PREFIX=_your_prefix_; make -j4 install;
 ## Supported compilers:
     - Linux: G++ 9.2, Clang++ 9.0
     - Macos: Clang 11 (everything except http_backend that relies on epoll)
-    - ~~Windows: MSVC 19~~
+    - Not supported anymore: Windows: MSVC 19
 
 # Support the project
 
-If you find this project helpful, please consider donating:
+If you find this project helpful, buy me a coffee!
 https://www.paypal.me/matthieugarrigues
