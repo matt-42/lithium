@@ -3034,11 +3034,21 @@ template <typename Req, typename Resp> struct api {
     });
   }
 
+  H& global_handler() {
+    is_global_handler = true;
+    return global_handler_;
+  }	
+
   void print_routes() {
     routes_map_.for_all_routes([this](auto r, auto h) { std::cout << r << '\n'; });
     std::cout << std::endl;
   }
   auto call(std::string_view method, std::string_view route, Req& request, Resp& response) const {
+    if(is_global_handler)
+    {
+        global_handler_(request, response);
+        return;
+    }
     if (route == last_called_route_)
     {
       if (last_handler_.verb == ANY or parse_verb(method) == last_handler_.verb) {
@@ -3070,6 +3080,8 @@ template <typename Req, typename Resp> struct api {
   dynamic_routing_table<VH> routes_map_;
   std::string last_called_route_;
   VH last_handler_;
+  H global_handler_;
+  bool is_global_handler;
 };
 
 } // namespace li
