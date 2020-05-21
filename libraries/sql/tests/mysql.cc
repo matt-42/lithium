@@ -28,8 +28,7 @@ INSERT into users(id, name, age) values (2, "Bob", 24);
 int main() {
   using namespace li;
 
-  // try
-  {
+  try {
     auto m = mysql_database(s::host = "127.0.0.1", s::database = "silicon_test", s::user = "root",
                             s::password = "sl_test_password", s::port = 14550, s::charset = "utf8");
 
@@ -41,93 +40,100 @@ int main() {
     // Prepared statement.
     auto insert_user = c.prepare("INSERT into users_test_mysql(id, name, age) values (?,?,?);");
 
+    // Execute the statement.
     insert_user(1, "John", 42);
     insert_user(2, "Bob", 24);
 
     int count = c("SELECT count(*) from users_test_mysql").read<int>();
     std::cout << count << std::endl;
     assert(count == 2);
-    // // multiple inserts.
-    // //c("INSERT into users(id, name, age) values", users);
 
-    // typedef decltype(mmm(s::id = int(), s::age = uint32_t(),  s::name = std::string())) User;
+    int i = 0;
+    c.prepare("Select id,name from users;")().map([&](int id, std::string name) {
+      if (i == 0) {
+        assert(id == 1);
+        assert(name == "John");
+      }
+      if (i == 1) {
+        assert(id == 2);
+        assert(name == "Bob");
+      }
+    });
 
-    // auto print = [] (User res) {
-    //   std::cout << res.id << " - " << res.name << " - " << res.age << std::endl;
-    // };
+    //     auto print = [] (User res) {
+    //       std::cout << res.id << " - " << res.name << " - " << res.age << std::endl;
+    //     };
 
-    // int test;
-    // c("SELECT 1 + 2") >> test;
-    // std::cout << test << std::endl;
-    // assert(test == 3);
+    //     int test;
+    //     c("SELECT 1 + 2") >> test;
+    //     std::cout << test << std::endl;
+    //     assert(test == 3);
 
-    // int count = 0;
-    // c("SELECT count(*) from users") >> count;
-    // std::cout << count << " users" << std::endl;
+    //     int count = 0;
+    //     c("SELECT count(*) from users") >> count;
+    //     std::cout << count << " users" << std::endl;
 
-    // std::string b = "Bob";
+    //     std::string b = "Bob";
 
-    // User res;
+    //     User res;
 
-    // double t = get_time_in_seconds();
-    // int K = 200;
+    //     double t = get_time_in_seconds();
+    //     int K = 200;
 
-    // auto rq = c.prepare("SELECT * from users where name = ? and age = ? LIMIT 1");
-    // for (int i = 0; i < K; i++)
-    //   rq("Bob", 24) >> res;
-    // std::cout << (1000 * (get_time_in_seconds() - t)) / K << std::endl;
+    //     auto rq = c.prepare("SELECT * from users where name = ? and age = ? LIMIT 1");
+    //     for (int i = 0; i < K; i++)
+    //       rq("Bob", 24) >> res;
+    //     std::cout << (1000 * (get_time_in_seconds() - t)) / K << std::endl;
 
-    // t = get_time_in_seconds();
+    //     t = get_time_in_seconds();
 
-    // for (int i = 0; i < K; i++)
-    //   c("SELECT * from users where name = ? and age = ? LIMIT 1")("Bob", 24) >> res;
+    //     for (int i = 0; i < K; i++)
+    //       c("SELECT * from users where name = ? and age = ? LIMIT 1")("Bob", 24) >> res;
 
-    // std::cout << (1000 * (get_time_in_seconds() - t)) / K << std::endl;
+    //     std::cout << (1000 * (get_time_in_seconds() - t)) / K << std::endl;
 
-    // if (!(c("SELECT * from users where name = ? and age = ?")("Bob", 24) >> res))
-    //   throw http_error::not_found("User not found.");
+    //     if (!(c("SELECT * from users where name = ? and age = ?")("Bob", 24) >> res))
+    //       throw http_error::not_found("User not found.");
 
-    // int age;
-    // std::string name;
-    // if (!(c("SELECT age, name from users where name = ? and age = ?")("Bob", 24) >> std::tie(age,
-    // name)))
-    //   throw http_error::not_found("User not found.");
-    // std::cout << name << " " << age  << std::endl;
+    //     int age;
+    //     std::string name;
+    //     if (!(c("SELECT age, name from users where name = ? and age = ?")("Bob", 24) >>
+    //     std::tie(age, name)))
+    //       throw http_error::not_found("User not found.");
+    //     std::cout << name << " " << age  << std::endl;
 
-    // print(res);
+    //     print(res);
 
-    // // Print the list of users
-    // c("SELECT * from users") | print;
+    //     // Print the list of users
+    //     c("SELECT * from users") | print;
 
-    // c("SELECT name, age from users") | [] (std::tuple<std::string, int>& r)
-    // {
-    //   std::cout << std::get<0>(r) << " " << std::get<1>(r) << std::endl;
-    // };
+    //     c("SELECT name, age from users") | [] (std::tuple<std::string, int>& r)
+    //     {
+    //       std::cout << std::get<0>(r) << " " << std::get<1>(r) << std::endl;
+    //     };
 
-    // c("SELECT age from users") | [] (int& r)
-    // {
-    //   std::cout << r << std::endl;
-    // };
+    //     c("SELECT age from users") | [] (int& r)
+    //     {
+    //       std::cout << r << std::endl;
+    //     };
 
-    // c("SELECT name, age from users") | [] (const std::string& name, const int& age)
-    // {
-    //   std::cout << name << " " << age << std::endl;
-    // };
+    //     c("SELECT name, age from users") | [] (const std::string& name, const int& age)
+    //     {
+    //       std::cout << name << " " << age << std::endl;
+    //     };
 
-    // c("SELECT name, age from users") | [] (std::string& name, int& age)
-    // {
-    //   std::cout << name << " " << age << std::endl;
-    // };
+    //     c("SELECT name, age from users") | [] (std::string& name, int& age)
+    //     {
+    //       std::cout << name << " " << age << std::endl;
+    //     };
 
-    // c("SELECT name, age from users") | [] (std::string name, int age)
-    // {
-    //   std::cout << name << " " << age << std::endl;
-    // };
-    // c("INSERT into users(name, age) VALUES (?, ?)")("John", 42);
+    //     c("SELECT name, age from users") | [] (std::string name, int age)
+    //     {
+    //       std::cout << name << " " << age << std::endl;
+    //     };
+    //     c("INSERT into users(name, age) VALUES (?, ?)")("John", 42);
+  } catch (const std::exception& e) {
+    std::cout << "error during test: " << e.what() << std::endl;
+    return 1;
   }
-  // catch(const std::exception& e)
-  // {
-  //   std::cout << "error during test: " << e.what() << std::endl;
-  //   return 1;
-  // }
 }
