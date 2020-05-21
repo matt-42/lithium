@@ -284,7 +284,7 @@ struct mysql_statement_result {
       this->finalize_fetch(bind_data.bind.data(), bind_data.real_lengths.data(), o);
       if constexpr (li::is_metamap<T>::value) 
         f(o);
-      else apply(o, f);
+      else std::apply(f, o);
     }
 
     mysql_wrapper_.mysql_stmt_free_result(connection_status_, data_.stmt_);
