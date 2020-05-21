@@ -242,7 +242,18 @@ template <typename SCHEMA, typename C> struct sql_orm {
     auto stmt = con_.cached_statement([&] { 
         std::ostringstream ss;
         placeholder_pos_ = 0;
-        ss << "SELECT * from " << schema_.table_name();
+      
+        ss << "SELECT ";
+        bool first = true;
+        O o;
+        li::map(o, [&](auto k, auto v) {
+          if (!first)
+            ss << ",";
+          first = false;
+          ss << li::symbol_string(k);
+        });
+      
+        ss << " FROM " << schema_.table_name();
         return ss.str();
     });
     stmt().map([&](const O& o) { f(o); });
