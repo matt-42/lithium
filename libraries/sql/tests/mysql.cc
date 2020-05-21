@@ -44,20 +44,22 @@ int main() {
     insert_user(1, "John", 42);
     insert_user(2, "Bob", 24);
 
-    int count = c("SELECT count(*) from users_test_mysql").read<int>();
-    std::cout << count << std::endl;
-    assert(count == 2);
+    // int count = c("SELECT count(*) from users_test_mysql").read<int>();
+    // std::cout << count << std::endl;
+    // assert(count == 2);
 
     int i = 0;
-    c.prepare("Select id,name from users;")().map([&](int id, std::string name) {
+    // c.prepare("Select id,name from users_test_mysql;");
+    c.prepare("Select id,name from users_test_mysql;")().map([&](int id, std::string name) {
       if (i == 0) {
         assert(id == 1);
         assert(name == "John");
       }
       if (i == 1) {
-        assert(id == 2);
+        assert(id == 3);
         assert(name == "Bob");
       }
+      i++;
     });
 
     //     auto print = [] (User res) {
