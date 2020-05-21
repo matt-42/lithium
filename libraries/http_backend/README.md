@@ -32,6 +32,8 @@ Write an api:
 // hello_lithium.cc
 #include "lithium_http_backend.hh"
 
+using namespace li;
+
 int main() {
   // Build an api.
   http_api api;
@@ -42,7 +44,7 @@ int main() {
   };
 
   //Start a http server.
-  http_serve(my_api, 12345);
+  http_serve(api, 12345);
 }
 ```
 
