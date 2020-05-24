@@ -100,7 +100,7 @@ int main() {
     });
 
   } catch (const std::exception& e) {
-    std::cout << "error during test: " << e.what() << std::endl;
+    std::cerr << "error during test: " << e.what() << std::endl;
     return 1;
   }
 }
