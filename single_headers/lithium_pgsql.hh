@@ -7,28 +7,28 @@
 
 #pragma once
 
-#include <libpq-fe.h>
-#include <string>
 #include <unistd.h>
 #include <arpa/inet.h>
-#include <sstream>
-#include <iostream>
-#include <optional>
-#include <tuple>
-#include <sys/epoll.h>
-#include <deque>
-#include <cassert>
-#include <cstring>
-#include <map>
-#include <any>
-#include <vector>
-#include <thread>
-#include <memory>
-#include <unordered_map>
-#include <atomic>
-#include <utility>
-#include <mutex>
 #include <boost/lexical_cast.hpp>
+#include <unordered_map>
+#include <tuple>
+#include <vector>
+#include <optional>
+#include <memory>
+#include <atomic>
+#include <mutex>
+#include <sstream>
+#include <cassert>
+#include <libpq-fe.h>
+#include <string>
+#include <deque>
+#include <iostream>
+#include <utility>
+#include <thread>
+#include <map>
+#include <cstring>
+#include <any>
+#include <sys/epoll.h>
 
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL
@@ -2035,7 +2035,18 @@ template <typename SCHEMA, typename C> struct sql_orm {
     auto stmt = con_.cached_statement([&] { 
         std::ostringstream ss;
         placeholder_pos_ = 0;
-        ss << "SELECT * from " << schema_.table_name();
+      
+        ss << "SELECT ";
+        bool first = true;
+        O o;
+        li::map(o, [&](auto k, auto v) {
+          if (!first)
+            ss << ",";
+          first = false;
+          ss << li::symbol_string(k);
+        });
+      
+        ss << " FROM " << schema_.table_name();
         return ss.str();
     });
     stmt().map([&](const O& o) { f(o); });

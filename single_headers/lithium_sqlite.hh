@@ -7,19 +7,19 @@
 
 #pragma once
 
-#include <sqlite3.h>
-#include <string>
-#include <memory>
-#include <sstream>
 #include <iostream>
-#include <cstring>
-#include <unordered_map>
 #include <utility>
 #include <mutex>
-#include <optional>
-#include <vector>
-#include <any>
+#include <sstream>
+#include <memory>
+#include <sqlite3.h>
+#include <string>
+#include <unordered_map>
+#include <cstring>
 #include <tuple>
+#include <vector>
+#include <optional>
+#include <any>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -1622,7 +1622,18 @@ template <typename SCHEMA, typename C> struct sql_orm {
     auto stmt = con_.cached_statement([&] { 
         std::ostringstream ss;
         placeholder_pos_ = 0;
-        ss << "SELECT * from " << schema_.table_name();
+      
+        ss << "SELECT ";
+        bool first = true;
+        O o;
+        li::map(o, [&](auto k, auto v) {
+          if (!first)
+            ss << ",";
+          first = false;
+          ss << li::symbol_string(k);
+        });
+      
+        ss << " FROM " << schema_.table_name();
         return ss.str();
     });
     stmt().map([&](const O& o) { f(o); });
