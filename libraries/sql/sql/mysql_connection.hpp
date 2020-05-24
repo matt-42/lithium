@@ -65,9 +65,9 @@ template <typename F, typename... K>
 mysql_statement<B> mysql_connection<B>::cached_statement(F f, K... keys) {
   if (data_->statements_hashmap_(f).get() == nullptr) {
     mysql_statement<B> res = prepare(f());
-    data_->statements_hashmap_(f, keys...) = res.data_->shared_from_this();
+    data_->statements_hashmap_(f, keys...) = res.data_.shared_from_this();
     return res;
-  } else
+  } else  
     return mysql_statement<B>{mysql_wrapper_, *data_->statements_hashmap_(f, keys...),
                               connection_status_};
 }

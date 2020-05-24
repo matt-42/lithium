@@ -26,6 +26,7 @@
 #include <li/sql/symbols.hh>
 #include <li/sql/type_hashmap.hh>
 #include <li/sql/mysql_result.hh>
+#include <li/sql/internal/mysql_bind.hh>
 
 namespace li {
 
@@ -86,6 +87,8 @@ struct mysql_connection {
    * @return mysql_statement<B> the statement.
    */
   template <typename F, typename... K> mysql_statement<B> cached_statement(F f, K... keys);
+
+  template <typename T> std::string type_to_string(const T& t) { return cpptype_to_mysql_type(t); }
 
   B mysql_wrapper_;
   std::shared_ptr<mysql_connection_data> data_;

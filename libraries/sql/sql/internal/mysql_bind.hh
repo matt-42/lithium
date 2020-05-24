@@ -34,11 +34,11 @@ auto type_to_mysql_statement_buffer_type(const unsigned long long int&) {
 
 // Convert c++ type to mysql types.
 template <typename T>
-typename std::enable_if_t<std::is_integral<T>::value, std::string>::type cpptype_to_mysql_type(const T&) {
+typename std::enable_if_t<std::is_integral<T>::value, std::string> cpptype_to_mysql_type(const T&) {
   return "INT";
 }
 template <typename T>
-typename std::enable_if_t<std::is_floating_point<T>::value, std::string>::type cpptype_to_mysql_type(const T&) {
+typename std::enable_if_t<std::is_floating_point<T>::value, std::string> cpptype_to_mysql_type(const T&) {
   return "DOUBLE";
 }
 inline std::string cpptype_to_mysql_type(const std::string&) { return "MEDIUMTEXT"; }

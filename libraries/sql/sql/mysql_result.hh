@@ -47,7 +47,7 @@ template <typename B> struct mysql_result {
    */
   template <typename T> T read();
 
-  void wait();
+  void wait() {};
 };
 
 } // namespace li
