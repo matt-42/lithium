@@ -15,7 +15,7 @@ def process_file(library_name, f, processed, output):
     if not os.path.isfile(f):
         raise Exception(f"file not found {f}")
 
-    header_guard = "LITHIUM_SINGLE_HEADER_GUARD_" + re.match(".*include/(li/[^.]+)", f).group(1).upper().replace('/', '_');
+    header_guard = "LITHIUM_SINGLE_HEADER_GUARD_" + re.match(".*include/(li/.+)", f).group(1).upper().replace('/', '_').replace('.', "_");
     output += f"#ifndef {header_guard}\n" 
     output += f"#define {header_guard}\n" 
     for line in open(f, "r"):
