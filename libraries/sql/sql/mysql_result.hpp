@@ -37,7 +37,7 @@ template <typename B> template <typename T> T mysql_result<B>::read() {
   T res = boost::lexical_cast<T>(row[0]);
 
   // Flush remaining rows if needed.
-  while (row = mysql_wrapper_.mysql_fetch_row(connection_status_, result_))
+  while ((row = mysql_wrapper_.mysql_fetch_row(connection_status_, result_)))
     ;
 
   mysql_wrapper_.mysql_free_result(connection_status_, result_);
@@ -60,7 +60,7 @@ template <typename B> template <typename T> void mysql_result<B>::read(std::opti
   T res = boost::lexical_cast<T>(row[0]);
 
   // Flush remaining rows if needed.
-  while (row = mysql_wrapper_.mysql_fetch_row(connection_status_, result_))
+  while ((row = mysql_wrapper_.mysql_fetch_row(connection_status_, result_)))
     ;
 
   mysql_wrapper_.mysql_free_result(connection_status_, result_);
