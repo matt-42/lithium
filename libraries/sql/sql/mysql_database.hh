@@ -54,9 +54,11 @@ struct mysql_database : std::enable_shared_from_this<mysql_database> {
    *
    * @param fiber the fiber object providing the 3 non blocking logic methods:
    *
-   *                 void epoll_add(int fd, int flags); // Make the current epoll fiber wakeup on
-   * file descriptor fd void epoll_mod(int fd, int flags); // Modify the epoll flags on file
-   * descriptor fd void yield() // Yield the current fiber.
+   *    - void epoll_add(int fd, int flags); // Make the current epoll fiber wakeup on
+   *                                            file descriptor fd 
+   *    - void epoll_mod(int fd, int flags); // Modify the epoll flags on file
+   *                                            descriptor fd 
+   *    - void yield() // Yield the current epoll fiber.
    *
    * @return mysql_connection<mysql_functions_non_blocking<Y>>
    */
