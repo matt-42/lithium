@@ -65,8 +65,7 @@ script:
     - docker pull postgres
     - docker run -p=32768:5432 --name test_postgres -e POSTGRES_PASSWORD=lithium_test -d postgres
     - cd $HOME/build/$TRAVIS_REPO_SLUG/build 
-    - docker pull mysql:latest
-    - docker run -p=14550:3306 --name some-mysql -e MYSQL_ROOT_HOST=% -e MYSQL_DATABASE=mysql_test -e MYSQL_ROOT_PASSWORD=lithium_test -d mysql:latest
+    - bash ../libraries/sql/tests/mysql_test_server.sh start
     - make all test
 
 after_script:

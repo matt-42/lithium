@@ -47,16 +47,23 @@ int main() {
     int count = c("SELECT count(*) from users_test_mysql").read<int>();
     assert(count == 2);
 
+    // Read optional prepared statement.
     auto test_optional_stmt = c.prepare("SELECT id from users_test_mysql where id = ?");
     assert(test_optional_stmt(42).read_optional<int>().has_value() == false);
     assert(test_optional_stmt(2).read_optional<int>().value() == 2);
 
+    // Read optional non prepared query.
     assert(c("SELECT id from users_test_mysql where id = 2").read_optional<int>().value() == 2);
     assert(c("SELECT id from users_test_mysql where id = 42").read_optional<int>().has_value() == false);
 
-    std::string test_str = "dgfad0875g9f658g8w97f32orjw0r89fuhq07fy0rjgq3478fyqh03g7y0b347fyj08yg034f78yj047yh078fy0fyj40";
-    std::string str = c("SELECT '" + test_str+ "'").read<std::string>();
-    assert(str == test_str);
+    std::string test_str_patern = "dgfad0875g9f658g8w97f32orjw0r89fuhq07fy0rjgq3478fyqh03g7y0b347fyj08yg034f78yj047yh078fy0fyj40";
+    std::string test_str = "";
+    for (int k = 0; k < 1000; k++)
+    {
+      test_str += test_str_patern;
+      std::string result = c("SELECT '" + test_str+ "'").read<std::string>();
+      assert(result == test_str);
+    }
 
     int i = 0;
     // Prepared statement map.
