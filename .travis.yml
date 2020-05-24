@@ -64,6 +64,7 @@ before_script:
 script:
     - bash ../libraries/sql/tests/sql_test_servers.sh start
     - cd $HOME/build/$TRAVIS_REPO_SLUG/build 
+    - make all
     - ctest --verbose
 
 after_script:
