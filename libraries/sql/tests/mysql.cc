@@ -29,8 +29,8 @@ int main() {
   using namespace li;
 
   try {
-    auto m = mysql_database(s::host = "127.0.0.1", s::database = "silicon_test", s::user = "root",
-                            s::password = "sl_test_password", s::port = 14550, s::charset = "utf8");
+    auto m = mysql_database(s::host = "127.0.0.1", s::database = "mysql_test", s::user = "root",
+                            s::password = "lithium_test", s::port = 14550, s::charset = "utf8");
 
     auto c = m.connect();
 
@@ -47,6 +47,14 @@ int main() {
     int count = c("SELECT count(*) from users_test_mysql").read<int>();
     std::cout << count << std::endl;
     assert(count == 2);
+
+    auto test_optional_stmt = c.prepare("SELECT id from users_test_mysql where id = ?");
+    assert(test_optional_stmt(42).read_optional<int>().has_value() == false);
+    assert(test_optional_stmt(3).read_optional<int>().value() == 2);
+
+    std::string test_str = "dgfad0875g9f658g8w97f32orjw0r89fuhq07fy0rjgq3478fyqh03g7y0b347fyj08yg034f78yj047yh078fy0fyj40";
+    std::string str = c("SELECT '" + test_str+ "'").read<std::string>();
+    assert(str = test_str);
 
     int i = 0;
     c.prepare("Select id,name from users_test_mysql;")().map([&](int id, std::string name) {
