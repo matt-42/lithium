@@ -59,8 +59,9 @@ struct mysql_result {
   T read() {
     result_ = mysql_use_result(con_);
     MYSQL_ROW row = mysql_wrapper_.mysql_fetch_row(connection_status_, result_);
-    return boost::lexical_cast<T>(row[0]);
+    T res =  boost::lexical_cast<T>(row[0]);
     mysql_wrapper_.mysql_free_result(connection_status_, result_); 
+    return res;
   } 
 
   void wait() {}
