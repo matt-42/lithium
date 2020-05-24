@@ -54,7 +54,7 @@ int main() {
 
     std::string test_str = "dgfad0875g9f658g8w97f32orjw0r89fuhq07fy0rjgq3478fyqh03g7y0b347fyj08yg034f78yj047yh078fy0fyj40";
     std::string str = c("SELECT '" + test_str+ "'").read<std::string>();
-    assert(str = test_str);
+    assert(str == test_str);
 
     int i = 0;
     c.prepare("Select id,name from users_test_mysql;")().map([&](int id, std::string name) {
