@@ -45,7 +45,6 @@ int main() {
     insert_user(2, "Bob", 24);
 
     int count = c("SELECT count(*) from users_test_mysql").read<int>();
-    std::cout << count << std::endl;
     assert(count == 2);
 
     auto test_optional_stmt = c.prepare("SELECT id from users_test_mysql where id = ?");

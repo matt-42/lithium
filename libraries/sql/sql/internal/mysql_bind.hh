@@ -7,8 +7,8 @@
 #include <li/sql/sql_common.hh>
 #include <li/sql/symbols.hh>
 
-#include <li/sql/mysql_async_wrapper.hh>
 #include <li/sql/internal/mysql_statement_data.hh>
+#include <li/sql/mysql_async_wrapper.hh>
 
 namespace li {
 
@@ -30,6 +30,23 @@ auto type_to_mysql_statement_buffer_type(const unsigned short int&) { return MYS
 auto type_to_mysql_statement_buffer_type(const unsigned int&) { return MYSQL_TYPE_LONG; }
 auto type_to_mysql_statement_buffer_type(const unsigned long long int&) {
   return MYSQL_TYPE_LONGLONG;
+}
+
+// Convert c++ type to mysql types.
+template <typename T>
+typename std::enable_if_t<std::is_integral<T>::value, std::string>::type cpptype_to_mysql_type(const T&) {
+  return "INT";
+}
+template <typename T>
+typename std::enable_if_t<std::is_floating_point<T>::value, std::string>::type cpptype_to_mysql_type(const T&) {
+  return "DOUBLE";
+}
+inline std::string cpptype_to_mysql_type(const std::string&) { return "MEDIUMTEXT"; }
+inline std::string cpptype_to_mysql_type(const sql_blob&) { return "BLOB"; }
+template <unsigned S> inline std::string cpptype_to_mysql_type(const sql_varchar<S>) {
+  std::ostringstream ss;
+  ss << "VARCHAR(" << S << ')';
+  return ss.str();
 }
 
 // Bind parameter functions
