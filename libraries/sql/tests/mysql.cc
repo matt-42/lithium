@@ -49,20 +49,38 @@ int main() {
 
     auto test_optional_stmt = c.prepare("SELECT id from users_test_mysql where id = ?");
     assert(test_optional_stmt(42).read_optional<int>().has_value() == false);
-    assert(test_optional_stmt(3).read_optional<int>().value() == 2);
+    assert(test_optional_stmt(2).read_optional<int>().value() == 2);
+
+    assert(c("SELECT id from users_test_mysql where id = 2").read_optional<int>().value() == 2);
+    assert(c("SELECT id from users_test_mysql where id = 42").read_optional<int>().has_value() == false);
 
     std::string test_str = "dgfad0875g9f658g8w97f32orjw0r89fuhq07fy0rjgq3478fyqh03g7y0b347fyj08yg034f78yj047yh078fy0fyj40";
     std::string str = c("SELECT '" + test_str+ "'").read<std::string>();
     assert(str == test_str);
 
     int i = 0;
+    // Prepared statement map.
     c.prepare("Select id,name from users_test_mysql;")().map([&](int id, std::string name) {
       if (i == 0) {
         assert(id == 1);
         assert(name == "John");
       }
       if (i == 1) {
-        assert(id == 3);
+        assert(id == 2);
+        assert(name == "Bob");
+      }
+      i++;
+    });
+
+    i = 0;
+    // Non prepared query map.
+    c("Select id,name from users_test_mysql;").map([&](int id, std::string name) {
+      if (i == 0) {
+        assert(id == 1);
+        assert(name == "John");
+      }
+      if (i == 1) {
+        assert(id == 2);
         assert(name == "Bob");
       }
       i++;

@@ -104,8 +104,8 @@ int main() {
   test_with_db(sqlite_db, 12358);
 
   auto mysql_db =
-      mysql_database(s::host = "127.0.0.1", s::database = "silicon_test", s::user = "root",
-                     s::password = "sl_test_password", s::port = 14550, s::charset = "utf8");
+      mysql_database(s::host = "127.0.0.1", s::database = "mysql_test", s::user = "root",
+                     s::password = "lithium_test", s::port = 14550, s::charset = "utf8");
   test_with_db(mysql_db, 12359);
 
   auto pgsql_db = pgsql_database(s::host = "localhost", s::database = "postgres", s::user = "postgres",

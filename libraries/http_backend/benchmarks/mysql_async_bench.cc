@@ -29,8 +29,8 @@ struct my_yield2
 int main(int argc, char* argv[]) {
 
   auto mysql_db =
-      mysql_database(s::host = "127.0.0.1", s::database = "silicon_test", s::user = "root",
-                     s::password = "sl_test_password", s::port = 14550, s::charset = "utf8");
+      mysql_database(s::host = "127.0.0.1", s::database = "mysql_test", s::user = "root",
+                     s::password = "lithium_test", s::port = 14550, s::charset = "utf8");
   //mysql_db.connect();
   //std::cout << mysql_db.connect()("SELECT 1+2;").read<int>() << std::endl;;
   //auto c = mysql_db.async_connect(my_yield2{});
