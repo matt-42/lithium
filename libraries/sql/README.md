@@ -68,7 +68,7 @@ int count = con("select count(*) from users;").read<int>();
 
 // Use placeholder to format your request according to some variables.
 // Note: PostgreSQL uses $1, ... $N placeholders, SQLite and Mysql use ?.
-auto login = con("select login from users where id = ? and name = ?;")(42, "John")
+std::optional<std::string> login = con("select login from users where id = ? and name = ?;")(42, "John")
               .read_optional<std::string>();
 // Note: use read_optional when the request may not return data.
 //       it returns a std::optional object that allows you to check it:
