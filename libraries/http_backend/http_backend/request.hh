@@ -7,21 +7,24 @@
 #include <string_view>
 #include <unordered_map>
 #include <vector>
+#include <arpa/inet.h>
+
 
 #include <li/http_backend/error.hh>
 #include <li/http_backend/url_decode.hh>
 
 #include <li/metamap/metamap.hh>
 
-
 namespace li {
 
 struct http_request {
 
   http_request(http_async_impl::http_ctx& http_ctx) : http_ctx(http_ctx), fiber(http_ctx.fiber) {}
-  
+
   inline std::string_view header(const char* k) const;
   inline std::string_view cookie(const char* k) const;
+
+  inline std::string ip_address() const;
 
   // With list of parameters: s::id = int(), s::name = string(), ...
   template <typename S, typename V, typename... T>
@@ -128,8 +131,8 @@ auto parse_url_parameters(const url_parser_info& fmt, const std::string_view url
 
         std::string_view content(url.data() + param_start, param_end - param_start);
         try {
-          if constexpr(std::is_same<std::remove_reference_t<decltype(v)>, std::string>::value or
-                      std::is_same<std::remove_reference_t<decltype(v)>, std::string_view>::value)
+          if constexpr (std::is_same<std::remove_reference_t<decltype(v)>, std::string>::value or
+                        std::is_same<std::remove_reference_t<decltype(v)>, std::string_view>::value)
             obj[k] = content;
           else
             obj[k] = boost::lexical_cast<decltype(v)>(content);
@@ -143,13 +146,34 @@ auto parse_url_parameters(const url_parser_info& fmt, const std::string_view url
   return obj;
 }
 
-inline std::string_view http_request::header(const char* k) const {
-  return http_ctx.header(k);
-}
+inline std::string_view http_request::header(const char* k) const { return http_ctx.header(k); }
 
 inline std::string_view http_request::cookie(const char* k) const {
   return http_ctx.cookie(k);
-  //FIXME return MHD_lookup_connection_value(mhd_connection, MHD_COOKIE_KIND, k);
+  // FIXME return MHD_lookup_connection_value(mhd_connection, MHD_COOKIE_KIND, k);
+}
+
+inline std::string http_request::ip_address() const {
+  std::string s;
+  switch (fiber.in_addr.sa_family) {
+  case AF_INET: {
+    sockaddr_in* addr_in = (struct sockaddr_in*)&fiber.in_addr;
+    s.resize(INET_ADDRSTRLEN);
+    inet_ntop(AF_INET, &(addr_in->sin_addr), s.data(), INET_ADDRSTRLEN);
+    break;
+  }
+  case AF_INET6: {
+    sockaddr_in6* addr_in6 = (struct sockaddr_in6*)&fiber.in_addr;
+    s.resize(INET6_ADDRSTRLEN);
+    inet_ntop(AF_INET6, &(addr_in6->sin6_addr), s.data(), INET6_ADDRSTRLEN);
+    break;
+  }
+  default:
+    return "unsuported protocol";
+    break;
+  }
+
+  return s;
 }
 
 template <typename S, typename V, typename... T>
@@ -191,9 +215,7 @@ template <typename O> auto http_request::get_parameters(O& res) const {
 
   try {
     url_decode(http_ctx.get_parameters_string(), res);
-  }
-   catch (const std::runtime_error& e)
-  {
+  } catch (const std::runtime_error& e) {
     throw http_error::bad_request("Error while decoding the GET parameter: ", e.what());
   }
 

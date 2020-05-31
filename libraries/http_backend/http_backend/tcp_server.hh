@@ -102,7 +102,7 @@ struct async_fiber_context {
   boost::context::continuation sink;
   int continuation_idx;
   int socket_fd;
-
+  sockaddr in_addr;
   void epoll_add(int fd, int flags);
   void epoll_mod(int fd, int flags);
 
@@ -262,9 +262,9 @@ struct async_reactor {
             // =============================================
             // Spawn a new continuation to handle the connection.
             fibers[fiber_idx] =
-                boost::context::callcc([this, socket_fd, fiber_idx, &handler](continuation&& sink) {
+                boost::context::callcc([this, socket_fd, fiber_idx, in_addr, &handler](continuation&& sink) {
                   scoped_fd sfd{socket_fd}; // Will finally close the fd.
-                  auto ctx = async_fiber_context{this, std::move(sink), fiber_idx, socket_fd};
+                  auto ctx = async_fiber_context{this, std::move(sink), fiber_idx, socket_fd, in_addr};
                   try {
                     handler(ctx);
                   } catch (fiber_exception& ex) {
