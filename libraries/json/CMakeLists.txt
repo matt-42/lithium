@@ -4,6 +4,10 @@ project(json)
 
 enable_testing()
 
+
+li_add_executable(graphana tests/graphana.cc)
+add_test(graphana graphana)
+
 li_add_executable(json_decode tests/decode.cc)
 add_test(json_decode json_decode)
 

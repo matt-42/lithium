@@ -318,7 +318,7 @@ json_error_code json_decode2(P& p, O& obj, json_object_<S> schema) {
 
     for (int i = 0; i < n_members; i++) {
       int len = A[i].name_len;
-      if (!strncmp(symbol, A[i].name, len)) {
+      if (len == symbol_size && !strncmp(symbol, A[i].name, len)) {
         if ((err = p.eat(':')))
           return err;
         if (A[i].filled)

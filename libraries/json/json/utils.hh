@@ -101,7 +101,11 @@ template <typename E> constexpr auto json_is_tuple(E) -> std::false_type { retur
 template <typename E> constexpr auto json_is_object(json_object_<E>) -> std::true_type {
   return {};
 }
+template <typename E> constexpr auto json_is_object(json_map_<E>) -> std::true_type {
+  return {};
+}
 template <typename E> constexpr auto json_is_object(E) -> std::false_type { return {}; }
+
 
 template <typename E> constexpr auto json_is_value(json_object_<E>) -> std::false_type {
   return {};
@@ -110,6 +114,9 @@ template <typename E> constexpr auto json_is_value(json_vector_<E>) -> std::fals
   return {};
 }
 template <typename... E> constexpr auto json_is_value(json_tuple_<E...>) -> std::false_type {
+  return {};
+}
+template <typename E> constexpr auto json_is_value(json_map_<E>) -> std::false_type {
   return {};
 }
 template <typename E> constexpr auto json_is_value(E) -> std::true_type { return {}; }
