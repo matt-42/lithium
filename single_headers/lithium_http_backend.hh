@@ -7,47 +7,47 @@
 
 #pragma once
 
-#include <map>
-#include <sys/uio.h>
-#include <tuple>
-#include <sstream>
+#include <netinet/tcp.h>
+#include <vector>
+#include <netdb.h>
+#include <arpa/inet.h>
+#include <random>
 #include <errno.h>
-#include <stdlib.h>
+#include <utility>
+#include <mutex>
+#include <boost/context/continuation.hpp>
+#include <functional>
+#include <iostream>
+#include <cassert>
+#include <stdio.h>
+#include <set>
+#include <sys/mman.h>
+#include <sys/socket.h>
+#include <sstream>
+#include <cstring>
+#include <string>
+#include <sys/types.h>
+#include <sys/epoll.h>
+#include <memory>
+#include <variant>
+#include <sys/sendfile.h>
+#include <cmath>
+#include <map>
+#include <optional>
+#include <sys/uio.h>
+#include <signal.h>
+#include <string.h>
+#include <thread>
+#include <tuple>
+#include <chrono>
+#include <unordered_map>
+#include <sys/stat.h>
+#include <unistd.h>
 #include <atomic>
 #include <string_view>
-#include <random>
-#include <netdb.h>
-#include <string>
-#include <fcntl.h>
-#include <cassert>
-#include <string.h>
-#include <set>
-#include <memory>
-#include <sys/sendfile.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <chrono>
-#include <boost/context/continuation.hpp>
-#include <vector>
-#include <mutex>
-#include <sys/mman.h>
-#include <iostream>
-#include <signal.h>
-#include <cstring>
-#include <utility>
-#include <sys/socket.h>
-#include <unordered_map>
 #include <boost/lexical_cast.hpp>
-#include <stdio.h>
-#include <unistd.h>
-#include <sys/epoll.h>
-#include <netinet/tcp.h>
-#include <cmath>
-#include <optional>
-#include <thread>
-#include <functional>
-#include <variant>
-#include <arpa/inet.h>
+#include <stdlib.h>
+#include <fcntl.h>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -1365,7 +1365,11 @@ template <typename E> constexpr auto json_is_tuple(E) -> std::false_type { retur
 template <typename E> constexpr auto json_is_object(json_object_<E>) -> std::true_type {
   return {};
 }
+template <typename E> constexpr auto json_is_object(json_map_<E>) -> std::true_type {
+  return {};
+}
 template <typename E> constexpr auto json_is_object(E) -> std::false_type { return {}; }
+
 
 template <typename E> constexpr auto json_is_value(json_object_<E>) -> std::false_type {
   return {};
@@ -1374,6 +1378,9 @@ template <typename E> constexpr auto json_is_value(json_vector_<E>) -> std::fals
   return {};
 }
 template <typename... E> constexpr auto json_is_value(json_tuple_<E...>) -> std::false_type {
+  return {};
+}
+template <typename E> constexpr auto json_is_value(json_map_<E>) -> std::false_type {
   return {};
 }
 template <typename E> constexpr auto json_is_value(E) -> std::true_type { return {}; }
@@ -1692,7 +1699,7 @@ json_error_code json_decode2(P& p, O& obj, json_object_<S> schema) {
 
     for (int i = 0; i < n_members; i++) {
       int len = A[i].name_len;
-      if (!strncmp(symbol, A[i].name, len)) {
+      if (len == symbol_size && !strncmp(symbol, A[i].name, len)) {
         if ((err = p.eat(':')))
           return err;
         if (A[i].filled)
@@ -3438,7 +3445,7 @@ struct async_fiber_context {
   boost::context::continuation sink;
   int continuation_idx;
   int socket_fd;
-
+  sockaddr in_addr;
   void epoll_add(int fd, int flags);
   void epoll_mod(int fd, int flags);
 
@@ -3598,9 +3605,9 @@ struct async_reactor {
             // =============================================
             // Spawn a new continuation to handle the connection.
             fibers[fiber_idx] =
-                boost::context::callcc([this, socket_fd, fiber_idx, &handler](continuation&& sink) {
+                boost::context::callcc([this, socket_fd, fiber_idx, in_addr, &handler](continuation&& sink) {
                   scoped_fd sfd{socket_fd}; // Will finally close the fd.
-                  auto ctx = async_fiber_context{this, std::move(sink), fiber_idx, socket_fd};
+                  auto ctx = async_fiber_context{this, std::move(sink), fiber_idx, socket_fd, in_addr};
                   try {
                     handler(ctx);
                   } catch (fiber_exception& ex) {
@@ -4292,6 +4299,7 @@ template <typename F> auto make_http_processor(F handler) {
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_REQUEST_HH
 
 
+
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_URL_DECODE_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_URL_DECODE_HH
 
@@ -4507,15 +4515,16 @@ template <typename O> void url_decode(std::string_view str, O& obj) {
 
 
 
-
 namespace li {
 
 struct http_request {
 
   http_request(http_async_impl::http_ctx& http_ctx) : http_ctx(http_ctx), fiber(http_ctx.fiber) {}
-  
+
   inline std::string_view header(const char* k) const;
   inline std::string_view cookie(const char* k) const;
+
+  inline std::string ip_address() const;
 
   // With list of parameters: s::id = int(), s::name = string(), ...
   template <typename S, typename V, typename... T>
@@ -4622,8 +4631,8 @@ auto parse_url_parameters(const url_parser_info& fmt, const std::string_view url
 
         std::string_view content(url.data() + param_start, param_end - param_start);
         try {
-          if constexpr(std::is_same<std::remove_reference_t<decltype(v)>, std::string>::value or
-                      std::is_same<std::remove_reference_t<decltype(v)>, std::string_view>::value)
+          if constexpr (std::is_same<std::remove_reference_t<decltype(v)>, std::string>::value or
+                        std::is_same<std::remove_reference_t<decltype(v)>, std::string_view>::value)
             obj[k] = content;
           else
             obj[k] = boost::lexical_cast<decltype(v)>(content);
@@ -4637,13 +4646,34 @@ auto parse_url_parameters(const url_parser_info& fmt, const std::string_view url
   return obj;
 }
 
-inline std::string_view http_request::header(const char* k) const {
-  return http_ctx.header(k);
-}
+inline std::string_view http_request::header(const char* k) const { return http_ctx.header(k); }
 
 inline std::string_view http_request::cookie(const char* k) const {
   return http_ctx.cookie(k);
-  //FIXME return MHD_lookup_connection_value(mhd_connection, MHD_COOKIE_KIND, k);
+  // FIXME return MHD_lookup_connection_value(mhd_connection, MHD_COOKIE_KIND, k);
+}
+
+inline std::string http_request::ip_address() const {
+  std::string s;
+  switch (fiber.in_addr.sa_family) {
+  case AF_INET: {
+    sockaddr_in* addr_in = (struct sockaddr_in*)&fiber.in_addr;
+    s.resize(INET_ADDRSTRLEN);
+    inet_ntop(AF_INET, &(addr_in->sin_addr), s.data(), INET_ADDRSTRLEN);
+    break;
+  }
+  case AF_INET6: {
+    sockaddr_in6* addr_in6 = (struct sockaddr_in6*)&fiber.in_addr;
+    s.resize(INET6_ADDRSTRLEN);
+    inet_ntop(AF_INET6, &(addr_in6->sin6_addr), s.data(), INET6_ADDRSTRLEN);
+    break;
+  }
+  default:
+    return "unsuported protocol";
+    break;
+  }
+
+  return s;
 }
 
 template <typename S, typename V, typename... T>
@@ -4685,9 +4715,7 @@ template <typename O> auto http_request::get_parameters(O& res) const {
 
   try {
     url_decode(http_ctx.get_parameters_string(), res);
-  }
-   catch (const std::runtime_error& e)
-  {
+  } catch (const std::runtime_error& e) {
     throw http_error::bad_request("Error while decoding the GET parameter: ", e.what());
   }
 

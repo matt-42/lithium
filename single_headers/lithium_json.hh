@@ -7,22 +7,22 @@
 
 #pragma once
 
-#include <unordered_map>
-#include <map>
-#include <string>
-#include <cmath>
-#include <tuple>
-#include <cassert>
-#include <optional>
-#include <iostream>
-#include <cstring>
-#include <memory>
-#include <utility>
-#include <functional>
-#include <sstream>
 #include <variant>
-#include <string_view>
 #include <vector>
+#include <cmath>
+#include <map>
+#include <sstream>
+#include <cstring>
+#include <optional>
+#include <string>
+#include <utility>
+#include <string_view>
+#include <functional>
+#include <iostream>
+#include <cassert>
+#include <tuple>
+#include <memory>
+#include <unordered_map>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -1336,7 +1336,11 @@ template <typename E> constexpr auto json_is_tuple(E) -> std::false_type { retur
 template <typename E> constexpr auto json_is_object(json_object_<E>) -> std::true_type {
   return {};
 }
+template <typename E> constexpr auto json_is_object(json_map_<E>) -> std::true_type {
+  return {};
+}
 template <typename E> constexpr auto json_is_object(E) -> std::false_type { return {}; }
+
 
 template <typename E> constexpr auto json_is_value(json_object_<E>) -> std::false_type {
   return {};
@@ -1345,6 +1349,9 @@ template <typename E> constexpr auto json_is_value(json_vector_<E>) -> std::fals
   return {};
 }
 template <typename... E> constexpr auto json_is_value(json_tuple_<E...>) -> std::false_type {
+  return {};
+}
+template <typename E> constexpr auto json_is_value(json_map_<E>) -> std::false_type {
   return {};
 }
 template <typename E> constexpr auto json_is_value(E) -> std::true_type { return {}; }
@@ -1663,7 +1670,7 @@ json_error_code json_decode2(P& p, O& obj, json_object_<S> schema) {
 
     for (int i = 0; i < n_members; i++) {
       int len = A[i].name_len;
-      if (!strncmp(symbol, A[i].name, len)) {
+      if (len == symbol_size && !strncmp(symbol, A[i].name, len)) {
         if ((err = p.eat(':')))
           return err;
         if (A[i].filled)
