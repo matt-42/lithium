@@ -37,8 +37,8 @@ int main() {
 
     auto obj = mmm(s::test1 = int(), s::test2 = std::string());
 
-    json_object(s::test1, s::test2(json_key("name"))).decode(input, obj);
-
+    auto err = json_object(s::test1, s::test2(json_key("name"))).decode(input, obj);
+    if (err) std::cout << err.what << std::endl;
     assert(obj.test1 == 12);
     assert(obj.test2 == "John");
   }

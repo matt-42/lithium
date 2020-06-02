@@ -275,6 +275,7 @@ json_error_code json_decode2(P& p, O& obj, json_object_<S> schema) {
 
     if constexpr (has_key(m, s::json_key)) {
       A[i].name = m.json_key;
+      A[i].name_len = strlen(m.json_key);
     }
 
     if constexpr (decltype(is_std_optional(symbol_member_or_getter_access(obj, m.name))){}) {
@@ -333,7 +334,7 @@ json_error_code json_decode2(P& p, O& obj, json_object_<S> schema) {
     }
 
     if (!found)
-      return p.make_json_error("Unknown json key");
+      return p.make_json_error("Unknown json key: ", symbol);
     p.eat_spaces();
     if (p.peek() == ',') {
       if ((err = p.eat(',')))

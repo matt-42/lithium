@@ -7,22 +7,22 @@
 
 #pragma once
 
-#include <variant>
-#include <vector>
+#include <sstream>
 #include <cmath>
 #include <map>
-#include <sstream>
-#include <cstring>
-#include <optional>
-#include <string>
-#include <utility>
-#include <string_view>
-#include <functional>
-#include <iostream>
 #include <cassert>
-#include <tuple>
-#include <memory>
+#include <string_view>
 #include <unordered_map>
+#include <string>
+#include <variant>
+#include <optional>
+#include <vector>
+#include <utility>
+#include <tuple>
+#include <functional>
+#include <memory>
+#include <cstring>
+#include <iostream>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -1627,6 +1627,7 @@ json_error_code json_decode2(P& p, O& obj, json_object_<S> schema) {
 
     if constexpr (has_key(m, s::json_key)) {
       A[i].name = m.json_key;
+      A[i].name_len = strlen(m.json_key);
     }
 
     if constexpr (decltype(is_std_optional(symbol_member_or_getter_access(obj, m.name))){}) {
@@ -1685,7 +1686,7 @@ json_error_code json_decode2(P& p, O& obj, json_object_<S> schema) {
     }
 
     if (!found)
-      return p.make_json_error("Unknown json key");
+      return p.make_json_error("Unknown json key: ", symbol);
     p.eat_spaces();
     if (p.peek() == ',') {
       if ((err = p.eat(',')))
