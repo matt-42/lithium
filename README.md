@@ -39,6 +39,54 @@ The root of the lithium project. Used by all other libraries.
 You probably will not use this library directly but
 you can check the code if you want to know what is inside the s:: namespace.
 
+# Need some help ?
+
+Post a github issue if you need help with Lithium. And there is no dummy questions !
+
+# Getting Started (or setting up automatic symbol generation)
+
+The Lithium paradigm relies on compile time symbols (in the `s::` namespace) to bring introspection
+into C++. If you use symbols, you can either declare them manually, or use `li_symbol_generator` to generate
+these definitions automatically.
+
+To get `li_symbol_generator`, you need to compile and install lithium locally:
+
+```sh
+git clone https://github.com/matt-42/lithium.git
+cd lithium;
+mkdir build; cd build;
+# Global install:
+cmake ..; make -j4 install;
+# Locally (replace $HOME/local with your prefered location)
+cmake .. -DCMAKE_INSTALL_PREFIX=$HOME/local; make -j4 install;
+```
+
+You should be able to run `li_symbol_generator` without arguments and get its help message:
+```sh
+$ li_symbol_generator
+=================== Lithium symbol generator ===================
+
+Usage: li_symbol_generator input_cpp_file1, ..., input_cpp_fileN
+   Output on stdout the definitions of all the symbols used in the input files.
+
+Usage: li_symbol_generator project_root
+   For each folder under project root write a symbols.hh file containing the
+   declarations of all symbols used in C++ source and header of this same directory.
+```
+
+If you use cmake, here is a custom target that will run the generator before each compilation.
+```cmake
+# the symbol generation target
+add_custom_target(
+    symbols_generation
+    COMMAND li_symbol_generator ${CMAKE_CURRENT_SOURCE_DIR})
+
+# Your executables
+add_executable(your_executable your_main.cc)
+# Link the symbol generation to your cmake target:
+add_dependencies(your_executable symbols_generation)
+```
+
 
 # Installation / Supported compilers
 
