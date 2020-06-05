@@ -87,6 +87,8 @@ add_executable(your_executable your_main.cc)
 add_dependencies(your_executable symbols_generation)
 ```
 
+Now that you have setup symbol generation (or choose manual declaration), you are done because 
+Lithium is header only. You can `#include` lithium headers and start coding. 
 
 # Installation / Supported compilers
 
