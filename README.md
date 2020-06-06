@@ -41,7 +41,7 @@ you can check the code if you want to know what is inside the s:: namespace.
 
 # Need some help ?
 
-Post a github issue if you need help with Lithium. And there is no dummy questions !
+Post a github issue if you need help with Lithium. And there are no dummy questions !
 
 # Getting Started (or setting up automatic symbol generation)
 
@@ -57,7 +57,7 @@ cd lithium;
 mkdir build; cd build;
 # Global install:
 cmake ..; make -j4 install;
-# Locally (replace $HOME/local with your prefered location)
+# Local install (replace $HOME/local with your prefered location)
 cmake .. -DCMAKE_INSTALL_PREFIX=$HOME/local; make -j4 install;
 ```
 
