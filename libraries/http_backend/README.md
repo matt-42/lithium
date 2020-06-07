@@ -191,14 +191,14 @@ More info on the ORM here: https://github.com/matt-42/lithium/tree/master/librar
 ## Insert/Update/Remove API
 
 If you are lazy to write update/remove/remove/find_by_id routes for all you objects, you can
-use `sql_crud_api` to define them for you: 
+use `sql_crud_api` to define them automatically 
 ```c++
 api.add_subapi("/user", sql_crud_api(my_orm));
 ```
 Note that when using it, ORM callbacks must take `http_request& request, http_response& response`
 as additional arguments.
 
-Check the code for info:
+Check the code for more info:
 https://github.com/matt-42/lithium/blob/master/libraries/http_backend/http_backend/sql_crud_api.hh
 
 
