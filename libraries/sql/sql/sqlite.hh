@@ -109,7 +109,9 @@ struct sqlite_statement {
     if (empty())
       return false;
     row_to_metamap(o);
-    ready_for_reading_ = false;
+    last_step_ret_ = sqlite3_step(stmt_);
+    if (last_step_ret_ != SQLITE_ROW and last_step_ret_ != SQLITE_DONE)
+      throw std::runtime_error(sqlite3_errstr(last_step_ret_));
     return true;
   }
 
@@ -121,7 +123,9 @@ struct sqlite_statement {
     if (empty())
       return false;
     this->read_column(0, o);
-    ready_for_reading_ = false;
+    last_step_ret_ = sqlite3_step(stmt_);
+    if (last_step_ret_ != SQLITE_ROW and last_step_ret_ != SQLITE_DONE)
+      throw std::runtime_error(sqlite3_errstr(last_step_ret_));
     return true;
   }
 
