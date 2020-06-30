@@ -23,6 +23,14 @@ and you simply can't iterate over the members of an object.
 This library aims at providing a new C++ paradigm that enables you to reach Javascript simplicity 
 without loosing the performances of C++:
 ```c++
+// First declare the static map keys.
+#define LI_SYMBOL_name // Guards to avoid redefinitions.
+  LI_SYMBOL(name) // Declare s::name
+#endif
+#define LI_SYMBOL_age
+  LI_SYMBOL(age) // Declare s::age
+#endif
+
 // Declare an object
 auto person = mmm(s::name = "John", s::age = 42); // mmm means Make MetaMap
 
@@ -33,8 +41,7 @@ map(person, [] (auto key, auto value) { std::cout << symbol_string(key) << value
 person.name = "Aurelia";
 person.age = 52;
 
-// Note s::name and s::age must be defined earlier with LI_SYMBOL(name); LI_SYMBOL(age);
-// Check https://github.com/matt-42/lithium/tree/master/libraries/symbol#lisymbol for more info.
+// Check https://github.com/matt-42/lithium/tree/master/libraries/symbol#lisymbol for more info about symbols.
 
 ```
 
