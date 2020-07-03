@@ -54,11 +54,18 @@ g++ -std=c++17 ./hello_lithium.cc -lpthread -lboost_context -o ./hello_lithium
 ./hello_lithium
 ```
 
+## Metamaps
+
+If you are new to lithium, please read this to make sure you understand the metamap paradigm:
+https://github.com/matt-42/lithium/tree/master/libraries/metamap
+
 ## Request parameters
 ```c++
 http_api api;
 api.get("/get_params") = [&](http_request& request, http_response& response) {
   // This will throw a BAD REQUEST http error if one field is missing or ill-formated.
+  // Note: all s::XXXX are symbols, they must be defined, check here for more info:
+  // https://github.com/matt-42/lithium/tree/master/libraries/metamap
   auto params = request.get_parameters(s::my_param = int(), s::my_param2 = std::string());
   response.write("hello " + params.my_param2);
 };
