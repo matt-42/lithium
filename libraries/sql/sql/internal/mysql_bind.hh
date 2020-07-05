@@ -183,4 +183,24 @@ mysql_bind_data<sizeof...(A)> mysql_bind_output(mysql_statement_data& data, std:
   return bind_data;
 }
 
+// Forward reference tuple impl.
+template <typename... A>
+mysql_bind_data<sizeof...(A)> mysql_bind_output(mysql_statement_data& data, std::tuple<A...>&& o) {
+  if (data.num_fields_ != sizeof...(A))
+    throw std::runtime_error("mysql_statement error: The number of column in the result set does "
+                             "not match the number of attributes of the tuple to bind.");
+
+  mysql_bind_data<sizeof...(A)> bind_data;
+  MYSQL_BIND* bind = bind_data.bind.data();
+  unsigned long* real_lengths = bind_data.real_lengths.data();
+
+  int i = 0;
+  tuple_map(std::forward<std::tuple<A...>>(o), [&](auto& m) {
+    mysql_bind_output(bind[i], real_lengths + i, m);
+    i++;
+  });
+
+  return bind_data;
+}
+
 } // namespace li

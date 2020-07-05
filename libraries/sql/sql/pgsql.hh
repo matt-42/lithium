@@ -234,6 +234,8 @@ struct pgsql_connection {
 
 struct pgsql_database : std::enable_shared_from_this<pgsql_database> {
 
+  typedef pgsql_tag db_tag;
+
   std::mutex mutex_;
   std::string host_, user_, passwd_, database_;
   unsigned int port_;

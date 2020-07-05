@@ -35,7 +35,7 @@ template <typename B> struct mysql_statement {
    * @param args the arguments
    * @return mysql_statement_result<B> the result
    */
-  template <typename... T> mysql_statement_result<B> operator()(T&&... args);
+  template <typename... T> sql_result<mysql_statement_result<B>> operator()(T&&... args);
 
   B& mysql_wrapper_;
   mysql_statement_data& data_;

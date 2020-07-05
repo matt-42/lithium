@@ -4,27 +4,6 @@
 #include <iostream>
 #include <li/sql/mysql.hh>
 
-using namespace s;
-
-/* Mysql setup script:
-
-CREATE TABLE users
-(
-id int,
-name varchar(255),
-age int
-);
-INSERT into users(id, name, age) values (1, "John", 42);
-INSERT into users(id, name, age) values (2, "Bob", 24);
-*/
-
-// inline double get_time_in_seconds()
-// {
-//   timespec ts;
-//   clock_gettime(CLOCK_REALTIME, &ts);
-//   return double(ts.tv_sec) + double(ts.tv_nsec) / 1000000000.;
-// }
-
 int main() {
   using namespace li;
 

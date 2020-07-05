@@ -9,7 +9,7 @@ template <typename B> mysql_statement_result<B> mysql_statement<B>::operator()()
 }
 
 template <typename B> template <typename... T>
-mysql_statement_result<B> mysql_statement<B>::operator()(T&&... args) {
+sql_result<mysql_statement_result<B>> mysql_statement<B>::operator()(T&&... args) {
 
 
   // Bind the ...args in the MYSQL BIND structure.
@@ -32,7 +32,7 @@ mysql_statement_result<B> mysql_statement<B>::operator()(T&&... args) {
   mysql_wrapper_.mysql_stmt_execute(connection_status_, data_.stmt_);
 
   // Return the wrapped mysql result.
-  return mysql_statement_result<B>{mysql_wrapper_, data_, connection_status_};
+  return sql_result<mysql_statement_result<B>>{mysql_statement_result<B>{mysql_wrapper_, data_, connection_status_}};
 }
 
 } // namespace li

@@ -39,50 +39,12 @@ struct sqlite_statement {
   sqlite_statement() {}
 
   sqlite_statement(sqlite3* db, sqlite3_stmt* s)
-      : db_(db), stmt_(s), stmt_sptr_(stmt_sptr(s, free_sqlite3_statement)),
-        ready_for_reading_(false) {}
+      : db_(db), stmt_(s), stmt_sptr_(stmt_sptr(s, free_sqlite3_statement)) {}
 
-  void wait () {}
-
-  template <typename... A> void row_to_metamap(metamap<A...>& o) {
-    int ncols = sqlite3_column_count(stmt_);
-    int filled[sizeof...(A)];
-    for (unsigned i = 0; i < sizeof...(A); i++)
-      filled[i] = 0;
-
-    for (int i = 0; i < ncols; i++) {
-      const char* cname = sqlite3_column_name(stmt_, i);
-      bool found = false;
-      int j = 0;
-      li::map(o, [&](auto k, auto& v) {
-        if (!found and !filled[j] and !strcmp(cname, symbol_string(k))) {
-          this->read_column(i, v);
-          filled[j] = 1;
-        }
-        j++;
-      });
-    }
-  }
-
-  template <typename... A> void row_to_tuple(std::tuple<A...>& o) {
-    int ncols = sqlite3_column_count(stmt_);
-    if (ncols != sizeof...(A)) {
-      std::ostringstream ss;
-      ss << "Invalid number of parameters: SQL request has " << ncols
-         << " fields but the function to process it has " << sizeof...(A) << " parameters.";
-      throw std::runtime_error(ss.str());
-    }
-    int i = 0;
-    auto read_elt = [&](auto& v) {
-      this->read_column(i, v);
-      i++;
-    };
-    ::li::tuple_map(o, read_elt);
-  }
+  void flush_results() {}
 
   // Bind arguments to the request unknowns (marked with ?)
-  template <typename... T> auto& operator()(T&&... args) {
-    ready_for_reading_ = true;
+  template <typename... T> sql_result<sqlite_statement> operator()(T&&... args) {
     sqlite3_reset(stmt_);
     sqlite3_clear_bindings(stmt_);
     int i = 1;
@@ -98,91 +60,61 @@ struct sqlite_statement {
     if (last_step_ret_ != SQLITE_ROW and last_step_ret_ != SQLITE_DONE)
       throw std::runtime_error(sqlite3_errstr(last_step_ret_));
 
-    return *this;
+    return sql_result<sqlite_statement>{*this};
   }
 
-  // Fill a metamap with the current result row.
-  template <typename... A> int fetch(metamap<A...>& o) {
+  // Read a tuple or a metamap.
+  template <typename B> template <typename T> bool read(T&& t1) {
 
-    if (not ready_for_reading_)
-      this->operator()();
-    if (empty())
+    // Throw is nothing to read.
+    if (last_step_ret_ != SQLITE_ROW)
       return false;
-    row_to_metamap(o);
+
+    // Tuple
+    if constexpr (is_tuple<T>::value) {
+      int ncols = sqlite3_column_count(stmt_);
+      if (ncols != sizeof...(A)) {
+        std::ostringstream ss;
+        ss << "Invalid number of parameters: SQL request has " << ncols
+           << " fields but the function to process it has " << sizeof...(A) << " parameters.";
+        throw std::runtime_error(ss.str());
+      }
+      int i = 0;
+      auto read_elt = [&](auto& v) {
+        this->read_column(i, v);
+        i++;
+      };
+      ::li::tuple_map(std::forward<T>(o), read_elt);
+    } else // Metamap
+    {
+      int ncols = sqlite3_column_count(stmt_);
+      int filled[sizeof...(A)];
+      for (unsigned i = 0; i < sizeof...(A); i++)
+        filled[i] = 0;
+
+      for (int i = 0; i < ncols; i++) {
+        const char* cname = sqlite3_column_name(stmt_, i);
+        bool found = false;
+        int j = 0;
+        li::map(o, [&](auto k, auto& v) {
+          if (!found and !filled[j] and !strcmp(cname, symbol_string(k))) {
+            this->read_column(i, v);
+            filled[j] = 1;
+          }
+          j++;
+        });
+      }
+    }
+
+    // Go to the next row.
     last_step_ret_ = sqlite3_step(stmt_);
     if (last_step_ret_ != SQLITE_ROW and last_step_ret_ != SQLITE_DONE)
       throw std::runtime_error(sqlite3_errstr(last_step_ret_));
+
     return true;
-  }
-
-  // Fill an simple object (int or string) with the current result row.
-  template <typename T> int fetch(T& o) {
-
-    if (not ready_for_reading_)
-      this->operator()();
-    if (empty())
-      return false;
-    this->read_column(0, o);
-    last_step_ret_ = sqlite3_step(stmt_);
-    if (last_step_ret_ != SQLITE_ROW and last_step_ret_ != SQLITE_DONE)
-      throw std::runtime_error(sqlite3_errstr(last_step_ret_));
-    return true;
-  }
-
-  template <typename T> void read(std::optional<T>& o) {
-    T t;
-    if (fetch(t))
-      o = std::optional<T>(t);
-    else
-      o = std::optional<T>();
-  }
-
-  template <typename T> T read() {
-    T t;
-    if (!fetch(t))
-      throw std::runtime_error("Request did not return any data.");
-    return t;
-  }
-
-  template <typename T> std::optional<T> read_optional() {
-    T t;
-    if (fetch(t))
-      return std::optional<T>(t);
-    else
-      return std::optional<T>();
   }
 
   long long int last_insert_id() { return sqlite3_last_insert_rowid(db_); }
-
-  int empty() { return last_step_ret_ != SQLITE_ROW; }
-
-  // Apply a function to all result rows.
-  template <typename F> void map(F f) {
-    if (not ready_for_reading_)
-      this->operator()();
-
-    while (last_step_ret_ == SQLITE_ROW) {
-      typedef callable_arguments_tuple_t<F> tp;
-      typedef std::remove_reference_t<std::tuple_element_t<0, tp>> T;
-      if constexpr (li::is_metamap<T>::value) {
-        T o;
-        row_to_metamap(o);
-        f(o);
-        last_step_ret_ = sqlite3_step(stmt_);
-      } else {
-        typedef tuple_remove_references_and_const_t<std::remove_pointer_t<tp>> T;
-        T o;
-        row_to_tuple(o);
-        std::apply(f, o);
-        last_step_ret_ = sqlite3_step(stmt_);
-      }
-    }
-    ready_for_reading_ = false;
-  }
-
-  template <typename V> void append_to(V& v) {
-    (*this) | [&v](typename V::value_type& o) { v.push_back(o); };
-  }
 
   void read_column(int pos, int& v) { v = sqlite3_column_int(stmt_, pos); }
   void read_column(int pos, float& v) { v = float(sqlite3_column_double(stmt_, pos)); }
@@ -229,14 +161,13 @@ struct sqlite_statement {
   sqlite3_stmt* stmt_;
   stmt_sptr stmt_sptr_;
   int last_step_ret_;
-  bool ready_for_reading_;
 };
 
 void free_sqlite3_db(void* db) { sqlite3_close_v2((sqlite3*)db); }
 
 struct sqlite_connection {
   typedef sqlite_tag db_tag;
-  
+
   typedef std::shared_ptr<sqlite3> db_sptr;
   typedef std::unordered_map<std::string, sqlite_statement> stmt_map;
   typedef std::shared_ptr<std::unordered_map<std::string, sqlite_statement>> stmt_map_ptr;
@@ -264,8 +195,7 @@ struct sqlite_connection {
     format_error(err, args...);
   }
 
-  template <typename F>
-  sqlite_statement cached_statement(F f) {
+  template <typename F> sqlite_statement cached_statement(F f) {
     if (statements_hashmap(f).stmt_sptr_.get() == nullptr)
       return prepare(f());
     else
@@ -317,6 +247,8 @@ struct sqlite_connection {
 };
 
 struct sqlite_database {
+  typedef sqlite_tag db_tag;
+
   typedef sqlite_connection connection_type;
 
   sqlite_database() {}
@@ -333,8 +265,7 @@ struct sqlite_database {
     }
   }
 
-  template <typename Y>
-  inline sqlite_connection connect(Y& y) { return con_; }
+  template <typename Y> inline sqlite_connection connect(Y& y) { return con_; }
   inline sqlite_connection connect() { return con_; }
 
   sqlite_connection con_;

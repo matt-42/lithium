@@ -31,6 +31,8 @@ namespace li {
 
 struct mysql_database : std::enable_shared_from_this<mysql_database> {
 
+  typedef mysql_tag db_tag;
+
   /**
    * @brief Construct a new mysql database object
    *

@@ -45,7 +45,7 @@ struct mysql_connection {
    * @param rq the request string
    * @return mysql_result<B> the result.
    */
-  mysql_result<B> operator()(const std::string& rq);
+  sql_result<mysql_result<B>> operator()(const std::string& rq);
 
   /**
    * @brief Build a sql prepared statement.
