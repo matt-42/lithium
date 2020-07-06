@@ -84,9 +84,9 @@ zero-cost abstraction without the need of complex meta-programing. I invite you 
 to see how metamap can be used in concrete applications.
 
 
-# Installation / Supported compilers
+# Installation
 
-Everything explained here: https://github.com/matt-42/lithium#installation
+https://github.com/matt-42/lithium/tree/master/INSTALL.md
 
 # Authors
 

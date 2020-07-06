@@ -136,10 +136,10 @@ template <typename Y> struct pgsql_connection {
       throw std::runtime_error(std::string("PQsendPrepare error") + PQerrorMessage(connection_));
     }
 
+    // flush results.
     while (PGresult* ret = pg_wait_for_next_result(connection_, fiber_, connection_status_))
       PQclear(ret);
 
-    // flush results.
     // while (PGresult* ret = PQgetResult(connection_)) {
     //   if (PQresultStatus(ret) == PGRES_FATAL_ERROR)
     //     throw std::runtime_error(std::string("Postresql fatal error:") +

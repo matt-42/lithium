@@ -14,6 +14,10 @@ It features:
 All the three connectors are following the same API so you can use the same way
 a SQLite, MySQL or PostgreSQL database.
 
+# Installation
+
+https://github.com/matt-42/lithium/tree/master/INSTALL.md
+
 # Runtime Performances
 
 All ``li::sql`` abstractions are unwrapped at compile time so it adds almost zero overhead over the raw C drivers of the databases.
