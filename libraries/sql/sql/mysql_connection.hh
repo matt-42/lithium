@@ -12,11 +12,6 @@ int max_mysql_connections_per_thread = 200;
 // Forward ref.
 struct mysql_connection_data;
 
-// Pools of connection
-thread_local std::deque<std::shared_ptr<mysql_connection_data>> mysql_connection_pool;
-thread_local std::deque<std::shared_ptr<mysql_connection_data>> mysql_connection_async_pool;
-thread_local int total_number_of_mysql_connections = 0;
-
 struct mysql_tag {};
 
 template <typename B> // must be mysql_functions_blocking or mysql_functions_non_blocking
@@ -30,7 +25,9 @@ struct mysql_connection {
    * @param mysql_wrapper the [non]blocking mysql wrapper.
    * @param data the connection data.
    */
-  inline mysql_connection(B mysql_wrapper, std::shared_ptr<li::mysql_connection_data> data);
+  template <typename P>
+  inline mysql_connection(B mysql_wrapper, std::shared_ptr<li::mysql_connection_data> data,
+  P put_data_back_in_pool);
 
   /**
    * @brief Last inserted row id.

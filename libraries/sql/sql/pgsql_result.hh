@@ -1,6 +1,6 @@
 #pragma once
 
-template <typename Y> struct pgsql_statement_result {
+template <typename Y> struct pgsql_result {
 
 public:
   // Read metamap and tuples.
@@ -12,7 +12,6 @@ public:
 private:
   PGconn* connection_;
   Y& fiber_;
-  pgsql_statement_data& data_;
   std::shared_ptr<int> connection_status_;
 
   int last_insert_id_ = -1;
@@ -34,4 +33,4 @@ private:
   void fetch_value(unsigned int& out, char* val, int length, bool is_binary);
 };
 
-#include <li/sql/pgsql_statement_result.hpp>
+#include <li/sql/pgsql_result.hpp>

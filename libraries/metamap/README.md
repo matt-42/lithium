@@ -24,6 +24,7 @@ This library aims at providing a new C++ paradigm that enables you to reach Java
 without loosing the performances of C++:
 ```c++
 // First declare the static map keys.
+// To autmatically generate symbol definitions, check https://github.com/matt-42/lithium/tree/master/libraries/symbol 
 #define LI_SYMBOL_name // Guards to avoid redefinitions.
   LI_SYMBOL(name) // Declare s::name
 #endif

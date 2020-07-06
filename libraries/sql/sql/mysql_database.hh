@@ -29,9 +29,11 @@
 
 namespace li {
 
-struct mysql_database : std::enable_shared_from_this<mysql_database> {
+struct mysql_database_impl {
 
   typedef mysql_tag db_tag;
+  typedef connection_type mysql_connection;
+  typedef connection_data_type mysql_connection_data;
 
   /**
    * @brief Construct a new mysql database object
@@ -50,36 +52,15 @@ struct mysql_database : std::enable_shared_from_this<mysql_database> {
   
   inline ~mysql_database();
 
-  /**
-   * @brief Provide a new mysql non blocking connection. The connection provides RAII: it will be
-   * placed back in the available connection pool whenver its constructor is called.
-   *
-   * @param fiber the fiber object providing the 3 non blocking logic methods:
-   *
-   *    - void epoll_add(int fd, int flags); // Make the current epoll fiber wakeup on
-   *                                            file descriptor fd 
-   *    - void epoll_mod(int fd, int flags); // Modify the epoll flags on file
-   *                                            descriptor fd 
-   *    - void yield() // Yield the current epoll fiber.
-   *
-   * @return mysql_connection<mysql_functions_non_blocking<Y>>
-   */
-  template <typename Y> inline mysql_connection<mysql_functions_non_blocking<Y>> connect(Y& fiber);
+  template <typename Y> inline mysql_connection<mysql_functions_non_blocking<Y>> new_connection(Y& fiber);
+  inline int get_socket(std::shared_ptr<mysql_connection_data> data);
 
-  /**
-   * @brief Provide a new mysql blocking connection. The connection provides RAII: it will be
-   * placed back in the available connection pool whenver its constructor is called.
-   *
-   * @return the connection.
-   */
-  inline mysql_connection<mysql_functions_blocking> connect();
-
-  std::mutex mutex_;
   std::string host_, user_, passwd_, database_;
   unsigned int port_;
-  std::deque<MYSQL*> _;
   std::string character_set_;
 };
+
+typedef sql_database<mysql_database_impl> mysql_database;
 
 } // namespace li
 

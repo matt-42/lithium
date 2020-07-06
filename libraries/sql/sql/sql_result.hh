@@ -55,13 +55,16 @@ template <typename I> struct sql_result {
    * @brief read one row of the result set and advance to next row.
    * Throw an exception if the end of the result set is reached.
    *
-   * @return T the result value.
+   * @return If only one template argument is provided return this same type.
+   *         otherwise return a std::tuple of the requested types.
    */
-  template <typename T> T read();
+  template <typename T1, typename... T> auto read();
   /**
-   * @brief Like read<T>() but do not throw is the eand of the result set is reached.
+   * @brief Like read<T>() but do not throw is the eand of the result set is reached, instead
+   * it wraps the result in a std::optional that is empty if no data could be fetch.
+   * 
    */
-  template <typename T> std::optional<T> read_optional();
+  template <typename T1, typename... T> auto read_optional();
 
   /**
    * @brief read one row of the result set and advance to next row.

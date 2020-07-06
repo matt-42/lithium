@@ -108,7 +108,7 @@ unsigned int pgsql_statement<Y>::bind_compute_nparam(const std::vector<T>& arg) 
 }
 
 // Bind parameter to the prepared statement and execute it.
-template <typename Y> template <typename... T> sql_result<pgsql_statement_result<Y>> pgsql_statement<Y>::operator()(T&&... args) {
+template <typename Y> template <typename... T> sql_result<pgsql_result<Y>> pgsql_statement<Y>::operator()(T&&... args) {
 
   unsigned int nparams = (bind_compute_nparam(std::forward<T>(args)) + ...);
   const char* values_[nparams];
@@ -126,7 +126,8 @@ template <typename Y> template <typename... T> sql_result<pgsql_statement_result
   });
 
   // std::cout << "flush" << std::endl;
-  flush_results();
+  // FIXME: do we really need to flush the results here ?
+  // flush_results();
   // std::cout << "flushed" << std::endl;
   // std::cout << "sending " << data_.stmt_name.c_str() << " with " << nparams << " params" <<
   // std::endl;
@@ -134,7 +135,7 @@ template <typename Y> template <typename... T> sql_result<pgsql_statement_result
                            1))
     throw std::runtime_error(std::string("Postresql error:") + PQerrorMessage(connection_));
 
-  return sql_result<pgsql_statement_result<Y>>{pgsql_statement_result<Y>{this->connection_, this->fiber_, this->data_, this->connection_status_}};
+  return sql_result<pgsql_result<Y>>{pgsql_result<Y>{this->connection_, this->fiber_, this->connection_status_}};
 }
 
 // FIXME long long int affected_rows() { return pgsql_stmt_affected_rows(data_.stmt_); }

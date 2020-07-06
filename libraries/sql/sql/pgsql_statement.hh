@@ -8,7 +8,7 @@
 #include <li/sql/sql_common.hh>
 #include <li/sql/symbols.hh>
 #include <memory>
-#include <li/sql/pgsql_statement_result.hh>
+#include <li/sql/pgsql_result.hh>
 
 namespace li {
 
@@ -20,7 +20,7 @@ struct pgsql_statement_data : std::enable_shared_from_this<pgsql_statement_data>
 template <typename Y> struct pgsql_statement {
 
 public:
-  template <typename... T> sql_result<pgsql_statement_result<Y>> operator()(T&&... args);
+  template <typename... T> sql_result<pgsql_result<Y>> operator()(T&&... args);
 
 private:
   PGconn* connection_;

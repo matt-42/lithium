@@ -5,8 +5,7 @@ template <typename T1, typename... T>
 bool sql_result<B>::read(T1&& t1, T...& tail) {
 
   // Metamap and tuples
-  if constexpr (li::is_metamap<T1>::value || li::is_tuple<T1>::value)
-  {
+  if constexpr (li::is_metamap<T1>::value || li::is_tuple<T1>::value) {
     static_assert(sizeof...(T) == 0);
     return impl_->read(std::forward<T1>(t1));
   }
@@ -15,8 +14,13 @@ bool sql_result<B>::read(T1&& t1, T...& tail) {
     return impl_->read(std::tie(t1, tail...));
 }
 
-template <typename B> template <typename T> T sql_result<B>::read() {
-  T t;
+template <typename B> template <typename T1, typename... T> auto sql_result<B>::read() {
+  auto t = [] {
+    if constexpr (sizeof...(T) == 0)
+      return T1{};
+    else
+      return std::tuple<T1, T...>{};
+  };
   if (!this->read(t))
     throw std::runtime_error("Trying to read a request that did not return any data.");
   return t;
@@ -26,8 +30,13 @@ template <typename B> template <typename T> void sql_result<B>::read(std::option
   o = this->read_optional<T>();
 }
 
-template <typename B> template <typename T> std::optional<T> sql_result<B>::read_optional() {
-  T t;
+template <typename B> template <typename T1, typename... T> std::optional<T> sql_result<B>::read_optional() {
+  auto t = [] {
+    if constexpr (sizeof...(T) == 0)
+      return T1{};
+    else
+      return std::tuple<T1, T...>{};
+  };
   if (this->read(t))
     return std::optional<T>{t};
   else

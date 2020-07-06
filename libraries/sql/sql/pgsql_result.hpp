@@ -2,37 +2,42 @@
 
 namespace li {
 
-template <typename Y> PGresult* pgsql_statement_result<Y>::wait_for_next_result() {
-  // std::cout << "WAIT ======================" << std::endl;
+template <typename Y>
+PGresult* pg_wait_for_next_result(PGConn* connection, Y& fiber, std::shared_ptr<int> connection_status)
+{
+    // std::cout << "WAIT ======================" << std::endl;
   while (true) {
-    if (PQconsumeInput(connection_) == 0)
+    if (PQconsumeInput(connection) == 0)
       throw std::runtime_error(std::string("PQconsumeInput() failed: ") +
-                               PQerrorMessage(connection_));
+                               PQerrorMessage(connection));
 
-    if (PQisBusy(connection_)) {
+    if (PQisBusy(connection)) {
       // std::cout << "isbusy" << std::endl;
       try {
-        fiber_.yield();
+        fiber.yield();
       } catch (typename Y::exception_type& e) {
         // Yield thrown a exception (probably because a closed connection).
         // Mark the connection as broken because it is left in a undefined state.
-        *connection_status_ = 1;
+        *connection_status = 1;
         throw std::move(e);
       }
     } else {
       // std::cout << "notbusy" << std::endl;
-      PGresult* res = PQgetResult(connection_);
-      if (PQresultStatus(res) == PGRES_FATAL_ERROR and PQerrorMessage(connection_)[0] != 0)
+      PGresult* res = PQgetResult(connection);
+      if (PQresultStatus(res) == PGRES_FATAL_ERROR and PQerrorMessage(connection)[0] != 0)
         throw std::runtime_error(std::string("Postresql fatal error:") +
-                                 PQerrorMessage(connection_));
+                                 PQerrorMessage(connection));
       else if (PQresultStatus(res) == PGRES_NONFATAL_ERROR)
-        std::cerr << "Postgresql non fatal error: " << PQerrorMessage(connection_) << std::endl;
+        std::cerr << "Postgresql non fatal error: " << PQerrorMessage(connection) << std::endl;
       return res;
     }
   }
 }
+template <typename Y> PGresult* pgsql_result<Y>::wait_for_next_result() {
+  pg_wait_for_next_result(connection_, fiber_, connection_status_);
+}
 
-template <typename Y> void pgsql_statement_result<Y>::flush_results() {
+template <typename Y> void pgsql_result<Y>::flush_results() {
   while (PGresult* res = wait_for_next_result())
     PQclear(res);
 }
@@ -40,7 +45,7 @@ template <typename Y> void pgsql_statement_result<Y>::flush_results() {
 // Fetch a string from a result field.
 template <typename Y>
 template <typename... A>
-void pgsql_statement_result<Y>::fetch_value(std::string& out, char* val, int length,
+void pgsql_result<Y>::fetch_value(std::string& out, char* val, int length,
                                             bool is_binary) {
   // assert(!is_binary);
   // std::cout << "fetch string: " << length << " '"<< val <<"'" << std::endl;
@@ -76,7 +81,7 @@ template <typename Y> void fetch_value(int& out, char* val, int length, bool is_
 
 // Fetch an unsigned int from a result field.
 template <typename Y>
-void pgsql_statement_result<Y>::fetch_value(unsigned int& out, char* val, int length,
+void pgsql_result<Y>::fetch_value(unsigned int& out, char* val, int length,
                                             bool is_binary) {
   assert(is_binary);
   if (length == 8)
@@ -89,7 +94,7 @@ void pgsql_statement_result<Y>::fetch_value(unsigned int& out, char* val, int le
     assert(0);
 }
 
-template <typename B> template <typename T> bool pgsql_statement_result<B>::read(T&& output) {
+template <typename B> template <typename T> bool pgsql_result<B>::read(T&& output) {
 
   if (!current_result_ || row_i_ == current_result_nrows_) {
     if (current_result_) {
@@ -135,7 +140,7 @@ template <typename B> template <typename T> bool pgsql_statement_result<B>::read
 }
 
 // Get the last id of the row inserted by the last command.
-template <typename Y> long long int pgsql_statement_result<Y>::last_insert_id() {
+template <typename Y> long long int pgsql_result<Y>::last_insert_id() {
   // while (PGresult* res = wait_for_next_result())
   //  PQclear(res);
   // PQsendQuery(connection_, "LASTVAL()");

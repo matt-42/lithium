@@ -16,6 +16,7 @@
 #include <li/metamap/metamap.hh>
 #include <li/sql/sql_common.hh>
 #include <li/sql/symbols.hh>
+#include <li/sql/sql_result.hh>
 #include <li/sql/type_hashmap.hh>
 #include <sqlite3.h>
 
@@ -33,37 +34,11 @@ using tuple_remove_references_and_const_t = typename tuple_remove_references_and
 
 void free_sqlite3_statement(void* s) { sqlite3_finalize((sqlite3_stmt*)s); }
 
-struct sqlite_statement {
-  typedef std::shared_ptr<sqlite3_stmt> stmt_sptr;
+struct sqlite_statement_result {
+  sqlite3_stmt* stmt_;
+  int last_step_ret_;
 
-  sqlite_statement() {}
-
-  sqlite_statement(sqlite3* db, sqlite3_stmt* s)
-      : db_(db), stmt_(s), stmt_sptr_(stmt_sptr(s, free_sqlite3_statement)) {}
-
-  void flush_results() {}
-
-  // Bind arguments to the request unknowns (marked with ?)
-  template <typename... T> sql_result<sqlite_statement> operator()(T&&... args) {
-    sqlite3_reset(stmt_);
-    sqlite3_clear_bindings(stmt_);
-    int i = 1;
-    li::tuple_map(std::forward_as_tuple(args...), [&](auto& m) {
-      int err;
-      if ((err = this->bind(stmt_, i, m)) != SQLITE_OK)
-        throw std::runtime_error(std::string("Sqlite error during binding: ") +
-                                 sqlite3_errmsg(db_));
-      i++;
-    });
-
-    last_step_ret_ = sqlite3_step(stmt_);
-    if (last_step_ret_ != SQLITE_ROW and last_step_ret_ != SQLITE_DONE)
-      throw std::runtime_error(sqlite3_errstr(last_step_ret_));
-
-    return sql_result<sqlite_statement>{*this};
-  }
-
-  // Read a tuple or a metamap.
+    // Read a tuple or a metamap.
   template <typename B> template <typename T> bool read(T&& t1) {
 
     // Throw is nothing to read.
@@ -132,6 +107,41 @@ struct sqlite_statement {
   //   v = std::chrono::time_point<C, D>(sqlite3_column_int(stmt_, pos));
   // }
 
+};
+
+struct sqlite_statement {
+  typedef std::shared_ptr<sqlite3_stmt> stmt_sptr;
+
+  sqlite3* db_;
+  sqlite3_stmt* stmt_;
+  stmt_sptr stmt_sptr_;
+
+  sqlite_statement() {}
+
+  sqlite_statement(sqlite3* db, sqlite3_stmt* s)
+      : db_(db), stmt_(s), stmt_sptr_(stmt_sptr(s, free_sqlite3_statement)) {}
+
+  // Bind arguments to the request unknowns (marked with ?)
+  template <typename... T> sql_result<sqlite_statement> operator()(T&&... args) {
+    sqlite3_reset(stmt_);
+    sqlite3_clear_bindings(stmt_);
+    int i = 1;
+    li::tuple_map(std::forward_as_tuple(args...), [&](auto& m) {
+      int err;
+      if ((err = this->bind(stmt_, i, m)) != SQLITE_OK)
+        throw std::runtime_error(std::string("Sqlite error during binding: ") +
+                                 sqlite3_errmsg(db_));
+      i++;
+    });
+
+    int last_step_ret = sqlite3_step(stmt_);
+    if (last_step_ret != SQLITE_ROW and last_step_ret != SQLITE_DONE)
+      throw std::runtime_error(sqlite3_errstr(last_step_ret));
+
+    return sql_result<sqlite_statement_result>{sqlite_statement_result{this->stmt_, last_step_ret}};
+  }
+
+
   int bind(sqlite3_stmt* stmt, int pos, double d) const {
     return sqlite3_bind_double(stmt, pos, d);
   }
@@ -157,10 +167,6 @@ struct sqlite_statement {
     return sqlite3_bind_blob(stmt, pos, b.data(), b.size(), nullptr);
   }
 
-  sqlite3* db_;
-  sqlite3_stmt* stmt_;
-  stmt_sptr stmt_sptr_;
-  int last_step_ret_;
 };
 
 void free_sqlite3_db(void* db) { sqlite3_close_v2((sqlite3*)db); }
@@ -172,6 +178,12 @@ struct sqlite_connection {
   typedef std::unordered_map<std::string, sqlite_statement> stmt_map;
   typedef std::shared_ptr<std::unordered_map<std::string, sqlite_statement>> stmt_map_ptr;
   typedef std::shared_ptr<std::mutex> mutex_ptr;
+
+  mutex_ptr cache_mutex_;
+  sqlite3* db_;
+  db_sptr db_sptr_;
+  stmt_map_ptr stm_cache_;
+  type_hashmap<sqlite_statement> statements_hashmap;
 
   sqlite_connection()
       : db_(nullptr), stm_cache_(new stmt_map()), cache_mutex_(new std::mutex()) // FIXME
@@ -239,11 +251,6 @@ struct sqlite_connection {
     return ss.str();
   }
 
-  mutex_ptr cache_mutex_;
-  sqlite3* db_;
-  db_sptr db_sptr_;
-  stmt_map_ptr stm_cache_;
-  type_hashmap<sqlite_statement> statements_hashmap;
 };
 
 struct sqlite_database {
