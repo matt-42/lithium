@@ -138,15 +138,8 @@ template <typename Y> struct pgsql_connection {
     }
 
     // flush results.
-    try {
-
     while (PGresult* ret = pg_wait_for_next_result(connection_, fiber_, connection_status_))
       PQclear(ret);
-
-    } catch (const std::runtime_error& e) {
-      this->data_->cancel();
-      throw e;
-    }
 
     // while (PGresult* ret = PQgetResult(connection_)) {
     //   if (PQresultStatus(ret) == PGRES_FATAL_ERROR)

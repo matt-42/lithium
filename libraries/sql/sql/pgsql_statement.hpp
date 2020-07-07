@@ -136,11 +136,6 @@ sql_result<pgsql_result<Y>> pgsql_statement<Y>::operator()(T&&... args) {
   // std::endl;
   if (!PQsendQueryPrepared(connection_, data_.stmt_name.c_str(), nparams, values, lengths, binary,
                            1)) {
-    try {
-      while (auto res = pg_wait_for_next_result(connection_, fiber_, connection_status_))
-        PQclear(res);
-    } catch (...) {
-    }
     throw std::runtime_error(std::string("Postresql error:") + PQerrorMessage(connection_));
   }
   return sql_result<pgsql_result<Y>>{
