@@ -7,36 +7,41 @@
 
 #pragma once
 
-#include <map>
-#include <cassert>
-#include <atomic>
-#include <vector>
+#include <tuple>
+#include <thread>
+#include <catalog/pg_type.h>
 #include <boost/lexical_cast.hpp>
-#include <utility>
-#include <sys/epoll.h>
-#include <any>
+#include <unordered_map>
+#include <mutex>
+#include <unistd.h>
 #include <string>
 #include <libpq-fe.h>
-#include <memory>
-#include <cstring>
-#include <mutex>
+#include <cassert>
+#include <mysql.h>
+#include <map>
+#include <atomic>
 #include <sstream>
-#include <unistd.h>
-#include <optional>
-#include <thread>
-#include <tuple>
-#include <iostream>
+#include <cstring>
+#include <sys/epoll.h>
 #include <deque>
+#include <vector>
+#include <iostream>
+#include <postgres.h>
+#include <memory>
+#include <optional>
 #include <arpa/inet.h>
-#include <unordered_map>
+#include <any>
+#include <utility>
 
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_HH
 
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_DATABASE_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_DATABASE_HH
+
 
 #include "libpq-fe.h"
-
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_CALLABLE_TRAITS_CALLABLE_TRAITS_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_CALLABLE_TRAITS_CALLABLE_TRAITS_HH
@@ -762,6 +767,10 @@ inline auto substract(const metamap<T...>& a, const metamap<U...>& b) {
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_METAMAP_HH
 
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_STATEMENT_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_STATEMENT_HH
+
+
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_COMMON_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_COMMON_HH
 
@@ -839,6 +848,11 @@ template <unsigned SIZE> struct sql_varchar : public std::string {
     LI_SYMBOL(computed)
 #endif
 
+#ifndef LI_SYMBOL_connections
+#define LI_SYMBOL_connections
+    LI_SYMBOL(connections)
+#endif
+
 #ifndef LI_SYMBOL_database
 #define LI_SYMBOL_database
     LI_SYMBOL(database)
@@ -852,6 +866,26 @@ template <unsigned SIZE> struct sql_varchar : public std::string {
 #ifndef LI_SYMBOL_id
 #define LI_SYMBOL_id
     LI_SYMBOL(id)
+#endif
+
+#ifndef LI_SYMBOL_max_async_connections_per_thread
+#define LI_SYMBOL_max_async_connections_per_thread
+    LI_SYMBOL(max_async_connections_per_thread)
+#endif
+
+#ifndef LI_SYMBOL_max_connections
+#define LI_SYMBOL_max_connections
+    LI_SYMBOL(max_connections)
+#endif
+
+#ifndef LI_SYMBOL_max_sync_connections
+#define LI_SYMBOL_max_sync_connections
+    LI_SYMBOL(max_sync_connections)
+#endif
+
+#ifndef LI_SYMBOL_n_connections
+#define LI_SYMBOL_n_connections
+    LI_SYMBOL(n_connections)
 #endif
 
 #ifndef LI_SYMBOL_password
@@ -902,383 +936,249 @@ template <unsigned SIZE> struct sql_varchar : public std::string {
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SYMBOLS_HH
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_STATEMENT_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_STATEMENT_HH
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_RESULT_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_RESULT_HH
 
+namespace li {
+
+template <typename Y> struct pgsql_result {
+
+public:
+  ~pgsql_result() { if (current_result_) PQclear(current_result_); }
+  // Read metamap and tuples.
+  template <typename T> bool read(T&& t1);
+  long long int last_insert_id();
+  // Flush all results.
+  void flush_results();
+
+  PGconn* connection_;
+  Y& fiber_;
+  std::shared_ptr<int> connection_status_;
+
+  int last_insert_id_ = -1;
+  int row_i_ = 0;
+  int current_result_nrows_ = 0;
+  PGresult* current_result_ = nullptr;
+  std::vector<Oid> curent_result_field_types_;
+
+private:
+
+  // Wait for the next result.
+  PGresult* wait_for_next_result();
+
+  // Fetch a string from a result field.
+  template <typename... A>
+  void fetch_value(std::string& out, char* val, int length, bool is_binary, Oid field_type);
+  // Fetch a blob from a result field.
+  template <typename... A> void fetch_value(sql_blob& out, char* val, int length, bool is_binary, Oid field_type);
+  // Fetch an int from a result field.
+  void fetch_value(int& out, char* val, int length, bool is_binary, Oid field_type);
+  // Fetch an unsigned int from a result field.
+  void fetch_value(unsigned int& out, char* val, int length, bool is_binary, Oid field_type);
+};
+
+} // namespace li
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_RESULT_HPP
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_RESULT_HPP
+
+
+#include "libpq-fe.h"
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_INTERNAL_UTILS_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_INTERNAL_UTILS_HH
+
+
+namespace li {
+template <typename T> struct is_tuple_after_decay : std::false_type {};
+template <typename... T> struct is_tuple_after_decay<std::tuple<T...>> : std::true_type {};
+
+template <typename T> struct is_tuple : is_tuple_after_decay<std::decay_t<T>> {};
+template <typename T> struct unconstref_tuple_elements {};
+template <typename... T> struct unconstref_tuple_elements<std::tuple<T...>> {
+  typedef std::tuple<std::remove_const_t<std::remove_reference_t<T>>...> ret;
+};
+
+} // namespace li
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_INTERNAL_UTILS_HH
 
 
 namespace li {
 
-
-struct pgsql_statement_data : std::enable_shared_from_this<pgsql_statement_data> {
-  pgsql_statement_data(const std::string& s) : stmt_name(s) {}
-  std::string stmt_name;
-};
-
 template <typename Y>
-struct pgsql_statement {
+PGresult* pg_wait_for_next_result(PGconn* connection, Y& fiber, std::shared_ptr<int> connection_status)
+{
+    // std::cout << "WAIT ======================" << std::endl;
+  while (true) {
+    if (PQconsumeInput(connection) == 0)
+      throw std::runtime_error(std::string("PQconsumeInput() failed: ") +
+                               PQerrorMessage(connection));
 
-  PGconn* connection_;
-  Y& fiber_;
-  pgsql_statement_data& data_;
-  std::shared_ptr<int> connection_status_;
-  int last_insert_id_ = -1;
-
-  // Wait for the next result.
-  PGresult* wait_for_next_result() {
-    //std::cout << "WAIT ======================" << std::endl;
-    while (true)
-    {
-      if (PQconsumeInput(connection_) == 0)
-        throw std::runtime_error(std::string("PQconsumeInput() failed: ") + PQerrorMessage(connection_));
-
-      if (PQisBusy(connection_))
-      {
-        //std::cout << "isbusy" << std::endl;
-        try {
-          fiber_.yield();
-        } catch (typename Y::exception_type& e) {
-          // Yield thrown a exception (probably because a closed connection).
-          // Mark the connection as broken because it is left in a undefined state.
-          *connection_status_ = 1;
-          throw std::move(e);
-        }
+    if (PQisBusy(connection)) {
+      // std::cout << "isbusy" << std::endl;
+      try {
+        fiber.yield();
+      } catch (typename Y::exception_type& e) {
+        // Yield thrown a exception (probably because a closed connection).
+        // Mark the connection as broken because it is left in a undefined state.
+        *connection_status = 1;
+        throw std::move(e);
       }
-      else 
-      {
-        //std::cout << "notbusy" << std::endl;
-        PGresult* res =  PQgetResult(connection_);
-        if (PQresultStatus(res) == PGRES_FATAL_ERROR and PQerrorMessage(connection_)[0] != 0)
-          throw std::runtime_error(std::string("Postresql fatal error:") + PQerrorMessage(connection_));
-        else if (PQresultStatus(res) == PGRES_NONFATAL_ERROR)
-          std::cerr << "Postgresql non fatal error: " << PQerrorMessage(connection_) << std::endl;
-        return res;
-      }
+    } else {
+      // std::cout << "notbusy" << std::endl;
+      PGresult* res = PQgetResult(connection);
+      if (PQresultStatus(res) == PGRES_FATAL_ERROR and PQerrorMessage(connection)[0] != 0)
+        throw std::runtime_error(std::string("Postresql fatal error:") +
+                                 PQerrorMessage(connection));
+      else if (PQresultStatus(res) == PGRES_NONFATAL_ERROR)
+        std::cerr << "Postgresql non fatal error: " << PQerrorMessage(connection) << std::endl;
+      return res;
     }
   }
-
-  void flush_results()
-  {
-    while (PGresult* res = wait_for_next_result())
-      PQclear(res);
-  }
-  
-  // Execute a simple request takes no arguments and return no rows.
-  auto& operator()() {
-
-    //std::cout << "sending " << data_.stmt_name.c_str() << std::endl;
-    flush_results();
-    if (!PQsendQueryPrepared(connection_, data_.stmt_name.c_str(), 0, nullptr, nullptr, nullptr, 1))
-      throw std::runtime_error(std::string("Postresql error:") + PQerrorMessage(connection_));
-    
-    return *this;
-  }
-
-
-  // Execute a request with placeholders.
-  template <unsigned N>
-  void bind_param(sql_varchar<N>&& m, const char** values, int* lengths, int* binary)
-  {
-    //std::cout << "send param varchar " << m << std::endl;
-    *values = m.c_str(); *lengths = m.size(); *binary = 0;
-  }
-  template <unsigned N>
-  void bind_param(const sql_varchar<N>& m, const char** values, int* lengths, int* binary)
-  {
-    //std::cout << "send param const varchar " << m << std::endl;
-    *values = m.c_str(); *lengths = m.size(); *binary = 0;
-  }
-  void bind_param(const char* m, const char** values, int* lengths, int* binary)
-  {
-    //std::cout << "send param const char*[N] " << m << std::endl;
-    *values = m; *lengths = strlen(m); *binary = 0;
-  }
-
-  template <typename T>
-  void bind_param(const std::vector<T>& m, const char** values, int* lengths, int* binary)
-  {
-    int tsize = [&] {
-      if constexpr (is_metamap<T>::value) return metamap_size<T>();
-      else return 1; }();
-
-    int i = 0;
-    for (int i = 0; i < m.size(); i++)
-      bind_param(m[i], values + i * tsize, lengths + i * tsize, binary + i * tsize);
-  }
-
-  template <typename T>
-  void bind_param(const T& m, const char** values, int* lengths, int* binary)
-  { 
-    if constexpr(is_metamap<std::decay_t<decltype(m)>>::value)
-    {
-      int i = 0;
-      li::map(m, [&] (auto k, const auto& m) {
-        bind_param(m, values + i, lengths + i, binary + i);
-        i++;
-      });
-    }
-    else
-     if constexpr(std::is_same<std::decay_t<decltype(m)>, std::string>::value or
-                  std::is_same<std::decay_t<decltype(m)>, std::string_view>::value)
-    {
-      //std::cout << "send param string: " << m << std::endl;
-      *values = m.c_str();
-      *lengths = m.size();
-      *binary = 0;
-    }
-    else if constexpr(std::is_same<std::remove_reference_t<decltype(m)>, const char*>::value)
-    {
-      //std::cout << "send param const char* " << m << std::endl;
-      *values = m;
-      *lengths = strlen(m);
-      *binary = 0;
-    }
-    else if constexpr(std::is_same<std::decay_t<decltype(m)>, int>::value)
-    {
-      *values = (char*)new int(htonl(m));
-      *lengths = sizeof(m);
-      *binary = 1;
-    }
-    else if constexpr(std::is_same<std::decay_t<decltype(m)>, long long int>::value)
-    {
-      // FIXME send 64bit values.
-      //std::cout << "long long int param: " << m << std::endl;
-      *values = (char*)new int(htonl(uint32_t(m)));
-      *lengths = sizeof(uint32_t);
-      // does not work:
-      //values = (char*)new uint64_t(htobe64((uint64_t) m));
-      //lengths = sizeof(uint64_t);
-      *binary = 1;
-    }
-  }
-
-  template <typename T>
-  unsigned int bind_compute_nparam(const T& arg) { return 1; }
-  template <typename... T>
-  unsigned int bind_compute_nparam(const metamap<T...>& arg) { return sizeof...(T); }
-  template <typename T>
-  unsigned int bind_compute_nparam(const std::vector<T>& arg){ 
-    return arg.size() * bind_compute_nparam(arg[0]);
-  }
-
-  // Bind parameter to the prepared statement and execute it.
-  template <typename... T> auto& operator()(T&&... args) {
-
-    unsigned int nparams = (bind_compute_nparam(std::forward<T>(args))+...); 
-    const char* values_[nparams];
-    int lengths_[nparams];
-    int binary_[nparams];
-
-    const char** values = values_;
-    int* lengths = lengths_;
-    int* binary = binary_;
-    
-    int i = 0;
-    tuple_map(std::forward_as_tuple(args...), [&] (const auto& a) {
-      bind_param(a, values + i, lengths + i, binary + i);
-      i++;
-    });
-
-    // std::cout << "flush" << std::endl;
-    flush_results();
-    // std::cout << "flushed" << std::endl;
-    // std::cout << "sending " << data_.stmt_name.c_str() << " with " << nparams << " params" << std::endl;
-    if (!PQsendQueryPrepared(connection_, data_.stmt_name.c_str(), nparams, values, lengths, binary, 1))
-      throw std::runtime_error(std::string("Postresql error:") + PQerrorMessage(connection_));
-    
-    return *this;
-  }
-
-
-  //FIXME long long int affected_rows() { return pgsql_stmt_affected_rows(data_.stmt_); }
-
-  // Fetch a string from a result field.
-  template <typename... A> void fetch_impl(std::string& out, char* val, int length, bool is_binary) {
-    //assert(!is_binary);
-    //std::cout << "fetch string: " << length << " '"<< val <<"'" << std::endl;
-    out = std::move(std::string(val, strlen(val)));
-  }
-
-  // Fetch a blob from a result field.
-  template <typename... A> void fetch_impl(sql_blob& out, char* val, int length, bool is_binary) {
-    //assert(is_binary);
-    out = std::move(std::string(val, length));
-  }
-
-  // Fetch an int from a result field.
-  void fetch_impl(int& out, char* val, int length, bool is_binary) {
-    assert(is_binary);
-    //std::cout << "fetch integer " << length << " " << is_binary << std::endl;
-    // std::cout << "fetch integer " << be64toh(*((uint64_t *) val)) << std::endl;
-    if (length == 8) 
-    {
-      // std::cout << "fetch 64b integer " << std::hex << int(32) << std::endl;
-      // std::cout << "fetch 64b integer " << std::hex << uint64_t(*((uint64_t *) val)) << std::endl;
-      // std::cout << "fetch 64b integer " << std::hex << (*((uint64_t *) val)) << std::endl;
-      // std::cout << "fetch 64b integer " << std::hex << be64toh(*((uint64_t *) val)) << std::endl;
-      out = be64toh(*((uint64_t *) val));
-    }
-    else if (length == 4) out = (uint32_t) ntohl(*((uint32_t *) val));
-    else if (length == 2) out = (uint16_t) ntohs(*((uint16_t *) val));
-    else assert(0);
-  }
-
-  // Fetch an unsigned int from a result field.
-  void fetch_impl(unsigned int& out, char* val, int length, bool is_binary) {
-    assert(is_binary);
-    if (length == 8) out = be64toh(*((uint64_t *) val));
-    else if (length == 4) out = ntohl(*((uint32_t *) val));
-    else if (length == 2) out = ntohs(*((uint16_t *) val));
-    else assert(0);
-  }
-
-  // Fetch a complete row in a metamap.
-  template <typename... A> void fetch(PGresult* res, int row_i, metamap<A...>& o) {
-    li::map(o, [&] (auto k, auto& m) {
-      int field_i = PQfnumber(res, symbol_string(k));
-      if (field_i == -1)
-        throw std::runtime_error(std::string("postgresql errror : Field ") + symbol_string(k) + " not fount in result."); 
-
-      fetch_impl(m, PQgetvalue(res, row_i, field_i),
-                 PQgetlength(res, row_i, field_i), 
-                 PQfformat(res, field_i));
-    });
-  }
-
-  // Fetch a complete row in a tuple.
-  template <typename... A> void fetch(PGresult* res, int row_i, std::tuple<A...>& o) {
-    int field_i = 0;
-
-    int nfields = PQnfields(res);
-    if (nfields != sizeof...(A))
-      throw std::runtime_error("postgresql error: in fetch: Mismatch between the request number of field and the outputs.");
-
-    tuple_map(o, [&] (auto& m) {
-      fetch_impl(m, PQgetvalue(res, row_i, field_i),
-                 PQgetlength(res, row_i, field_i), 
-                 PQfformat(res, field_i));
-      field_i++;
-    });
-  }
-  
-  template <typename T> void fetch(PGresult* res, int row_i, T& o) {
-    int field_i = 0;
-
-    int nfields = PQnfields(res);
-    if (nfields != 1)
-      throw std::runtime_error("postgresql error: in fetch: Mismatch between the request number of field and the outputs.");
-    fetch_impl(o, PQgetvalue(res, row_i, 0),
-                 PQgetlength(res, row_i, 0), 
-                 PQfformat(res, 0));
-  }
-
-  // Fetch one object (expect a resultset of maximum 1 row).
-  // Return 0 if no rows, 1 if the fetch is ok.
-  template <typename T> int fetch_one(T& o) {
-    PGresult* res = wait_for_next_result();
-
-
-    int nrows = PQntuples(res);
-    if (nrows == 0)
-      return 0;
-    if (nrows > 1)
-      throw std::runtime_error("postgresql error: in fetch_one: The request returned more than one row.");
-
-    fetch(res, 0, o);
-    PQclear(res);
-    return 1;
-  }
-
-  // Read a single optional value.
-  template <typename T> void read(std::optional<T>& o) {
-    T t;
-    if (fetch_one(t))
-      o = std::optional<T>(t);
-    else
-      o = std::optional<T>();
-  }
-
-  // Read a single value.
-  template <typename T> T read() {
-    T t;
-    if (!fetch_one(t))
-      throw std::runtime_error("Request did not return any data.");
-    return t;
-  }
-
-  // Read a single optional value.
-  template <typename T> std::optional<T> read_optional() {
-    T t;
-    if (fetch_one(t))
-      return std::optional<T>(t);
-    else
-      return std::optional<T>();
-  }
-
-  template <typename T>
-  struct unconstref_tuple_elements {};
-  template <typename... T>
-  struct unconstref_tuple_elements<std::tuple<T...>> {
-    typedef std::tuple<std::remove_const_t<std::remove_reference_t<T>>...> ret;
-  };
-  
-  // Map a function to multiple rows.
-  template <typename F> void map(F f) {
-    typedef typename unconstref_tuple_elements<callable_arguments_tuple_t<F>>::ret tp;
-    typedef std::remove_const_t<std::remove_reference_t<std::tuple_element_t<0, tp>>> T;
-
-    while(PGresult* res = wait_for_next_result())
-    {
-      int nrows = PQntuples(res);
-      for (int row_i = 0; row_i < nrows; row_i++)
-      {
-        if constexpr (li::is_metamap<T>::value) {
-          T o;
-          fetch(res, row_i, o);
-          f(o);
-        } else { // tuple version.
-          tp o;
-          fetch(res, row_i, o);
-          std::apply(f, o);
-        }
-      }
-      PQclear(res);
-    }
-
-  }
-
-  // Get the last id of the row inserted by the last command.
-  long long int last_insert_id() { 
-    //while (PGresult* res = wait_for_next_result())
-    //  PQclear(res);
-    //PQsendQuery(connection_, "LASTVAL()");
-    return this->read<int>();
-    // PGresult *PQexec(connection_, const char *command);
-    // this->operator()
-    //   last_insert_id_ = PQoidValue(res);
-    //   std::cout << "id " << last_insert_id_ << std::endl;
-    //   PQclear(res);
-    // }
-    // return last_insert_id_; 
-  }
-
-  // Return true if the request returns an empty set.  
-  bool empty() {
-    PGresult* res = wait_for_next_result();
-    int nrows = PQntuples(res);
-    PQclear(res);
-    return nrows = 0;
-  }
-
-  void wait () {
-    while (PGresult* res = wait_for_next_result())
-      PQclear(res);
-  }
-};
-
+}
+template <typename Y> PGresult* pgsql_result<Y>::wait_for_next_result() {
+  return pg_wait_for_next_result(connection_, fiber_, connection_status_);
 }
 
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_STATEMENT_HH
+template <typename Y> void pgsql_result<Y>::flush_results() {
+  try {
+    if (*connection_status_ == 0)
+      while (PGresult* res = wait_for_next_result())
+        PQclear(res);
+  } catch (...) {}
+}
+
+// Fetch a string from a result field.
+template <typename Y>
+template <typename... A>
+void pgsql_result<Y>::fetch_value(std::string& out, char* val, int length,
+                                            bool is_binary, Oid field_type) {
+  // assert(!is_binary);
+  // std::cout << "fetch string: " << length << " '"<< val <<"'" << std::endl;
+  out = std::move(std::string(val, strlen(val)));
+}
+
+// Fetch a blob from a result field.
+template <typename Y>
+template <typename... A>
+void pgsql_result<Y>::fetch_value(sql_blob& out, char* val, int length, bool is_binary, Oid field_type) {
+  // assert(is_binary);
+  out = std::move(std::string(val, length));
+}
+
+// Fetch an int from a result field.
+template <typename Y> void pgsql_result<Y>::fetch_value(int& out, char* val, int length, bool is_binary, Oid field_type) {
+  assert(is_binary);
+  // TYPCATEGORY_NUMERIC
+  //std::cout << "fetch integer " << length << " " << is_binary << std::endl;
+  // std::cout << "fetch integer " << be64toh(*((uint64_t *) val)) << std::endl;
+  if (field_type == INT8OID) {
+    // std::cout << "fetch 64b integer " << std::hex << int(32) << std::endl;
+    // std::cout << "fetch 64b integer " << std::hex << uint64_t(*((uint64_t *) val)) << std::endl;
+    // std::cout << "fetch 64b integer " << std::hex << (*((uint64_t *) val)) << std::endl;
+    // std::cout << "fetch 64b integer " << std::hex << be64toh(*((uint64_t *) val)) << std::endl;
+    out = be64toh(*((uint64_t*)val));
+  } else if (field_type == INT4OID)
+    out = (uint32_t)ntohl(*((uint32_t*)val));
+  else if (field_type == INT2OID)
+    out = (uint16_t)ntohs(*((uint16_t*)val));
+  else
+    throw std::runtime_error("The type of request result does not match the destination type");
+}
+
+// Fetch an unsigned int from a result field.
+template <typename Y>
+void pgsql_result<Y>::fetch_value(unsigned int& out, char* val, int length,
+                                            bool is_binary, Oid field_type) {
+  assert(is_binary);
+  // if (length == 8)
+  if (field_type == INT8OID)
+    out = be64toh(*((uint64_t*)val));
+  else if (field_type == INT4OID)
+    out = ntohl(*((uint32_t*)val));
+  else if (field_type == INT2OID)
+    out = ntohs(*((uint16_t*)val));
+  else
+    assert(0);
+}
+
+template <typename B> template <typename T> bool pgsql_result<B>::read(T&& output) {
+
+  if (!current_result_ || row_i_ == current_result_nrows_) {
+    if (current_result_) {
+      PQclear(current_result_);
+      current_result_ = nullptr;
+    }
+    current_result_ = wait_for_next_result();
+    if (!current_result_)
+      return false;
+    row_i_ = 0;
+    current_result_nrows_ = PQntuples(current_result_);
+    if (current_result_nrows_ == 0) return false;
+
+    if (curent_result_field_types_.size() == 0)
+    {
+      curent_result_field_types_.resize(PQnfields(current_result_));
+      for (int field_i = 0; field_i < curent_result_field_types_.size(); field_i++)
+        curent_result_field_types_[field_i] = PQftype(current_result_, field_i);
+    }
+  }
+
+  // Tuples
+  if constexpr (is_tuple<T>::value) {
+    int field_i = 0;
+
+    int nfields = curent_result_field_types_.size();
+    if (nfields != std::tuple_size_v<std::decay_t<T>>)
+      throw std::runtime_error("postgresql error: in fetch: Mismatch between the request number of "
+                               "field and the outputs.");
+
+    tuple_map(std::forward<T>(output), [&](auto& m) {
+      fetch_value(m, PQgetvalue(current_result_, row_i_, field_i), PQgetlength(current_result_, row_i_, field_i),
+                  PQfformat(current_result_, field_i), curent_result_field_types_[field_i]);
+      field_i++;
+    });
+  } else { // Metamaps.
+    li::map(std::forward<T>(output), [&](auto k, auto& m) {
+      int field_i = PQfnumber(current_result_, symbol_string(k));
+      if (field_i == -1)
+        throw std::runtime_error(std::string("postgresql errror : Field ") + symbol_string(k) +
+                                 " not fount in result.");
+
+      fetch_value(m, PQgetvalue(current_result_, row_i_, field_i), PQgetlength(current_result_, row_i_, field_i),
+                  PQfformat(current_result_, field_i), curent_result_field_types_[field_i]);
+    });
+  }
+
+  this->row_i_++;
+
+  return true;
+}
+
+// Get the last id of the row inserted by the last command.
+template <typename Y> long long int pgsql_result<Y>::last_insert_id() {
+  // while (PGresult* res = wait_for_next_result())
+  //  PQclear(res);
+  // PQsendQuery(connection_, "LASTVAL()");
+  int t = 0;
+  this->read(std::tie(t));
+  return t;
+  // PGresult *PQexec(connection_, const char *command);
+  // this->operator()
+  //   last_insert_id_ = PQoidValue(res);
+  //   std::cout << "id " << last_insert_id_ << std::endl;
+  //   PQclear(res);
+  // }
+  // return last_insert_id_;
+}
+
+} // namespace li
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_RESULT_HPP
+
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_RESULT_HH
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_RESULT_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_RESULT_HH
+
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_TYPE_HASHMAP_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_TYPE_HASHMAP_HH
@@ -1337,41 +1237,379 @@ int type_hashmap<V>::counter_ = 0;
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_TYPE_HASHMAP_HH
 
 
+namespace li {
+
+/**
+ * @brief Store a access to the result of a sql query (non prepared).
+ *
+ * @tparam B must be mysql_functions_blocking or mysql_functions_non_blocking
+ */
+template <typename I> struct sql_result {
+
+  I impl_; // blocking or non blockin mysql functions wrapper.
+
+  sql_result() = delete;
+  sql_result& operator=(sql_result&) = delete;
+  sql_result(const sql_result&) = delete;
+
+  inline ~sql_result() { this->flush_results(); }
+
+  inline void flush_results() { impl_.flush_results(); }
+
+  /**
+   * @brief Return the last id generated by a insert comment.
+   * With postgresql, it requires the previous command to use the "INSERT [...] returning id;"
+   * syntax.
+   *
+   * @return the last inserted id.
+   */
+  long long int last_insert_id() { return impl_.last_insert_id(); }
+
+  /**
+   * @brief read one row of the result set and advance to next row.
+   * Throw an exception if the end of the result set is reached.
+   *
+   * @return If only one template argument is provided return this same type.
+   *         otherwise return a std::tuple of the requested types.
+   */
+  template <typename T1, typename... T> auto read();
+  /**
+   * @brief Like read<T>() but do not throw is the eand of the result set is reached, instead
+   * it wraps the result in a std::optional that is empty if no data could be fetch.
+   *
+   */
+  template <typename T1, typename... T> auto read_optional();
+
+  /**
+   * @brief read one row of the result set and advance to next row.
+   * Throw an exception if the end of the result set is reached or if another error happened.
+   *
+   * Valid calls are:
+   *    read(std::tuple<...>& )
+   *        fill the tuple according to the current row. The tuple must match
+   *        the number of fields in the request.
+   *    read(li::metamap<...>& )
+   *        fill the metamap according to the current row. The metamap (value types and keys) must
+   * match the fields (types and names) of the request. read(A& a, B& b, C& c, ...) fill a, b, c,...
+   * with each field of the current row. Types of a, b, c... must match the types of the fields.
+   *        supported types : std::string, integer and floating numbers.
+   * @return T the result value.
+   */
+  template <typename T1, typename... T> bool read(T1&& t1, T&... tail);
+  template <typename T> void read(std::optional<T>& o);
+
+  /**
+   * @brief Call \param f on each row of the set.
+   * The function must take as argument all the select fields of the request, it should
+   * follow one of the signature of read (check read documentation for more info).
+   * \param f can take arguments by reference to avoid copies but keep in mind that
+   * there references will be invalid at the end of the function scope.
+   *
+   * @example connection.prepare("Select id,post from post_items;")().map(
+   *        [&](std::string id, std::string post) {
+   *             std::cout << id << post << std::endl; });
+   *
+   * @param f the function.
+   */
+  template <typename F> void map(F f);
+};
+
+} // namespace li
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_RESULT_HPP
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_RESULT_HPP
+
+
+namespace li {
+template <typename B>
+template <typename T1, typename... T>
+bool sql_result<B>::read(T1&& t1, T&... tail) {
+
+  // Metamap and tuples
+  if constexpr (li::is_metamap<std::decay_t<T1>>::value || li::is_tuple<std::decay_t<T1>>::value) {
+    static_assert(sizeof...(T) == 0);
+    return impl_.read(std::forward<T1>(t1));
+  }
+  // Scalar values.
+  else
+    return impl_.read(std::tie(t1, tail...));
+}
+
+template <typename B> template <typename T1, typename... T> auto sql_result<B>::read() {
+  auto t = [] {
+    if constexpr (sizeof...(T) == 0)
+      return T1{};
+    else
+      return std::tuple<T1, T...>{};
+  }();
+  if (!this->read(t))
+    throw std::runtime_error("Trying to read a request that did not return any data.");
+  return t;
+}
+
+template <typename B> template <typename T> void sql_result<B>::read(std::optional<T>& o) {
+  o = this->read_optional<T>();
+}
+
+template <typename B>
+template <typename T1, typename... T>
+auto sql_result<B>::read_optional() {
+  auto t = [] {
+    if constexpr (sizeof...(T) == 0)
+      return T1{};
+    else
+      return std::tuple<T1, T...>{};
+  }();
+  if (this->read(t))
+    return std::make_optional(std::move(t));
+  else
+    return std::optional<decltype(t)>{};
+}
+
+template <typename B> template <typename F> void sql_result<B>::map(F map_function) {
+
+  typedef typename unconstref_tuple_elements<callable_arguments_tuple_t<F>>::ret TP;
+
+  auto t = [] {
+    static_assert(std::tuple_size_v<TP> > 0, "sql_result map function must take at least 1 argument.");
+
+    if constexpr (std::tuple_size_v<TP> == 1)
+      return std::tuple_element_t<0, TP>{};
+    else if constexpr (std::tuple_size_v<TP> > 1)
+      return TP{};
+  }();
+
+
+  while (auto res = this->read_optional<decltype(t)>()) {
+    if constexpr (std::tuple_size<TP>::value == 1)
+      map_function(res.value());
+    else if constexpr (std::tuple_size<TP>::value > 1)
+      std::apply(map_function, res.value());
+  }
+}
+} // namespace li
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_RESULT_HPP
+
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_RESULT_HH
+
 
 namespace li {
 
-int max_pgsql_connections_per_thread = 200;
-thread_local int total_number_of_pgsql_connections = 0;
+struct pgsql_statement_data : std::enable_shared_from_this<pgsql_statement_data> {
+  pgsql_statement_data(const std::string& s) : stmt_name(s) {}
+  std::string stmt_name;
+};
+
+template <typename Y> struct pgsql_statement {
+
+public:
+  template <typename... T> sql_result<pgsql_result<Y>> operator()(T&&... args);
+
+  PGconn* connection_;
+  Y& fiber_;
+  pgsql_statement_data& data_;
+  std::shared_ptr<int> connection_status_;
+
+
+private:
+
+  // Bind statement param utils.
+  template <unsigned N>
+  void bind_param(sql_varchar<N>&& m, const char** values, int* lengths, int* binary);
+  template <unsigned N>
+  void bind_param(const sql_varchar<N>& m, const char** values, int* lengths, int* binary);
+  void bind_param(const char* m, const char** values, int* lengths, int* binary);
+  template <typename T>
+  void bind_param(const std::vector<T>& m, const char** values, int* lengths, int* binary);
+  template <typename T> void bind_param(const T& m, const char** values, int* lengths, int* binary);
+  template <typename T> unsigned int bind_compute_nparam(const T& arg);
+  template <typename... T> unsigned int bind_compute_nparam(const metamap<T...>& arg);
+  template <typename T> unsigned int bind_compute_nparam(const std::vector<T>& arg);
+  // Bind parameter to the prepared statement and execute it.
+  // FIXME long long int affected_rows() { return pgsql_stmt_affected_rows(data_.stmt_); }
+
+};
+
+} // namespace li
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_STATEMENT_HPP
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_STATEMENT_HPP
+
+
+
+namespace li {
+
+// Execute a request with placeholders.
+template <typename Y>
+template <unsigned N>
+void pgsql_statement<Y>::bind_param(sql_varchar<N>&& m, const char** values, int* lengths,
+                                    int* binary) {
+  // std::cout << "send param varchar " << m << std::endl;
+  *values = m.c_str();
+  *lengths = m.size();
+  *binary = 0;
+}
+template <typename Y>
+template <unsigned N>
+void pgsql_statement<Y>::bind_param(const sql_varchar<N>& m, const char** values, int* lengths,
+                                    int* binary) {
+  // std::cout << "send param const varchar " << m << std::endl;
+  *values = m.c_str();
+  *lengths = m.size();
+  *binary = 0;
+}
+template <typename Y>
+void pgsql_statement<Y>::bind_param(const char* m, const char** values, int* lengths, int* binary) {
+  // std::cout << "send param const char*[N] " << m << std::endl;
+  *values = m;
+  *lengths = strlen(m);
+  *binary = 0;
+}
+
+template <typename Y>
+template <typename T>
+void pgsql_statement<Y>::bind_param(const std::vector<T>& m, const char** values, int* lengths,
+                                    int* binary) {
+  int tsize = [&] {
+    if constexpr (is_metamap<T>::value)
+      return metamap_size<T>();
+    else
+      return 1;
+  }();
+
+  int i = 0;
+  for (int i = 0; i < m.size(); i++)
+    bind_param(m[i], values + i * tsize, lengths + i * tsize, binary + i * tsize);
+}
+
+template <typename Y>
+template <typename T>
+void pgsql_statement<Y>::bind_param(const T& m, const char** values, int* lengths, int* binary) {
+  if constexpr (is_metamap<std::decay_t<decltype(m)>>::value) {
+    int i = 0;
+    li::map(m, [&](auto k, const auto& m) {
+      bind_param(m, values + i, lengths + i, binary + i);
+      i++;
+    });
+  } else if constexpr (std::is_same<std::decay_t<decltype(m)>, std::string>::value or
+                       std::is_same<std::decay_t<decltype(m)>, std::string_view>::value) {
+    // std::cout << "send param string: " << m << std::endl;
+    *values = m.c_str();
+    *lengths = m.size();
+    *binary = 0;
+  } else if constexpr (std::is_same<std::remove_reference_t<decltype(m)>, const char*>::value) {
+    // std::cout << "send param const char* " << m << std::endl;
+    *values = m;
+    *lengths = strlen(m);
+    *binary = 0;
+  } else if constexpr (std::is_same<std::decay_t<decltype(m)>, int>::value) {
+    *values = (char*)new int(htonl(m));
+    *lengths = sizeof(m);
+    *binary = 1;
+  } else if constexpr (std::is_same<std::decay_t<decltype(m)>, long long int>::value) {
+    // FIXME send 64bit values.
+    // std::cout << "long long int param: " << m << std::endl;
+    *values = (char*)new int(htonl(uint32_t(m)));
+    *lengths = sizeof(uint32_t);
+    // does not work:
+    // values = (char*)new uint64_t(htobe64((uint64_t) m));
+    // lengths = sizeof(uint64_t);
+    *binary = 1;
+  }
+}
+
+template <typename Y>
+template <typename T>
+unsigned int pgsql_statement<Y>::bind_compute_nparam(const T& arg) {
+  return 1;
+}
+template <typename Y>
+template <typename... T>
+unsigned int pgsql_statement<Y>::bind_compute_nparam(const metamap<T...>& arg) {
+  return sizeof...(T);
+}
+template <typename Y>
+template <typename T>
+unsigned int pgsql_statement<Y>::bind_compute_nparam(const std::vector<T>& arg) {
+  return arg.size() * bind_compute_nparam(arg[0]);
+}
+
+// Bind parameter to the prepared statement and execute it.
+template <typename Y>
+template <typename... T>
+sql_result<pgsql_result<Y>> pgsql_statement<Y>::operator()(T&&... args) {
+
+  unsigned int nparams = 0;
+  if constexpr (sizeof...(T) > 0)
+    nparams = (bind_compute_nparam(std::forward<T>(args)) + ...);
+  const char* values_[nparams];
+  int lengths_[nparams];
+  int binary_[nparams];
+
+  const char** values = values_;
+  int* lengths = lengths_;
+  int* binary = binary_;
+
+  int i = 0;
+  tuple_map(std::forward_as_tuple(args...), [&](const auto& a) {
+    bind_param(a, values + i, lengths + i, binary + i);
+    i += bind_compute_nparam(a);
+  });
+
+  // std::cout << "flush" << std::endl;
+  // FIXME: do we really need to flush the results here ?
+  // flush_results();
+  // std::cout << "flushed" << std::endl;
+  // std::cout << "sending " << data_.stmt_name.c_str() << " with " << nparams << " params" <<
+  // std::endl;
+  if (!PQsendQueryPrepared(connection_, data_.stmt_name.c_str(), nparams, values, lengths, binary,
+                           1)) {
+    throw std::runtime_error(std::string("Postresql error:") + PQerrorMessage(connection_));
+  }
+  return sql_result<pgsql_result<Y>>{
+      pgsql_result<Y>{this->connection_, this->fiber_, this->connection_status_}};
+}
+
+// FIXME long long int affected_rows() { return pgsql_stmt_affected_rows(data_.stmt_); }
+
+} // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_STATEMENT_HPP
+
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_STATEMENT_HH
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_CONNECTION_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_CONNECTION_HH
+
+
+#include "libpq-fe.h"
+
+
+namespace li {
 
 struct pgsql_tag {};
-
-struct pgsql_database;
-
 
 struct pgsql_connection_data {
 
   ~pgsql_connection_data() {
-    if (connection)
-    {
+    if (connection) {
       cancel();
       PQfinish(connection);
-      // std::cerr << " DISCONNECT " << fd << std::endl;
-      total_number_of_pgsql_connections--;
     }
   }
   void cancel() {
-    if (connection)
-    {
+    if (connection) {
       // Cancel any pending request.
       PGcancel* cancel = PQgetCancel(connection);
       char x[256];
-      if (cancel)
-      {
+      if (cancel) {
         PQcancel(cancel, x, 256);
         PQfreeCancel(cancel);
       }
     }
-  } 
+  }
 
   PGconn* connection = nullptr;
   int fd = -1;
@@ -1381,15 +1619,12 @@ struct pgsql_connection_data {
 
 thread_local std::deque<std::shared_ptr<pgsql_connection_data>> pgsql_connection_pool;
 
-template <typename Y>
-void pq_wait(Y& yield, PGconn* con)
-{
-  while (PQisBusy(con)) yield();
-}
+// template <typename Y> void pq_wait(Y& yield, PGconn* con) {
+//   while (PQisBusy(con))
+//     yield();
+// }
 
-
-template <typename Y>
-struct pgsql_connection {
+template <typename Y> struct pgsql_connection {
 
   Y& fiber_;
   std::shared_ptr<pgsql_connection_data> data_;
@@ -1402,122 +1637,80 @@ struct pgsql_connection {
   inline pgsql_connection(const pgsql_connection&) = delete;
   inline pgsql_connection& operator=(const pgsql_connection&) = delete;
   inline pgsql_connection(pgsql_connection&&) = default;
-  
-  inline pgsql_connection(Y& fiber, std::shared_ptr<li::pgsql_connection_data> data)
-      : fiber_(fiber), data_(data), stm_cache_(data->statements),
-        connection_(data->connection){
 
-    connection_status_ = std::shared_ptr<int>(new int(0), [data](int* p) mutable {
-      if (*p or pgsql_connection_pool.size() > max_pgsql_connections_per_thread)
-      {
-        assert(total_number_of_pgsql_connections >= 1);
-        //yield.unsubscribe(data->fd);
-        //std::cerr << "Discarding broken pgsql connection." << std::endl;
-      }
-      else
-      {
-         pgsql_connection_pool.push_back(data);
-      }
-    });
+  template <typename P>
+  inline pgsql_connection(Y& fiber, std::shared_ptr<li::pgsql_connection_data> data,
+                          P put_data_back_in_pool)
+      : fiber_(fiber), data_(data), stm_cache_(data->statements), connection_(data->connection) {
+
+    connection_status_ =
+        std::shared_ptr<int>(new int(0), [data, put_data_back_in_pool](int* p) mutable {
+          put_data_back_in_pool(data, *p);
+        });
   }
 
   ~pgsql_connection() {
-    if (connection_status_ && *connection_status_ == 0)
-    {
+    if (connection_status_ && *connection_status_ == 0) {
       // flush results if needed.
       // while (PGresult* res = wait_for_next_result())
       //   PQclear(res);
     }
   }
 
-  //FIXME long long int last_insert_rowid() { return pgsql_insert_id(connection_); }
+  // FIXME long long int last_insert_rowid() { return pgsql_insert_id(connection_); }
 
-  //pgsql_statement<Y> operator()(const std::string& rq) { return prepare(rq)(); }
+  // pgsql_statement<Y> operator()(const std::string& rq) { return prepare(rq)(); }
 
-  // Read request returning 1 scalar. Use prepared statement for more advanced read functions.
-  template <typename T>
-  T read()
-  {
-    PGresult* res = wait_for_next_result();
-    return boost::lexical_cast<T>(PQgetvalue(res, 0, 0));
-  }
-
-  auto& operator()(const std::string& rq) {
-    wait();
-    if (!PQsendQuery(connection_, rq.c_str()))
+  auto operator()(const std::string& rq) {
+    if (!PQsendQueryParams(connection_, rq.c_str(), 0, nullptr, nullptr, nullptr, nullptr, 1))
       throw std::runtime_error(std::string("Postresql error:") + PQerrorMessage(connection_));
-    return *this;
+    return sql_result<pgsql_result<Y>>{
+        pgsql_result<Y>{this->connection_, this->fiber_, this->connection_status_}};
   }
 
-  void wait () {
-    while (PGresult* res = wait_for_next_result())
-      PQclear(res);
-  }
-
-  PGresult* wait_for_next_result() {
-    while (true)
-    {
-      if (PQconsumeInput(connection_) == 0)
-        throw std::runtime_error(std::string("PQconsumeInput() failed: ") + PQerrorMessage(connection_));
-
-      if (PQisBusy(connection_))
-      {
-        try {
-          fiber_.yield();
-        } catch (typename Y::exception_type& e) {
-          // Yield thrown a exception (probably because a closed connection).
-          // Mark the connection as broken because it is left in a undefined state.
-          *connection_status_ = 1;
-          throw std::move(e);
-        }
-      }
-      else 
-        return PQgetResult(connection_);
-    }
-  }
-
-  template <typename F, typename... K>
-  pgsql_statement<Y> cached_statement(F f, K... keys) {
-    if (data_->statements_hashmap(f, keys...).get() == nullptr)
-    {
+  // PQsendQueryParams
+  template <typename F, typename... K> pgsql_statement<Y> cached_statement(F f, K... keys) {
+    if (data_->statements_hashmap(f, keys...).get() == nullptr) {
       pgsql_statement<Y> res = prepare(f());
       data_->statements_hashmap(f, keys...) = res.data_.shared_from_this();
       return res;
-    }
-    else
-      return pgsql_statement<Y>{connection_, fiber_, 
-                               *data_->statements_hashmap(f, keys...),
-                               connection_status_};
+    } else
+      return pgsql_statement<Y>{connection_, fiber_, *data_->statements_hashmap(f, keys...),
+                                connection_status_};
   }
 
   pgsql_statement<Y> prepare(const std::string& rq) {
     auto it = stm_cache_.find(rq);
-    if (it != stm_cache_.end())
-    {
-      //pgsql_wrapper_.pgsql_stmt_free_result(it->second->stmt_);
-      //pgsql_wrapper_.pgsql_stmt_reset(it->second->stmt_);
+    if (it != stm_cache_.end()) {
+      // pgsql_wrapper_.pgsql_stmt_free_result(it->second->stmt_);
+      // pgsql_wrapper_.pgsql_stmt_reset(it->second->stmt_);
       return pgsql_statement<Y>{connection_, fiber_, *it->second, connection_status_};
     }
     std::stringstream stmt_name;
     stmt_name << (void*)connection_ << stm_cache_.size();
-    //std::cout << "prepare " << rq << " NAME: " << stmt_name.str() << std::endl;
+    // std::cout << "prepare " << rq << " NAME: " << stmt_name.str() << std::endl;
 
-    while (PGresult* res = wait_for_next_result())
-      PQclear(res);
+    // FIXME REALLY USEFUL??
+    // while (PGresult* res = wait_for_next_result())
+    //   PQclear(res);
 
-    if (!PQsendPrepare(connection_, stmt_name.str().c_str(), rq.c_str(), 0, nullptr)) { 
-      throw std::runtime_error(std::string("PQsendPrepare error") + PQerrorMessage(connection_)); 
+    if (!PQsendPrepare(connection_, stmt_name.str().c_str(), rq.c_str(), 0, nullptr)) {
+      throw std::runtime_error(std::string("PQsendPrepare error") + PQerrorMessage(connection_));
     }
+
     // flush results.
-    while(PGresult* ret = PQgetResult(connection_))
-    {
-      if (PQresultStatus(ret) == PGRES_FATAL_ERROR)
-        throw std::runtime_error(std::string("Postresql fatal error:") + PQerrorMessage(connection_));
-      if (PQresultStatus(ret) == PGRES_NONFATAL_ERROR)
-        std::cerr << "Postgresql non fatal error: " << PQerrorMessage(connection_) << std::endl;
+    while (PGresult* ret = pg_wait_for_next_result(connection_, fiber_, connection_status_))
       PQclear(ret);
-    }
-    //pq_wait(yield_, connection_);
+
+    // while (PGresult* ret = PQgetResult(connection_)) {
+    //   if (PQresultStatus(ret) == PGRES_FATAL_ERROR)
+    //     throw std::runtime_error(std::string("Postresql fatal error:") +
+    //                              PQerrorMessage(connection_));
+    //   if (PQresultStatus(ret) == PGRES_NONFATAL_ERROR)
+    //     std::cerr << "Postgresql non fatal error: " << PQerrorMessage(connection_) << std::endl;
+    //   PQclear(ret);
+    // }
+    // pq_wait(yield_, connection_);
 
     auto pair = stm_cache_.emplace(rq, std::make_shared<pgsql_statement_data>(stmt_name.str()));
     return pgsql_statement<Y>{connection_, fiber_, *pair.first->second, connection_status_};
@@ -1539,18 +1732,195 @@ struct pgsql_connection {
     ss << "VARCHAR(" << S << ')';
     return ss.str();
   }
-
 };
 
+} // namespace li
 
-struct pgsql_database : std::enable_shared_from_this<pgsql_database> {
 
-  std::mutex mutex_;
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_CONNECTION_HH
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_DATABASE_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_DATABASE_HH
+
+
+namespace li {
+// thread local map of sql_database<I> -> sql_database_thread_local_data<I>;
+// This is used to store the thread local async connection pool.
+thread_local std::unordered_map<int, void*> sql_thread_local_data;
+thread_local int database_id_counter = 0;
+
+template <typename I> struct sql_database_thread_local_data {
+
+  typedef typename I::connection_data_type connection_data_type;
+
+  // Async connection pools.
+  std::deque<std::shared_ptr<connection_data_type>> async_connections_;
+
+  int n_connections_on_this_thread_ = 0;
+};
+
+struct active_yield {
+  typedef std::runtime_error exception_type;
+  void epoll_add(int, int) {}
+  void epoll_mod(int, int) {}
+  void yield() {}
+};
+
+template <typename I> struct sql_database {
+  I impl;
+
+  typedef typename I::connection_data_type connection_data_type;
+  typedef typename I::db_tag db_tag;
+
+  // Sync connections pool.
+  std::deque<std::shared_ptr<connection_data_type>> sync_connections_;
+  // Sync connections mutex.
+  std::mutex sync_connections_mutex_;
+
+  int n_sync_connections_ = 0;
+  int max_sync_connections_ = 0;
+  int max_async_connections_per_thread_ = 0;
+  int database_id_ = 0;
+
+  template <typename... O> sql_database(O&&... opts) : impl(std::forward<O>(opts)...) {
+    auto options = mmm(opts...);
+    max_async_connections_per_thread_ = get_or(options, s::max_async_connections_per_thread, 200);
+    max_sync_connections_ = get_or(options, s::max_sync_connections, 2000);
+
+    this->database_id_ = database_id_counter++;
+  }
+
+  ~sql_database() {
+    auto it = sql_thread_local_data.find(this->database_id_);
+    if (it != sql_thread_local_data.end())
+    {
+      delete (sql_database_thread_local_data<I>*) sql_thread_local_data[this->database_id_];
+      sql_thread_local_data.erase(this->database_id_);
+    }
+  }
+
+  auto& thread_local_data() {
+    auto it = sql_thread_local_data.find(this->database_id_);
+    if (it == sql_thread_local_data.end())
+    {
+      auto data = new sql_database_thread_local_data<I>;
+      sql_thread_local_data[this->database_id_] = data;
+      return *data;
+    }
+    else
+      return *(sql_database_thread_local_data<I>*) it->second;
+  }
+  /**
+   * @brief Provide a new mysql non blocking connection. The connection provides RAII: it will be
+   * placed back in the available connection pool whenever its constructor is called.
+   *
+   * @param fiber the fiber object providing the 3 non blocking logic methods:
+   *
+   *    - void epoll_add(int fd, int flags); // Make the current epoll fiber wakeup on
+   *                                            file descriptor fd
+   *    - void epoll_mod(int fd, int flags); // Modify the epoll flags on file
+   *                                            descriptor fd
+   *    - void yield() // Yield the current epoll fiber.
+   *
+   * @return the new connection.
+   */
+  template <typename Y> inline auto connect(Y& fiber) {
+
+    auto pool = [this] {
+
+      if constexpr (std::is_same_v<Y, active_yield>) // Synchonous mode
+        return make_metamap_reference(
+            s::connections = this->sync_connections_,
+            s::n_connections = this->n_sync_connections_,
+            s::max_connections = this->max_sync_connections_);
+      else  // Asynchonous mode
+        return make_metamap_reference(
+            s::connections = this->thread_local_data().async_connections_,
+            s::n_connections =  this->thread_local_data().n_connections_on_this_thread_,
+            s::max_connections = this->max_async_connections_per_thread_);
+    }();
+
+    std::shared_ptr<connection_data_type> data = nullptr;
+    while (!data) {
+
+      if (!pool.connections.empty()) {
+        auto lock = [&pool, this] {
+          if constexpr (std::is_same_v<Y, active_yield>)
+            return std::lock_guard<std::mutex>(this->sync_connections_mutex_);
+          else return 0;
+        }();
+        data = pool.connections.back();
+        pool.connections.pop_back();
+        fiber.epoll_add(impl.get_socket(data), EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
+      } else {
+        if (pool.n_connections > pool.max_connections) {
+          if constexpr (std::is_same_v<Y, active_yield>)
+            throw std::runtime_error("Maximum number of sql connection exeeded.");
+          else
+            // std::cout << "Waiting for a free mysql connection..." << std::endl;
+            fiber.yield();
+          continue;
+        }
+        pool.n_connections++;
+
+        try {
+
+          data = impl.new_connection(fiber);
+        } catch (typename Y::exception_type& e) {
+          pool.n_connections--;
+          throw std::move(e);
+        }
+
+        if (!data)
+          pool.n_connections--;
+      }
+    }
+    assert(data);
+    return impl.scoped_connection(
+        fiber, data, [pool, this](std::shared_ptr<connection_data_type> data, int error) {
+          if (!error && pool.connections.size() < pool.max_connections) {
+            auto lock = [&pool, this] {
+              if constexpr (std::is_same_v<Y, active_yield>)
+                return std::lock_guard<std::mutex>(this->sync_connections_mutex_);
+              else return 0;
+            }();
+
+            pool.connections.push_back(data);
+            
+          } else {
+            if (pool.connections.size() >= pool.max_connections)
+              std::cerr << "Error: connection pool size " << pool.connections.size()
+                        << " exceed pool max_connections " << pool.max_connections << std::endl;
+            pool.n_connections--;
+          }
+        });
+  }
+
+  /**
+   * @brief Provide a new mysql blocking connection. The connection provides RAII: it will be
+   * placed back in the available connection pool whenver its constructor is called.
+   *
+   * @return the connection.
+   */
+  inline auto connect() { active_yield yield; return this->connect(yield); }
+};
+
+}
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_DATABASE_HH
+
+
+namespace li {
+
+struct pgsql_database_impl {
+
+  typedef pgsql_connection_data  connection_data_type;
+
+  typedef pgsql_tag db_tag;
   std::string host_, user_, passwd_, database_;
   unsigned int port_;
   std::string character_set_;
 
-  template <typename... O> inline pgsql_database(O... opts) {
+  template <typename... O> inline pgsql_database_impl(O... opts) {
 
     auto options = mmm(opts...);
     static_assert(has_key(options, s::host), "open_pgsql_connection requires the s::host argument");
@@ -1564,128 +1934,89 @@ struct pgsql_database : std::enable_shared_from_this<pgsql_database> {
     database_ = options.database;
     user_ = options.user;
     passwd_ = options.password;
-    port_ = get_or(options, s::port, 0);
+    port_ = get_or(options, s::port, 5432);
     character_set_ = get_or(options, s::charset, "utf8");
 
     if (!PQisthreadsafe())
       throw std::runtime_error("LibPQ is not threadsafe.");
   }
 
-  template <typename Y>
-  inline pgsql_connection<Y> connect(Y& fiber) {
-
-    //std::cout << "nconnection " << total_number_of_pgsql_connections << std::endl;
-    std::shared_ptr<pgsql_connection_data> data = nullptr;
-    while (!data)
-    {
-
-      if (!pgsql_connection_pool.empty()) {
-        data = pgsql_connection_pool.back();
-        pgsql_connection_pool.pop_back();
-        fiber.epoll_add(data->fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
-      }
-      else
-      {
-        // std::cout << total_number_of_pgsql_connections << " connections. "<< std::endl;
-        if (total_number_of_pgsql_connections >= max_pgsql_connections_per_thread)
-        {
-          //std::cout << "Waiting for a free pgsql connection..." << std::endl;
-          fiber.yield();
-          continue;
-        }
-        total_number_of_pgsql_connections++;
-        PGconn* connection = nullptr;
-        int pgsql_fd = -1;
-        std::stringstream coninfo;
-        coninfo << "postgresql://" << user_ << ":" << passwd_ << "@" << host_ << ":" << port_ << "/" << database_;
-        // connection = PQconnectdb(coninfo.str().c_str());
-        connection = PQconnectStart(coninfo.str().c_str());
-        if (!connection)
-        {
-          std::cerr << "Warning: PQconnectStart returned null." << std::endl;
-          total_number_of_pgsql_connections--;
-          fiber.yield();
-          continue;
-        }
-        if (PQsetnonblocking(connection, 1) == -1)
-        {
-          std::cerr << "Warning: PQsetnonblocking returned -1: " << PQerrorMessage(connection) << std::endl;
-          PQfinish(connection);
-          total_number_of_pgsql_connections--;
-          fiber.yield();
-          continue;
-        }
-
-
-        int status = PQconnectPoll(connection);
-
-        pgsql_fd = PQsocket(connection);
-        if (pgsql_fd == -1)
-        {
-          std::cerr << "Warning: PQsocket returned -1: " << PQerrorMessage(connection) << std::endl;
-          // If PQsocket return -1, retry later.
-          PQfinish(connection);
-          total_number_of_pgsql_connections--;
-          fiber.yield();
-          continue;
-        }
-        fiber.epoll_add(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP);
-
-        try
-        {
-          while (status != PGRES_POLLING_FAILED and status != PGRES_POLLING_OK)
-          {
-            int new_pgsql_fd = PQsocket(connection);
-            if (new_pgsql_fd != pgsql_fd)
-            {
-              pgsql_fd = new_pgsql_fd;
-              fiber.epoll_add(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP);
-            }
-            fiber.yield();
-            status = PQconnectPoll(connection);
-          }
-        } catch (typename Y::exception_type& e) {
-          // Yield thrown a exception (probably because a closed connection).
-          total_number_of_pgsql_connections--;
-          PQfinish(connection);
-          throw std::move(e);
-        }
-        // std::cout << "CONNECTED " << std::endl;
-        fiber.epoll_mod(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
-        if (status != PGRES_POLLING_OK)
-        {
-          std::cerr << "Warning: cannot connect to the postgresql server " << host_  << ": " << PQerrorMessage(connection) << std::endl;
-          std::cerr<< "thread allocated connection == " << total_number_of_pgsql_connections <<  std::endl;
-          std::cerr<< "Maximum is " << max_pgsql_connections_per_thread <<  std::endl;
-          total_number_of_pgsql_connections--;
-          PQfinish(connection);
-          fiber.yield();
-          continue;
-        }
-
-
-        //pgsql_set_character_set(pgsql, character_set_.c_str());
-        data = std::shared_ptr<pgsql_connection_data>(new pgsql_connection_data{connection, pgsql_fd});
-      }
-    }
-    assert(data);
-    return pgsql_connection(fiber, data);
+  inline int get_socket(std::shared_ptr<pgsql_connection_data> data) {
+    return PQsocket(data->connection);
   }
 
-  struct active_yield {
-    typedef std::runtime_error exception_type;
-    void epoll_add(int, int) {}
-    void epoll_mod(int, int) {}
-    void yield() {}
-  };
+  template <typename Y> inline std::shared_ptr<pgsql_connection_data> new_connection(Y& fiber) {
 
-  inline pgsql_connection<active_yield> connect() {
-    return connect(*(active_yield*)0); // hack to make a reference to active_yield that holds no data.
+    PGconn* connection = nullptr;
+    int pgsql_fd = -1;
+    std::stringstream coninfo;
+    coninfo << "postgresql://" << user_ << ":" << passwd_ << "@" << host_ << ":" << port_ << "/"
+            << database_;
+    // connection = PQconnectdb(coninfo.str().c_str());
+    connection = PQconnectStart(coninfo.str().c_str());
+    if (!connection) {
+      std::cerr << "Warning: PQconnectStart returned null." << std::endl;
+      return nullptr;
+    }
+    if (PQsetnonblocking(connection, 1) == -1) {
+      std::cerr << "Warning: PQsetnonblocking returned -1: " << PQerrorMessage(connection)
+                << std::endl;
+      PQfinish(connection);
+      return nullptr;
+    }
+
+    int status = PQconnectPoll(connection);
+
+    pgsql_fd = PQsocket(connection);
+    if (pgsql_fd == -1) {
+      std::cerr << "Warning: PQsocket returned -1: " << PQerrorMessage(connection) << std::endl;
+      // If PQsocket return -1, retry later.
+      PQfinish(connection);
+      return nullptr;
+    }
+    fiber.epoll_add(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP);
+
+    try {
+      while (status != PGRES_POLLING_FAILED and status != PGRES_POLLING_OK) {
+        int new_pgsql_fd = PQsocket(connection);
+        if (new_pgsql_fd != pgsql_fd) {
+          pgsql_fd = new_pgsql_fd;
+          fiber.epoll_add(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP);
+        }
+        fiber.yield();
+        status = PQconnectPoll(connection);
+      }
+    } catch (typename Y::exception_type& e) {
+      // Yield thrown a exception (probably because a closed connection).
+      PQfinish(connection);
+      throw std::move(e);
+    }
+    // std::cout << "CONNECTED " << std::endl;
+    fiber.epoll_mod(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
+    if (status != PGRES_POLLING_OK) {
+      std::cerr << "Warning: cannot connect to the postgresql server " << host_ << ": "
+                << PQerrorMessage(connection) << std::endl;
+      PQfinish(connection);
+      return nullptr;
+    }
+
+    // pgsql_set_character_set(pgsql, character_set_.c_str());
+    return std::shared_ptr<pgsql_connection_data>(new pgsql_connection_data{connection, pgsql_fd});
+  }
+
+  template <typename Y, typename F>
+  auto scoped_connection(Y& fiber, std::shared_ptr<pgsql_connection_data>& data,
+                         F put_back_in_pool) {
+    return pgsql_connection(fiber, data, put_back_in_pool);
   }
 };
 
+typedef sql_database<pgsql_database_impl> pgsql_database;
 
 } // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_DATABASE_HH
+
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_HH
 
@@ -1831,7 +2162,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
   }
 
   inline auto& drop_table_if_exists() {
-    con_(std::string("DROP TABLE IF EXISTS ") + schema_.table_name()).wait();
+    con_(std::string("DROP TABLE IF EXISTS ") + schema_.table_name()).flush_results();
     return *this;
   }
 
@@ -1880,7 +2211,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     });
     ss << ");";
     try {
-      con_(ss.str()).wait();
+      con_(ss.str()).flush_results();
     } catch (std::runtime_error e) {
       std::cerr << "Warning: Lithium::sql could not create the " << schema_.table_name() << " sql table."
                 << std::endl
@@ -2009,7 +2340,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
     if constexpr(has_key<decltype(schema_.all_fields())>(s::id))
       return request_res.last_insert_id();
-    else return request_res.wait();
+    else return request_res.flush_results();
   };
 
   template <typename A, typename B, typename... O, typename... W>
@@ -2053,7 +2384,8 @@ template <typename SCHEMA, typename C> struct sql_orm {
   }
 
   // Update N's members except auto increment members.
-  // N must have at least one primary key.
+  // N must have at least one primary key named id.
+  // Only postgres is supported for now.
   template <typename N, typename... CB> void bulk_update(const N& elements, CB&&... args) {
 
     if constexpr(!std::is_same<typename C::db_tag, pgsql_tag>::value)
