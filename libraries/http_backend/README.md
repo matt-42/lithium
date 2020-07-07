@@ -11,10 +11,17 @@ also server <-> database (except SQLite which does not use the network).
 
 
 # Main features
-  - Custom aync input/output engine based on epoll
-  - PostgreSQL (async), Mysql (async), Sqlite (sync) connectors and ORMs.
+  - High performance aync input/output engine based on epoll
+  - PostgreSQL (async), Mysql (async), Sqlite (sync) connectors
+  - Authentication
+  - Object relational mapping for SQL databases
   - Static file serving
-  - Pipelining
+  - HTTP Pipelining
+  - HTTPS
+
+# Dependencies
+  - OpenSSL
+  - Boost
 
 # Supported platforms
 
@@ -45,8 +52,11 @@ int main() {
     response.write("hello world.");
   };
 
-  //Start a http server.
+  // Start a http server.
   http_serve(api, 12345);
+
+  // Or start a https server:
+  http_serve(api, 443, s::ssl_key = "./server.key", s::ssl_certificate = "./server.crt");
 }
 ```
 
