@@ -113,7 +113,7 @@ template <typename I> struct sql_database {
         pool.connections.pop_back();
         fiber.epoll_add(impl.get_socket(data), EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
       } else {
-        if (pool.n_connections > pool.max_connections) {
+        if (pool.n_connections >= pool.max_connections) {
           if constexpr (std::is_same_v<Y, active_yield>)
             throw std::runtime_error("Maximum number of sql connection exeeded.");
           else
