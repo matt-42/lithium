@@ -86,54 +86,22 @@ template <typename I> struct sql_database {
    */
   template <typename Y> inline auto connect(Y& fiber) {
 
-    auto pool = [t=this] {
+    auto pool = [this] {
 
       if constexpr (std::is_same_v<Y, active_yield>) // Synchonous mode
         return make_metamap_reference(
-            s::connections = t->sync_connections_,
-            s::n_connections = t->n_sync_connections_,
-            s::max_connections = t->max_sync_connections_);
+            s::connections = this->sync_connections_,
+            s::n_connections = this->n_sync_connections_,
+            s::max_connections = this->max_sync_connections_);
       else  // Asynchonous mode
         return make_metamap_reference(
-            s::connections = t->thread_local_data().async_connections_,
-            s::n_connections =  t->thread_local_data().n_connections_on_this_thread_,
-            s::max_connections = t->max_async_connections_per_thread_);
+            s::connections = this->thread_local_data().async_connections_,
+            s::n_connections =  this->thread_local_data().n_connections_on_this_thread_,
+            s::max_connections = this->max_async_connections_per_thread_);
     }();
 
-    // void * x  = pool;
-    // auto& connection_pool = [] {
-    //   if constexpr (std::is_same_v<Y, active_yield>)
-    //     return this->sync_connections_;
-    //   else
-    //     return this->thread_local_data().async_connections_;
-    // }();
-
-    // auto lock_pool = [] {
-    //   if constexpr (std::is_same_v<Y, active_yield>)
-    //     return std::scoped_lock<std::mutex>(this->sync_connections_mutex_);
-    //   else
-    //     return 0;
-    // };
-
-    // int& n_connections = [] {
-    //   if constexpr (std::is_same_v<Y, active_yield>)
-    //     return this->n_sync_connections_;
-    //   else
-    //     return this->thread_local_data().n_connections_on_this_thread_;
-    // };
-    // int max_connections = [] {
-    //   if constexpr (std::is_same_v<Y, active_yield>)
-    //     return this->max_sync_connections_;
-    //   else
-    //     return impl.max_connections_per_thread_;
-    // };
-
-    // int ntry = 0;
     std::shared_ptr<connection_data_type> data = nullptr;
     while (!data) {
-      // if (ntry > 20)
-      //   throw std::runtime_error("Cannot connect to the database");
-      // ntry++;
 
       if (!pool.connections.empty()) {
         auto lock = [&pool, this] {
@@ -145,7 +113,6 @@ template <typename I> struct sql_database {
         pool.connections.pop_back();
         fiber.epoll_add(impl.get_socket(data), EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
       } else {
-        // std::cout << total_number_of_mysql_connections << " connections. "<< std::endl;
         if (pool.n_connections > pool.max_connections) {
           if constexpr (std::is_same_v<Y, active_yield>)
             throw std::runtime_error("Maximum number of sql connection exeeded.");
@@ -175,7 +142,6 @@ template <typename I> struct sql_database {
             auto lock = [&pool, this] {
               if constexpr (std::is_same_v<Y, active_yield>)
                 return std::lock_guard<std::mutex>(this->sync_connections_mutex_);
-                // return std::lock_guard<std::mutex>(pool.mutex);
               else return 0;
             }();
 
