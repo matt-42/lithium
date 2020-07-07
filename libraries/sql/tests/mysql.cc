@@ -4,15 +4,18 @@
 #include <iostream>
 #include <li/sql/mysql.hh>
 
+#include "generic_sql_tests.hh"
+
 int main() {
   using namespace li;
 
-  try {
+  // try {
     auto database = mysql_database(s::host = "127.0.0.1", s::database = "mysql_test", s::user = "root",
                             s::password = "lithium_test", s::port = 14550, s::charset = "utf8");
 
+    generic_sql_tests(database);
     auto con = database.connect();
-
+    
     con("DROP table if exists users_test_mysql;");
     con("CREATE TABLE users_test_mysql (id int,name TEXT,age int);");
 
@@ -78,8 +81,9 @@ int main() {
       i++;
     });
 
-  } catch (const std::exception& e) {
-    std::cerr << "error during test: " << e.what() << std::endl;
-    return 1;
-  }
+  // } catch (const std::exception& e) {
+  //   std::cerr << "error during test: " << e.what() << std::endl;
+  //   throw e;
+  //   return 1;
+  // }
 }

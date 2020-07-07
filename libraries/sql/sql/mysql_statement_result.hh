@@ -26,7 +26,7 @@ template <typename B> struct mysql_statement_result {
   /**
    * @brief Destructor. Free the result if needed.
    */
-  inline ~mysql_statement_result() { flush_result(); }
+  inline ~mysql_statement_result() { flush_results(); }
 
   inline void flush_results() {
     if (result_allocated_)
@@ -35,7 +35,7 @@ template <typename B> struct mysql_statement_result {
   }
 
   // Read std::tuple and li::metamap.
-  template <typename... T> bool read(T&& output);
+  template <typename T> bool read(T&& output);
 
   /**
    * @return the number of rows affected by the request.
@@ -63,10 +63,10 @@ template <typename B> struct mysql_statement_result {
   void fetch_column(MYSQL_BIND& b, unsigned long real_length, sql_varchar<SIZE>& v, int i);
   template <typename T> int fetch(T&& o);
 
-  bool result_allocated_ = false;
   B& mysql_wrapper_;
   mysql_statement_data& data_;
   std::shared_ptr<int> connection_status_;
+  bool result_allocated_ = false;
 };
 
 } // namespace li

@@ -9,6 +9,7 @@
 
 #include <li/sql/internal/mysql_bind.hh>
 #include <li/sql/internal/mysql_statement_data.hh>
+#include <li/sql/sql_result.hh>
 #include <li/sql/mysql_async_wrapper.hh>
 #include <li/sql/mysql_statement_result.hh>
 
@@ -20,13 +21,6 @@ namespace li {
  * @tparam B the blocking or non blocking mode.
  */
 template <typename B> struct mysql_statement {
-
-  /**
-   * @brief Execute the statement without arguments.
-   *
-   * @return mysql_statement_result<B> the result of the query.
-   */
-  mysql_statement_result<B> operator()();
 
   /**
    * @brief Execute the statement with argument.

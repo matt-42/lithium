@@ -40,9 +40,10 @@ template <typename B> struct mysql_result {
   MYSQL_RES* result_ = nullptr; // Mysql result.
 
   unsigned long* current_row_lengths_ = nullptr;
-  MYSQL_ROW curent_row_ = nullptr;
+  MYSQL_ROW current_row_ = nullptr;
   bool end_of_result_ = false;
-
+  int current_row_num_fields_ = 0;
+  
   mysql_result& operator=(mysql_result&) = delete;
   mysql_result(const mysql_result&) = delete;
 
@@ -50,7 +51,7 @@ template <typename B> struct mysql_result {
 
   inline void flush() { if (result_) { mysql_free_result(result_); result_ = nullptr; } } 
   inline void flush_results() { this->flush(); }
-
+  inline void next_row();
   template <typename T> bool read(T&& output);
 
   /**

@@ -68,6 +68,7 @@ inline std::shared_ptr<mysql_connection_data> mysql_database_impl::new_connectio
   mysql_init(mysql);
 
   if constexpr (std::is_same_v<Y, active_yield>) { // Synchronous connection
+    connection = mysql;
     connection = mysql_real_connect(connection, host_.c_str(), user_.c_str(), passwd_.c_str(),
                                     database_.c_str(), port_, NULL, 0);
     if (!connection)
@@ -111,7 +112,7 @@ inline std::shared_ptr<mysql_connection_data> mysql_database_impl::new_connectio
   return std::shared_ptr<mysql_connection_data>(new mysql_connection_data{mysql});
 }
 
-template <typename Y>
+template <typename Y, typename F>
 inline auto mysql_database_impl::scoped_connection(Y& fiber,
                                                    std::shared_ptr<mysql_connection_data>& data,
                                                    F put_back_in_pool) {

@@ -50,6 +50,11 @@
     LI_SYMBOL(computed)
 #endif
 
+#ifndef LI_SYMBOL_connections
+#define LI_SYMBOL_connections
+    LI_SYMBOL(connections)
+#endif
+
 #ifndef LI_SYMBOL_database
 #define LI_SYMBOL_database
     LI_SYMBOL(database)
@@ -63,6 +68,26 @@
 #ifndef LI_SYMBOL_id
 #define LI_SYMBOL_id
     LI_SYMBOL(id)
+#endif
+
+#ifndef LI_SYMBOL_max_async_connections_per_thread
+#define LI_SYMBOL_max_async_connections_per_thread
+    LI_SYMBOL(max_async_connections_per_thread)
+#endif
+
+#ifndef LI_SYMBOL_max_connections
+#define LI_SYMBOL_max_connections
+    LI_SYMBOL(max_connections)
+#endif
+
+#ifndef LI_SYMBOL_max_sync_connections
+#define LI_SYMBOL_max_sync_connections
+    LI_SYMBOL(max_sync_connections)
+#endif
+
+#ifndef LI_SYMBOL_n_connections
+#define LI_SYMBOL_n_connections
+    LI_SYMBOL(n_connections)
 #endif
 
 #ifndef LI_SYMBOL_password

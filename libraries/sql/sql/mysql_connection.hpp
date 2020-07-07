@@ -37,7 +37,7 @@ inline mysql_connection<B>::mysql_connection(B mysql_wrapper,
     : mysql_wrapper_(mysql_wrapper), data_(data) {
 
   connection_status_ =
-      std::shared_ptr<int>(new int(0), [=](int* p) mutable { put_data_back_in_pool(data, *p); });
+      std::shared_ptr<int>(new int(0), [put_data_back_in_pool, data](int* p) mutable { put_data_back_in_pool(data, *p); });
 }
 
 template <typename B> long long int mysql_connection<B>::last_insert_rowid() {

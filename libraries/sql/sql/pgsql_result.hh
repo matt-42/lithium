@@ -1,5 +1,7 @@
 #pragma once
 
+namespace li {
+
 template <typename Y> struct pgsql_result {
 
 public:
@@ -17,7 +19,7 @@ private:
   int last_insert_id_ = -1;
   int row_i_ = 0;
   int current_result_nrows_ = 0;
-  PGResult* current_result_ = nullptr;
+  PGresult* current_result_ = nullptr;
 
   // Wait for the next result.
   PGresult* wait_for_next_result();
@@ -33,4 +35,5 @@ private:
   void fetch_value(unsigned int& out, char* val, int length, bool is_binary);
 };
 
+} // namespace li
 #include <li/sql/pgsql_result.hpp>

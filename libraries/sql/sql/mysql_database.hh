@@ -26,14 +26,14 @@
 #include <li/sql/type_hashmap.hh>
 
 #include <li/sql/mysql_connection.hh>
+#include <li/sql/sql_database.hh>
 
 namespace li {
 
 struct mysql_database_impl {
 
   typedef mysql_tag db_tag;
-  typedef connection_type mysql_connection;
-  typedef connection_data_type mysql_connection_data;
+  typedef mysql_connection_data connection_data_type;
 
   /**
    * @brief Construct a new mysql database object
@@ -48,12 +48,16 @@ struct mysql_database_impl {
    *                 - s::charset = "character set" default: utf8
    *
    */
-  template <typename... O> inline mysql_database(O... opts);
-  
-  inline ~mysql_database();
+  template <typename... O> inline mysql_database_impl(O... opts);
 
-  template <typename Y> inline mysql_connection<mysql_functions_non_blocking<Y>> new_connection(Y& fiber);
+  inline ~mysql_database_impl();
+
+  template <typename Y> inline std::shared_ptr<mysql_connection_data> new_connection(Y& fiber);
   inline int get_socket(std::shared_ptr<mysql_connection_data> data);
+
+  template <typename Y, typename F>
+  inline auto scoped_connection(Y& fiber, std::shared_ptr<mysql_connection_data>& data,
+                                F put_back_in_pool);
 
   std::string host_, user_, passwd_, database_;
   unsigned int port_;

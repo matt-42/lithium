@@ -30,8 +30,6 @@ namespace li {
 
 struct pgsql_tag {};
 
-struct pgsql_database;
-
 struct pgsql_connection_data {
 
   ~pgsql_connection_data() {
@@ -85,7 +83,7 @@ template <typename Y> struct pgsql_connection {
       : fiber_(fiber), data_(data), stm_cache_(data->statements), connection_(data->connection) {
 
     connection_status_ = std::shared_ptr<int>(
-        new int(0), [data](int* p) mutable { put_data_back_in_pool(data, *p); });
+        new int(0), [data, put_data_back_in_pool](int* p) mutable { put_data_back_in_pool(data, *p); });
   }
 
   ~pgsql_connection() {

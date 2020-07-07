@@ -1,9 +1,11 @@
 #pragma once
 
+#include "libpq-fe.h"
+
 namespace li {
 
 template <typename Y>
-PGresult* pg_wait_for_next_result(PGConn* connection, Y& fiber, std::shared_ptr<int> connection_status)
+PGresult* pg_wait_for_next_result(PGconn* connection, Y& fiber, std::shared_ptr<int> connection_status)
 {
     // std::cout << "WAIT ======================" << std::endl;
   while (true) {
@@ -55,13 +57,13 @@ void pgsql_result<Y>::fetch_value(std::string& out, char* val, int length,
 // Fetch a blob from a result field.
 template <typename Y>
 template <typename... A>
-void fetch_value(sql_blob& out, char* val, int length, bool is_binary) {
+void pgsql_result<Y>::fetch_value(sql_blob& out, char* val, int length, bool is_binary) {
   // assert(is_binary);
   out = std::move(std::string(val, length));
 }
 
 // Fetch an int from a result field.
-template <typename Y> void fetch_value(int& out, char* val, int length, bool is_binary) {
+template <typename Y> void pgsql_result<Y>::fetch_value(int& out, char* val, int length, bool is_binary) {
   assert(is_binary);
   // std::cout << "fetch integer " << length << " " << is_binary << std::endl;
   // std::cout << "fetch integer " << be64toh(*((uint64_t *) val)) << std::endl;
@@ -112,25 +114,25 @@ template <typename B> template <typename T> bool pgsql_result<B>::read(T&& outpu
   if constexpr (is_tuple<T>::value) {
     int field_i = 0;
 
-    int nfields = PQnfields(res);
-    if (nfields != sizeof...(A))
+    int nfields = PQnfields(current_result_);
+    if (nfields != std::tuple_size_v<std::decay_t<T>>)
       throw std::runtime_error("postgresql error: in fetch: Mismatch between the request number of "
                                "field and the outputs.");
 
     tuple_map(std::forward<T>(output), [&](auto& m) {
-      fetch_value(m, PQgetvalue(res, row_i, field_i), PQgetlength(res, row_i, field_i),
-                  PQfformat(res, field_i));
+      fetch_value(m, PQgetvalue(current_result_, row_i_, field_i), PQgetlength(current_result_, row_i_, field_i),
+                  PQfformat(current_result_, field_i));
       field_i++;
     });
   } else { // Metamaps.
     li::map(std::forward<T>(output), [&](auto k, auto& m) {
-      int field_i = PQfnumber(res, symbol_string(k));
+      int field_i = PQfnumber(current_result_, symbol_string(k));
       if (field_i == -1)
         throw std::runtime_error(std::string("postgresql errror : Field ") + symbol_string(k) +
                                  " not fount in result.");
 
-      fetch_value(m, PQgetvalue(res, row_i, field_i), PQgetlength(res, row_i, field_i),
-                  PQfformat(res, field_i));
+      fetch_value(m, PQgetvalue(current_result_, row_i_, field_i), PQgetlength(current_result_, row_i_, field_i),
+                  PQfformat(current_result_, field_i));
     });
   }
 

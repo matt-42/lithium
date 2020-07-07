@@ -1,6 +1,9 @@
+#pragma once
+
 #include <deque>
 #include <unordered_map>
 
+namespace li {
 // thread local map of sql_database<I> -> sql_database_thread_local_data<I>;
 // This is used to store the thread local async connection pool.
 thread_local std::unordered_map<int, void*> sql_thread_local_data;
@@ -8,13 +11,13 @@ thread_local int database_id_counter = 0;
 
 template <typename I> struct sql_database_thread_local_data {
 
-  using typename I::connection_data_type connection_data_type;
+  typedef typename I::connection_data_type connection_data_type;
 
   // Async connection pools.
-  std::deque<std::shared_ptr<mysql_connection_data>> async_connections_;
+  std::deque<std::shared_ptr<connection_data_type>> async_connections_;
 
   int n_connections_on_this_thread_ = 0;
-}
+};
 
 struct active_yield {
   typedef std::runtime_error exception_type;
@@ -26,23 +29,25 @@ struct active_yield {
 template <typename I> struct sql_database {
   I impl;
 
+  typedef typename I::connection_data_type connection_data_type;
+  typedef typename I::db_tag db_tag;
+
   // Sync connections pool.
-  std::deque<std::shared_ptr<mysql_connection_data>> sync_connections_;
+  std::deque<std::shared_ptr<connection_data_type>> sync_connections_;
   // Sync connections mutex.
   std::mutex sync_connections_mutex_;
 
   int n_sync_connections_ = 0;
   int max_sync_connections_ = 0;
-  int max_sql_connections_per_thread_ = 0;
+  int max_async_connections_per_thread_ = 0;
   int database_id_ = 0;
 
-  using typename I::connection_data_type connection_data_type;
-
   template <typename... O> sql_database(O&&... opts) : impl(std::forward<O>(opts)...) {
-    max_async_connections_per_thread_ = get_or(option, s::max_async_connections_per_thread, 200);
-    max_sync_connections_ = get_or(option, s::max_sync_connections, 2000);
+    auto options = mmm(opts...);
+    max_async_connections_per_thread_ = get_or(options, s::max_async_connections_per_thread, 200);
+    max_sync_connections_ = get_or(options, s::max_sync_connections, 2000);
 
-    this->database_id_ = database_id_counter++:
+    this->database_id_ = database_id_counter++;
   }
 
   auto& thread_local_data() {
@@ -63,22 +68,22 @@ template <typename I> struct sql_database {
    * @return the new connection.
    */
   template <typename Y> inline auto connect(Y& fiber) {
-    auto pool = [] {
+
+    auto pool = [t=this] {
+
       if constexpr (std::is_same_v<Y, active_yield>) // Synchonous mode
         return make_metamap_reference(
-            s::connections = this->sync_connections_,
-            s::lock_pool =
-                [] { return std::scoped_lock<std::mutex>(this->sync_connections_mutex_); },
-            s::n_connections = this->n_sync_connections_,
-            s::max_connections = this->max_sync_connections_);
+            s::connections = t->sync_connections_,
+            s::n_connections = t->n_sync_connections_,
+            s::max_connections = t->max_sync_connections_);
       else  // Asynchonous mode
         return make_metamap_reference(
-            s::connections = this->thread_local_data().async_connections_,
-            s::lock_pool = 0,
-            s::n_connections =  this->thread_local_data().n_connections_on_this_thread_,
-            s::max_connections = this->max_async_connections_per_thread_);
+            s::connections = t->thread_local_data().async_connections_,
+            s::n_connections =  t->thread_local_data().n_connections_on_this_thread_,
+            s::max_connections = t->max_async_connections_per_thread_);
     }();
 
+    // void * x  = pool;
     // auto& connection_pool = [] {
     //   if constexpr (std::is_same_v<Y, active_yield>)
     //     return this->sync_connections_;
@@ -111,10 +116,14 @@ template <typename I> struct sql_database {
     while (!data) {
       // if (ntry > 20)
       //   throw std::runtime_error("Cannot connect to the database");
-      ntry++;
+      // ntry++;
 
       if (!pool.connections.empty()) {
-        auto lock = pool.lock_pool();
+        auto lock = [&pool, this] {
+          if constexpr (std::is_same_v<Y, active_yield>)
+            return std::lock_guard<std::mutex>(this->sync_connections_mutex_);
+          else return 0;
+        }();
         data = pool.connections.back();
         pool.connections.pop_back();
         fiber.epoll_add(impl.get_socket(data), EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
@@ -144,10 +153,17 @@ template <typename I> struct sql_database {
     }
     assert(data);
     return impl.scoped_connection(
-        fiber, data, [&](std::shared_ptr<connection_data_type> data, int error) {
+        fiber, data, [pool, this](std::shared_ptr<connection_data_type> data, int error) {
           if (!error && pool.connections.size() < pool.max_connections) {
-            auto lock = pool.lock_pool();
+            auto lock = [&pool, this] {
+              if constexpr (std::is_same_v<Y, active_yield>)
+                return std::lock_guard<std::mutex>(this->sync_connections_mutex_);
+                // return std::lock_guard<std::mutex>(pool.mutex);
+              else return 0;
+            }();
+
             pool.connections.push_back(data);
+            
           } else {
             if (pool.connections.size() >= pool.max_connections)
               std::cerr << "Error: connection pool size " << pool.connections.size()
@@ -163,5 +179,7 @@ template <typename I> struct sql_database {
    *
    * @return the connection.
    */
-  inline auto connect() { this->connect(active_yield); }
+  inline auto connect() { active_yield yield; return this->connect(yield); }
+};
+
 }

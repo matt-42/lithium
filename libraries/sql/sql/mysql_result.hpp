@@ -14,6 +14,7 @@
 #include <sstream>
 #include <sys/epoll.h>
 #include <thread>
+#include <tuple>
 #include <unordered_map>
 
 #include <li/callable_traits/callable_traits.hh>
@@ -31,9 +32,9 @@ template <typename B> void mysql_result<B>::next_row() {
 
   if (!result_)
     result_ = mysql_use_result(con_);
-  curent_row_ = mysql_wrapper_.mysql_fetch_row(connection_status_, result_);
-
-  if (!row || mysql_num_fields(result_) == 0) {
+  current_row_ = mysql_wrapper_.mysql_fetch_row(connection_status_, result_);
+  current_row_num_fields_ = mysql_num_fields(result_);
+  if (!current_row_ || current_row_num_fields_ == 0) {
     end_of_result_ = true;
     return;
   }
@@ -43,36 +44,39 @@ template <typename B> void mysql_result<B>::next_row() {
 
 template <typename B> template <typename T> bool mysql_result<B>::read(T&& output) {
 
+  next_row();
+
   if (end_of_result_)
     return false;
 
   if constexpr (is_tuple<T>::value) { // Tuple
 
-    if (std::tuple_size<T1>() != num_fields)
-      throw std::runtime_error("The request number of field does not match the size of "
-                               "the tuple.");
+    if (std::tuple_size_v<std::decay_t<T>> != current_row_num_fields_)
+      throw std::runtime_error(std::string("The request number of field (") +
+                               boost::lexical_cast<std::string>(current_row_num_fields_) +
+                               ") does not match the size of the tuple (" +
+                               boost::lexical_cast<std::string>(std::tuple_size_v<std::decay_t<T>>) + ")");
     int i = 0;
     li::tuple_map(std::forward<T>(output), [&](auto& v) {
+      // std::cout << "read " << std::string_view(current_row_[i], current_row_lengths_[i]) << std::endl;
       v = boost::lexical_cast<std::decay_t<decltype(v)>>(
-          std::string_view(row[i], current_row_lengths_[i]));
+          std::string_view(current_row_[i], current_row_lengths_[i]));
       i++;
     });
 
   } else { // Metamap.
 
-    static_assert(sizeof...(T) != 0);
-
-    if (sizeof...(T) != mysql_num_fields(result_))
+    if (li::metamap_size(output) != current_row_num_fields_)
       throw std::runtime_error(
           "The request number of field does not match the size of the metamap object.");
     int i = 0;
     li::map(std::forward<T>(output), [&](auto k, auto& v) {
-      v = boost::lexical_cast<decltype(v)>(std::string_view(row[i], current_row_lengths_[i]));
+      v = boost::lexical_cast<decltype(v)>(
+          std::string_view(current_row_[i], current_row_lengths_[i]));
       i++;
     });
   }
 
-  next_row();
   return true;
 }
 

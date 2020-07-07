@@ -52,9 +52,13 @@ template <unsigned S> inline std::string cpptype_to_mysql_type(const sql_varchar
 // Bind parameter functions
 // Used to bind input parameters of prepared statement.
 template <unsigned N> struct mysql_bind_data {
-  mysql_bind_data() { memset(bind.data(), 0, N * sizeof(MYSQL_BIND)); }
+  mysql_bind_data() {
+     memset(bind.data(), 0, N * sizeof(MYSQL_BIND));
+     for (int i = 0; i < N; i++) bind[i].error = &errors[i];
+  }
   std::array<unsigned long, N> real_lengths;
   std::array<MYSQL_BIND, N> bind;
+  std::array<char, N> errors;
 };
 
 template <typename V> void mysql_bind_param(MYSQL_BIND& b, V& v) {
