@@ -1,17 +1,10 @@
 
 #include <li/sql/sqlite.hh>
+#include "generic_sql_tests.hh"
+
 
 int main() {
   auto db = li::sqlite_database("iod_sqlite_test.db");
 
-  auto c = db.connect();
-
-  c("DROP TABLE IF EXISTS person;");
-  c("CREATE TABLE IF NOT EXISTS person (id INTEGER PRIMARY KEY AUTOINCREMENT, "
-    "name VARCHAR, age INTEGER);");
-  c.prepare("INSERT into person(name, age) VALUES (?, ?)")("John", 42)("Ella", 21);
-
-  c("SELECT id, name, age from person").map([](int id, std::string name, int age) {
-    std::cout << id << ", " << name << ", " << age << std::endl;
-  });
+  generic_sql_tests(db);
 }

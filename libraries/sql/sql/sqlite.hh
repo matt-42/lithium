@@ -15,8 +15,8 @@
 #include <li/callable_traits/callable_traits.hh>
 #include <li/metamap/metamap.hh>
 #include <li/sql/sql_common.hh>
-#include <li/sql/symbols.hh>
 #include <li/sql/sql_result.hh>
+#include <li/sql/symbols.hh>
 #include <li/sql/type_hashmap.hh>
 #include <sqlite3.h>
 
@@ -35,11 +35,14 @@ using tuple_remove_references_and_const_t = typename tuple_remove_references_and
 void free_sqlite3_statement(void* s) { sqlite3_finalize((sqlite3_stmt*)s); }
 
 struct sqlite_statement_result {
+  sqlite3* db_;
   sqlite3_stmt* stmt_;
   int last_step_ret_;
 
-    // Read a tuple or a metamap.
-  template <typename B> template <typename T> bool read(T&& t1) {
+  inline void flush_results() { sqlite3_reset(stmt_); }
+
+  // Read a tuple or a metamap.
+  template <typename T> bool read(T&& output) {
 
     // Throw is nothing to read.
     if (last_step_ret_ != SQLITE_ROW)
@@ -48,32 +51,33 @@ struct sqlite_statement_result {
     // Tuple
     if constexpr (is_tuple<T>::value) {
       int ncols = sqlite3_column_count(stmt_);
-      if (ncols != sizeof...(A)) {
+      std::size_t tuple_size = std::tuple_size_v<std::decay_t<T>>;
+      if (ncols != tuple_size) {
         std::ostringstream ss;
         ss << "Invalid number of parameters: SQL request has " << ncols
-           << " fields but the function to process it has " << sizeof...(A) << " parameters.";
+           << " fields but the function to process it has " << tuple_size << " parameters.";
         throw std::runtime_error(ss.str());
       }
       int i = 0;
       auto read_elt = [&](auto& v) {
-        this->read_column(i, v);
+        this->read_column(i, v, sqlite3_column_type(stmt_, i));
         i++;
       };
-      ::li::tuple_map(std::forward<T>(o), read_elt);
+      ::li::tuple_map(std::forward<T>(output), read_elt);
     } else // Metamap
     {
       int ncols = sqlite3_column_count(stmt_);
-      int filled[sizeof...(A)];
-      for (unsigned i = 0; i < sizeof...(A); i++)
+      int filled[metamap_size<T>()];
+      for (unsigned i = 0; i < metamap_size<T>(); i++)
         filled[i] = 0;
 
       for (int i = 0; i < ncols; i++) {
         const char* cname = sqlite3_column_name(stmt_, i);
         bool found = false;
         int j = 0;
-        li::map(o, [&](auto k, auto& v) {
+        li::map(output, [&](auto k, auto& v) {
           if (!found and !filled[j] and !strcmp(cname, symbol_string(k))) {
-            this->read_column(i, v);
+            this->read_column(i, v, sqlite3_column_type(stmt_, i));
             filled[j] = 1;
           }
           j++;
@@ -91,22 +95,49 @@ struct sqlite_statement_result {
 
   long long int last_insert_id() { return sqlite3_last_insert_rowid(db_); }
 
-  void read_column(int pos, int& v) { v = sqlite3_column_int(stmt_, pos); }
-  void read_column(int pos, float& v) { v = float(sqlite3_column_double(stmt_, pos)); }
-  void read_column(int pos, double& v) { v = sqlite3_column_double(stmt_, pos); }
-  void read_column(int pos, int64_t& v) { v = sqlite3_column_int64(stmt_, pos); }
-  void read_column(int pos, std::string& v) {
+  void read_column(int pos, int& v, int sqltype) {
+    if (sqltype != SQLITE_INTEGER)
+      throw std::runtime_error(
+          "Type mismatch between request result data type and destination type (integer).");
+    v = sqlite3_column_int(stmt_, pos);
+  }
+
+  void read_column(int pos, float& v, int sqltype) {
+    if (sqltype != SQLITE_FLOAT)
+      throw std::runtime_error(
+          "Type mismatch between request result data type and destination type (float).");
+    v = float(sqlite3_column_double(stmt_, pos));
+  }
+
+  void read_column(int pos, double& v, int sqltype) {
+    if (sqltype != SQLITE_FLOAT)
+      throw std::runtime_error(
+          "Type mismatch between request result data type and destination type (double).");
+    v = sqlite3_column_double(stmt_, pos);
+  }
+
+  void read_column(int pos, int64_t& v, int sqltype) {
+    if (sqltype != SQLITE_INTEGER)
+      throw std::runtime_error(
+          "Type mismatch between request result data type and destination type (int64).");
+    v = sqlite3_column_int64(stmt_, pos);
+  }
+
+  void read_column(int pos, std::string& v, int sqltype) {
+    if (sqltype != SQLITE_TEXT && sqltype != SQLITE_BLOB)
+      throw std::runtime_error(
+          "Type mismatch between request result data type and destination type (std::string).");
     auto str = sqlite3_column_text(stmt_, pos);
     auto n = sqlite3_column_bytes(stmt_, pos);
     v = std::move(std::string((const char*)str, n));
   }
+
   // Todo: Date types
   // template <typename C, typename D>
   // void read_column(int pos, std::chrono::time_point<C, D>& v)
   // {
   //   v = std::chrono::time_point<C, D>(sqlite3_column_int(stmt_, pos));
   // }
-
 };
 
 struct sqlite_statement {
@@ -122,7 +153,7 @@ struct sqlite_statement {
       : db_(db), stmt_(s), stmt_sptr_(stmt_sptr(s, free_sqlite3_statement)) {}
 
   // Bind arguments to the request unknowns (marked with ?)
-  template <typename... T> sql_result<sqlite_statement> operator()(T&&... args) {
+  template <typename... T> sql_result<sqlite_statement_result> operator()(T&&... args) {
     sqlite3_reset(stmt_);
     sqlite3_clear_bindings(stmt_);
     int i = 1;
@@ -138,9 +169,9 @@ struct sqlite_statement {
     if (last_step_ret != SQLITE_ROW and last_step_ret != SQLITE_DONE)
       throw std::runtime_error(sqlite3_errstr(last_step_ret));
 
-    return sql_result<sqlite_statement_result>{sqlite_statement_result{this->stmt_, last_step_ret}};
+    return sql_result<sqlite_statement_result>{
+        sqlite_statement_result{this->db_, this->stmt_, last_step_ret}};
   }
-
 
   int bind(sqlite3_stmt* stmt, int pos, double d) const {
     return sqlite3_bind_double(stmt, pos, d);
@@ -166,7 +197,6 @@ struct sqlite_statement {
   int bind(sqlite3_stmt* stmt, int pos, const sql_blob& b) const {
     return sqlite3_bind_blob(stmt, pos, b.data(), b.size(), nullptr);
   }
-
 };
 
 void free_sqlite3_db(void* db) { sqlite3_close_v2((sqlite3*)db); }
@@ -232,7 +262,7 @@ struct sqlite_connection {
     cache_mutex_->unlock();
     return it2->second;
   }
-  sqlite_statement operator()(const std::string& req) { return prepare(req)(); }
+  sql_result<sqlite_statement_result> operator()(const std::string& req) { return prepare(req)(); }
 
   template <typename T>
   inline std::string type_to_string(const T&, std::enable_if_t<std::is_integral<T>::value>* = 0) {
@@ -250,7 +280,6 @@ struct sqlite_connection {
     ss << "VARCHAR(" << SIZE << ')';
     return ss.str();
   }
-
 };
 
 struct sqlite_database {
@@ -268,7 +297,7 @@ struct sqlite_database {
     if (has_key(options, s::synchronous)) {
       std::ostringstream ss;
       ss << "PRAGMA synchronous=" << li::get_or(options, s::synchronous, 2);
-      con_(ss.str())();
+      con_(ss.str());
     }
   }
 
