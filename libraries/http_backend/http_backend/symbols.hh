@@ -90,6 +90,16 @@
     LI_SYMBOL(session_id)
 #endif
 
+#ifndef LI_SYMBOL_ssl_certificate
+#define LI_SYMBOL_ssl_certificate
+    LI_SYMBOL(ssl_certificate)
+#endif
+
+#ifndef LI_SYMBOL_ssl_key
+#define LI_SYMBOL_ssl_key
+    LI_SYMBOL(ssl_key)
+#endif
+
 #ifndef LI_SYMBOL_update_secret_key
 #define LI_SYMBOL_update_secret_key
     LI_SYMBOL(update_secret_key)

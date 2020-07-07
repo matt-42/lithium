@@ -35,6 +35,11 @@
     LI_SYMBOL(database)
 #endif
 
+#ifndef LI_SYMBOL_disable_check_certificate
+#define LI_SYMBOL_disable_check_certificate
+    LI_SYMBOL(disable_check_certificate)
+#endif
+
 #ifndef LI_SYMBOL_get
 #define LI_SYMBOL_get
     LI_SYMBOL(get)
@@ -118,6 +123,16 @@
 #ifndef LI_SYMBOL_secret_key
 #define LI_SYMBOL_secret_key
     LI_SYMBOL(secret_key)
+#endif
+
+#ifndef LI_SYMBOL_ssl_certificate
+#define LI_SYMBOL_ssl_certificate
+    LI_SYMBOL(ssl_certificate)
+#endif
+
+#ifndef LI_SYMBOL_ssl_key
+#define LI_SYMBOL_ssl_key
+    LI_SYMBOL(ssl_key)
 #endif
 
 #ifndef LI_SYMBOL_test1

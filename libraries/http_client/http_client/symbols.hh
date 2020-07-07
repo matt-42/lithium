@@ -5,6 +5,11 @@
     LI_SYMBOL(body)
 #endif
 
+#ifndef LI_SYMBOL_disable_check_certificate
+#define LI_SYMBOL_disable_check_certificate
+    LI_SYMBOL(disable_check_certificate)
+#endif
+
 #ifndef LI_SYMBOL_fetch_headers
 #define LI_SYMBOL_fetch_headers
     LI_SYMBOL(fetch_headers)

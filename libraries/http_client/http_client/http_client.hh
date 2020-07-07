@@ -151,6 +151,9 @@ struct http_client {
 
     curl_easy_setopt(curl_, CURLOPT_HTTPHEADER, headers_list);
 
+    if (li::has_key(arguments, s::disable_check_certificate))
+      curl_easy_setopt(curl_, CURLOPT_SSL_VERIFYPEER, 0);
+    
     // Setup response header parsing.
     std::unordered_map<std::string, std::string> response_headers_map;
     if (fetch_headers) {

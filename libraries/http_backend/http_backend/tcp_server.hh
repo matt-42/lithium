@@ -20,6 +20,8 @@
 
 #include <boost/context/continuation.hpp>
 
+#include <li/http_backend/ssl_context.hh>
+
 namespace li {
 
 namespace impl {
@@ -103,18 +105,73 @@ struct async_fiber_context {
   int continuation_idx;
   int socket_fd;
   sockaddr in_addr;
+  SSL* ssl = nullptr;
+
+  async_fiber_context& operator=(const async_fiber_context&) = delete;
+  async_fiber_context(const async_fiber_context&) = delete;
+
+  async_fiber_context(async_reactor* reactor, boost::context::continuation&& sink,
+                      int continuation_idx, int socket_fd, sockaddr in_addr)
+      : reactor(reactor), sink(std::forward<boost::context::continuation&&>(sink)),
+        continuation_idx(continuation_idx), socket_fd(socket_fd),
+        in_addr(in_addr) {}
+
+  void yield() { sink = sink.resume(); }
+       
+  bool ssl_handshake(std::unique_ptr<ssl_context>& ssl_ctx) {
+    if (!ssl_ctx) return false;
+
+    ssl = SSL_new(ssl_ctx->ctx);
+    SSL_set_fd(ssl, socket_fd);
+
+    while (int ret = SSL_accept(ssl)) {
+      if (ret == 1) return true;
+
+      int err = SSL_get_error(ssl, ret);
+      if (err == SSL_ERROR_WANT_WRITE || err == SSL_ERROR_WANT_READ)
+        this->yield();
+      else
+      {
+        ERR_print_errors_fp(stderr);
+        return false;
+        // throw std::runtime_error("Error during https handshake.");
+      }
+    }
+    return false;
+  }
+
+  ~async_fiber_context() {
+    if (ssl)
+    {
+      SSL_shutdown(ssl);
+      SSL_free(ssl);
+    }
+  }
+
   void epoll_add(int fd, int flags);
   void epoll_mod(int fd, int flags);
 
-  void yield() { sink = sink.resume(); }
+ 
+  inline int read_impl(char* buf, int size) {
+    if (ssl)
+      return SSL_read(ssl, buf, size);
+    else
+      return ::recv(socket_fd, buf, size, 0);
+  }
+  inline int write_impl(const char* buf, int size) {
+    if (ssl)
+      return SSL_write(ssl, buf, size);
+    else
+      return ::send(socket_fd, buf, size, 0);
+  }
 
   int read(char* buf, int max_size) {
-    ssize_t count = ::recv(socket_fd, buf, max_size, 0);
+    ssize_t count = read_impl(buf, max_size);
     while (count <= 0) {
       if ((count < 0 and errno != EAGAIN) or count == 0)
         return ssize_t(0);
       sink = sink.resume();
-      count = ::recv(socket_fd, buf, max_size, 0);
+      count = read_impl(buf, max_size);
     }
     return count;
   };
@@ -126,14 +183,14 @@ struct async_fiber_context {
       return true;
     }
     const char* end = buf + size;
-    ssize_t count = ::send(socket_fd, buf, end - buf, MSG_NOSIGNAL);
+    ssize_t count = write_impl(buf, end - buf);
     if (count > 0)
       buf += count;
     while (buf != end) {
       if ((count < 0 and errno != EAGAIN) or count == 0)
         return false;
       sink = sink.resume();
-      count = ::send(socket_fd, buf, end - buf, MSG_NOSIGNAL);
+      count = write_impl(buf, end - buf);
       if (count > 0)
         buf += count;
     }
@@ -148,12 +205,13 @@ struct async_reactor {
   int epoll_fd;
   std::vector<continuation> fibers;
   std::vector<int> fd_to_fiber_idx;
+  std::unique_ptr<ssl_context> ssl_ctx = nullptr;
 
   continuation& fd_to_fiber(int fd) {
     assert(fd >= 0 and fd < fd_to_fiber_idx.size());
     int fiber_idx = fd_to_fiber_idx[fd];
     assert(fiber_idx >= 0 and fiber_idx < fibers.size());
-    
+
     return fibers[fiber_idx];
   }
 
@@ -163,7 +221,7 @@ struct async_reactor {
     event.data.fd = fd;
     event.events = flags;
     if (-1 == ::epoll_ctl(epoll_fd, action, fd, &event) and errno != EEXIST)
-      std::cout << "epoll_ctl error: " <<  strerror(errno) << std::endl;    
+      std::cout << "epoll_ctl error: " << strerror(errno) << std::endl;
   };
 
   void epoll_add(int new_fd, int flags, int fiber_idx = -1) {
@@ -202,7 +260,7 @@ struct async_reactor {
         int event_fd = events[i].data.fd;
 
         // Handle error on sockets.
-          if (event_flags & (EPOLLERR | EPOLLHUP | EPOLLRDHUP)) {
+        if (event_flags & (EPOLLERR | EPOLLHUP | EPOLLRDHUP)) {
           if (event_fd == listen_fd) {
             std::cout << "FATAL ERROR: Error on server socket " << event_fd << std::endl;
             quit_signal_catched = true;
@@ -261,21 +319,26 @@ struct async_reactor {
 
             // =============================================
             // Spawn a new continuation to handle the connection.
-            fibers[fiber_idx] =
-                boost::context::callcc([this, socket_fd, fiber_idx, in_addr, &handler](continuation&& sink) {
-                  scoped_fd sfd{socket_fd}; // Will finally close the fd.
-                  auto ctx = async_fiber_context{this, std::move(sink), fiber_idx, socket_fd, in_addr};
-                  try {
-                    handler(ctx);
-                  } catch (fiber_exception& ex) {
-                    return std::move(ex.c);
-                  } catch (const std::runtime_error& e) {
-                    std::cerr << "FATAL ERRROR: exception in fiber: " << e.what() << std::endl;
-                    assert(0);
-                    return std::move(sink);
-                  }
+            fibers[fiber_idx] = boost::context::callcc([this, socket_fd, fiber_idx, in_addr,
+                                                        &handler](continuation&& sink) {
+              scoped_fd sfd{socket_fd}; // Will finally close the fd.
+              auto ctx = async_fiber_context(this, std::move(sink), fiber_idx, socket_fd, in_addr);
+              try {
+                if (ssl_ctx && !ctx.ssl_handshake(this->ssl_ctx))
+                {
+                  std::cerr << "Error during SSL handshake" << std::endl;
                   return std::move(ctx.sink);
-                });
+                }
+                handler(ctx);
+              } catch (fiber_exception& ex) {
+                return std::move(ex.c);
+              } catch (const std::runtime_error& e) {
+                std::cerr << "FATAL ERRROR: exception in fiber: " << e.what() << std::endl;
+                assert(0);
+                return std::move(ctx.sink);
+              }
+              return std::move(ctx.sink);
+            });
             // =============================================
           }
         } else // Data available on existing sockets. Wake up the fiber associated with
@@ -306,7 +369,9 @@ void async_fiber_context::epoll_add(int fd, int flags) {
 }
 void async_fiber_context::epoll_mod(int fd, int flags) { reactor->epoll_mod(fd, flags); }
 
-template <typename H> void start_tcp_server(int port, int socktype, int nthreads, H conn_handler) {
+template <typename H>
+void start_tcp_server(int port, int socktype, int nthreads, H conn_handler,
+                      std::string ssl_key_path = "", std::string ssl_cert_path = "") {
 
   struct sigaction act;
   memset(&act, 0, sizeof(act));
@@ -321,6 +386,8 @@ template <typename H> void start_tcp_server(int port, int socktype, int nthreads
   for (int i = 0; i < nthreads; i++)
     ths.push_back(std::thread([&] {
       async_reactor reactor;
+      if (ssl_cert_path.size()) // Initialize the SSL/TLS context.
+        reactor.ssl_ctx = std::make_unique<ssl_context>(ssl_key_path, ssl_cert_path);
       reactor.event_loop(server_fd, conn_handler);
     }));
 
