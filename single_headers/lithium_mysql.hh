@@ -7,26 +7,26 @@
 
 #pragma once
 
-#include <map>
-#include <cassert>
-#include <atomic>
-#include <vector>
-#include <boost/lexical_cast.hpp>
-#include <utility>
-#include <sys/epoll.h>
-#include <any>
-#include <string>
-#include <memory>
-#include <cstring>
-#include <mutex>
-#include <sstream>
-#include <optional>
-#include <thread>
 #include <tuple>
-#include <iostream>
-#include <deque>
-#include <mysql.h>
+#include <thread>
+#include <boost/lexical_cast.hpp>
 #include <unordered_map>
+#include <mutex>
+#include <string>
+#include <mysql.h>
+#include <cassert>
+#include <map>
+#include <atomic>
+#include <sstream>
+#include <cstring>
+#include <sys/epoll.h>
+#include <deque>
+#include <vector>
+#include <iostream>
+#include <memory>
+#include <optional>
+#include <any>
+#include <utility>
 
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_HH
@@ -841,6 +841,11 @@ template <unsigned SIZE> struct sql_varchar : public std::string {
     LI_SYMBOL(computed)
 #endif
 
+#ifndef LI_SYMBOL_connections
+#define LI_SYMBOL_connections
+    LI_SYMBOL(connections)
+#endif
+
 #ifndef LI_SYMBOL_database
 #define LI_SYMBOL_database
     LI_SYMBOL(database)
@@ -854,6 +859,26 @@ template <unsigned SIZE> struct sql_varchar : public std::string {
 #ifndef LI_SYMBOL_id
 #define LI_SYMBOL_id
     LI_SYMBOL(id)
+#endif
+
+#ifndef LI_SYMBOL_max_async_connections_per_thread
+#define LI_SYMBOL_max_async_connections_per_thread
+    LI_SYMBOL(max_async_connections_per_thread)
+#endif
+
+#ifndef LI_SYMBOL_max_connections
+#define LI_SYMBOL_max_connections
+    LI_SYMBOL(max_connections)
+#endif
+
+#ifndef LI_SYMBOL_max_sync_connections
+#define LI_SYMBOL_max_sync_connections
+    LI_SYMBOL(max_sync_connections)
+#endif
+
+#ifndef LI_SYMBOL_n_connections
+#define LI_SYMBOL_n_connections
+    LI_SYMBOL(n_connections)
 #endif
 
 #ifndef LI_SYMBOL_password
@@ -1084,9 +1109,13 @@ template <unsigned S> inline std::string cpptype_to_mysql_type(const sql_varchar
 // Bind parameter functions
 // Used to bind input parameters of prepared statement.
 template <unsigned N> struct mysql_bind_data {
-  mysql_bind_data() { memset(bind.data(), 0, N * sizeof(MYSQL_BIND)); }
+  mysql_bind_data() {
+     memset(bind.data(), 0, N * sizeof(MYSQL_BIND));
+     for (int i = 0; i < N; i++) bind[i].error = &errors[i];
+  }
   std::array<unsigned long, N> real_lengths;
   std::array<MYSQL_BIND, N> bind;
+  std::array<char, N> errors;
 };
 
 template <typename V> void mysql_bind_param(MYSQL_BIND& b, V& v) {
@@ -1215,342 +1244,33 @@ mysql_bind_data<sizeof...(A)> mysql_bind_output(mysql_statement_data& data, std:
   return bind_data;
 }
 
+// Forward reference tuple impl.
+template <typename... A>
+mysql_bind_data<sizeof...(A)> mysql_bind_output(mysql_statement_data& data, std::tuple<A...>&& o) {
+  if (data.num_fields_ != sizeof...(A))
+    throw std::runtime_error("mysql_statement error: The number of column in the result set does "
+                             "not match the number of attributes of the tuple to bind.");
+
+  mysql_bind_data<sizeof...(A)> bind_data;
+  MYSQL_BIND* bind = bind_data.bind.data();
+  unsigned long* real_lengths = bind_data.real_lengths.data();
+
+  int i = 0;
+  tuple_map(std::forward<std::tuple<A...>>(o), [&](auto& m) {
+    mysql_bind_output(bind[i], real_lengths + i, m);
+    i++;
+  });
+
+  return bind_data;
+}
+
 } // namespace li
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_INTERNAL_MYSQL_BIND_HH
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_STATEMENT_RESULT_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_STATEMENT_RESULT_HH
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_RESULT_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_RESULT_HH
 
-
-
-
-namespace li {
-
-/**
- * @brief The prepared statement result interface.
- *
- * @tparam B
- */
-template <typename B> struct mysql_statement_result {
-
-  /**
-   * @return the number of rows affected by the request.
-   */
-  long long int affected_rows();
-
-  /**
-   * @brief access to the result of a single valued request (ex: select 1+2) and return the value.
-   * Throw an exception if the request returned nothing.
-   *
-   * @return T the result value.
-   */
-  template <typename T> T read();
-
-  /**
-   * @brief acces to the result of single valued request (ex: select 1+2) and return a optinal value
-   * wrapped with std::optional. the optional is empty if the request returned nothing.
-   * @return std::optional<T> the result optional value.
-   */
-  template <typename T> std::optional<T> read_optional();
-
-  /**
-   * @brief Like read_optional but inplace.
-   *
-   * @tparam T
-   * @param o the ouput optional value.
-   */
-  template <typename T> void read(std::optional<T>& o);
-
-  /**
-   * @brief Call a function on each result row.
-   * The function must take as argument all the select fields of the request.
-   *
-   * @example connection.prepare("Select id,post from post_items;")().map(
-   *        [&](std::string id, std::string post) {
-   *             std::cout << id << post << std::endl; });
-   *
-   * @param f the function.
-   */
-  template <typename F> void map(F f);
-
-  /**
-   * @brief Return the last id generated by a insert comment.
-   *
-   * @return the last inserted id.
-   */
-  long long int last_insert_id();
-
-  /**
-   * @return Return true if the statement returned no row.
-   */
-  bool empty();
-
-  // Internal methods.
-  void wait();
-  template <typename... A>
-  void finalize_fetch(MYSQL_BIND* bind, unsigned long* real_lengths, metamap<A...>& o);
-  template <typename... A>
-  void finalize_fetch(MYSQL_BIND* bind, unsigned long* real_lengths, std::tuple<A...>& o);
-  template <typename A> void finalize_fetch(MYSQL_BIND* bind, unsigned long* real_lengths, A& o);
-  template <typename T> void fetch_column(MYSQL_BIND*, unsigned long, T&, int);
-
-  void fetch_column(MYSQL_BIND* b, unsigned long real_length, std::string& v, int i);
-  template <unsigned SIZE>
-  void fetch_column(MYSQL_BIND& b, unsigned long real_length, sql_varchar<SIZE>& v, int i);
-  template <typename T> int fetch(T&& o);
-
-  B& mysql_wrapper_;
-  mysql_statement_data& data_;
-  std::shared_ptr<int> connection_status_;
-};
-
-
-} // namespace li
-
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_STATEMENT_RESULT_HPP
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_STATEMENT_RESULT_HPP
-
-namespace li {
-
-template <typename B> long long int mysql_statement_result<B>::affected_rows() {
-  return mysql_stmt_affected_rows(data_.stmt_);
-}
-
-template <typename B>
-template <typename T>
-void mysql_statement_result<B>::fetch_column(MYSQL_BIND*, unsigned long, T&, int) {}
-
-template <typename B>
-void mysql_statement_result<B>::fetch_column(MYSQL_BIND* b, unsigned long real_length,
-                                             std::string& v, int i) {
-  if (real_length <= v.size()) {
-    v.resize(real_length);
-    return;
-  }
-
-  v.resize(real_length);
-  b[i].buffer_length = real_length;
-  b[i].buffer = &v[0];
-
-  // Update mysql with the new string pointer (changed after resize).
-  mysql_stmt_bind_result(data_.stmt_, b);
-
-  // if (mysql_stmt_fetch_column(data_.stmt_, &bind, i, 0) != 0) {
-  if (mysql_stmt_fetch_column(data_.stmt_, b + i, i, 0) != 0) {
-    *connection_status_ = 1;
-    throw std::runtime_error(std::string("mysql_stmt_fetch_column error: ") +
-                             mysql_stmt_error(data_.stmt_));
-  }
-}
-template <typename B>
-template <unsigned SIZE>
-void mysql_statement_result<B>::fetch_column(MYSQL_BIND& b, unsigned long real_length,
-                                             sql_varchar<SIZE>& v, int i) {
-  v.resize(real_length);
-}
-
-template <typename B> template <typename T> int mysql_statement_result<B>::fetch(T&& o) {
-
-  auto bind_data = mysql_bind_output(data_, o);
-  unsigned long* real_lengths = bind_data.real_lengths.data();
-  MYSQL_BIND* bind = bind_data.bind.data();
-
-  mysql_stmt_bind_result(data_.stmt_, bind);
-
-  int f = mysql_wrapper_.mysql_stmt_fetch(connection_status_, data_.stmt_);
-  int res = 1;
-  if (f == MYSQL_NO_DATA)
-    res = 0;
-  else
-    finalize_fetch(bind, real_lengths, o);
-
-  mysql_wrapper_.mysql_stmt_free_result(connection_status_, data_.stmt_);
-  return res;
-}
-
-template <typename B>
-template <typename T>
-void mysql_statement_result<B>::read(std::optional<T>& o) {
-  T t;
-  if (fetch(t))
-    o = std::optional<T>(t);
-  else
-    o = std::optional<T>();
-}
-
-template <typename B> template <typename T> T mysql_statement_result<B>::read() {
-  T t;
-  if (!fetch(t))
-    throw std::runtime_error("Request did not return any data.");
-  return t;
-}
-
-template <typename B>
-template <typename T>
-std::optional<T> mysql_statement_result<B>::read_optional() {
-  T t;
-  if (fetch(t))
-    return std::optional<T>(t);
-  else
-    return std::optional<T>();
-}
-
-template <typename T> struct unconstref_tuple_elements {};
-template <typename... T> struct unconstref_tuple_elements<std::tuple<T...>> {
-  typedef std::tuple<std::remove_const_t<std::remove_reference_t<T>>...> ret;
-};
-
-template <typename B> template <typename F> void mysql_statement_result<B>::map(F f) {
-
-  typedef typename unconstref_tuple_elements<callable_arguments_tuple_t<F>>::ret tp;
-  typedef std::remove_const_t<std::remove_reference_t<std::tuple_element_t<0, tp>>> T;
-
-  auto make_map_param = []() {
-    if constexpr (li::is_metamap<T>::value)
-      return T{};
-    else
-      return tp{};
-  };
-  auto o = make_map_param();
-
-  auto bind_data = mysql_bind_output(data_, o);
-  mysql_stmt_bind_result(data_.stmt_, bind_data.bind.data());
-  
-  while (mysql_wrapper_.mysql_stmt_fetch(connection_status_, data_.stmt_) != MYSQL_NO_DATA) {
-    this->finalize_fetch(bind_data.bind.data(), bind_data.real_lengths.data(), o);
-    if constexpr (li::is_metamap<T>::value)
-      f(o);
-    else
-      std::apply(f, o);
-  }
-
-  mysql_wrapper_.mysql_stmt_free_result(connection_status_, data_.stmt_);
-}
-
-template <typename B>
-template <typename... A>
-void mysql_statement_result<B>::finalize_fetch(MYSQL_BIND* bind, unsigned long* real_lengths,
-                                               metamap<A...>& o) {
-  li::map(o, [&](auto k, auto& v) {
-    for (int i = 0; i < data_.num_fields_; i++)
-      if (!strcmp(data_.fields_[i].name, li::symbol_string(k)))
-        this->fetch_column(bind, real_lengths[i], v, i);
-  });
-}
-
-template <typename B>
-template <typename... A>
-void mysql_statement_result<B>::finalize_fetch(MYSQL_BIND* bind, unsigned long* real_lengths,
-                                               std::tuple<A...>& o) {
-  int i = 0;
-  tuple_map(o, [&](auto& m) {
-    this->fetch_column(bind, real_lengths[i], m, i);
-    i++;
-  });
-}
-
-template <typename B>
-template <typename A>
-void mysql_statement_result<B>::finalize_fetch(MYSQL_BIND* bind, unsigned long* real_lengths,
-                                               A& o) {
-  this->fetch_column(bind, real_lengths[0], o, 0);
-}
-
-template <typename B> void mysql_statement_result<B>::wait() {}
-
-template <typename B> long long int mysql_statement_result<B>::last_insert_id() {
-  return mysql_stmt_insert_id(data_.stmt_);
-}
-
-template <typename B> bool mysql_statement_result<B>::empty() {
-  return mysql_wrapper_.mysql_stmt_fetch(connection_status_, data_.stmt_) == MYSQL_NO_DATA;
-}
-
-} // namespace li
-
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_STATEMENT_RESULT_HPP
-
-
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_STATEMENT_RESULT_HH
-
-
-namespace li {
-
-/**
- * @brief Mysql prepared statement
- *
- * @tparam B the blocking or non blocking mode.
- */
-template <typename B> struct mysql_statement {
-
-  /**
-   * @brief Execute the statement without arguments.
-   *
-   * @return mysql_statement_result<B> the result of the query.
-   */
-  mysql_statement_result<B> operator()();
-
-  /**
-   * @brief Execute the statement with argument.
-   * Number of args must be equal to the number of placeholders in the request.
-   *
-   * @param args the arguments
-   * @return mysql_statement_result<B> the result
-   */
-  template <typename... T> mysql_statement_result<B> operator()(T&&... args);
-
-  B& mysql_wrapper_;
-  mysql_statement_data& data_;
-  std::shared_ptr<int> connection_status_;
-};
-
-} // namespace li
-
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_STATEMENT_HPP
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_STATEMENT_HPP
-
-namespace li {
-
-template <typename B> mysql_statement_result<B> mysql_statement<B>::operator()() {
-  // Call the statement without arguments.
-  mysql_wrapper_.mysql_stmt_execute(connection_status_, data_.stmt_);
-  return mysql_statement_result<B>{mysql_wrapper_, data_, connection_status_};
-}
-
-template <typename B> template <typename... T>
-mysql_statement_result<B> mysql_statement<B>::operator()(T&&... args) {
-
-
-  // Bind the ...args in the MYSQL BIND structure.
-  MYSQL_BIND bind[sizeof...(T)];
-  memset(bind, 0, sizeof(bind));
-  int i = 0;
-  tuple_map(std::forward_as_tuple(args...), [&](auto& m) {
-    mysql_bind_param(bind[i], m);
-    i++;
-  });
-
-  // Pass MYSQL BIND to mysql.
-  if (mysql_stmt_bind_param(data_.stmt_, bind) != 0) {
-    *connection_status_ = 1;
-    throw std::runtime_error(std::string("mysql_stmt_bind_param error: ") +
-                             mysql_stmt_error(data_.stmt_));
-  }
-
-  // Execute the statement.
-  mysql_wrapper_.mysql_stmt_execute(connection_status_, data_.stmt_);
-
-  // Return the wrapped mysql result.
-  return mysql_statement_result<B>{mysql_wrapper_, data_, connection_status_};
-}
-
-} // namespace li
-
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_STATEMENT_HPP
-
-
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_STATEMENT_HH
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_TYPE_HASHMAP_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_TYPE_HASHMAP_HH
@@ -1609,6 +1329,427 @@ int type_hashmap<V>::counter_ = 0;
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_TYPE_HASHMAP_HH
 
 
+namespace li {
+
+/**
+ * @brief Store a access to the result of a sql query (non prepared).
+ *
+ * @tparam B must be mysql_functions_blocking or mysql_functions_non_blocking
+ */
+template <typename I> struct sql_result {
+
+  I impl_; // blocking or non blockin mysql functions wrapper.
+
+  sql_result() = delete;
+  sql_result& operator=(sql_result&) = delete;
+  sql_result(const sql_result&) = delete;
+
+  inline ~sql_result() { this->flush_results(); }
+
+  inline void flush_results() { impl_.flush_results(); }
+
+  /**
+   * @brief Return the last id generated by a insert comment.
+   * With postgresql, it requires the previous command to use the "INSERT [...] returning id;"
+   * syntax.
+   *
+   * @return the last inserted id.
+   */
+  long long int last_insert_id() { return impl_.last_insert_id(); }
+
+  /**
+   * @brief read one row of the result set and advance to next row.
+   * Throw an exception if the end of the result set is reached.
+   *
+   * @return If only one template argument is provided return this same type.
+   *         otherwise return a std::tuple of the requested types.
+   */
+  template <typename T1, typename... T> auto read();
+  /**
+   * @brief Like read<T>() but do not throw is the eand of the result set is reached, instead
+   * it wraps the result in a std::optional that is empty if no data could be fetch.
+   *
+   */
+  template <typename T1, typename... T> auto read_optional();
+
+  /**
+   * @brief read one row of the result set and advance to next row.
+   * Throw an exception if the end of the result set is reached or if another error happened.
+   *
+   * Valid calls are:
+   *    read(std::tuple<...>& )
+   *        fill the tuple according to the current row. The tuple must match
+   *        the number of fields in the request.
+   *    read(li::metamap<...>& )
+   *        fill the metamap according to the current row. The metamap (value types and keys) must
+   * match the fields (types and names) of the request. read(A& a, B& b, C& c, ...) fill a, b, c,...
+   * with each field of the current row. Types of a, b, c... must match the types of the fields.
+   *        supported types : std::string, integer and floating numbers.
+   * @return T the result value.
+   */
+  template <typename T1, typename... T> bool read(T1&& t1, T&... tail);
+  template <typename T> void read(std::optional<T>& o);
+
+  /**
+   * @brief Call \param f on each row of the set.
+   * The function must take as argument all the select fields of the request, it should
+   * follow one of the signature of read (check read documentation for more info).
+   * \param f can take arguments by reference to avoid copies but keep in mind that
+   * there references will be invalid at the end of the function scope.
+   *
+   * @example connection.prepare("Select id,post from post_items;")().map(
+   *        [&](std::string id, std::string post) {
+   *             std::cout << id << post << std::endl; });
+   *
+   * @param f the function.
+   */
+  template <typename F> void map(F f);
+};
+
+} // namespace li
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_RESULT_HPP
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_RESULT_HPP
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_INTERNAL_UTILS_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_INTERNAL_UTILS_HH
+
+
+namespace li {
+template <typename T> struct is_tuple_after_decay : std::false_type {};
+template <typename... T> struct is_tuple_after_decay<std::tuple<T...>> : std::true_type {};
+
+template <typename T> struct is_tuple : is_tuple_after_decay<std::decay_t<T>> {};
+template <typename T> struct unconstref_tuple_elements {};
+template <typename... T> struct unconstref_tuple_elements<std::tuple<T...>> {
+  typedef std::tuple<std::remove_const_t<std::remove_reference_t<T>>...> ret;
+};
+
+} // namespace li
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_INTERNAL_UTILS_HH
+
+
+namespace li {
+template <typename B>
+template <typename T1, typename... T>
+bool sql_result<B>::read(T1&& t1, T&... tail) {
+
+  // Metamap and tuples
+  if constexpr (li::is_metamap<std::decay_t<T1>>::value || li::is_tuple<std::decay_t<T1>>::value) {
+    static_assert(sizeof...(T) == 0);
+    return impl_.read(std::forward<T1>(t1));
+  }
+  // Scalar values.
+  else
+    return impl_.read(std::tie(t1, tail...));
+}
+
+template <typename B> template <typename T1, typename... T> auto sql_result<B>::read() {
+  auto t = [] {
+    if constexpr (sizeof...(T) == 0)
+      return T1{};
+    else
+      return std::tuple<T1, T...>{};
+  }();
+  if (!this->read(t))
+    throw std::runtime_error("Trying to read a request that did not return any data.");
+  return t;
+}
+
+template <typename B> template <typename T> void sql_result<B>::read(std::optional<T>& o) {
+  o = this->read_optional<T>();
+}
+
+template <typename B>
+template <typename T1, typename... T>
+auto sql_result<B>::read_optional() {
+  auto t = [] {
+    if constexpr (sizeof...(T) == 0)
+      return T1{};
+    else
+      return std::tuple<T1, T...>{};
+  }();
+  if (this->read(t))
+    return std::make_optional(std::move(t));
+  else
+    return std::optional<decltype(t)>{};
+}
+
+template <typename B> template <typename F> void sql_result<B>::map(F map_function) {
+
+  typedef typename unconstref_tuple_elements<callable_arguments_tuple_t<F>>::ret TP;
+
+  auto t = [] {
+    static_assert(std::tuple_size_v<TP> > 0, "sql_result map function must take at least 1 argument.");
+
+    if constexpr (std::tuple_size_v<TP> == 1)
+      return std::tuple_element_t<0, TP>{};
+    else if constexpr (std::tuple_size_v<TP> > 1)
+      return TP{};
+  }();
+
+
+  while (auto res = this->read_optional<decltype(t)>()) {
+    if constexpr (std::tuple_size<TP>::value == 1)
+      map_function(res.value());
+    else if constexpr (std::tuple_size<TP>::value > 1)
+      std::apply(map_function, res.value());
+  }
+}
+} // namespace li
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_RESULT_HPP
+
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_RESULT_HH
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_STATEMENT_RESULT_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_STATEMENT_RESULT_HH
+
+
+
+
+namespace li {
+
+/**
+ * @brief The prepared statement result interface.
+ *
+ * @tparam B
+ */
+template <typename B> struct mysql_statement_result {
+
+  mysql_statement_result& operator=(mysql_statement_result&) = delete;
+  mysql_statement_result(const mysql_statement_result&) = delete;
+
+  /**
+   * @brief Destructor. Free the result if needed.
+   */
+  inline ~mysql_statement_result() { flush_results(); }
+
+  inline void flush_results() {
+    if (result_allocated_)
+      mysql_wrapper_.mysql_stmt_free_result(connection_status_, data_.stmt_);
+    result_allocated_ = false;
+  }
+
+  // Read std::tuple and li::metamap.
+  template <typename T> bool read(T&& output);
+
+  /**
+   * @return the number of rows affected by the request.
+   */
+  long long int affected_rows();
+
+  /**
+   * @brief Return the last id generated by a insert comment.
+   *
+   * @return the last inserted id.
+   */
+  long long int last_insert_id();
+
+  void next_row();
+
+  // Internal methods.
+  template <typename... A>
+  void finalize_fetch(MYSQL_BIND* bind, unsigned long* real_lengths, metamap<A...>& o);
+  template <typename... A>
+  void finalize_fetch(MYSQL_BIND* bind, unsigned long* real_lengths, std::tuple<A...>& o);
+  template <typename T> void fetch_column(MYSQL_BIND*, unsigned long, T&, int);
+
+  void fetch_column(MYSQL_BIND* b, unsigned long real_length, std::string& v, int i);
+  template <unsigned SIZE>
+  void fetch_column(MYSQL_BIND& b, unsigned long real_length, sql_varchar<SIZE>& v, int i);
+  template <typename T> int fetch(T&& o);
+
+  B& mysql_wrapper_;
+  mysql_statement_data& data_;
+  std::shared_ptr<int> connection_status_;
+  bool result_allocated_ = false;
+};
+
+} // namespace li
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_STATEMENT_RESULT_HPP
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_STATEMENT_RESULT_HPP
+
+
+namespace li {
+
+template <typename B> long long int mysql_statement_result<B>::affected_rows() {
+  return mysql_stmt_affected_rows(data_.stmt_);
+}
+
+template <typename B>
+template <typename T>
+void mysql_statement_result<B>::fetch_column(MYSQL_BIND* b, unsigned long, T&, int) {
+  if (*b->error) {
+    throw std::runtime_error("Result could not fit in the provided types: loss of sign or significant digits or type mismatch.");
+  }
+}
+
+template <typename B>
+void mysql_statement_result<B>::fetch_column(MYSQL_BIND* b, unsigned long real_length,
+                                             std::string& v, int i) {
+  // If the string was big enough to hold the result string, return it.
+  if (real_length <= v.size()) {
+    v.resize(real_length);
+    return;
+  }
+  // Otherwise we need to call mysql_stmt_fetch_column again to get the result string.
+
+  // Reserve enough space to fetch the string.
+  v.resize(real_length);
+
+  // Bind result.
+  b[i].buffer_length = real_length;
+  b[i].buffer = &v[0];
+  mysql_stmt_bind_result(data_.stmt_, b);
+  result_allocated_ = true;
+
+  if (mysql_stmt_fetch_column(data_.stmt_, b + i, i, 0) != 0) {
+    *connection_status_ = 1;
+    throw std::runtime_error(std::string("mysql_stmt_fetch_column error: ") +
+                             mysql_stmt_error(data_.stmt_));
+  }
+}
+
+template <typename B>
+template <unsigned SIZE>
+void mysql_statement_result<B>::fetch_column(MYSQL_BIND& b, unsigned long real_length,
+                                             sql_varchar<SIZE>& v, int i) {
+  v.resize(real_length);
+}
+
+template <typename B> template <typename T> bool mysql_statement_result<B>::read(T&& output) {
+  // Todo: skip useless mysql_bind_output and mysql_stmt_bind_result if too costly.
+  // if (bound_ptr_ == (void*)output)...
+  try {
+
+    // Bind output.
+    auto bind_data = mysql_bind_output(data_, std::forward<T>(output));
+    unsigned long* real_lengths = bind_data.real_lengths.data();
+    MYSQL_BIND* bind = bind_data.bind.data();
+
+    bool bind_ret = mysql_stmt_bind_result(data_.stmt_, bind_data.bind.data());
+    // std::cout << "bind_ret: " << bind_ret << std::endl;
+    if (bind_ret != 0)
+    {
+      throw std::runtime_error(std::string("mysql_stmt_bind_result error: ") + mysql_stmt_error(data_.stmt_));
+    }
+
+    result_allocated_ = true;
+
+    // Fetch row.
+    // Note: This also advance to the next row.
+    int res = mysql_wrapper_.mysql_stmt_fetch(connection_status_, data_.stmt_);
+    if (res == MYSQL_NO_DATA) // If end of result, return false.
+      return false;
+
+    // Finalize fetch:
+    //    - fetch strings that did not fit the preallocated strings.
+    //    - check for truncated data errors.
+    //    - resize preallocated strings that were bigger than the request result.
+    if constexpr (is_tuple<T>::value) {
+      int i = 0;
+      tuple_map(std::forward<T>(output), [&](auto& m) {
+        this->fetch_column(bind, real_lengths[i], m, i);
+        i++;
+      });
+    } else {
+      li::map(std::forward<T>(output), [&](auto k, auto& v) {
+        for (int i = 0; i < data_.num_fields_; i++)
+          if (!strcmp(data_.fields_[i].name, li::symbol_string(k)))
+            this->fetch_column(bind, real_lengths[i], v, i);
+      });
+    }
+    return true;
+  } catch (const std::runtime_error& e) {
+    mysql_stmt_reset(data_.stmt_);
+    throw e;
+  }
+
+}
+
+template <typename B> long long int mysql_statement_result<B>::last_insert_id() {
+  return mysql_stmt_insert_id(data_.stmt_);
+}
+
+} // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_STATEMENT_RESULT_HPP
+
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_STATEMENT_RESULT_HH
+
+
+namespace li {
+
+/**
+ * @brief Mysql prepared statement
+ *
+ * @tparam B the blocking or non blocking mode.
+ */
+template <typename B> struct mysql_statement {
+
+  /**
+   * @brief Execute the statement with argument.
+   * Number of args must be equal to the number of placeholders in the request.
+   *
+   * @param args the arguments
+   * @return mysql_statement_result<B> the result
+   */
+  template <typename... T> sql_result<mysql_statement_result<B>> operator()(T&&... args);
+
+  B& mysql_wrapper_;
+  mysql_statement_data& data_;
+  std::shared_ptr<int> connection_status_;
+};
+
+} // namespace li
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_STATEMENT_HPP
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_STATEMENT_HPP
+
+
+namespace li {
+
+template <typename B>
+template <typename... T>
+sql_result<mysql_statement_result<B>> mysql_statement<B>::operator()(T&&... args) {
+
+  if (sizeof...(T) > 0) {
+    // Bind the ...args in the MYSQL BIND structure.
+    MYSQL_BIND bind[sizeof...(T)];
+    memset(bind, 0, sizeof(bind));
+    int i = 0;
+    tuple_map(std::forward_as_tuple(args...), [&](auto& m) {
+      mysql_bind_param(bind[i], m);
+      i++;
+    });
+
+    // Pass MYSQL BIND to mysql.
+    if (mysql_stmt_bind_param(data_.stmt_, bind) != 0) {
+      *connection_status_ = 1;
+      throw std::runtime_error(std::string("mysql_stmt_bind_param error: ") +
+                               mysql_stmt_error(data_.stmt_));
+    }
+  }
+  
+  // Execute the statement.
+  mysql_wrapper_.mysql_stmt_execute(connection_status_, data_.stmt_);
+
+  // Return the wrapped mysql result.
+  return sql_result<mysql_statement_result<B>>{
+      mysql_statement_result<B>{mysql_wrapper_, data_, connection_status_}};
+}
+
+} // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_STATEMENT_HPP
+
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_STATEMENT_HH
+
+
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_CONNECTION_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_CONNECTION_HH
 
@@ -1631,46 +1772,25 @@ template <typename B> struct mysql_result {
   std::shared_ptr<int> connection_status_; // Status of the connection
   MYSQL_RES* result_ = nullptr; // Mysql result.
 
+  unsigned long* current_row_lengths_ = nullptr;
+  MYSQL_ROW current_row_ = nullptr;
+  bool end_of_result_ = false;
+  int current_row_num_fields_ = 0;
+  
+  mysql_result& operator=(mysql_result&) = delete;
+  mysql_result(const mysql_result&) = delete;
+
+  inline ~mysql_result() { flush(); }
+
+  inline void flush() { if (result_) { mysql_free_result(result_); result_ = nullptr; } } 
+  inline void flush_results() { this->flush(); }
+  inline void next_row();
+  template <typename T> bool read(T&& output);
 
   /**
    * @return the number of rows affected by the request.
    */
   long long int affected_rows();
-
-  /**
-   * @brief access to the result of a single valued request (ex: select 1+2) and return the value.
-   * Throw an exception if the request returned nothing.
-   *
-   * @return T the result value.
-   */
-  template <typename T> T read();
-
-  /**
-   * @brief acces to the result of single valued request (ex: select 1+2) and return a optinal value
-   * wrapped with std::optional. the optional is empty if the request returned nothing.
-   * @return std::optional<T> the result optional value.
-   */
-  template <typename T> std::optional<T> read_optional();
-
-  /**
-   * @brief Like read_optional but inplace.
-   *
-   * @tparam T
-   * @param o the ouput optional value.
-   */
-  template <typename T> void read(std::optional<T>& o);
-
-  /**
-   * @brief Call a function on each result row.
-   * The function must take as argument all the select fields of the request.
-   *
-   * @example connection.prepare("Select id,post from post_items;")().map(
-   *        [&](std::string id, std::string post) {
-   *             std::cout << id << post << std::endl; });
-   *
-   * @param f the function.
-   */
-  template <typename F> void map(F f);
 
   /**
    * @brief Return the last id generated by a insert comment.
@@ -1679,13 +1799,6 @@ template <typename B> struct mysql_result {
    */
   long long int last_insert_id();
 
-  /**
-   * @return Return true if the statement returned no row.
-   */
-  bool empty();
-
-  // Internal.
-  void wait() {};
 };
 
 } // namespace li
@@ -1697,118 +1810,66 @@ template <typename B> struct mysql_result {
 
 namespace li {
 
-template <typename B> template <typename T> T mysql_result<B>::read() {
-  result_ = mysql_use_result(con_);
-  MYSQL_ROW row = mysql_wrapper_.mysql_fetch_row(connection_status_, result_);
+template <typename B> void mysql_result<B>::next_row() {
 
-  if (!row || mysql_num_fields(result_) == 0)
-    throw std::runtime_error("Request did not return any data.");
+  if (!result_)
+    result_ = mysql_use_result(con_);
+  current_row_ = mysql_wrapper_.mysql_fetch_row(connection_status_, result_);
+  current_row_num_fields_ = mysql_num_fields(result_);
+  if (!current_row_ || current_row_num_fields_ == 0) {
+    end_of_result_ = true;
+    return;
+  }
 
-  T res = boost::lexical_cast<T>(row[0]);
+  current_row_lengths_ = mysql_fetch_lengths(result_);
+}
 
-  // Flush remaining rows if needed.
-  while ((row = mysql_wrapper_.mysql_fetch_row(connection_status_, result_)))
-    ;
+template <typename B> template <typename T> bool mysql_result<B>::read(T&& output) {
 
-  mysql_wrapper_.mysql_free_result(connection_status_, result_);
-  return res;
+  next_row();
+
+  if (end_of_result_)
+    return false;
+
+  if constexpr (is_tuple<T>::value) { // Tuple
+
+    if (std::tuple_size_v<std::decay_t<T>> != current_row_num_fields_)
+      throw std::runtime_error(std::string("The request number of field (") +
+                               boost::lexical_cast<std::string>(current_row_num_fields_) +
+                               ") does not match the size of the tuple (" +
+                               boost::lexical_cast<std::string>(std::tuple_size_v<std::decay_t<T>>) + ")");
+    int i = 0;
+    li::tuple_map(std::forward<T>(output), [&](auto& v) {
+      // std::cout << "read " << std::string_view(current_row_[i], current_row_lengths_[i]) << std::endl;
+      v = boost::lexical_cast<std::decay_t<decltype(v)>>(
+          std::string_view(current_row_[i], current_row_lengths_[i]));
+      i++;
+    });
+
+  } else { // Metamap.
+
+    if (li::metamap_size(output) != current_row_num_fields_)
+      throw std::runtime_error(
+          "The request number of field does not match the size of the metamap object.");
+    int i = 0;
+    li::map(std::forward<T>(output), [&](auto k, auto& v) {
+      v = boost::lexical_cast<decltype(v)>(
+          std::string_view(current_row_[i], current_row_lengths_[i]));
+      i++;
+    });
+  }
+
+  return true;
 }
 
 template <typename B> long long int mysql_result<B>::affected_rows() {
   return mysql_affected_rows(con_);
 }
 
-template <typename B> template <typename T> void mysql_result<B>::read(std::optional<T>& o) {
-  result_ = mysql_use_result(con_);
-  MYSQL_ROW row = mysql_wrapper_.mysql_fetch_row(connection_status_, result_);
-
-  if (!row || mysql_num_fields(result_) == 0)
-  {
-    o = std::optional<T>();
-    return;
-  }
-  T res = boost::lexical_cast<T>(row[0]);
-
-  // Flush remaining rows if needed.
-  while ((row = mysql_wrapper_.mysql_fetch_row(connection_status_, result_)))
-    ;
-
-  mysql_wrapper_.mysql_free_result(connection_status_, result_);
-  o = std::optional<T>(res);
-}
-
-template <typename B> template <typename T> std::optional<T> mysql_result<B>::read_optional() {
-  std::optional<T> t;
-  this->read(t);
-  return t;
-}
-
-// template <typename T> struct unconstref_tuple_elements {};
-// template <typename... T> struct unconstref_tuple_elements<std::tuple<T...>> {
-//   typedef std::tuple<std::remove_const_t<std::remove_reference_t<T>>...> ret;
-// };
-
-template <typename B> template <typename F> void mysql_result<B>::map(F f) {
-
-  typedef typename unconstref_tuple_elements<callable_arguments_tuple_t<F>>::ret tp;
-  typedef std::remove_const_t<std::remove_reference_t<std::tuple_element_t<0, tp>>> T;
-
-  auto map_function_argument = []() {
-    if constexpr (li::is_metamap<T>::value)
-      return T{}; // Simgle metamap object.
-    else
-      return tp{}; // A tuple of arguments.
-  }();
-
-  result_ = mysql_use_result(con_);
-
-  MYSQL_ROW row;
-  int num_fields = mysql_num_fields(result_);
-  while ((row = mysql_fetch_row(result_))) {
-
-    unsigned long* lengths;
-    lengths = mysql_fetch_lengths(result_);
-    // for (i = 0; i < num_fields; i++) {
-    //   printf("[%.*s] ", (int)lengths[i], row[i] ? row[i] : "NULL");
-    // }
-    // printf("\n");
-
-    if constexpr (li::is_metamap<T>::value) {
-      if (li::metamap_size<T>() != num_fields)
-        throw std::runtime_error(
-            "The request number of field does not match the size of the metamap object.");
-      int i = 0;
-      li::map(map_function_argument, [&](auto k, auto& v) {
-        v = boost::lexical_cast<decltype(v)>(std::string_view(row[i], lengths[i]));
-        i++;
-      });
-      f(map_function_argument);
-    } else {
-      if (std::tuple_size<tp>() != num_fields)
-        throw std::runtime_error("The request number of field does not match the number of "
-                                 "arguments of the mapped function.");
-      int i = 0;
-      li::tuple_map(map_function_argument, [&](auto& v) {
-        v = boost::lexical_cast<std::decay_t<decltype(v)>>(std::string_view(row[i], lengths[i]));
-        i++;
-      });
-      std::apply(f, map_function_argument);
-    }
-  }
-
-  mysql_wrapper_.mysql_free_result(connection_status_, result_);
-}
-
-// template <typename B> void mysql_result<B>::wait() {}
-
 template <typename B> long long int mysql_result<B>::last_insert_id() {
   return mysql_insert_id(con_);
 }
 
-template <typename B> bool mysql_result<B>::empty() {
-  return false; // mysql_wrapper_.mysql_stmt_fetch(connection_status_, data_.stmt_) ==
-                // MYSQL_NO_DATA;
-}
 } // namespace li
 
 
@@ -1820,15 +1881,8 @@ template <typename B> bool mysql_result<B>::empty() {
 
 namespace li {
 
-int max_mysql_connections_per_thread = 200;
-
 // Forward ref.
 struct mysql_connection_data;
-
-// Pools of connection
-thread_local std::deque<std::shared_ptr<mysql_connection_data>> mysql_connection_pool;
-thread_local std::deque<std::shared_ptr<mysql_connection_data>> mysql_connection_async_pool;
-thread_local int total_number_of_mysql_connections = 0;
 
 struct mysql_tag {};
 
@@ -1843,7 +1897,9 @@ struct mysql_connection {
    * @param mysql_wrapper the [non]blocking mysql wrapper.
    * @param data the connection data.
    */
-  inline mysql_connection(B mysql_wrapper, std::shared_ptr<li::mysql_connection_data> data);
+  template <typename P>
+  inline mysql_connection(B mysql_wrapper, std::shared_ptr<li::mysql_connection_data> data,
+  P put_data_back_in_pool);
 
   /**
    * @brief Last inserted row id.
@@ -1858,7 +1914,7 @@ struct mysql_connection {
    * @param rq the request string
    * @return mysql_result<B> the result.
    */
-  mysql_result<B> operator()(const std::string& rq);
+  sql_result<mysql_result<B>> operator()(const std::string& rq);
 
   /**
    * @brief Build a sql prepared statement.
@@ -1910,34 +1966,25 @@ namespace li {
 mysql_connection_data::~mysql_connection_data() { mysql_close(connection_); }
 
 template <typename B>
+template <typename P>
 inline mysql_connection<B>::mysql_connection(B mysql_wrapper,
-                                             std::shared_ptr<li::mysql_connection_data> data)
+                                             std::shared_ptr<li::mysql_connection_data> data,
+                                             P put_data_back_in_pool)
     : mysql_wrapper_(mysql_wrapper), data_(data) {
 
-  connection_status_ = std::shared_ptr<int>(new int(0), [=](int* p) mutable {
-    if (*p or (mysql_connection_pool.size() + mysql_connection_async_pool.size()) >
-                  max_mysql_connections_per_thread) {
-      //  if constexpr (!B::is_blocking)
-      //    mysql_wrapper.yield_.unsubscribe(mysql_get_socket(data->connection));
-      total_number_of_mysql_connections--;
-      // std::cerr << "Discarding broken mysql connection." << std::endl;
-      return;
-    }
-
-    if constexpr (B::is_blocking)
-      mysql_connection_pool.push_back(data);
-    else
-      mysql_connection_async_pool.push_back(data);
-  });
+  connection_status_ =
+      std::shared_ptr<int>(new int(0), [put_data_back_in_pool, data](int* p) mutable { put_data_back_in_pool(data, *p); });
 }
 
 template <typename B> long long int mysql_connection<B>::last_insert_rowid() {
   return mysql_insert_id(data_->connection_);
 }
 
-template <typename B> mysql_result<B> mysql_connection<B>::operator()(const std::string& rq) {
+template <typename B>
+sql_result<mysql_result<B>> mysql_connection<B>::operator()(const std::string& rq) {
   mysql_wrapper_.mysql_real_query(connection_status_, data_->connection_, rq.c_str(), rq.size());
-  return mysql_result<B>{mysql_wrapper_, data_->connection_, connection_status_};
+  return sql_result<mysql_result<B>>{
+      mysql_result<B>{mysql_wrapper_, data_->connection_, connection_status_}};
 }
 
 template <typename B>
@@ -1947,7 +1994,7 @@ mysql_statement<B> mysql_connection<B>::cached_statement(F f, K... keys) {
     mysql_statement<B> res = prepare(f());
     data_->statements_hashmap_(f, keys...) = res.data_.shared_from_this();
     return res;
-  } else  
+  } else
     return mysql_statement<B>{mysql_wrapper_, *data_->statements_hashmap_(f, keys...),
                               connection_status_};
 }
@@ -1963,11 +2010,13 @@ template <typename B> mysql_statement<B> mysql_connection<B>::prepare(const std:
   MYSQL_STMT* stmt = mysql_stmt_init(data_->connection_);
   if (!stmt) {
     *connection_status_ = true;
-    throw std::runtime_error(std::string("mysql_stmt_init error: ") + mysql_error(data_->connection_));
+    throw std::runtime_error(std::string("mysql_stmt_init error: ") +
+                             mysql_error(data_->connection_));
   }
   if (mysql_wrapper_.mysql_stmt_prepare(connection_status_, stmt, rq.data(), rq.size())) {
     *connection_status_ = true;
-    throw std::runtime_error(std::string("mysql_stmt_prepare error: ") + mysql_error(data_->connection_));
+    throw std::runtime_error(std::string("mysql_stmt_prepare error: ") +
+                             mysql_error(data_->connection_));
   }
 
   auto pair = data_->statements_.emplace(rq, std::make_shared<mysql_statement_data>(stmt));
@@ -1982,10 +2031,182 @@ template <typename B> mysql_statement<B> mysql_connection<B>::prepare(const std:
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_CONNECTION_HH
 
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_DATABASE_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_DATABASE_HH
+
+
+namespace li {
+// thread local map of sql_database<I> -> sql_database_thread_local_data<I>;
+// This is used to store the thread local async connection pool.
+thread_local std::unordered_map<int, void*> sql_thread_local_data;
+thread_local int database_id_counter = 0;
+
+template <typename I> struct sql_database_thread_local_data {
+
+  typedef typename I::connection_data_type connection_data_type;
+
+  // Async connection pools.
+  std::deque<std::shared_ptr<connection_data_type>> async_connections_;
+
+  int n_connections_on_this_thread_ = 0;
+};
+
+struct active_yield {
+  typedef std::runtime_error exception_type;
+  void epoll_add(int, int) {}
+  void epoll_mod(int, int) {}
+  void yield() {}
+};
+
+template <typename I> struct sql_database {
+  I impl;
+
+  typedef typename I::connection_data_type connection_data_type;
+  typedef typename I::db_tag db_tag;
+
+  // Sync connections pool.
+  std::deque<std::shared_ptr<connection_data_type>> sync_connections_;
+  // Sync connections mutex.
+  std::mutex sync_connections_mutex_;
+
+  int n_sync_connections_ = 0;
+  int max_sync_connections_ = 0;
+  int max_async_connections_per_thread_ = 0;
+  int database_id_ = 0;
+
+  template <typename... O> sql_database(O&&... opts) : impl(std::forward<O>(opts)...) {
+    auto options = mmm(opts...);
+    max_async_connections_per_thread_ = get_or(options, s::max_async_connections_per_thread, 200);
+    max_sync_connections_ = get_or(options, s::max_sync_connections, 2000);
+
+    this->database_id_ = database_id_counter++;
+  }
+
+  ~sql_database() {
+    auto it = sql_thread_local_data.find(this->database_id_);
+    if (it != sql_thread_local_data.end())
+    {
+      delete (sql_database_thread_local_data<I>*) sql_thread_local_data[this->database_id_];
+      sql_thread_local_data.erase(this->database_id_);
+    }
+  }
+
+  auto& thread_local_data() {
+    auto it = sql_thread_local_data.find(this->database_id_);
+    if (it == sql_thread_local_data.end())
+    {
+      auto data = new sql_database_thread_local_data<I>;
+      sql_thread_local_data[this->database_id_] = data;
+      return *data;
+    }
+    else
+      return *(sql_database_thread_local_data<I>*) it->second;
+  }
+  /**
+   * @brief Provide a new mysql non blocking connection. The connection provides RAII: it will be
+   * placed back in the available connection pool whenever its constructor is called.
+   *
+   * @param fiber the fiber object providing the 3 non blocking logic methods:
+   *
+   *    - void epoll_add(int fd, int flags); // Make the current epoll fiber wakeup on
+   *                                            file descriptor fd
+   *    - void epoll_mod(int fd, int flags); // Modify the epoll flags on file
+   *                                            descriptor fd
+   *    - void yield() // Yield the current epoll fiber.
+   *
+   * @return the new connection.
+   */
+  template <typename Y> inline auto connect(Y& fiber) {
+
+    auto pool = [this] {
+
+      if constexpr (std::is_same_v<Y, active_yield>) // Synchonous mode
+        return make_metamap_reference(
+            s::connections = this->sync_connections_,
+            s::n_connections = this->n_sync_connections_,
+            s::max_connections = this->max_sync_connections_);
+      else  // Asynchonous mode
+        return make_metamap_reference(
+            s::connections = this->thread_local_data().async_connections_,
+            s::n_connections =  this->thread_local_data().n_connections_on_this_thread_,
+            s::max_connections = this->max_async_connections_per_thread_);
+    }();
+
+    std::shared_ptr<connection_data_type> data = nullptr;
+    while (!data) {
+
+      if (!pool.connections.empty()) {
+        auto lock = [&pool, this] {
+          if constexpr (std::is_same_v<Y, active_yield>)
+            return std::lock_guard<std::mutex>(this->sync_connections_mutex_);
+          else return 0;
+        }();
+        data = pool.connections.back();
+        pool.connections.pop_back();
+        fiber.epoll_add(impl.get_socket(data), EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
+      } else {
+        if (pool.n_connections > pool.max_connections) {
+          if constexpr (std::is_same_v<Y, active_yield>)
+            throw std::runtime_error("Maximum number of sql connection exeeded.");
+          else
+            // std::cout << "Waiting for a free mysql connection..." << std::endl;
+            fiber.yield();
+          continue;
+        }
+        pool.n_connections++;
+
+        try {
+
+          data = impl.new_connection(fiber);
+        } catch (typename Y::exception_type& e) {
+          pool.n_connections--;
+          throw std::move(e);
+        }
+
+        if (!data)
+          pool.n_connections--;
+      }
+    }
+    assert(data);
+    return impl.scoped_connection(
+        fiber, data, [pool, this](std::shared_ptr<connection_data_type> data, int error) {
+          if (!error && pool.connections.size() < pool.max_connections) {
+            auto lock = [&pool, this] {
+              if constexpr (std::is_same_v<Y, active_yield>)
+                return std::lock_guard<std::mutex>(this->sync_connections_mutex_);
+              else return 0;
+            }();
+
+            pool.connections.push_back(data);
+            
+          } else {
+            if (pool.connections.size() >= pool.max_connections)
+              std::cerr << "Error: connection pool size " << pool.connections.size()
+                        << " exceed pool max_connections " << pool.max_connections << std::endl;
+            pool.n_connections--;
+          }
+        });
+  }
+
+  /**
+   * @brief Provide a new mysql blocking connection. The connection provides RAII: it will be
+   * placed back in the available connection pool whenver its constructor is called.
+   *
+   * @return the connection.
+   */
+  inline auto connect() { active_yield yield; return this->connect(yield); }
+};
+
+}
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_DATABASE_HH
+
 
 namespace li {
 
-struct mysql_database : std::enable_shared_from_this<mysql_database> {
+struct mysql_database_impl {
+
+  typedef mysql_tag db_tag;
+  typedef mysql_connection_data connection_data_type;
 
   /**
    * @brief Construct a new mysql database object
@@ -2000,40 +2221,23 @@ struct mysql_database : std::enable_shared_from_this<mysql_database> {
    *                 - s::charset = "character set" default: utf8
    *
    */
-  template <typename... O> inline mysql_database(O... opts);
-  
-  inline ~mysql_database();
+  template <typename... O> inline mysql_database_impl(O... opts);
 
-  /**
-   * @brief Provide a new mysql non blocking connection. The connection provides RAII: it will be
-   * placed back in the available connection pool whenver its constructor is called.
-   *
-   * @param fiber the fiber object providing the 3 non blocking logic methods:
-   *
-   *    - void epoll_add(int fd, int flags); // Make the current epoll fiber wakeup on
-   *                                            file descriptor fd 
-   *    - void epoll_mod(int fd, int flags); // Modify the epoll flags on file
-   *                                            descriptor fd 
-   *    - void yield() // Yield the current epoll fiber.
-   *
-   * @return mysql_connection<mysql_functions_non_blocking<Y>>
-   */
-  template <typename Y> inline mysql_connection<mysql_functions_non_blocking<Y>> connect(Y& fiber);
+  inline ~mysql_database_impl();
 
-  /**
-   * @brief Provide a new mysql blocking connection. The connection provides RAII: it will be
-   * placed back in the available connection pool whenver its constructor is called.
-   *
-   * @return the connection.
-   */
-  inline mysql_connection<mysql_functions_blocking> connect();
+  template <typename Y> inline std::shared_ptr<mysql_connection_data> new_connection(Y& fiber);
+  inline int get_socket(std::shared_ptr<mysql_connection_data> data);
 
-  std::mutex mutex_;
+  template <typename Y, typename F>
+  inline auto scoped_connection(Y& fiber, std::shared_ptr<mysql_connection_data>& data,
+                                F put_back_in_pool);
+
   std::string host_, user_, passwd_, database_;
   unsigned int port_;
-  std::deque<MYSQL*> _;
   std::string character_set_;
 };
+
+typedef sql_database<mysql_database_impl> mysql_database;
 
 } // namespace li
 
@@ -2044,7 +2248,7 @@ struct mysql_database : std::enable_shared_from_this<mysql_database> {
 
 namespace li {
 
-template <typename... O> inline mysql_database::mysql_database(O... opts) {
+template <typename... O> inline mysql_database_impl::mysql_database_impl(O... opts) {
 
   auto options = mmm(opts...);
   static_assert(has_key(options, s::host), "open_mysql_connection requires the s::host argument");
@@ -2058,8 +2262,7 @@ template <typename... O> inline mysql_database::mysql_database(O... opts) {
   database_ = options.database;
   user_ = options.user;
   passwd_ = options.password;
-  port_ = get_or(options, s::port, 0);
-
+  port_ = get_or(options, s::port, 3306);
   character_set_ = get_or(options, s::charset, "utf8");
 
   if (mysql_library_init(0, NULL, NULL))
@@ -2068,109 +2271,77 @@ template <typename... O> inline mysql_database::mysql_database(O... opts) {
     throw std::runtime_error("Mysql is not compiled as thread safe.");
 }
 
-mysql_database::~mysql_database() { mysql_library_end(); }
+mysql_database_impl::~mysql_database_impl() { mysql_library_end(); }
 
-template <typename Y>
-inline mysql_connection<mysql_functions_non_blocking<Y>> mysql_database::connect(Y& fiber) {
-
-  // std::cout << "nconnection " << total_number_of_mysql_connections << std::endl;
-  int ntry = 0;
-  std::shared_ptr<mysql_connection_data> data = nullptr;
-  while (!data) {
-    // if (ntry > 20)
-    //   throw std::runtime_error("Cannot connect to the database");
-    ntry++;
-
-    if (!mysql_connection_async_pool.empty()) {
-      data = mysql_connection_async_pool.back();
-      mysql_connection_async_pool.pop_back();
-      fiber.epoll_add(mysql_get_socket(data->connection_),
-                      EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
-    } else {
-      // std::cout << total_number_of_mysql_connections << " connections. "<< std::endl;
-      if (total_number_of_mysql_connections > max_mysql_connections_per_thread) {
-        // std::cout << "Waiting for a free mysql connection..." << std::endl;
-        fiber.yield();
-        continue;
-      }
-      total_number_of_mysql_connections++;
-      // std::cout << "NEW MYSQL CONNECTION "  << std::endl;
-      MYSQL* mysql;
-      int mysql_fd = -1;
-      int status;
-      MYSQL* connection;
-      // while (mysql_fd == -1)
-      {
-        mysql = new MYSQL;
-        mysql_init(mysql);
-        mysql_options(mysql, MYSQL_OPT_NONBLOCK, 0);
-        connection = nullptr;
-        status = mysql_real_connect_start(&connection, mysql, host_.c_str(), user_.c_str(),
-                                          passwd_.c_str(), database_.c_str(), port_, NULL, 0);
-
-        // std::cout << "after: " << mysql_get_socket(mysql) << " " << status == MYSQL_ <<
-        // std::endl;
-        mysql_fd = mysql_get_socket(mysql);
-        if (mysql_fd == -1) {
-          // std::cout << "Invalid mysql connection bad mysql_get_socket " << status << " " << mysql
-          // << std::endl;
-          mysql_close(mysql);
-          total_number_of_mysql_connections--;
-          // usleep(1e6);
-          fiber.yield();
-          continue;
-        }
-      }
-      if (status)
-        fiber.epoll_add(mysql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
-      while (status)
-        try {
-          fiber.yield();
-          status = mysql_real_connect_cont(&connection, mysql, status);
-        } catch (typename Y::exception_type& e) {
-          // Yield thrown a exception (probably because a closed connection).
-          // std::cerr << "Warning: yield threw an exception while connecting to mysql: "
-          //  << total_number_of_mysql_connections << std::endl;
-          total_number_of_mysql_connections--;
-          mysql_close(mysql);
-          throw std::move(e);
-        }
-      if (!connection) {
-        // std::cout << "Error in mysql_real_connect_cont" << std::endl;
-        total_number_of_mysql_connections--;
-        fiber.yield();
-        continue;
-      }
-      // throw std::runtime_error("Cannot connect to the database");
-      mysql_set_character_set(mysql, character_set_.c_str());
-      data = std::shared_ptr<mysql_connection_data>(new mysql_connection_data{mysql});
-    }
-  }
-  assert(data);
-  return std::move(mysql_connection(mysql_functions_non_blocking<Y>{fiber}, data));
+inline int mysql_database_impl::get_socket(std::shared_ptr<mysql_connection_data> data) {
+  return mysql_get_socket(data->connection_);
 }
 
-inline mysql_connection<mysql_functions_blocking> mysql_database::connect() {
-  std::shared_ptr<mysql_connection_data> data = nullptr;
-  if (!mysql_connection_pool.empty()) {
-    data = mysql_connection_pool.back();
-    mysql_connection_pool.pop_back();
+template <typename Y>
+inline std::shared_ptr<mysql_connection_data> mysql_database_impl::new_connection(Y& fiber) {
+
+  MYSQL* mysql;
+  int mysql_fd = -1;
+  int status;
+  MYSQL* connection;
+
+  mysql = new MYSQL;
+  mysql_init(mysql);
+
+  if constexpr (std::is_same_v<Y, active_yield>) { // Synchronous connection
+    connection = mysql;
+    connection = mysql_real_connect(connection, host_.c_str(), user_.c_str(), passwd_.c_str(),
+                                    database_.c_str(), port_, NULL, 0);
+    if (!connection)
+      return nullptr;
+  } else { // Async connection.
+    mysql_options(mysql, MYSQL_OPT_NONBLOCK, 0);
+    connection = nullptr;
+    status = mysql_real_connect_start(&connection, mysql, host_.c_str(), user_.c_str(),
+                                      passwd_.c_str(), database_.c_str(), port_, NULL, 0);
+
+    // std::cout << "after: " << mysql_get_socket(mysql) << " " << status == MYSQL_ <<
+    // std::endl;
+    mysql_fd = mysql_get_socket(mysql);
+    if (mysql_fd == -1) {
+      // std::cout << "Invalid mysql connection bad mysql_get_socket " << status << " " << mysql
+      // << std::endl;
+      mysql_close(mysql);
+      return nullptr;
+    }
+
+    if (status)
+      fiber.epoll_add(mysql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
+    while (status)
+      try {
+        fiber.yield();
+        status = mysql_real_connect_cont(&connection, mysql, status);
+      } catch (typename Y::exception_type& e) {
+        // Yield thrown a exception (probably because a closed connection).
+        // std::cerr << "Warning: yield threw an exception while connecting to mysql: "
+        //  << total_number_of_mysql_connections << std::endl;
+        mysql_close(mysql);
+        throw std::move(e);
+      }
+    if (!connection) {
+      // Error in mysql_real_connect_cont
+      return nullptr;
+    }
   }
 
-  if (!data) {
-    MYSQL* con_ = mysql_init(nullptr);
-    con_ = mysql_real_connect(con_, host_.c_str(), user_.c_str(), passwd_.c_str(),
-                              database_.c_str(), port_, NULL, 0);
-    if (!con_)
-      throw std::runtime_error("Cannot connect to the database");
+  mysql_set_character_set(mysql, character_set_.c_str());
+  return std::shared_ptr<mysql_connection_data>(new mysql_connection_data{mysql});
+}
 
-    // total_number_of_mysql_connections++;
-    mysql_set_character_set(con_, character_set_.c_str());
-    data = std::shared_ptr<mysql_connection_data>(new mysql_connection_data{con_});
-  }
+template <typename Y, typename F>
+inline auto mysql_database_impl::scoped_connection(Y& fiber,
+                                                   std::shared_ptr<mysql_connection_data>& data,
+                                                   F put_back_in_pool) {
+  if constexpr (std::is_same_v<active_yield, Y>)
+    return mysql_connection(mysql_functions_blocking{}, data, put_back_in_pool);
 
-  assert(data);
-  return std::move(mysql_connection(mysql_functions_blocking{}, data));
+  else
+    return mysql_connection(mysql_functions_non_blocking<Y>{fiber}, data, put_back_in_pool);
 }
 
 } // namespace li
@@ -2324,7 +2495,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
   }
 
   inline auto& drop_table_if_exists() {
-    con_(std::string("DROP TABLE IF EXISTS ") + schema_.table_name()).wait();
+    con_(std::string("DROP TABLE IF EXISTS ") + schema_.table_name()).flush_results();
     return *this;
   }
 
@@ -2373,7 +2544,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     });
     ss << ");";
     try {
-      con_(ss.str()).wait();
+      con_(ss.str()).flush_results();
     } catch (std::runtime_error e) {
       std::cerr << "Warning: Lithium::sql could not create the " << schema_.table_name() << " sql table."
                 << std::endl
@@ -2502,7 +2673,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
     if constexpr(has_key<decltype(schema_.all_fields())>(s::id))
       return request_res.last_insert_id();
-    else return request_res.wait();
+    else return request_res.flush_results();
   };
 
   template <typename A, typename B, typename... O, typename... W>
@@ -2546,7 +2717,8 @@ template <typename SCHEMA, typename C> struct sql_orm {
   }
 
   // Update N's members except auto increment members.
-  // N must have at least one primary key.
+  // N must have at least one primary key named id.
+  // Only postgres is supported for now.
   template <typename N, typename... CB> void bulk_update(const N& elements, CB&&... args) {
 
     if constexpr(!std::is_same<typename C::db_tag, pgsql_tag>::value)

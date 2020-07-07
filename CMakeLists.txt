@@ -19,11 +19,11 @@ IF (WIN32)
     "${CMAKE_SOURCE_DIR_BACKSLASH}${TARGET_BS}"
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/include/li/)
 ELSE()
-    if(NOT EXISTS "${CMAKE_BINARY_DIR}/include/li/${lib_name}")
-        execute_process(COMMAND ln -s
-                        "${CMAKE_SOURCE_DIR}${target_dir}" ${lib_name}
-                        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/include/li/)
-    ENDIF()
+  if(NOT EXISTS "${CMAKE_BINARY_DIR}/include/li/${lib_name}")
+  execute_process(COMMAND ln -s
+                  "${CMAKE_SOURCE_DIR}${target_dir}" ${lib_name}
+                  WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/include/li/)
+  ENDIF()
 ENDIF()
 endfunction()
 
@@ -39,6 +39,7 @@ link_build_include("sql" "/libraries/sql/sql")
 include_directories(${CMAKE_BINARY_DIR}/include)
 
 #set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -march=native -mtune=native -flto") 
+add_definitions(-Wno-ignored-attributes) # to skip postgresql warnings.
 
 add_custom_target(
     symbols_generation DEPENDS li_symbol_generator

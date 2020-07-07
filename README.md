@@ -90,25 +90,14 @@ add_dependencies(your_executable symbols_generation)
 Now that you have setup symbol generation (or choose manual declaration), you are done because 
 Lithium is header only. You can `#include` lithium headers and start coding. 
 
-# Installation / Supported compilers
+# Installation
+
+https://github.com/matt-42/lithium/tree/master/INSTALL.md
 
 
-You can either use the single header version of the libraries (does not provide the li_symbol_generator utility):
-https://github.com/matt-42/lithium/tree/master/single_headers
-
-Or install the lithium project:
-
-```c++
-git clone https://github.com/matt-42/lithium.git
-cd lithium;
-mkdir build; cd build;
-cmake .. -DCMAKE_INSTALL_PREFIX=_your_prefix_; make -j4 install;
-```
-
-## Supported compilers:
+# Supported compilers:
     - Linux: G++ 9.2, Clang++ 9.0
-    - Macos: Clang 11 (everything except http_backend that relies on epoll)
-    - Not supported anymore: Windows: MSVC 19
+    - Macos, Windows: Not supported
 
 # Support the project
 

@@ -1,26 +1,41 @@
 li::sql
 ================================
 
-``li::sql`` is a set of high performance and easy to use C++ SQL drivers.
-It provides an asynchronous and a synchronous mode (= blocking or non blocking mode).
+``li::sql`` is a set of high performance and easy to use C++ SQL drivers built on top of the C drivers provided by the databases. It allows you to target MySQL, PostgreSQL and SQLite under the same C++ API which
+is significantly smaller and easier to learn than the C APIs provided by the databases.
+
 It features:
-  - A MySQL sync & async C++ connector
-  - A PostgreSQL sync & async C++ connector
-  - A SQLite sync C++ connector
+  - MySQL sync & async requests
+  - A PostgreSQL sync & async requests
+  - A SQLite sync requests
   - An ORM-like class that allow to send requests without typing raw SQL code.
   - Thread-safe connection pooling for MySQL and PostgreSQL.
 
 All the three connectors are following the same API so you can use the same way
-a SQLite, a MySQL and a PostgreSQL database.
+a SQLite, MySQL or PostgreSQL database.
 
-# Benchmark
+# Installation
 
-According to the [Techempower benchmark](http://tfb-status.techempower.com/), Lithium MySQL and PostgreSQL drivers
-are part of the fastest available.
+https://github.com/matt-42/lithium/tree/master/INSTALL.md
 
-# Tutorial
+# Runtime Performances
 
-## Connectors
+All ``li::sql`` abstractions are unwrapped at compile time so it adds almost zero overhead over the raw C drivers of the databases.
+According to the [Techempower benchmark](http://tfb-status.techempower.com/), Lithium MySQL and PostgreSQL drivers are part of the fastest available.
+
+# Ease of use
+
+While building a fast DB driver, we did not do any compromise on the ease of use of the library.
+The learning curve of this library is inferior to 5 minutes since it's API has only 5 functions (excluding the ORM):
+  - `database::connect` to get a connection
+  - `connection::operator()` to execute queries
+  - `connection::prepare` to build prepared statements
+  - `prepared_statement::operator()` to execute a prepared statement
+  - `result::read` to read result
+  - `result::read_optional` to read result that may be null
+  - `result::map` to map function on result rows
+
+# Sync and Async Database Connections with Pooling
 
 ```c++
 // Declare a mysql database.
@@ -29,7 +44,12 @@ auto db = li::mysql_database(s::host = "127.0.0.1",
                              s::user = "user",
                              s::password = "pass",
                              s::port = 12345,
-                             s::charset = "utf8");
+                             s::charset = "utf8",
+                             // Only for async connection, specify the maximum number of SQL connections per thread.
+                             s::max_async_connections_per_thread = 200,
+                             // Only for synchronous connection, specify the maximum number of SQL connections
+                             s::max_sync_connections = 2000
+                             );
 
 // OR a sqlite database.
 auto db = li::sqlite_database("my_sqlitedb.db");
@@ -40,50 +60,89 @@ auto db = li::pgsql_database(s::host = "127.0.0.1",
                              s::user = "user",
                              s::password = "pass",
                              s::port = 12345,
-                             s::charset = "utf8");
+                             s::charset = "utf8",
+                             // Only for async connection, specify the maximum number of SQL connections per thread.
+                             s::max_async_connections_per_thread = 200,
+                             // Only for synchronous connection, specify the maximum number of SQL connections
+                             s::max_sync_connections = 2000
+                             );
 
 // Connect to the database: SYNCHRONOUS MODE.
 // All function call are blocking.
-auto con = db.connect();
+auto connection = db.connect();
+// Throws if an error occured during the connection.
 
 // For MySQL and Postgresql, the db object manages a thread-safe pool of connections. connect() will
 // reuse any previously open connection if it is not currently used.
 // For SQLite, one thread-safe connection open with the flag SQLITE_OPEN_FULLMUTEX is shared.
 
+// Every connection will be automatically put back in the pool at the end of the scope.
+
 // Connect to the database: ASYNCHRONOUS MODE.
-// You must provide as argument an object that implement these 3 methods:
-// your_async_fiber_wrapper.yield(): Yield the current fiber.
-// your_async_fiber_wrapper.epoll_add(int fd, int flags): wrapper to your epoll_add. For more info: man epoll
-// your_async_fiber_wrapper.epoll_mod(int fd, int flags): wrapper to your epoll_mod. For more info: man epoll
+// You must provide as argument an object that follow this API:
+// struct active_yield {
+//   typedef std::runtime_error exception_type;
+//   void epoll_add(int, int) {} wrapper to your epoll_add. For more info: man epoll
+//   void epoll_mod(int, int) {} wrapper to your epoll_mod. For more info: man epoll
+//   void yield() {}  Yield the current fiber
+// };
 auto con = db.connect(your_async_fiber_wrapper);
 
+```
+
+# Running Raw Requests and Prepared Statements
+
+
+```c++
 // This was the only difference between using the async and the synchronous
 // connector. All the rest of the API is identical.
 
 // Run simple requests.
 con("DROP table if exists users;");
 
-// Retrieve data from simple requests.
-int count = con("select count(*) from users;").read<int>();
-
-// Use placeholder to format your request according to some variables.
-// Note: PostgreSQL uses $1, ... $N placeholders, SQLite and Mysql use ?.
-std::optional<std::string> login = con("select login from users where id = ? and name = ?;")(42, "John")
-              .read_optional<std::string>();
-// Note: use read_optional when the request may not return data.
-//       it returns a std::optional object that allows you to check it:
-if (login)
-  std::cout << *login << std::endl;
-else  
-  std::cout << "user not found" << std::endl;
-
-// Process multiple result rows.
+// Map a function on all result rows.
 con("select name, age from users;").map([] (std::string name, int age) {
   std::cout << name << ":" << age << std::endl;
 });
+
+// Retrieve data from simple requests.
+int count = con("select count(*) from users;").read<int>();
+auto [name, age] = con("select name, age from users where id = 42;").read<std::string, int>();
+// following calls to read on the same result will read the following result rows.
+// or throw if no more result row are available.
+
+// Retrive data that may be null (do not throw is no data available).
+auto optional = con("select name, age from users where id = 42;").read_optional<std::string, int>();
+// typeof(optional) == std::optional<std::tuple<std::string, int>>
+if (optional)
+{
+  auto [name, age] = optional.value();
+  [...]
+}
+
+
+// Read can also take arguments by reference to avoid copies.
+std::string name;
+int age;
+con("select name, age from users where id = 42;").read(name, age);
+
+std::optional<std::tuple<std::string, int>> optional;
+auto optional = con("select name, age from users where id = 42;").read(optional);
+
+
+// To build prepared statement: 
+auto prepared_stmt = con.prepare("select login from users where id = ? and name = ?;");
+
+// Prepared statement follow the same read/read_optional/map API:
+auto login = prepared_stmt(32, "john").read<std::string>();
 ```
 
 ## Object Relational Mapping
+
+On top of the raw query API, `li::sql` provides an ORM implementation that ease the insertion/update/removal
+of objects in a database.
+
+This heavily relies on the metamap paradigm, please first check https://github.com/matt-42/lithium/tree/master/libraries/metamap for more information about the symbols (`s::XXXX`) and how to define them.
 
 ```c++
 // Let's declare our orm.
@@ -156,17 +215,4 @@ auto users = li::sql_orm_schema(database, "user_table")
 api.post("/orm_test") = [&] (http_request& request, http_response& response) {
   users.connect().insert(s::name = "john", s::age = 42, s::login = "doe", request);
 }
-```
-
-# What is the s:: namespace ?
-
-Everything explained here: https://github.com/matt-42/lithium/tree/master/libraries/symbol#lisymbol
-
-# Connection pool size
-
-To tune the size of the PostgreSQL and MySQL pools (default to 200):
-
-```c++
-li::max_mysql_connections_per_thread = 42; // MySQL
-li::max_pgsql_connections_per_thread = 42; // PostgreSQL
 ```

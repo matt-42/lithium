@@ -18,7 +18,7 @@ also server <-> database (except SQLite which does not use the network).
 
 # Supported platforms
 
-Only linux is supported (epoll), linux and windows may be supported later.
+Only linux is supported (epoll).
 
 # Installation / Compilation
 
@@ -26,6 +26,8 @@ The quickest way to start developing an api is to use the single header distribu
 ```sh
 wget https://raw.githubusercontent.com/matt-42/lithium/master/single_headers/lithium_http_backend.hh
 ```
+
+More info here: https://github.com/matt-42/lithium/tree/master/INSTALL.md
 
 Write an api:
 ```c++

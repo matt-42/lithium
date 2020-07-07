@@ -9,6 +9,7 @@
 
 #include <li/sql/internal/mysql_bind.hh>
 #include <li/sql/internal/mysql_statement_data.hh>
+#include <li/sql/sql_result.hh>
 #include <li/sql/mysql_async_wrapper.hh>
 #include <li/sql/mysql_statement_result.hh>
 
@@ -22,20 +23,13 @@ namespace li {
 template <typename B> struct mysql_statement {
 
   /**
-   * @brief Execute the statement without arguments.
-   *
-   * @return mysql_statement_result<B> the result of the query.
-   */
-  mysql_statement_result<B> operator()();
-
-  /**
    * @brief Execute the statement with argument.
    * Number of args must be equal to the number of placeholders in the request.
    *
    * @param args the arguments
    * @return mysql_statement_result<B> the result
    */
-  template <typename... T> mysql_statement_result<B> operator()(T&&... args);
+  template <typename... T> sql_result<mysql_statement_result<B>> operator()(T&&... args);
 
   B& mysql_wrapper_;
   mysql_statement_data& data_;

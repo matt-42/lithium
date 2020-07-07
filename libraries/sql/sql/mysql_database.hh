@@ -26,10 +26,14 @@
 #include <li/sql/type_hashmap.hh>
 
 #include <li/sql/mysql_connection.hh>
+#include <li/sql/sql_database.hh>
 
 namespace li {
 
-struct mysql_database : std::enable_shared_from_this<mysql_database> {
+struct mysql_database_impl {
+
+  typedef mysql_tag db_tag;
+  typedef mysql_connection_data connection_data_type;
 
   /**
    * @brief Construct a new mysql database object
@@ -44,40 +48,23 @@ struct mysql_database : std::enable_shared_from_this<mysql_database> {
    *                 - s::charset = "character set" default: utf8
    *
    */
-  template <typename... O> inline mysql_database(O... opts);
-  
-  inline ~mysql_database();
+  template <typename... O> inline mysql_database_impl(O... opts);
 
-  /**
-   * @brief Provide a new mysql non blocking connection. The connection provides RAII: it will be
-   * placed back in the available connection pool whenver its constructor is called.
-   *
-   * @param fiber the fiber object providing the 3 non blocking logic methods:
-   *
-   *    - void epoll_add(int fd, int flags); // Make the current epoll fiber wakeup on
-   *                                            file descriptor fd 
-   *    - void epoll_mod(int fd, int flags); // Modify the epoll flags on file
-   *                                            descriptor fd 
-   *    - void yield() // Yield the current epoll fiber.
-   *
-   * @return mysql_connection<mysql_functions_non_blocking<Y>>
-   */
-  template <typename Y> inline mysql_connection<mysql_functions_non_blocking<Y>> connect(Y& fiber);
+  inline ~mysql_database_impl();
 
-  /**
-   * @brief Provide a new mysql blocking connection. The connection provides RAII: it will be
-   * placed back in the available connection pool whenver its constructor is called.
-   *
-   * @return the connection.
-   */
-  inline mysql_connection<mysql_functions_blocking> connect();
+  template <typename Y> inline std::shared_ptr<mysql_connection_data> new_connection(Y& fiber);
+  inline int get_socket(std::shared_ptr<mysql_connection_data> data);
 
-  std::mutex mutex_;
+  template <typename Y, typename F>
+  inline auto scoped_connection(Y& fiber, std::shared_ptr<mysql_connection_data>& data,
+                                F put_back_in_pool);
+
   std::string host_, user_, passwd_, database_;
   unsigned int port_;
-  std::deque<MYSQL*> _;
   std::string character_set_;
 };
+
+typedef sql_database<mysql_database_impl> mysql_database;
 
 } // namespace li
 

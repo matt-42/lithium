@@ -7,47 +7,47 @@
 
 #pragma once
 
-#include <map>
-#include <cassert>
-#include <sys/uio.h>
-#include <atomic>
-#include <variant>
-#include <set>
-#include <vector>
-#include <boost/lexical_cast.hpp>
-#include <errno.h>
-#include <boost/context/continuation.hpp>
+#include <tuple>
 #include <stdlib.h>
-#include <utility>
-#include <sys/epoll.h>
+#include <thread>
+#include <boost/lexical_cast.hpp>
+#include <unordered_map>
+#include <set>
+#include <chrono>
+#include <mutex>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <errno.h>
+#include <fcntl.h>
 #include <string_view>
 #include <string>
-#include <random>
-#include <sys/stat.h>
-#include <memory>
-#include <chrono>
-#include <cstring>
-#include <stdio.h>
-#include <mutex>
-#include <sstream>
-#include <sys/mman.h>
-#include <unistd.h>
-#include <optional>
-#include <thread>
-#include <netdb.h>
-#include <fcntl.h>
-#include <tuple>
-#include <functional>
-#include <sys/socket.h>
-#include <string.h>
-#include <iostream>
-#include <cmath>
-#include <sys/sendfile.h>
-#include <sys/types.h>
 #include <signal.h>
-#include <arpa/inet.h>
-#include <unordered_map>
+#include <stdio.h>
+#include <cassert>
+#include <map>
+#include <string.h>
+#include <sys/sendfile.h>
+#include <atomic>
+#include <sstream>
+#include <cstring>
+#include <sys/uio.h>
+#include <sys/epoll.h>
+#include <boost/context/continuation.hpp>
+#include <vector>
+#include <functional>
+#include <iostream>
+#include <sys/types.h>
+#include <random>
 #include <netinet/tcp.h>
+#include <sys/socket.h>
+#include <cmath>
+#include <netdb.h>
+#include <memory>
+#include <optional>
+#include <utility>
+#include <arpa/inet.h>
+#include <variant>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -2211,6 +2211,11 @@ template <unsigned SIZE> struct sql_varchar : public std::string {
     LI_SYMBOL(computed)
 #endif
 
+#ifndef LI_SYMBOL_connections
+#define LI_SYMBOL_connections
+    LI_SYMBOL(connections)
+#endif
+
 #ifndef LI_SYMBOL_database
 #define LI_SYMBOL_database
     LI_SYMBOL(database)
@@ -2224,6 +2229,26 @@ template <unsigned SIZE> struct sql_varchar : public std::string {
 #ifndef LI_SYMBOL_id
 #define LI_SYMBOL_id
     LI_SYMBOL(id)
+#endif
+
+#ifndef LI_SYMBOL_max_async_connections_per_thread
+#define LI_SYMBOL_max_async_connections_per_thread
+    LI_SYMBOL(max_async_connections_per_thread)
+#endif
+
+#ifndef LI_SYMBOL_max_connections
+#define LI_SYMBOL_max_connections
+    LI_SYMBOL(max_connections)
+#endif
+
+#ifndef LI_SYMBOL_max_sync_connections
+#define LI_SYMBOL_max_sync_connections
+    LI_SYMBOL(max_sync_connections)
+#endif
+
+#ifndef LI_SYMBOL_n_connections
+#define LI_SYMBOL_n_connections
+    LI_SYMBOL(n_connections)
 #endif
 
 #ifndef LI_SYMBOL_password
@@ -2306,7 +2331,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
   }
 
   inline auto& drop_table_if_exists() {
-    con_(std::string("DROP TABLE IF EXISTS ") + schema_.table_name()).wait();
+    con_(std::string("DROP TABLE IF EXISTS ") + schema_.table_name()).flush_results();
     return *this;
   }
 
@@ -2355,7 +2380,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     });
     ss << ");";
     try {
-      con_(ss.str()).wait();
+      con_(ss.str()).flush_results();
     } catch (std::runtime_error e) {
       std::cerr << "Warning: Lithium::sql could not create the " << schema_.table_name() << " sql table."
                 << std::endl
@@ -2484,7 +2509,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
     if constexpr(has_key<decltype(schema_.all_fields())>(s::id))
       return request_res.last_insert_id();
-    else return request_res.wait();
+    else return request_res.flush_results();
   };
 
   template <typename A, typename B, typename... O, typename... W>
@@ -2528,7 +2553,8 @@ template <typename SCHEMA, typename C> struct sql_orm {
   }
 
   // Update N's members except auto increment members.
-  // N must have at least one primary key.
+  // N must have at least one primary key named id.
+  // Only postgres is supported for now.
   template <typename N, typename... CB> void bulk_update(const N& elements, CB&&... args) {
 
     if constexpr(!std::is_same<typename C::db_tag, pgsql_tag>::value)

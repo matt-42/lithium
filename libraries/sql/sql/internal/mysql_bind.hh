@@ -52,9 +52,13 @@ template <unsigned S> inline std::string cpptype_to_mysql_type(const sql_varchar
 // Bind parameter functions
 // Used to bind input parameters of prepared statement.
 template <unsigned N> struct mysql_bind_data {
-  mysql_bind_data() { memset(bind.data(), 0, N * sizeof(MYSQL_BIND)); }
+  mysql_bind_data() {
+     memset(bind.data(), 0, N * sizeof(MYSQL_BIND));
+     for (int i = 0; i < N; i++) bind[i].error = &errors[i];
+  }
   std::array<unsigned long, N> real_lengths;
   std::array<MYSQL_BIND, N> bind;
+  std::array<char, N> errors;
 };
 
 template <typename V> void mysql_bind_param(MYSQL_BIND& b, V& v) {
@@ -176,6 +180,26 @@ mysql_bind_data<sizeof...(A)> mysql_bind_output(mysql_statement_data& data, std:
 
   int i = 0;
   tuple_map(o, [&](auto& m) {
+    mysql_bind_output(bind[i], real_lengths + i, m);
+    i++;
+  });
+
+  return bind_data;
+}
+
+// Forward reference tuple impl.
+template <typename... A>
+mysql_bind_data<sizeof...(A)> mysql_bind_output(mysql_statement_data& data, std::tuple<A...>&& o) {
+  if (data.num_fields_ != sizeof...(A))
+    throw std::runtime_error("mysql_statement error: The number of column in the result set does "
+                             "not match the number of attributes of the tuple to bind.");
+
+  mysql_bind_data<sizeof...(A)> bind_data;
+  MYSQL_BIND* bind = bind_data.bind.data();
+  unsigned long* real_lengths = bind_data.real_lengths.data();
+
+  int i = 0;
+  tuple_map(std::forward<std::tuple<A...>>(o), [&](auto& m) {
     mysql_bind_output(bind[i], real_lengths + i, m);
     i++;
   });

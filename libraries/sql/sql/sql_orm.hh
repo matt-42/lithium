@@ -38,7 +38,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
   }
 
   inline auto& drop_table_if_exists() {
-    con_(std::string("DROP TABLE IF EXISTS ") + schema_.table_name()).wait();
+    con_(std::string("DROP TABLE IF EXISTS ") + schema_.table_name()).flush_results();
     return *this;
   }
 
@@ -87,7 +87,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     });
     ss << ");";
     try {
-      con_(ss.str()).wait();
+      con_(ss.str()).flush_results();
     } catch (std::runtime_error e) {
       std::cerr << "Warning: Lithium::sql could not create the " << schema_.table_name() << " sql table."
                 << std::endl
@@ -216,7 +216,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
     if constexpr(has_key<decltype(schema_.all_fields())>(s::id))
       return request_res.last_insert_id();
-    else return request_res.wait();
+    else return request_res.flush_results();
   };
 
   template <typename A, typename B, typename... O, typename... W>
@@ -260,7 +260,8 @@ template <typename SCHEMA, typename C> struct sql_orm {
   }
 
   // Update N's members except auto increment members.
-  // N must have at least one primary key.
+  // N must have at least one primary key named id.
+  // Only postgres is supported for now.
   template <typename N, typename... CB> void bulk_update(const N& elements, CB&&... args) {
 
     if constexpr(!std::is_same<typename C::db_tag, pgsql_tag>::value)

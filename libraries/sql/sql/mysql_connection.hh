@@ -7,15 +7,8 @@
 
 namespace li {
 
-int max_mysql_connections_per_thread = 200;
-
 // Forward ref.
 struct mysql_connection_data;
-
-// Pools of connection
-thread_local std::deque<std::shared_ptr<mysql_connection_data>> mysql_connection_pool;
-thread_local std::deque<std::shared_ptr<mysql_connection_data>> mysql_connection_async_pool;
-thread_local int total_number_of_mysql_connections = 0;
 
 struct mysql_tag {};
 
@@ -30,7 +23,9 @@ struct mysql_connection {
    * @param mysql_wrapper the [non]blocking mysql wrapper.
    * @param data the connection data.
    */
-  inline mysql_connection(B mysql_wrapper, std::shared_ptr<li::mysql_connection_data> data);
+  template <typename P>
+  inline mysql_connection(B mysql_wrapper, std::shared_ptr<li::mysql_connection_data> data,
+  P put_data_back_in_pool);
 
   /**
    * @brief Last inserted row id.
@@ -45,7 +40,7 @@ struct mysql_connection {
    * @param rq the request string
    * @return mysql_result<B> the result.
    */
-  mysql_result<B> operator()(const std::string& rq);
+  sql_result<mysql_result<B>> operator()(const std::string& rq);
 
   /**
    * @brief Build a sql prepared statement.
