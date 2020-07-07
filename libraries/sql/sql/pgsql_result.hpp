@@ -1,6 +1,7 @@
 #pragma once
 
 #include "libpq-fe.h"
+#include <li/sql/internal/utils.hh>
 
 namespace li {
 
@@ -36,12 +37,13 @@ PGresult* pg_wait_for_next_result(PGconn* connection, Y& fiber, std::shared_ptr<
   }
 }
 template <typename Y> PGresult* pgsql_result<Y>::wait_for_next_result() {
-  pg_wait_for_next_result(connection_, fiber_, connection_status_);
+  return pg_wait_for_next_result(connection_, fiber_, connection_status_);
 }
 
 template <typename Y> void pgsql_result<Y>::flush_results() {
-  while (PGresult* res = wait_for_next_result())
-    PQclear(res);
+  if (*connection_status_ == 0)
+    while (PGresult* res = wait_for_next_result())
+      PQclear(res);
 }
 
 // Fetch a string from a result field.

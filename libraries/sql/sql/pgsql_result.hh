@@ -11,7 +11,6 @@ public:
   // Flush all results.
   void flush_results();
 
-private:
   PGconn* connection_;
   Y& fiber_;
   std::shared_ptr<int> connection_status_;
@@ -20,6 +19,8 @@ private:
   int row_i_ = 0;
   int current_result_nrows_ = 0;
   PGresult* current_result_ = nullptr;
+
+private:
 
   // Wait for the next result.
   PGresult* wait_for_next_result();

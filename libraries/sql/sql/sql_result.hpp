@@ -1,5 +1,7 @@
 #pragma once
 
+#include <li/sql/internal/utils.hh>
+
 namespace li {
 template <typename B>
 template <typename T1, typename... T>

@@ -98,7 +98,7 @@ template <typename Y> struct pgsql_connection {
 
   // pgsql_statement<Y> operator()(const std::string& rq) { return prepare(rq)(); }
 
-  auto& operator()(const std::string& rq) {
+  auto operator()(const std::string& rq) {
     if (!PQsendQuery(connection_, rq.c_str()))
       throw std::runtime_error(std::string("Postresql error:") + PQerrorMessage(connection_));
     return sql_result<pgsql_result<Y>>{

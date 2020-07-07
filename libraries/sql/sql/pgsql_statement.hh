@@ -9,6 +9,7 @@
 #include <li/sql/symbols.hh>
 #include <memory>
 #include <li/sql/pgsql_result.hh>
+#include <li/sql/sql_result.hh>
 
 namespace li {
 
@@ -22,13 +23,13 @@ template <typename Y> struct pgsql_statement {
 public:
   template <typename... T> sql_result<pgsql_result<Y>> operator()(T&&... args);
 
-private:
   PGconn* connection_;
   Y& fiber_;
   pgsql_statement_data& data_;
   std::shared_ptr<int> connection_status_;
 
 
+private:
 
   // Bind statement param utils.
   template <unsigned N>
@@ -48,3 +49,5 @@ private:
 };
 
 } // namespace li
+
+#include <li/sql/pgsql_statement.hpp>

@@ -110,7 +110,9 @@ unsigned int pgsql_statement<Y>::bind_compute_nparam(const std::vector<T>& arg) 
 // Bind parameter to the prepared statement and execute it.
 template <typename Y> template <typename... T> sql_result<pgsql_result<Y>> pgsql_statement<Y>::operator()(T&&... args) {
 
-  unsigned int nparams = (bind_compute_nparam(std::forward<T>(args)) + ...);
+  unsigned int nparams = 0;
+  if constexpr (sizeof...(T) > 0)
+    nparams = (bind_compute_nparam(std::forward<T>(args))+...);
   const char* values_[nparams];
   int lengths_[nparams];
   int binary_[nparams];
@@ -122,7 +124,7 @@ template <typename Y> template <typename... T> sql_result<pgsql_result<Y>> pgsql
   int i = 0;
   tuple_map(std::forward_as_tuple(args...), [&](const auto& a) {
     bind_param(a, values + i, lengths + i, binary + i);
-    i++;
+    i += bind_compute_nparam(a);
   });
 
   // std::cout << "flush" << std::endl;

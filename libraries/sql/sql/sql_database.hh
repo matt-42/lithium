@@ -50,8 +50,25 @@ template <typename I> struct sql_database {
     this->database_id_ = database_id_counter++;
   }
 
+  ~sql_database() {
+    auto it = sql_thread_local_data.find(this->database_id_);
+    if (it != sql_thread_local_data.end())
+    {
+      delete (sql_database_thread_local_data<I>*) sql_thread_local_data[this->database_id_];
+      sql_thread_local_data.erase(this->database_id_);
+    }
+  }
+
   auto& thread_local_data() {
-    return *(sql_database_thread_local_data<I>*)sql_thread_local_data[this->database_id_];
+    auto it = sql_thread_local_data.find(this->database_id_);
+    if (it == sql_thread_local_data.end())
+    {
+      auto data = new sql_database_thread_local_data<I>;
+      sql_thread_local_data[this->database_id_] = data;
+      return *data;
+    }
+    else
+      return *(sql_database_thread_local_data<I>*) it->second;
   }
   /**
    * @brief Provide a new mysql non blocking connection. The connection provides RAII: it will be

@@ -18,9 +18,6 @@
 
 #include <li/callable_traits/callable_traits.hh>
 #include <li/metamap/metamap.hh>
-#include <li/sql/mysql_async_wrapper.hh>
-#include <li/sql/mysql_statement.hh>
-#include <li/sql/mysql_statement_result.hh>
 #include <li/sql/sql_common.hh>
 #include <li/sql/symbols.hh>
 #include <li/sql/type_hashmap.hh>
@@ -36,6 +33,7 @@ template <typename I> struct sql_result {
 
   I impl_; // blocking or non blockin mysql functions wrapper.
 
+  sql_result() = delete;
   sql_result& operator=(sql_result&) = delete;
   sql_result(const sql_result&) = delete;
 
