@@ -7,22 +7,22 @@
 
 #pragma once
 
-#include <optional>
-#include <unordered_map>
 #include <variant>
+#include <optional>
+#include <string_view>
+#include <tuple>
+#include <memory>
+#include <iostream>
+#include <cassert>
+#include <vector>
+#include <unordered_map>
+#include <string>
+#include <map>
+#include <cstring>
+#include <utility>
+#include <cmath>
 #include <functional>
 #include <sstream>
-#include <string_view>
-#include <cmath>
-#include <tuple>
-#include <map>
-#include <iostream>
-#include <memory>
-#include <cassert>
-#include <utility>
-#include <cstring>
-#include <string>
-#include <vector>
 
 #if defined(_MSC_VER)
 #include <ciso646>

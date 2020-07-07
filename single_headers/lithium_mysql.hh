@@ -7,26 +7,26 @@
 
 #pragma once
 
-#include <unordered_map>
-#include <mysql.h>
-#include <mutex>
-#include <any>
-#include <sstream>
-#include <string>
-#include <vector>
-#include <optional>
-#include <deque>
-#include <iostream>
-#include <sys/epoll.h>
+#include <atomic>
 #include <cassert>
-#include <utility>
-#include <cstring>
 #include <boost/lexical_cast.hpp>
+#include <vector>
+#include <sys/epoll.h>
+#include <optional>
 #include <thread>
+#include <mysql.h>
 #include <tuple>
 #include <memory>
+#include <deque>
+#include <unordered_map>
+#include <string>
 #include <map>
-#include <atomic>
+#include <cstring>
+#include <utility>
+#include <iostream>
+#include <any>
+#include <mutex>
+#include <sstream>
 
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_HH
@@ -2180,7 +2180,7 @@ template <typename I> struct sql_database {
             pool.connections.push_back(data);
             
           } else {
-            if (pool.connections.size() >= pool.max_connections)
+            if (pool.connections.size() > pool.max_connections)
               std::cerr << "Error: connection pool size " << pool.connections.size()
                         << " exceed pool max_connections " << pool.max_connections << std::endl;
             pool.n_connections--;

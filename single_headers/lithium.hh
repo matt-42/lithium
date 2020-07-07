@@ -7,57 +7,57 @@
 
 #pragma once
 
-#include <sys/stat.h>
-#include <unordered_map>
-#include <mysql.h>
-#include <mutex>
-#include <any>
-#include <sstream>
-#include <functional>
-#include <variant>
-#include <unistd.h>
-#include <stdlib.h>
-#include <sys/types.h>
-#include <string>
+#include <errno.h>
+#include <stdio.h>
+#include <atomic>
+#include <fcntl.h>
+#include <cassert>
+#include <boost/lexical_cast.hpp>
 #include <vector>
+#include <set>
+#include <arpa/inet.h>
+#include <sys/uio.h>
+#include <chrono>
+#include <sys/epoll.h>
 #include <optional>
+#include <stdlib.h>
+#include <sys/mman.h>
+#include <sqlite3.h>
+#include <netdb.h>
+#include <thread>
+#include <mysql.h>
+#include <netinet/tcp.h>
+#include <string_view>
+#include <tuple>
+#include <memory>
 #include <openssl/err.h>
 #include <deque>
-#include <netinet/tcp.h>
-#include <iostream>
-#include <sys/epoll.h>
-#include <arpa/inet.h>
-#include <cassert>
-#include <utility>
-#include <cstring>
-#include <sys/sendfile.h>
-#include <fcntl.h>
-#include <boost/lexical_cast.hpp>
-#include <string.h>
-#include <sys/uio.h>
-#include <set>
-#include <errno.h>
-#include <netdb.h>
-#include <stdio.h>
-#include <thread>
-#include <tuple>
-#include <cmath>
-#include <string_view>
-#include <sys/socket.h>
-#include <sys/mman.h>
-#include <chrono>
-#include <random>
-#include <memory>
-#include <boost/context/continuation.hpp>
-#include <openssl/ssl.h>
+#include <unordered_map>
+#include <string>
 #include <map>
-#include <sqlite3.h>
-#include <atomic>
+#include <cstring>
+#include <utility>
 #include <signal.h>
+#include <string.h>
+#include <functional>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <boost/context/continuation.hpp>
+#include <iostream>
+#include <any>
+#include <openssl/ssl.h>
+#include <mutex>
+#include <sys/types.h>
+#include <variant>
+#include <cmath>
+#include <sys/socket.h>
+#include <random>
+#include <sstream>
+#include <sys/sendfile.h>
 
 #if defined(_MSC_VER)
-#include <ciso646>
 #include <io.h>
+#include <ciso646>
 #endif // _MSC_VER
 
 
@@ -3157,7 +3157,7 @@ template <typename I> struct sql_database {
             pool.connections.push_back(data);
             
           } else {
-            if (pool.connections.size() >= pool.max_connections)
+            if (pool.connections.size() > pool.max_connections)
               std::cerr << "Error: connection pool size " << pool.connections.size()
                         << " exceed pool max_connections " << pool.max_connections << std::endl;
             pool.n_connections--;

@@ -7,27 +7,26 @@
 
 #pragma once
 
-#include <unordered_map>
-#include <mysql.h>
-#include <mutex>
-#include <any>
-#include <sstream>
-#include <string>
-#include <vector>
-#include <optional>
-#include <deque>
-#include <iostream>
-#include <sys/epoll.h>
+#include <atomic>
 #include <cassert>
-#include <utility>
-#include <cstring>
 #include <boost/lexical_cast.hpp>
+#include <vector>
+#include <sys/epoll.h>
+#include <optional>
+#include <sqlite3.h>
 #include <thread>
 #include <tuple>
 #include <memory>
+#include <deque>
+#include <unordered_map>
+#include <string>
 #include <map>
-#include <sqlite3.h>
-#include <atomic>
+#include <cstring>
+#include <utility>
+#include <iostream>
+#include <any>
+#include <mutex>
+#include <sstream>
 
 #if defined(_MSC_VER)
 #include <ciso646>

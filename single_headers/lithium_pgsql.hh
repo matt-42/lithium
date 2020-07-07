@@ -8,31 +8,30 @@
 #pragma once
 
 #include <postgres.h>
-#include <unordered_map>
-#include <mysql.h>
-#include <mutex>
-#include <any>
-#include <sstream>
-#include <unistd.h>
-#include <catalog/pg_type.h>
-#include <string>
-#include <vector>
-#include <optional>
-#include <deque>
-#include <iostream>
-#include <postgres.h>
-#include <sys/epoll.h>
-#include <arpa/inet.h>
+#include <atomic>
 #include <cassert>
-#include <utility>
-#include <cstring>
 #include <boost/lexical_cast.hpp>
+#include <vector>
 #include <libpq-fe.h>
+#include <arpa/inet.h>
+#include <sys/epoll.h>
+#include <optional>
+#include <catalog/pg_type.h>
 #include <thread>
 #include <tuple>
 #include <memory>
+#include <deque>
+#include <unordered_map>
+#include <string>
 #include <map>
-#include <atomic>
+#include <cstring>
+#include <postgres.h>
+#include <utility>
+#include <unistd.h>
+#include <iostream>
+#include <any>
+#include <mutex>
+#include <sstream>
 
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_HH
@@ -1889,7 +1888,7 @@ template <typename I> struct sql_database {
             pool.connections.push_back(data);
             
           } else {
-            if (pool.connections.size() >= pool.max_connections)
+            if (pool.connections.size() > pool.max_connections)
               std::cerr << "Error: connection pool size " << pool.connections.size()
                         << " exceed pool max_connections " << pool.max_connections << std::endl;
             pool.n_connections--;

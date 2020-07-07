@@ -148,7 +148,7 @@ template <typename I> struct sql_database {
             pool.connections.push_back(data);
             
           } else {
-            if (pool.connections.size() >= pool.max_connections)
+            if (pool.connections.size() > pool.max_connections)
               std::cerr << "Error: connection pool size " << pool.connections.size()
                         << " exceed pool max_connections " << pool.max_connections << std::endl;
             pool.n_connections--;

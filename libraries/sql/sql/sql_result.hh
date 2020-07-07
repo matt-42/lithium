@@ -9,7 +9,6 @@
 #include <map>
 #include <memory>
 #include <mutex>
-#include <mysql.h>
 #include <optional>
 #include <sstream>
 #include <sys/epoll.h>
