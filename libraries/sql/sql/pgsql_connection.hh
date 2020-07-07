@@ -20,8 +20,8 @@
 
 #include <li/callable_traits/callable_traits.hh>
 #include <li/metamap/metamap.hh>
-#include <li/sql/pgsql_statement.hh>
 #include <li/sql/pgsql_result.hh>
+#include <li/sql/pgsql_statement.hh>
 #include <li/sql/sql_common.hh>
 #include <li/sql/symbols.hh>
 #include <li/sql/type_hashmap.hh>
@@ -82,8 +82,10 @@ template <typename Y> struct pgsql_connection {
                           P put_data_back_in_pool)
       : fiber_(fiber), data_(data), stm_cache_(data->statements), connection_(data->connection) {
 
-    connection_status_ = std::shared_ptr<int>(
-        new int(0), [data, put_data_back_in_pool](int* p) mutable { put_data_back_in_pool(data, *p); });
+    connection_status_ =
+        std::shared_ptr<int>(new int(0), [data, put_data_back_in_pool](int* p) mutable {
+          put_data_back_in_pool(data, *p);
+        });
   }
 
   ~pgsql_connection() {
@@ -99,12 +101,13 @@ template <typename Y> struct pgsql_connection {
   // pgsql_statement<Y> operator()(const std::string& rq) { return prepare(rq)(); }
 
   auto operator()(const std::string& rq) {
-    if (!PQsendQuery(connection_, rq.c_str()))
+    if (!PQsendQueryParams(connection_, rq.c_str(), 0, nullptr, nullptr, nullptr, nullptr, 1))
       throw std::runtime_error(std::string("Postresql error:") + PQerrorMessage(connection_));
     return sql_result<pgsql_result<Y>>{
         pgsql_result<Y>{this->connection_, this->fiber_, this->connection_status_}};
   }
 
+  // PQsendQueryParams
   template <typename F, typename... K> pgsql_statement<Y> cached_statement(F f, K... keys) {
     if (data_->statements_hashmap(f, keys...).get() == nullptr) {
       pgsql_statement<Y> res = prepare(f());
@@ -135,8 +138,15 @@ template <typename Y> struct pgsql_connection {
     }
 
     // flush results.
+    try {
+
     while (PGresult* ret = pg_wait_for_next_result(connection_, fiber_, connection_status_))
       PQclear(ret);
+
+    } catch (const std::runtime_error& e) {
+      this->data_->cancel();
+      throw e;
+    }
 
     // while (PGresult* ret = PQgetResult(connection_)) {
     //   if (PQresultStatus(ret) == PGRES_FATAL_ERROR)

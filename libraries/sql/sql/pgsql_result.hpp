@@ -1,7 +1,10 @@
 #pragma once
 
+
+#include <postgres.h>
 #include "libpq-fe.h"
 #include <li/sql/internal/utils.hh>
+#include <catalog/pg_type.h>
 
 namespace li {
 
@@ -41,16 +44,18 @@ template <typename Y> PGresult* pgsql_result<Y>::wait_for_next_result() {
 }
 
 template <typename Y> void pgsql_result<Y>::flush_results() {
-  if (*connection_status_ == 0)
-    while (PGresult* res = wait_for_next_result())
-      PQclear(res);
+  try {
+    if (*connection_status_ == 0)
+      while (PGresult* res = wait_for_next_result())
+        PQclear(res);
+  } catch (...) {}
 }
 
 // Fetch a string from a result field.
 template <typename Y>
 template <typename... A>
 void pgsql_result<Y>::fetch_value(std::string& out, char* val, int length,
-                                            bool is_binary) {
+                                            bool is_binary, Oid field_type) {
   // assert(!is_binary);
   // std::cout << "fetch string: " << length << " '"<< val <<"'" << std::endl;
   out = std::move(std::string(val, strlen(val)));
@@ -59,40 +64,42 @@ void pgsql_result<Y>::fetch_value(std::string& out, char* val, int length,
 // Fetch a blob from a result field.
 template <typename Y>
 template <typename... A>
-void pgsql_result<Y>::fetch_value(sql_blob& out, char* val, int length, bool is_binary) {
+void pgsql_result<Y>::fetch_value(sql_blob& out, char* val, int length, bool is_binary, Oid field_type) {
   // assert(is_binary);
   out = std::move(std::string(val, length));
 }
 
 // Fetch an int from a result field.
-template <typename Y> void pgsql_result<Y>::fetch_value(int& out, char* val, int length, bool is_binary) {
+template <typename Y> void pgsql_result<Y>::fetch_value(int& out, char* val, int length, bool is_binary, Oid field_type) {
   assert(is_binary);
-  // std::cout << "fetch integer " << length << " " << is_binary << std::endl;
+  // TYPCATEGORY_NUMERIC
+  //std::cout << "fetch integer " << length << " " << is_binary << std::endl;
   // std::cout << "fetch integer " << be64toh(*((uint64_t *) val)) << std::endl;
-  if (length == 8) {
+  if (field_type == INT8OID) {
     // std::cout << "fetch 64b integer " << std::hex << int(32) << std::endl;
     // std::cout << "fetch 64b integer " << std::hex << uint64_t(*((uint64_t *) val)) << std::endl;
     // std::cout << "fetch 64b integer " << std::hex << (*((uint64_t *) val)) << std::endl;
     // std::cout << "fetch 64b integer " << std::hex << be64toh(*((uint64_t *) val)) << std::endl;
     out = be64toh(*((uint64_t*)val));
-  } else if (length == 4)
+  } else if (field_type == INT4OID)
     out = (uint32_t)ntohl(*((uint32_t*)val));
-  else if (length == 2)
+  else if (field_type == INT2OID)
     out = (uint16_t)ntohs(*((uint16_t*)val));
   else
-    assert(0);
+    throw std::runtime_error("The type of request result does not match the destination type");
 }
 
 // Fetch an unsigned int from a result field.
 template <typename Y>
 void pgsql_result<Y>::fetch_value(unsigned int& out, char* val, int length,
-                                            bool is_binary) {
+                                            bool is_binary, Oid field_type) {
   assert(is_binary);
-  if (length == 8)
+  // if (length == 8)
+  if (field_type == INT8OID)
     out = be64toh(*((uint64_t*)val));
-  else if (length == 4)
+  else if (field_type == INT4OID)
     out = ntohl(*((uint32_t*)val));
-  else if (length == 2)
+  else if (field_type == INT2OID)
     out = ntohs(*((uint16_t*)val));
   else
     assert(0);
@@ -110,20 +117,28 @@ template <typename B> template <typename T> bool pgsql_result<B>::read(T&& outpu
       return false;
     row_i_ = 0;
     current_result_nrows_ = PQntuples(current_result_);
+    if (current_result_nrows_ == 0) return false;
+
+    if (curent_result_field_types_.size() == 0)
+    {
+      curent_result_field_types_.resize(PQnfields(current_result_));
+      for (int field_i = 0; field_i < curent_result_field_types_.size(); field_i++)
+        curent_result_field_types_[field_i] = PQftype(current_result_, field_i);
+    }
   }
 
   // Tuples
   if constexpr (is_tuple<T>::value) {
     int field_i = 0;
 
-    int nfields = PQnfields(current_result_);
+    int nfields = curent_result_field_types_.size();
     if (nfields != std::tuple_size_v<std::decay_t<T>>)
       throw std::runtime_error("postgresql error: in fetch: Mismatch between the request number of "
                                "field and the outputs.");
 
     tuple_map(std::forward<T>(output), [&](auto& m) {
       fetch_value(m, PQgetvalue(current_result_, row_i_, field_i), PQgetlength(current_result_, row_i_, field_i),
-                  PQfformat(current_result_, field_i));
+                  PQfformat(current_result_, field_i), curent_result_field_types_[field_i]);
       field_i++;
     });
   } else { // Metamaps.
@@ -134,7 +149,7 @@ template <typename B> template <typename T> bool pgsql_result<B>::read(T&& outpu
                                  " not fount in result.");
 
       fetch_value(m, PQgetvalue(current_result_, row_i_, field_i), PQgetlength(current_result_, row_i_, field_i),
-                  PQfformat(current_result_, field_i));
+                  PQfformat(current_result_, field_i), curent_result_field_types_[field_i]);
     });
   }
 
@@ -148,7 +163,9 @@ template <typename Y> long long int pgsql_result<Y>::last_insert_id() {
   // while (PGresult* res = wait_for_next_result())
   //  PQclear(res);
   // PQsendQuery(connection_, "LASTVAL()");
-  return this->read<int>();
+  int t = 0;
+  this->read(std::tie(t));
+  return t;
   // PGresult *PQexec(connection_, const char *command);
   // this->operator()
   //   last_insert_id_ = PQoidValue(res);

@@ -37,13 +37,15 @@ template <typename C> void init_test_table(C&& query) {
   query("CREATE TABLE users_test (id int,name TEXT,age int);");
 }
 
-template <typename R> void test_result(R&& query) {
+template <typename R, typename S> void test_result(R&& query, S&& new_query) {
 
   // std::cout << " STRING TO INT " << std::endl;
   // std::cout << "query(SELECT 'xxx';).template read<int>() == " << query("SELECT 'xxx';").template read<int>() << std::endl;
 
+  //query("SELECTT 1+2").template read<int>();
   // Invalid queries must throw.
-  EXPECT_THROW(query("SELECTT 1+2").template read<int>());
+
+  EXPECT_THROW(new_query("SELECTT 1+2").template read<int>());
 
   // //   long long int affected_rows();
   // //   template <typename T> T read();
@@ -137,10 +139,10 @@ template <typename D> void generic_sql_tests(D& database) {
   auto query = database.connect();
 
   // test non prepared statement result.
-  test_result(query);
+  test_result(query, [&](std::string q) { return database.connect()(q); });
 
   // test prepared statement result.
-  test_result([&](std::string q) { return query.prepare(q)(); });
+  test_result([&](std::string q) { return query.prepare(q)(); }, [&](std::string q) { return database.connect().prepare(q)(); });
   test_long_strings_prepared_statement(query);
 
   init_test_table(query);

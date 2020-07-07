@@ -11,7 +11,6 @@
 
 namespace li {
 
-
 // Execute a request with placeholders.
 template <typename Y>
 template <unsigned N>
@@ -108,11 +107,13 @@ unsigned int pgsql_statement<Y>::bind_compute_nparam(const std::vector<T>& arg) 
 }
 
 // Bind parameter to the prepared statement and execute it.
-template <typename Y> template <typename... T> sql_result<pgsql_result<Y>> pgsql_statement<Y>::operator()(T&&... args) {
+template <typename Y>
+template <typename... T>
+sql_result<pgsql_result<Y>> pgsql_statement<Y>::operator()(T&&... args) {
 
   unsigned int nparams = 0;
   if constexpr (sizeof...(T) > 0)
-    nparams = (bind_compute_nparam(std::forward<T>(args))+...);
+    nparams = (bind_compute_nparam(std::forward<T>(args)) + ...);
   const char* values_[nparams];
   int lengths_[nparams];
   int binary_[nparams];
@@ -134,13 +135,18 @@ template <typename Y> template <typename... T> sql_result<pgsql_result<Y>> pgsql
   // std::cout << "sending " << data_.stmt_name.c_str() << " with " << nparams << " params" <<
   // std::endl;
   if (!PQsendQueryPrepared(connection_, data_.stmt_name.c_str(), nparams, values, lengths, binary,
-                           1))
+                           1)) {
+    try {
+      while (auto res = pg_wait_for_next_result(connection_, fiber_, connection_status_))
+        PQclear(res);
+    } catch (...) {
+    }
     throw std::runtime_error(std::string("Postresql error:") + PQerrorMessage(connection_));
-
-  return sql_result<pgsql_result<Y>>{pgsql_result<Y>{this->connection_, this->fiber_, this->connection_status_}};
+  }
+  return sql_result<pgsql_result<Y>>{
+      pgsql_result<Y>{this->connection_, this->fiber_, this->connection_status_}};
 }
 
 // FIXME long long int affected_rows() { return pgsql_stmt_affected_rows(data_.stmt_); }
-
 
 } // namespace li

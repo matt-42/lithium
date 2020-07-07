@@ -7,8 +7,6 @@
 
 namespace li {
 
-int max_mysql_connections_per_thread = 200;
-
 // Forward ref.
 struct mysql_connection_data;
 
