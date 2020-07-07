@@ -7,26 +7,26 @@
 
 #pragma once
 
-#include <tuple>
-#include <thread>
-#include <boost/lexical_cast.hpp>
 #include <unordered_map>
-#include <mutex>
-#include <string>
 #include <mysql.h>
+#include <mutex>
+#include <any>
+#include <sstream>
+#include <string>
+#include <vector>
+#include <optional>
+#include <deque>
+#include <iostream>
+#include <sys/epoll.h>
 #include <cassert>
+#include <utility>
+#include <cstring>
+#include <boost/lexical_cast.hpp>
+#include <thread>
+#include <tuple>
+#include <memory>
 #include <map>
 #include <atomic>
-#include <sstream>
-#include <cstring>
-#include <sys/epoll.h>
-#include <deque>
-#include <vector>
-#include <iostream>
-#include <memory>
-#include <optional>
-#include <any>
-#include <utility>
 
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_HH
@@ -2447,6 +2447,16 @@ inline auto mysql_database_impl::scoped_connection(Y& fiber,
 #ifndef LI_SYMBOL_session_id
 #define LI_SYMBOL_session_id
     LI_SYMBOL(session_id)
+#endif
+
+#ifndef LI_SYMBOL_ssl_certificate
+#define LI_SYMBOL_ssl_certificate
+    LI_SYMBOL(ssl_certificate)
+#endif
+
+#ifndef LI_SYMBOL_ssl_key
+#define LI_SYMBOL_ssl_key
+    LI_SYMBOL(ssl_key)
 #endif
 
 #ifndef LI_SYMBOL_update_secret_key

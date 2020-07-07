@@ -7,23 +7,23 @@
 
 #pragma once
 
-#include <cstring>
-#include <cmath>
-#include <tuple>
-#include <curl/curl.h>
-#include <memory>
-#include <vector>
-#include <functional>
-#include <string_view>
-#include <string>
 #include <optional>
-#include <iostream>
 #include <unordered_map>
+#include <vector>
 #include <variant>
+#include <iostream>
+#include <sstream>
+#include <functional>
+#include <cmath>
+#include <string_view>
+#include <map>
+#include <tuple>
+#include <memory>
 #include <cassert>
 #include <utility>
-#include <map>
-#include <sstream>
+#include <cstring>
+#include <string>
+#include <curl/curl.h>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -293,6 +293,11 @@ template <typename V> auto symbol_string(V v, typename V::_iod_symbol_type* = 0)
 #ifndef LI_SYMBOL_body
 #define LI_SYMBOL_body
     LI_SYMBOL(body)
+#endif
+
+#ifndef LI_SYMBOL_disable_check_certificate
+#define LI_SYMBOL_disable_check_certificate
+    LI_SYMBOL(disable_check_certificate)
 #endif
 
 #ifndef LI_SYMBOL_fetch_headers
@@ -2183,6 +2188,9 @@ struct http_client {
 
     curl_easy_setopt(curl_, CURLOPT_HTTPHEADER, headers_list);
 
+    if (li::has_key(arguments, s::disable_check_certificate))
+      curl_easy_setopt(curl_, CURLOPT_SSL_VERIFYPEER, 0);
+    
     // Setup response header parsing.
     std::unordered_map<std::string, std::string> response_headers_map;
     if (fetch_headers) {

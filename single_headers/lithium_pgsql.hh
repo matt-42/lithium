@@ -7,31 +7,32 @@
 
 #pragma once
 
-#include <tuple>
-#include <thread>
-#include <catalog/pg_type.h>
-#include <boost/lexical_cast.hpp>
+#include <postgres.h>
 #include <unordered_map>
-#include <mutex>
-#include <unistd.h>
-#include <string>
-#include <libpq-fe.h>
-#include <cassert>
 #include <mysql.h>
-#include <map>
-#include <atomic>
+#include <mutex>
+#include <any>
 #include <sstream>
-#include <cstring>
-#include <sys/epoll.h>
-#include <deque>
+#include <unistd.h>
+#include <catalog/pg_type.h>
+#include <string>
 #include <vector>
+#include <optional>
+#include <deque>
 #include <iostream>
 #include <postgres.h>
-#include <memory>
-#include <optional>
+#include <sys/epoll.h>
 #include <arpa/inet.h>
-#include <any>
+#include <cassert>
 #include <utility>
+#include <cstring>
+#include <boost/lexical_cast.hpp>
+#include <libpq-fe.h>
+#include <thread>
+#include <tuple>
+#include <memory>
+#include <map>
+#include <atomic>
 
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_HH
@@ -2114,6 +2115,16 @@ typedef sql_database<pgsql_database_impl> pgsql_database;
 #ifndef LI_SYMBOL_session_id
 #define LI_SYMBOL_session_id
     LI_SYMBOL(session_id)
+#endif
+
+#ifndef LI_SYMBOL_ssl_certificate
+#define LI_SYMBOL_ssl_certificate
+    LI_SYMBOL(ssl_certificate)
+#endif
+
+#ifndef LI_SYMBOL_ssl_key
+#define LI_SYMBOL_ssl_key
+    LI_SYMBOL(ssl_key)
 #endif
 
 #ifndef LI_SYMBOL_update_secret_key

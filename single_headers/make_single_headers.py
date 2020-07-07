@@ -88,6 +88,11 @@ def make_single_header(install_dir, library_name, input_files, output_path):
         output.write("//\n")    
         output.write("// This file is generated do not edit it.\n\n")
         output.write("#pragma once\n\n")
+
+        # postgres.h first to avoid compilation errors.
+        for l in set(includes):
+            if "postgres.h" in l:
+                output.write(l);
         for l in set(includes):
             output.write(l)
         if len(windows_includes):
