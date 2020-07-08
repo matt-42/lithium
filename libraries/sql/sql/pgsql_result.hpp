@@ -3,7 +3,11 @@
 
 #include "libpq-fe.h"
 #include <li/sql/internal/utils.hh>
-#include <catalog/pg_type_d.h>
+//#include <catalog/pg_type_d.h>
+
+#define INT8OID 20
+#define INT2OID 21
+#define INT4OID 23
 
 namespace li {
 
