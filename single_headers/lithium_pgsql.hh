@@ -11,7 +11,6 @@
 #include <atomic>
 #include <boost/lexical_cast.hpp>
 #include <cassert>
-#include <catalog/pg_type_d.h>
 #include <cstring>
 #include <deque>
 #include <iostream>
@@ -998,6 +997,11 @@ template <typename... T> struct unconstref_tuple_elements<std::tuple<T...>> {
 } // namespace li
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_INTERNAL_UTILS_HH
 
+//#include <catalog/pg_type_d.h>
+
+#define INT8OID 20
+#define INT2OID 21
+#define INT4OID 23
 
 namespace li {
 
@@ -1291,9 +1295,11 @@ template <typename I> struct sql_result {
    *        the number of fields in the request.
    *    read(li::metamap<...>& )
    *        fill the metamap according to the current row. The metamap (value types and keys) must
-   * match the fields (types and names) of the request. read(A& a, B& b, C& c, ...) fill a, b, c,...
-   * with each field of the current row. Types of a, b, c... must match the types of the fields.
-   *        supported types : std::string, integer and floating numbers.
+   * match the fields (types and names) of the request. 
+   *    read(A& a, B& b, C& c, ...) 
+   *        fill a, b, c,...
+   *        with each field of the current row. Types of a, b, c... must match the types of the fields.
+   *        supported types : only values (i.e not tuples or metamaps) like std::string, integer and floating numbers.
    * @return T the result value.
    */
   template <typename T1, typename... T> bool read(T1&& t1, T&... tail);

@@ -1042,9 +1042,11 @@ template <typename I> struct sql_result {
    *        the number of fields in the request.
    *    read(li::metamap<...>& )
    *        fill the metamap according to the current row. The metamap (value types and keys) must
-   * match the fields (types and names) of the request. read(A& a, B& b, C& c, ...) fill a, b, c,...
-   * with each field of the current row. Types of a, b, c... must match the types of the fields.
-   *        supported types : std::string, integer and floating numbers.
+   * match the fields (types and names) of the request. 
+   *    read(A& a, B& b, C& c, ...) 
+   *        fill a, b, c,...
+   *        with each field of the current row. Types of a, b, c... must match the types of the fields.
+   *        supported types : only values (i.e not tuples or metamaps) like std::string, integer and floating numbers.
    * @return T the result value.
    */
   template <typename T1, typename... T> bool read(T1&& t1, T&... tail);
