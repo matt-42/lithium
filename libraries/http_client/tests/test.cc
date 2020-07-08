@@ -1,5 +1,5 @@
 #include <iostream>
-#include <li/http_client/http_client.hh>
+#include <lithium.hh>
 
 int main() {
   li::http_client client;

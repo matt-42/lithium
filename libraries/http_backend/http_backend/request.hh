@@ -1,5 +1,6 @@
 #pragma once
 
+#include <arpa/inet.h>
 #include <boost/lexical_cast.hpp>
 #include <iostream>
 #include <set>
@@ -7,7 +8,6 @@
 #include <string_view>
 #include <unordered_map>
 #include <vector>
-#include <arpa/inet.h>
 
 
 #include <li/http_backend/error.hh>

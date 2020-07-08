@@ -13,7 +13,3 @@ target_link_libraries(http_client_test  ${CURL_LIBRARIES})
 
 #add_test(http_client_test http_client_test)
 
-install(DIRECTORY http_client DESTINATION include/li
-  FILES_MATCHING PATTERN "*.hh")
-install(DIRECTORY http_client DESTINATION include/li
-  FILES_MATCHING PATTERN "*.hpp")

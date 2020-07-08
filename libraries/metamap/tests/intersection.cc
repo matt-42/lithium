@@ -1,5 +1,5 @@
 #include <cassert>
-#include <li/metamap/metamap.hh>
+#include <lithium.hh>
 #include <string>
 
 #include "symbols.hh"

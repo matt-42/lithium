@@ -1,6 +1,5 @@
-#include <li/http_backend/http_backend.hh>
-#include <li/http_backend/sql_http_session.hh>
-#include <li/http_client/http_client.hh>
+#include <lithium.hh>
+
 
 #include "symbols.hh"
 #include "test.hh"

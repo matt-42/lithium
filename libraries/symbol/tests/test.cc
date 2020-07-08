@@ -1,7 +1,7 @@
 #include "symbols.hh"
 #include <cassert>
 #include <cstring>
-#include <li/symbol/symbol.hh>
+#include <lithium.hh>
 
 using namespace li;
 

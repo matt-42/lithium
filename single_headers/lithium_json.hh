@@ -7,22 +7,23 @@
 
 #pragma once
 
-#include <variant>
+#include <cassert>
+#include <cmath>
+#include <cstring>
+#include <functional>
+#include <iostream>
+#include <lithium_symbol.hh>
+#include <map>
+#include <memory>
 #include <optional>
+#include <sstream>
+#include <string>
 #include <string_view>
 #include <tuple>
-#include <memory>
-#include <iostream>
-#include <cassert>
-#include <vector>
 #include <unordered_map>
-#include <string>
-#include <map>
-#include <cstring>
 #include <utility>
-#include <cmath>
-#include <functional>
-#include <sstream>
+#include <variant>
+#include <vector>
 
 #if defined(_MSC_VER)
 #include <ciso646>

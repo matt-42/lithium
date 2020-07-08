@@ -24,13 +24,11 @@
 namespace li {
 
 /**
- * @brief Store a access to the result of a sql query (non prepared).
- *
- * @tparam B must be mysql_functions_blocking or mysql_functions_non_blocking
+ * @brief Provide access to the result of a sql query.
  */
 template <typename I> struct sql_result {
 
-  I impl_; // blocking or non blockin mysql functions wrapper.
+  I impl_;
 
   sql_result() = delete;
   sql_result& operator=(sql_result&) = delete;

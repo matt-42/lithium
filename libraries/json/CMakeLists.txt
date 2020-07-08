@@ -22,7 +22,3 @@ li_add_executable(readme tests/readme.cc)
 li_add_executable(number_parser tests/number_parser.cc)
 add_test(number_parser number_parser)
 
-install(DIRECTORY json DESTINATION include/li
-  FILES_MATCHING PATTERN "*.hh")
-install(DIRECTORY json DESTINATION include/li
-  FILES_MATCHING PATTERN "*.hpp")

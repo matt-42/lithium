@@ -1,5 +1,4 @@
-#include <li/http_backend/http_backend.hh>
-#include <li/http_client/http_client.hh>
+#include <lithium.hh>
 
 using namespace li;
 

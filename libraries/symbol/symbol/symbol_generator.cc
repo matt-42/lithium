@@ -143,7 +143,7 @@ void write_symbol_file(std::vector<std::string> symbols, std::ostream& os) {
   if (!symbols.empty()) {
     os << FIRST_LINE_COMMENT << std::endl;
     std::ostringstream symbols_content;
-    os << "#include <li/symbol/symbol.hh>" << std::endl;
+    os << "#include <lithium_symbol.hh>" << std::endl;
     for (std::string s : symbols) {
       os << symbol_definition(s) << std::endl;
     }

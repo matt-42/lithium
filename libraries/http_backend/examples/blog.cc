@@ -1,6 +1,6 @@
 
-#include <li/http_backend/http_backend.hh>
-#include <li/sql/sqlite.hh>
+#include <lithium.hh>
+#include <lithium.hh>
 
 #include "symbols.hh"
 

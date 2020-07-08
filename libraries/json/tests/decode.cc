@@ -1,6 +1,6 @@
 #include "symbols.hh"
 #include <cassert>
-#include <li/json/json.hh>
+#include <lithium.hh>
 
 using namespace li;
 

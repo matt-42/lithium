@@ -1,7 +1,5 @@
 #pragma once
 
-#include <li/sql/pgsql.hh>
-
 #include <iostream>
 
 template <typename... T> std::ostream& operator<<(std::ostream& os, std::tuple<T...> t) {
@@ -50,6 +48,7 @@ template <typename R, typename S> void test_result(R&& query, S&& new_query) {
   // //   long long int affected_rows();
   // //   template <typename T> T read();
   EXPECT_EQUAL(3, query("SELECT 1+2").template read<int>());
+  EXPECT_EQUAL(-1, query("SELECT 1-2").template read<int>());
   EXPECT_EQUAL(query("SELECT 'xxx'").template read<std::string>(), "xxx");
   init_test_table(query);
   // Reading empty sets must throw.

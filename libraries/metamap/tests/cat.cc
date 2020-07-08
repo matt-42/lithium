@@ -1,6 +1,7 @@
 #include "symbols.hh"
 #include <cassert>
-#include <li/metamap/metamap.hh>
+#include <lithium.hh>
+
 
 using namespace li;
 

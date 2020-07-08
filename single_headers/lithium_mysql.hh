@@ -7,26 +7,27 @@
 
 #pragma once
 
-#include <atomic>
-#include <cassert>
-#include <boost/lexical_cast.hpp>
-#include <vector>
-#include <sys/epoll.h>
-#include <optional>
-#include <thread>
-#include <mysql.h>
-#include <tuple>
-#include <memory>
-#include <deque>
-#include <unordered_map>
-#include <string>
-#include <map>
-#include <cstring>
-#include <utility>
-#include <iostream>
 #include <any>
+#include <atomic>
+#include <boost/lexical_cast.hpp>
+#include <cassert>
+#include <cstring>
+#include <deque>
+#include <iostream>
+#include <lithium_symbol.hh>
+#include <map>
+#include <memory>
 #include <mutex>
+#include <mysql.h>
+#include <optional>
 #include <sstream>
+#include <string>
+#include <sys/epoll.h>
+#include <thread>
+#include <tuple>
+#include <unordered_map>
+#include <utility>
+#include <vector>
 
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_HH
@@ -1332,13 +1333,11 @@ int type_hashmap<V>::counter_ = 0;
 namespace li {
 
 /**
- * @brief Store a access to the result of a sql query (non prepared).
- *
- * @tparam B must be mysql_functions_blocking or mysql_functions_non_blocking
+ * @brief Provide access to the result of a sql query.
  */
 template <typename I> struct sql_result {
 
-  I impl_; // blocking or non blockin mysql functions wrapper.
+  I impl_;
 
   sql_result() = delete;
   sql_result& operator=(sql_result&) = delete;
@@ -2145,7 +2144,7 @@ template <typename I> struct sql_database {
         pool.connections.pop_back();
         fiber.epoll_add(impl.get_socket(data), EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
       } else {
-        if (pool.n_connections > pool.max_connections) {
+        if (pool.n_connections >= pool.max_connections) {
           if constexpr (std::is_same_v<Y, active_yield>)
             throw std::runtime_error("Maximum number of sql connection exeeded.");
           else
@@ -2615,11 +2614,11 @@ template <typename SCHEMA, typename C> struct sql_orm {
   }
 
   template <typename A, typename B, typename... O, typename... W>
-  auto find_one(metamap<O...>&& o, assign_exp<A, B> w1, W... ws) {
-    return find_one(cat(o, mmm(w1)), ws...);
+  auto find_one(metamap<O...>&& o, assign_exp<A, B>&& w1, W... ws) {
+    return find_one(cat(o, mmm(w1)), std::forward<W>(ws)...);
   }
-  template <typename A, typename B, typename... W> auto find_one(assign_exp<A, B> w1, W... ws) {
-    return find_one(mmm(w1), ws...);
+  template <typename A, typename B, typename... W> auto find_one(assign_exp<A, B>&& w1, W&&... ws) {
+    return find_one(mmm(w1), std::forward<W>(ws)...);
   }
 
   template <typename W> bool exists(W&& cond) {

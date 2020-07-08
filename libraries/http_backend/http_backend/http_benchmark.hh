@@ -1,6 +1,5 @@
 #pragma once
 
-#include <arpa/inet.h>
 #include <atomic>
 #include <boost/context/continuation.hpp>
 #include <chrono>

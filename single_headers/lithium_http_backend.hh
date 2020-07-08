@@ -7,53 +7,54 @@
 
 #pragma once
 
-#include <errno.h>
-#include <stdio.h>
-#include <fcntl.h>
-#include <atomic>
-#include <cassert>
-#include <boost/lexical_cast.hpp>
-#include <vector>
-#include <set>
 #include <arpa/inet.h>
-#include <sys/uio.h>
-#include <chrono>
-#include <sys/epoll.h>
-#include <optional>
-#include <stdlib.h>
-#include <sys/mman.h>
-#include <netdb.h>
-#include <thread>
-#include <netinet/tcp.h>
-#include <string_view>
-#include <tuple>
-#include <memory>
-#include <openssl/err.h>
-#include <unordered_map>
-#include <string>
-#include <map>
-#include <cstring>
-#include <utility>
-#include <signal.h>
-#include <string.h>
-#include <functional>
-#include <sys/stat.h>
-#include <unistd.h>
+#include <atomic>
 #include <boost/context/continuation.hpp>
-#include <iostream>
-#include <openssl/ssl.h>
-#include <mutex>
-#include <sys/types.h>
-#include <variant>
+#include <boost/lexical_cast.hpp>
+#include <cassert>
+#include <chrono>
 #include <cmath>
-#include <sys/socket.h>
+#include <cstring>
+#include <errno.h>
+#include <fcntl.h>
+#include <functional>
+#include <iostream>
+#include <lithium_symbol.hh>
+#include <map>
+#include <memory>
+#include <mutex>
+#include <netdb.h>
+#include <netinet/tcp.h>
+#include <openssl/err.h>
+#include <openssl/ssl.h>
+#include <optional>
 #include <random>
+#include <set>
+#include <signal.h>
 #include <sstream>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <string>
+#include <string_view>
+#include <sys/epoll.h>
+#include <sys/mman.h>
 #include <sys/sendfile.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/uio.h>
+#include <thread>
+#include <tuple>
+#include <unistd.h>
+#include <unordered_map>
+#include <utility>
+#include <variant>
+#include <vector>
 
 #if defined(_MSC_VER)
-#include <io.h>
 #include <ciso646>
+#include <io.h>
 #endif // _MSC_VER
 
 
@@ -2453,11 +2454,11 @@ template <typename SCHEMA, typename C> struct sql_orm {
   }
 
   template <typename A, typename B, typename... O, typename... W>
-  auto find_one(metamap<O...>&& o, assign_exp<A, B> w1, W... ws) {
-    return find_one(cat(o, mmm(w1)), ws...);
+  auto find_one(metamap<O...>&& o, assign_exp<A, B>&& w1, W... ws) {
+    return find_one(cat(o, mmm(w1)), std::forward<W>(ws)...);
   }
-  template <typename A, typename B, typename... W> auto find_one(assign_exp<A, B> w1, W... ws) {
-    return find_one(mmm(w1), ws...);
+  template <typename A, typename B, typename... W> auto find_one(assign_exp<A, B>&& w1, W&&... ws) {
+    return find_one(mmm(w1), std::forward<W>(ws)...);
   }
 
   template <typename W> bool exists(W&& cond) {

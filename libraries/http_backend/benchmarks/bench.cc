@@ -1,6 +1,6 @@
-#include <li/http_backend/http_backend.hh>
-#include <li/sql/mysql.hh>
-#include <li/sql/pgsql.hh>
+#include <lithium.hh>
+#include <lithium.hh>
+#include <lithium.hh>
 
 #include "symbols.hh"
 using namespace li;
@@ -172,14 +172,17 @@ auto make_api() {
     N = std::max(1, std::min(N, 500));
 
     auto c = random_numbers.connect(request.fiber);
-    auto& raw_c = c.backend_connection();
+    // auto& raw_c = c.backend_connection();
     // raw_c("START TRANSACTION");
     std::vector<decltype(random_numbers.all_fields())> numbers(N);
     // auto stm = c.backend_connection().prepare("SELECT randomNumber from World where id=$1");
     for (int i = 0; i < N; i++)
       numbers[i] = c.find_one(s::id = 1 + rand() % 99).value();
     // numbers[i] = stm(1 + rand() % 99).read<std::remove_reference_t<decltype(numbers[i])>>();
-    // numbers[i].randomNumber = stm(1 + rand() % 99).read<int>();
+  // {
+  //   numbers[i].id = 1 + rand() % 99;
+  //     numbers[i].randomNumber = stm(1 + rand() % 99).read<int>();
+  // }
     // raw_c("COMMIT");
 
     response.write_json(numbers);

@@ -1,5 +1,5 @@
 #include <iostream>
-#include <li/json/json.hh>
+#include <lithium.hh>
 #include <string>
 
 #include "symbols.hh"

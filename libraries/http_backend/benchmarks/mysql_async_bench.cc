@@ -1,6 +1,6 @@
-#include <li/http_backend/http_backend.hh>
-#include <li/http_client/http_client.hh>
-#include <li/sql/mysql.hh>
+#include <lithium.hh>
+#include <lithium.hh>
+#include <lithium.hh>
 
 #include "symbols.hh"
 #include "client.hh"

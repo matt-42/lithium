@@ -7,31 +7,29 @@
 
 #pragma once
 
-#include <postgres.h>
+#include <any>
 #include <atomic>
-#include <cassert>
 #include <boost/lexical_cast.hpp>
-#include <vector>
+#include <cassert>
+#include <catalog/pg_type_d.h>
+#include <cstring>
+#include <deque>
+#include <iostream>
 #include <libpq-fe.h>
-#include <arpa/inet.h>
-#include <sys/epoll.h>
+#include <lithium_symbol.hh>
+#include <map>
+#include <memory>
+#include <mutex>
 #include <optional>
-#include <catalog/pg_type.h>
+#include <sstream>
+#include <string>
+#include <sys/epoll.h>
 #include <thread>
 #include <tuple>
-#include <memory>
-#include <deque>
-#include <unordered_map>
-#include <string>
-#include <map>
-#include <cstring>
-#include <postgres.h>
-#include <utility>
 #include <unistd.h>
-#include <iostream>
-#include <any>
-#include <mutex>
-#include <sstream>
+#include <unordered_map>
+#include <utility>
+#include <vector>
 
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_HH
@@ -960,7 +958,7 @@ public:
   int current_result_nrows_ = 0;
   PGresult* current_result_ = nullptr;
   std::vector<Oid> curent_result_field_types_;
-
+  
 private:
 
   // Wait for the next result.
@@ -1112,7 +1110,12 @@ template <typename B> template <typename T> bool pgsql_result<B>::read(T&& outpu
       return false;
     row_i_ = 0;
     current_result_nrows_ = PQntuples(current_result_);
-    if (current_result_nrows_ == 0) return false;
+    if (current_result_nrows_ == 0)
+    {
+      PQclear(current_result_);
+      current_result_ = nullptr;
+      return false;
+    }
 
     if (curent_result_field_types_.size() == 0)
     {
@@ -1240,13 +1243,11 @@ int type_hashmap<V>::counter_ = 0;
 namespace li {
 
 /**
- * @brief Store a access to the result of a sql query (non prepared).
- *
- * @tparam B must be mysql_functions_blocking or mysql_functions_non_blocking
+ * @brief Provide access to the result of a sql query.
  */
 template <typename I> struct sql_result {
 
-  I impl_; // blocking or non blockin mysql functions wrapper.
+  I impl_;
 
   sql_result() = delete;
   sql_result& operator=(sql_result&) = delete;
@@ -1853,7 +1854,7 @@ template <typename I> struct sql_database {
         pool.connections.pop_back();
         fiber.epoll_add(impl.get_socket(data), EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
       } else {
-        if (pool.n_connections > pool.max_connections) {
+        if (pool.n_connections >= pool.max_connections) {
           if constexpr (std::is_same_v<Y, active_yield>)
             throw std::runtime_error("Maximum number of sql connection exeeded.");
           else
@@ -2282,11 +2283,11 @@ template <typename SCHEMA, typename C> struct sql_orm {
   }
 
   template <typename A, typename B, typename... O, typename... W>
-  auto find_one(metamap<O...>&& o, assign_exp<A, B> w1, W... ws) {
-    return find_one(cat(o, mmm(w1)), ws...);
+  auto find_one(metamap<O...>&& o, assign_exp<A, B>&& w1, W... ws) {
+    return find_one(cat(o, mmm(w1)), std::forward<W>(ws)...);
   }
-  template <typename A, typename B, typename... W> auto find_one(assign_exp<A, B> w1, W... ws) {
-    return find_one(mmm(w1), ws...);
+  template <typename A, typename B, typename... W> auto find_one(assign_exp<A, B>&& w1, W&&... ws) {
+    return find_one(mmm(w1), std::forward<W>(ws)...);
   }
 
   template <typename W> bool exists(W&& cond) {

@@ -1,4 +1,4 @@
-#include <li/http_backend/error.hh>
+#include <lithium.hh>
 
 #define CHECK_EQUAL(name, exp, ref)                                                                \
   try {                                                                                            \

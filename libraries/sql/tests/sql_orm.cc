@@ -1,9 +1,5 @@
 #include <cassert>
-#include <li/json/json.hh>
-#include <li/sql/mysql.hh>
-#include <li/sql/sql_orm.hh>
-#include <li/sql/sqlite.hh>
-#include <li/sql/pgsql.hh>
+#include <lithium.hh>
 
 #include "../../http_backend/tests/test.hh"
 

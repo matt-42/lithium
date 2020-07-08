@@ -3,7 +3,7 @@
 #include <iostream>
 #include <sstream>
 
-#include <li/json/unicode.hh>
+#include <lithium.hh>
 
 using namespace li;
 

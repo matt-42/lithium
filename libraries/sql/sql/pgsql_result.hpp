@@ -1,10 +1,9 @@
 #pragma once
 
 
-#include <postgres.h>
 #include "libpq-fe.h"
 #include <li/sql/internal/utils.hh>
-#include <catalog/pg_type.h>
+#include <catalog/pg_type_d.h>
 
 namespace li {
 
@@ -117,7 +116,12 @@ template <typename B> template <typename T> bool pgsql_result<B>::read(T&& outpu
       return false;
     row_i_ = 0;
     current_result_nrows_ = PQntuples(current_result_);
-    if (current_result_nrows_ == 0) return false;
+    if (current_result_nrows_ == 0)
+    {
+      PQclear(current_result_);
+      current_result_ = nullptr;
+      return false;
+    }
 
     if (curent_result_field_types_.size() == 0)
     {

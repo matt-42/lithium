@@ -7,57 +7,61 @@
 
 #pragma once
 
-#include <errno.h>
-#include <stdio.h>
-#include <atomic>
-#include <fcntl.h>
-#include <cassert>
-#include <boost/lexical_cast.hpp>
-#include <vector>
-#include <set>
-#include <arpa/inet.h>
-#include <sys/uio.h>
-#include <chrono>
-#include <sys/epoll.h>
-#include <optional>
-#include <stdlib.h>
-#include <sys/mman.h>
-#include <sqlite3.h>
-#include <netdb.h>
-#include <thread>
-#include <mysql.h>
-#include <netinet/tcp.h>
-#include <string_view>
-#include <tuple>
-#include <memory>
-#include <openssl/err.h>
-#include <deque>
-#include <unordered_map>
-#include <string>
-#include <map>
-#include <cstring>
-#include <utility>
-#include <signal.h>
-#include <string.h>
-#include <functional>
-#include <sys/stat.h>
-#include <unistd.h>
-#include <boost/context/continuation.hpp>
-#include <iostream>
 #include <any>
-#include <openssl/ssl.h>
-#include <mutex>
-#include <sys/types.h>
-#include <variant>
+#include <arpa/inet.h>
+#include <atomic>
+#include <boost/context/continuation.hpp>
+#include <boost/lexical_cast.hpp>
+#include <cassert>
+#include <catalog/pg_type_d.h>
+#include <chrono>
 #include <cmath>
-#include <sys/socket.h>
+#include <cstring>
+#include <curl/curl.h>
+#include <deque>
+#include <errno.h>
+#include <fcntl.h>
+#include <functional>
+#include <iostream>
+#include <libpq-fe.h>
+#include <lithium_symbol.hh>
+#include <map>
+#include <memory>
+#include <mutex>
+#include <mysql.h>
+#include <netdb.h>
+#include <netinet/tcp.h>
+#include <openssl/err.h>
+#include <openssl/ssl.h>
+#include <optional>
 #include <random>
+#include <set>
+#include <signal.h>
+#include <sqlite3.h>
 #include <sstream>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <string>
+#include <string_view>
+#include <sys/epoll.h>
+#include <sys/mman.h>
 #include <sys/sendfile.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/uio.h>
+#include <thread>
+#include <tuple>
+#include <unistd.h>
+#include <unordered_map>
+#include <utility>
+#include <variant>
+#include <vector>
 
 #if defined(_MSC_VER)
-#include <io.h>
 #include <ciso646>
+#include <io.h>
 #endif // _MSC_VER
 
 
@@ -1021,13 +1025,11 @@ int type_hashmap<V>::counter_ = 0;
 namespace li {
 
 /**
- * @brief Store a access to the result of a sql query (non prepared).
- *
- * @tparam B must be mysql_functions_blocking or mysql_functions_non_blocking
+ * @brief Provide access to the result of a sql query.
  */
 template <typename I> struct sql_result {
 
-  I impl_; // blocking or non blockin mysql functions wrapper.
+  I impl_;
 
   sql_result() = delete;
   sql_result& operator=(sql_result&) = delete;
@@ -1484,6 +1486,1623 @@ struct sqlite_database {
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQLITE_HH
 
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_CLIENT_HTTP_CLIENT_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_CLIENT_HTTP_CLIENT_HH
+#define CURL_STATICLIB
+#pragma comment(lib, "crypt32")
+#pragma comment(lib, "ws2_32.lib")
+#pragma comment(lib, "Wldap32.lib")
+#pragma comment(lib, "Normaliz.lib")
+
+
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_CLIENT_SYMBOLS_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_CLIENT_SYMBOLS_HH
+
+#ifndef LI_SYMBOL_body
+#define LI_SYMBOL_body
+    LI_SYMBOL(body)
+#endif
+
+#ifndef LI_SYMBOL_disable_check_certificate
+#define LI_SYMBOL_disable_check_certificate
+    LI_SYMBOL(disable_check_certificate)
+#endif
+
+#ifndef LI_SYMBOL_fetch_headers
+#define LI_SYMBOL_fetch_headers
+    LI_SYMBOL(fetch_headers)
+#endif
+
+#ifndef LI_SYMBOL_get_parameters
+#define LI_SYMBOL_get_parameters
+    LI_SYMBOL(get_parameters)
+#endif
+
+#ifndef LI_SYMBOL_headers
+#define LI_SYMBOL_headers
+    LI_SYMBOL(headers)
+#endif
+
+#ifndef LI_SYMBOL_json_encoded
+#define LI_SYMBOL_json_encoded
+    LI_SYMBOL(json_encoded)
+#endif
+
+#ifndef LI_SYMBOL_post_parameters
+#define LI_SYMBOL_post_parameters
+    LI_SYMBOL(post_parameters)
+#endif
+
+#ifndef LI_SYMBOL_status
+#define LI_SYMBOL_status
+    LI_SYMBOL(status)
+#endif
+
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_CLIENT_SYMBOLS_HH
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_JSON_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_JSON_HH
+
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_DECODER_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_DECODER_HH
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_DECODE_STRINGSTREAM_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_DECODE_STRINGSTREAM_HH
+
+#if defined(_MSC_VER)
+#endif
+
+
+namespace li {
+
+using std::string_view;
+
+namespace internal {
+template <typename I> void parse_uint(I* val_, const char* str, const char** end) {
+  I& val = *val_;
+  val = 0;
+  int i = 0;
+  while (i < 40) {
+    char c = *str;
+    if (c < '0' or c > '9')
+      break;
+    val = val * 10 + c - '0';
+    str++;
+    i++;
+  }
+  if (end)
+    *end = str;
+}
+
+template <typename I> void parse_int(I* val, const char* str, const char** end) {
+  bool neg = false;
+
+  if (str[0] == '-') {
+    neg = true;
+    str++;
+  }
+  parse_uint(val, str, end);
+  if constexpr (!std::is_same<I, bool>::value) {
+    if (neg)
+      *val = -(*val);
+  }
+}
+
+inline unsigned long long pow10(unsigned int e) {
+  unsigned long long pows[] = {1,
+                               10,
+                               100,
+                               1000,
+                               10000,
+                               100000,
+                               1000000,
+                               10000000,
+                               100000000,
+                               1000000000,
+                               10000000000,
+                               100000000000,
+                               1000000000000,
+                               10000000000000,
+                               100000000000000,
+                               1000000000000000,
+                               10000000000000000,
+                               100000000000000000};
+
+  if (e < 18)
+    return pows[e];
+  else
+    return 0;
+}
+
+template <typename F> void parse_float(F* f, const char* str, const char** end) {
+  // 1.234e-10
+  // [sign][int][decimal_part][exp]
+
+  const char* it = str;
+  int integer_part;
+  parse_int(&integer_part, it, &it);
+  int sign = integer_part >= 0 ? 1 : -1;
+  *f = integer_part;
+  if (*it == '.') {
+    it++;
+    unsigned long long decimal_part;
+    const char* dec_end;
+    parse_uint(&decimal_part, it, &dec_end);
+
+    if (dec_end > it)
+      *f += (F(decimal_part) / pow10(dec_end - it)) * sign;
+
+    it = dec_end;
+  }
+
+  if (*it == 'e' || *it == 'E') {
+    it++;
+    bool neg = false;
+    if (*it == '-') {
+      neg = true;
+      it++;
+    }
+
+    unsigned int exp = 0;
+    parse_uint(&exp, it, &it);
+    if (neg)
+      *f = *f / pow10(exp);
+    else
+      *f = *f * pow10(exp);
+  }
+
+  if (end)
+    *end = it;
+}
+
+} // namespace internal
+
+class decode_stringstream {
+public:
+  inline decode_stringstream(std::string_view buffer_)
+      : cur(buffer_.data()), bad_(false), buffer(buffer_) {}
+
+  inline bool eof() const { return cur > &buffer.back(); }
+  inline const char peek() const { return *cur; }
+  inline const char get() { return *(cur++); }
+  inline int bad() const { return bad_; }
+  inline int good() const { return !bad_ && !eof(); }
+
+  template <typename T> void operator>>(T& value) {
+    eat_spaces();
+    if constexpr (std::is_floating_point<T>::value) {
+      // Decode floating point.
+      eat_spaces();
+      const char* end = nullptr;
+      internal::parse_float(&value, cur, &end);
+      if (end == cur)
+        bad_ = true;
+      cur = end;
+    } else if constexpr (std::is_integral<T>::value) {
+      // Decode integer.
+      const char* end = nullptr;
+      internal::parse_int(&value, cur, &end);
+      if (end == cur)
+        bad_ = true;
+      cur = end;
+    } else if constexpr (std::is_same<T, std::string>::value) {
+      // Decode UTF8 string.
+      json_to_utf8(*this, value);
+    } else if constexpr (std::is_same<T, string_view>::value) {
+      // Decoding to stringview does not decode utf8.
+
+      if (get() != '"') {
+        bad_ = true;
+        return;
+      }
+
+      const char* start = cur;
+      bool escaped = false;
+
+      while (peek() != '\0' and (escaped or peek() != '"')) {
+        int nb = 0;
+        while (peek() == '\\')
+          nb++;
+
+        escaped = nb % 2;
+        cur++;
+      }
+      const char* end = cur;
+      value = string_view(start, end - start);
+
+      if (get() != '"') {
+        bad_ = true;
+        return;
+      }
+    }
+  }
+
+private:
+  inline void eat_spaces() {
+    while (peek() < 33)
+      ++cur;
+  }
+
+  int bad_;
+  const char* cur;
+  std::string_view buffer; //
+};
+
+} // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_DECODE_STRINGSTREAM_HH
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_ERROR_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_ERROR_HH
+
+
+namespace li {
+
+enum json_error_code { JSON_OK = 0, JSON_KO = 1 };
+
+struct json_error {
+  json_error& operator=(const json_error&) = default;
+  operator bool() { return code != 0; }
+  bool good() { return code == 0; }
+  bool bad() { return code != 0; }
+  int code;
+  std::string what;
+};
+
+int make_json_error(const char* what) { return 1; }
+int json_no_error() { return 0; }
+
+static int json_ok = json_no_error();
+
+} // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_ERROR_HH
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_UNICODE_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_UNICODE_HH
+
+
+
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_SYMBOLS_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_SYMBOLS_HH
+
+#ifndef LI_SYMBOL_append
+#define LI_SYMBOL_append
+    LI_SYMBOL(append)
+#endif
+
+#ifndef LI_SYMBOL_json_key
+#define LI_SYMBOL_json_key
+    LI_SYMBOL(json_key)
+#endif
+
+#ifndef LI_SYMBOL_name
+#define LI_SYMBOL_name
+    LI_SYMBOL(name)
+#endif
+
+#ifndef LI_SYMBOL_type
+#define LI_SYMBOL_type
+    LI_SYMBOL(type)
+#endif
+
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_SYMBOLS_HH
+
+
+namespace li {
+
+template <typename O> inline decltype(auto) wrap_json_output_stream(O&& s) {
+  return mmm(s::append = [&s](char c) { s << c; });
+}
+
+inline decltype(auto) wrap_json_output_stream(std::ostringstream& s) {
+  return mmm(s::append = [&s](char c) { s << c; });
+}
+
+inline decltype(auto) wrap_json_output_stream(std::string& s) {
+  return mmm(s::append = [&s](char c) { s.append(1, c); });
+}
+
+inline decltype(auto) wrap_json_input_stream(std::istringstream& s) { return s; }
+inline decltype(auto) wrap_json_input_stream(std::stringstream& s) { return s; }
+inline decltype(auto) wrap_json_input_stream(decode_stringstream& s) { return s; }
+inline decltype(auto) wrap_json_input_stream(const std::string& s) { return decode_stringstream(s); }
+inline decltype(auto) wrap_json_input_stream(const char* s) {
+  return decode_stringstream(s);
+}
+inline decltype(auto) wrap_json_input_stream(const std::string_view& s) {
+  return decode_stringstream(s);
+}
+
+namespace unicode_impl {
+template <typename S, typename T> auto json_to_utf8(S&& s, T&& o);
+
+template <typename S, typename T> auto utf8_to_json(S&& s, T&& o);
+} // namespace unicode_impl
+
+template <typename I, typename O> auto json_to_utf8(I&& i, O&& o) {
+  return unicode_impl::json_to_utf8(wrap_json_input_stream(std::forward<I>(i)),
+                                    wrap_json_output_stream(std::forward<O>(o)));
+}
+
+template <typename I, typename O> auto utf8_to_json(I&& i, O&& o) {
+  return unicode_impl::utf8_to_json(wrap_json_input_stream(std::forward<I>(i)),
+                                    wrap_json_output_stream(std::forward<O>(o)));
+}
+
+enum json_encodings { UTF32BE, UTF32LE, UTF16BE, UTF16LE, UTF8 };
+
+// Detection of encoding depending on the pattern of the
+// first fourth characters.
+auto detect_encoding(char a, char b, char c, char d) {
+  // 00 00 00 xx  UTF-32BE
+  // xx 00 00 00  UTF-32LE
+  // 00 xx 00 xx  UTF-16BE
+  // xx 00 xx 00  UTF-16LE
+  // xx xx xx xx  UTF-8
+
+  if (a == 0 and b == 0)
+    return UTF32BE;
+  else if (c == 0 and d == 0)
+    return UTF32LE;
+  else if (a == 0)
+    return UTF16BE;
+  else if (b == 0)
+    return UTF16LE;
+  else
+    return UTF8;
+}
+
+// The JSON RFC escapes character codepoints prefixed with a \uXXXX (7-11 bits codepoints)
+// or \uXXXX\uXXXX (20 bits codepoints)
+
+// uft8 string have 4 kinds of character representation encoding the codepoint of the character.
+
+// 1 byte : 0xxxxxxx  -> 7 bits codepoint ASCII chars from 0x00 to 0x7F
+// 2 bytes: 110xxxxx 10xxxxxx -> 11 bits codepoint
+// 3 bytes: 1110xxxx 10xxxxxx 10xxxxxx -> 11 bits codepoint
+
+// 1 and 3 bytes representation are escaped as \uXXXX with X a char in the 0-9A-F range. It
+// is possible since the codepoint is less than 16 bits.
+
+// the 4 bytes representation uses the UTF-16 surrogate pair (high and low surrogate).
+
+// The high surrogate is in the 0xD800..0xDBFF range (HR) and
+// the low surrogate is in the 0xDC00..0xDFFF range (LR).
+
+// to encode a given 20bits codepoint c to the surrogate pair.
+//  - substract 0x10000 to c
+//  - separate the result in a high (first 10 bits) and low (last 10bits) surrogate.
+//  - Add 0xD800 to the high surrogate
+//  - Add 0xDC00 to the low surrogate
+//  - the 32 bits code is (high << 16) + low.
+
+// and to json-escape the high-low(H-L) surrogates representation (16+16bits):
+//  - Check that H and L are respectively in the HR and LR ranges.
+//  - add to H-L 0x0001_0000 - 0xD800_DC00 to get the 20bits codepoint c.
+//  - Encode the codepoint in a string of \uXXXX\uYYYY with X and Y the respective hex digits
+//    of the high and low sequence of 10 bits.
+
+// In addition to utf8, JSON escape characters ( " \ / ) with a backslash and translate
+// \n \r \t \b \r in their matching two characters string, for example '\n' to  '\' followed by 'n'.
+
+namespace unicode_impl {
+template <typename S, typename T> auto json_to_utf8(S&& s, T&& o) {
+  // Convert a JSON string into an UTF-8 string.
+  if (s.get() != '"')
+    return JSON_KO; // make_json_error("json_to_utf8: JSON strings should start with a double
+                    // quote.");
+
+  while (true) {
+    // Copy until we find the escaping backslash or the end of the string (double quote).
+    while (s.peek() != EOF and s.peek() != '"' and s.peek() != '\\')
+      o.append(s.get());
+
+    // If eof found before the end of the string, return an error.
+    if (s.eof())
+      return JSON_KO; // make_json_error("json_to_utf8: Unexpected end of string when parsing a
+                      // string.");
+
+    // If end of json string, return
+    if (s.peek() == '"') {
+      break;
+      return JSON_OK;
+    }
+
+    // Get the '\'.
+    assert(s.peek() == '\\');
+    s.get();
+
+    switch (s.get()) {
+      // List of escaped char from http://www.json.org/
+    default:
+      return JSON_KO; // make_json_error("json_to_utf8: Bad JSON escaped character.");
+    case '"':
+      o.append('"');
+      break;
+    case '\\':
+      o.append('\\');
+      break;
+    case '/':
+      o.append('/');
+      break;
+    case 'n':
+      o.append('\n');
+      break;
+    case 'r':
+      o.append('\r');
+      break;
+    case 't':
+      o.append('\t');
+      break;
+    case 'b':
+      o.append('\b');
+      break;
+    case 'f':
+      o.append('\f');
+      break;
+    case 'u':
+      char a, b, c, d;
+
+      a = s.get();
+      b = s.get();
+      c = s.get();
+      d = s.get();
+
+      if (s.eof())
+        return JSON_KO; // make_json_error("json_to_utf8: Unexpected end of string when decoding an
+                        // utf8 character");
+
+      auto decode_hex_c = [](char c) {
+        if (c >= '0' and c <= '9')
+          return c - '0';
+        else
+          return (10 + std::toupper(c) - 'A');
+      };
+
+      uint16_t x = (decode_hex_c(a) << 12) + (decode_hex_c(b) << 8) + (decode_hex_c(c) << 4) +
+                   decode_hex_c(d);
+
+      // If x in the  0xD800..0xDBFF range -> decode a surrogate pair \uXXXX\uYYYY -> 20 bits
+      // codepoint.
+      if (x >= 0xD800 and x <= 0xDBFF) {
+        if (s.get() != '\\' or s.get() != 'u')
+          return JSON_KO; // make_json_error("json_to_utf8: Missing low surrogate.");
+
+        uint16_t y = (decode_hex_c(s.get()) << 12) + (decode_hex_c(s.get()) << 8) +
+                     (decode_hex_c(s.get()) << 4) + decode_hex_c(s.get());
+
+        if (s.eof())
+          return JSON_KO; // make_json_error("json_to_utf8: Unexpected end of string when decoding
+                          // an utf8 character");
+
+        x -= 0xD800;
+        y -= 0xDC00;
+
+        int cp = (x << 10) + y + 0x10000;
+
+        o.append(0b11110000 | (cp >> 18));
+        o.append(0b10000000 | ((cp & 0x3F000) >> 12));
+        o.append(0b10000000 | ((cp & 0x00FC0) >> 6));
+        o.append(0b10000000 | (cp & 0x003F));
+
+      }
+      // else encode the codepoint with the 1-2, or 3 bytes utf8 representation.
+      else {
+        if (x <= 0x007F) // 7bits codepoints, ASCII 0xxxxxxx.
+        {
+          o.append(uint8_t(x));
+        } else if (x >= 0x0080 and x <= 0x07FF) // 11bits codepoint -> 110xxxxx 10xxxxxx
+        {
+          o.append(0b11000000 | (x >> 6));
+          o.append(0b10000000 | (x & 0x003F));
+        } else if (x >= 0x0800 and x <= 0xFFFF) // 16bits codepoint -> 1110xxxx 10xxxxxx 10xxxxxx
+        {
+          o.append(0b11100000 | (x >> 12));
+          o.append(0b10000000 | ((x & 0x0FC0) >> 6));
+          o.append(0b10000000 | (x & 0x003F));
+        } else
+          return JSON_KO; // make_json_error("json_to_utf8: Bad UTF8 codepoint.");
+      }
+      break;
+    }
+  }
+
+  if (s.get() != '"')
+    return JSON_KO; // make_json_error("JSON strings must end with a double quote.");
+
+  return JSON_OK; // json_no_error();
+}
+
+template <typename S, typename T> auto utf8_to_json(S&& s, T&& o) {
+  o.append('"');
+
+  auto encode_16bits = [&](uint16_t b) {
+    const char lt[] = "0123456789ABCDEF";
+    o.append(lt[b >> 12]);
+    o.append(lt[(b & 0x0F00) >> 8]);
+    o.append(lt[(b & 0x00F0) >> 4]);
+    o.append(lt[b & 0x000F]);
+  };
+
+  while (!s.eof()) {
+    // 7-bits codepoint
+    while (s.good() and s.peek() <= 0x7F and s.peek() != EOF) {
+      switch (s.peek()) {
+      case '"':
+        o.append('\\');
+        o.append('"');
+        break;
+      case '\\':
+        o.append('\\');
+        o.append('\\');
+        break;
+        // case '/': o.append('/'); break; Do not escape /
+      case '\n':
+        o.append('\\');
+        o.append('n');
+        break;
+      case '\r':
+        o.append('\\');
+        o.append('r');
+        break;
+      case '\t':
+        o.append('\\');
+        o.append('t');
+        break;
+      case '\b':
+        o.append('\\');
+        o.append('b');
+        break;
+      case '\f':
+        o.append('\\');
+        o.append('f');
+        break;
+      default:
+        o.append(s.peek());
+      }
+      s.get();
+    }
+
+    if (s.eof())
+      break;
+
+    // uft8 prefix \u.
+    o.append('\\');
+    o.append('u');
+
+    uint8_t c1 = s.get();
+    uint8_t c2 = s.get();
+    {
+      // extract codepoints.
+      if (c1 < 0b11100000) // 11bits - 2 char: 110xxxxx	10xxxxxx
+      {
+        uint16_t cp = ((c1 & 0b00011111) << 6) + (c2 & 0b00111111);
+        if (cp >= 0x0080 and cp <= 0x07FF)
+          encode_16bits(cp);
+        else
+          return JSON_KO;         // make_json_error("utf8_to_json: Bad UTF8 codepoint.");
+      } else if (c1 < 0b11110000) // 16 bits - 3 char: 1110xxxx	10xxxxxx	10xxxxxx
+      {
+        uint16_t cp = ((c1 & 0b00001111) << 12) + ((c2 & 0b00111111) << 6) + (s.get() & 0b00111111);
+
+        if (cp >= 0x0800 and cp <= 0xFFFF)
+          encode_16bits(cp);
+        else
+          return JSON_KO; // make_json_error("utf8_to_json: Bad UTF8 codepoint.");
+      } else              // 21 bits - 4 chars: 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+      {
+        int cp = ((c1 & 0b00000111) << 18) + ((c2 & 0b00111111) << 12) +
+                 ((s.get() & 0b00111111) << 6) + (s.get() & 0b00111111);
+
+        cp -= 0x10000;
+
+        uint16_t H = (cp >> 10) + 0xD800;
+        uint16_t L = (cp & 0x03FF) + 0xDC00;
+
+        // check if we are in the right range.
+        // The high surrogate is in the 0xD800..0xDBFF range (HR) and
+        // the low surrogate is in the 0xDC00..0xDFFF range (LR).
+        assert(H >= 0xD800 and H <= 0xDBFF and L >= 0xDC00 and L <= 0xDFFF);
+
+        encode_16bits(H);
+        o.append('\\');
+        o.append('u');
+        encode_16bits(L);
+      }
+    }
+  }
+  o.append('"');
+  return JSON_OK;
+}
+} // namespace unicode_impl
+} // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_UNICODE_HH
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_UTILS_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_UTILS_HH
+
+
+
+namespace li {
+
+template <typename T> struct json_object_base;
+
+template <typename T> struct json_object_;
+template <typename T> struct json_vector_;
+template <typename V> struct json_value_;
+template <typename V> struct json_map_;
+template <typename... T> struct json_tuple_;
+struct json_key;
+
+namespace impl {
+template <typename S, typename... A>
+auto make_json_object_member(const function_call_exp<S, A...>& e);
+template <typename S> auto make_json_object_member(const li::symbol<S>&);
+
+template <typename S, typename T> auto make_json_object_member(const assign_exp<S, T>& e) {
+  return cat(make_json_object_member(e.left), mmm(s::type = e.right));
+}
+
+template <typename S> auto make_json_object_member(const li::symbol<S>&) {
+  return mmm(s::name = S{});
+}
+
+template <typename V> auto to_json_schema(V v) { return json_value_<V>{}; }
+
+template <typename... M> auto to_json_schema(const metamap<M...>& m);
+
+template <typename V> auto to_json_schema(const std::vector<V>& arr) {
+  auto elt = to_json_schema(decltype(arr[0]){});
+  return json_vector_<decltype(elt)>{elt};
+}
+
+template <typename... V> auto to_json_schema(const std::tuple<V...>& arr) {
+  return json_tuple_<decltype(to_json_schema(V{}))...>(to_json_schema(V{})...);
+}
+template <typename K, typename V> auto to_json_schema(const std::unordered_map<K, V>& arr) {
+  return json_map_<decltype(to_json_schema(V{}))>(to_json_schema(V{}));
+}
+template <typename K, typename V> auto to_json_schema(const std::map<K, V>& arr) {
+  return json_map_<decltype(to_json_schema(V{}))>(to_json_schema(V{}));
+}
+
+template <typename... M> auto to_json_schema(const metamap<M...>& m) {
+  auto tuple_maker = [](auto&&... t) { return std::make_tuple(std::forward<decltype(t)>(t)...); };
+
+  auto entities = map_reduce(
+      m, [](auto k, auto v) { return mmm(s::name = k, s::type = to_json_schema(v)); }, tuple_maker);
+
+  return json_object_<decltype(entities)>(entities);
+}
+
+template <typename... E> auto json_object_to_metamap(const json_object_<std::tuple<E...>>& s) {
+  auto make_kvs = [](auto... elt) { return std::make_tuple((elt.name = elt.type)...); };
+
+  auto kvs = std::apply(make_kvs, s.entities);
+  return std::apply(mmm, kvs);
+}
+
+template <typename S, typename... A>
+auto make_json_object_member(const function_call_exp<S, A...>& e) {
+  auto res = mmm(s::name = e.method, s::json_key = symbol_string(e.method));
+
+  auto parse = [&](auto a) {
+    if constexpr (std::is_same<decltype(a), json_key>::value) {
+      res.json_key = a.key;
+    }
+  };
+
+  ::li::tuple_map(e.args, parse);
+  return res;
+}
+
+} // namespace impl
+
+template <typename T> struct json_object_;
+
+template <typename O> struct json_vector_;
+
+template <typename E> constexpr auto json_is_vector(json_vector_<E>) -> std::true_type {
+  return {};
+}
+template <typename E> constexpr auto json_is_vector(E) -> std::false_type { return {}; }
+
+template <typename... E> constexpr auto json_is_tuple(json_tuple_<E...>) -> std::true_type {
+  return {};
+}
+template <typename E> constexpr auto json_is_tuple(E) -> std::false_type { return {}; }
+
+template <typename E> constexpr auto json_is_object(json_object_<E>) -> std::true_type {
+  return {};
+}
+template <typename E> constexpr auto json_is_object(json_map_<E>) -> std::true_type {
+  return {};
+}
+template <typename E> constexpr auto json_is_object(E) -> std::false_type { return {}; }
+
+
+template <typename E> constexpr auto json_is_value(json_object_<E>) -> std::false_type {
+  return {};
+}
+template <typename E> constexpr auto json_is_value(json_vector_<E>) -> std::false_type {
+  return {};
+}
+template <typename... E> constexpr auto json_is_value(json_tuple_<E...>) -> std::false_type {
+  return {};
+}
+template <typename E> constexpr auto json_is_value(json_map_<E>) -> std::false_type {
+  return {};
+}
+template <typename E> constexpr auto json_is_value(E) -> std::true_type { return {}; }
+
+template <typename T> constexpr auto is_std_optional(std::optional<T>) -> std::true_type;
+template <typename T> constexpr auto is_std_optional(T) -> std::false_type;
+
+} // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_UTILS_HH
+
+
+namespace li {
+
+namespace impl {
+
+template <typename S> struct json_parser {
+  inline json_parser(S&& s) : ss(s) {}
+  inline json_parser(S& s) : ss(s) {}
+
+  inline decltype(auto) peek() { return ss.peek(); }
+  inline decltype(auto) get() { return ss.get(); }
+
+  inline void skip_one() { ss.get(); }
+
+  inline bool eof() { return ss.eof(); }
+  inline json_error_code eat(char c, bool skip_spaces = true) {
+    if (skip_spaces)
+      eat_spaces();
+
+    char g = ss.get();
+    if (g != c)
+      return make_json_error("Unexpected char. Got '", char(g), "' expected ", c);
+    return JSON_OK;
+  }
+
+  inline json_error_code eat(const char* str, bool skip_spaces = true) {
+    if (skip_spaces)
+      eat_spaces();
+
+    const char* str_it = str;
+    while (*str_it) {
+      char g = ss.get();
+      if (g != *str_it)
+        return make_json_error("Unexpected char. Got '", char(g), "' expected '", *str_it,
+                               "' when parsing string ", str);
+      str_it++;
+    }
+    return JSON_OK;
+  }
+
+  json_error_code eat_json_key(char* buffer, int buffer_size, int& key_size) {
+    if (auto err = eat('"'))
+      return err;
+    key_size = 0;
+    while (!eof() and peek() != '"' and key_size < (buffer_size-1))
+      buffer[key_size++] = get();
+    buffer[key_size] = 0;
+    if (auto err = eat('"', false))
+      return err;
+    return JSON_OK;
+  }
+
+  template <typename... T> inline json_error_code make_json_error(T&&... t) {
+    if (!error_stream)
+      error_stream = new std::ostringstream();
+    *error_stream << "json error: ";
+    auto add = [this](auto w) { *error_stream << w; };
+    apply_each(add, t...);
+    return JSON_KO;
+  }
+  inline void eat_spaces() {
+    while (ss.peek() >= 0 and ss.peek() < 33)
+      ss.get();
+  }
+
+  template <typename X> struct JSON_INVALID_TYPE;
+
+  // Integers and floating points.
+  template <typename T> json_error_code fill(T& t) {
+
+    if constexpr (std::is_floating_point<T>::value or std::is_integral<T>::value or
+                  std::is_same<T, std::string_view>::value) {
+      ss >> t;
+      if (ss.bad())
+        return make_json_error("Ill-formated value.");
+      return JSON_OK;
+    } else
+      // The JSON decoder only parses floating-point, integral and string types.
+      return JSON_INVALID_TYPE<T>::error;
+  }
+
+  // Strings
+  inline json_error_code fill(std::string& str) {
+    eat_spaces();
+    str.clear();
+    return json_to_utf8(ss, str);
+  }
+
+  template <typename T> inline json_error_code fill(std::optional<T>& opt) {
+    opt.emplace();
+    return fill(opt.value());
+  }
+
+  template <typename... T> inline json_error_code fill(std::variant<T...>& v) {
+    if (auto err = eat('{'))
+      return err;
+    if (auto err = eat("\"idx\""))
+      return err;
+    if (auto err = eat(':'))
+      return err;
+
+    int idx = 0;
+    fill(idx);
+    if (auto err = eat(','))
+      return err;
+    if (auto err = eat("\"value\""))
+      return err;
+    if (auto err = eat(':'))
+      return err;
+
+    int cpt = 0;
+    apply_each(
+        [&](auto* x) {
+          if (cpt == idx) {
+            std::remove_pointer_t<decltype(x)> value{};
+            fill(value);
+            v = std::move(value);
+          }
+          cpt++;
+        },
+        (T*)nullptr...);
+
+    if (auto err = eat('}'))
+      return err;
+    return JSON_OK;
+  }
+
+  S& ss;
+  std::ostringstream* error_stream = nullptr;
+};
+
+template <typename P, typename O, typename S> json_error_code json_decode2(P& p, O& obj, S) {
+  auto err = p.fill(obj);
+  if (err)
+    return err;
+  else
+    return JSON_OK;
+}
+
+template <typename P, typename O, typename S>
+json_error_code json_decode2(P& p, O& obj, json_vector_<S> schema) {
+  obj.clear();
+  bool first = true;
+  auto err = p.eat('[');
+  if (err)
+    return err;
+
+  p.eat_spaces();
+  while (p.peek() != ']') {
+    if (!first) {
+      if ((err = p.eat(',')))
+        return err;
+    }
+    first = false;
+
+    obj.resize(obj.size() + 1);
+    if ((err = json_decode2(p, obj.back(), S{})))
+      return err;
+    p.eat_spaces();
+  }
+
+  if ((err = p.eat(']')))
+    return err;
+  else
+    return JSON_OK;
+}
+
+template <typename F, typename... E, typename... T, std::size_t... I>
+inline void json_decode_tuple_elements(F& decode_fun, std::tuple<T...>& tu,
+                                       const std::tuple<E...>& schema, std::index_sequence<I...>) {
+  (void)std::initializer_list<int>{((void)decode_fun(std::get<I>(tu), std::get<I>(schema)), 0)...};
+}
+
+template <typename P, typename... O, typename... S>
+json_error_code json_decode2(P& p, std::tuple<O...>& tu, json_tuple_<S...> schema) {
+  bool first = true;
+  auto err = p.eat('[');
+  if (err)
+    return err;
+
+  auto decode_one_element = [&first, &p, &err](auto& value, auto value_schema) {
+    if (!first) {
+      if ((err = p.eat(',')))
+        return err;
+    }
+    first = false;
+    if ((err = json_decode2(p, value, value_schema)))
+      return err;
+    p.eat_spaces();
+    return JSON_OK;
+  };
+
+  json_decode_tuple_elements(decode_one_element, tu, schema.elements,
+                             std::make_index_sequence<sizeof...(O)>{});
+
+  if ((err = p.eat(']')))
+    return err;
+  else
+    return JSON_OK;
+}
+
+template <typename P, typename O, typename V>
+json_error_code json_decode2(json_parser<P>& p, O& obj, json_map_<V> schema) {
+  if (auto err = p.eat('{'))
+    return err;
+
+  p.eat_spaces();
+
+  using mapped_type = typename O::mapped_type;
+  while(true)
+  {
+    // Parse key:
+    char key[50];
+    int key_size = 0;
+    if (auto err = p.eat_json_key(key, sizeof(key), key_size))
+      return err;
+    
+    std::string_view key_str(key, key_size);
+
+    if (auto err = p.eat(':'))
+      return err;
+
+    // Parse value.
+    mapped_type& map_value = obj[std::string(key_str)];
+    if (auto err = json_decode2(p, map_value, V{}))
+      return err;
+
+    p.eat_spaces();
+    if (p.peek() == ',')
+      p.get();
+    else
+      break;
+  }
+
+  if (auto err = p.eat('}'))
+    return err;
+
+  return JSON_OK;
+}
+
+template <typename P, typename O, typename S>
+json_error_code json_decode2(P& p, O& obj, json_object_<S> schema) {
+  json_error_code err;
+  if ((err = p.eat('{')))
+    return err;
+
+  struct attr_info {
+    bool filled;
+    bool required;
+    const char* name;
+    int name_len;
+    std::function<json_error_code(P&)> parse_value;
+  };
+  constexpr int n_members = std::tuple_size<decltype(schema.schema)>();
+  attr_info A[n_members];
+  int i = 0;
+  auto prepare = [&](auto m) {
+    A[i].filled = false;
+    A[i].required = true;
+    A[i].name = symbol_string(m.name);
+    A[i].name_len = strlen(symbol_string(m.name));
+
+    if constexpr (has_key(m, s::json_key)) {
+      A[i].name = m.json_key;
+      A[i].name_len = strlen(m.json_key);
+    }
+
+    if constexpr (decltype(is_std_optional(symbol_member_or_getter_access(obj, m.name))){}) {
+      A[i].required = false;
+    }
+
+    A[i].parse_value = [m, &obj](P& p) {
+      using V = decltype(symbol_member_or_getter_access(obj, m.name));
+      using VS = decltype(get_or(m, s::type, json_value_<V>{}));
+
+      if constexpr (decltype(json_is_value(VS{})){}) {
+        if (auto err = p.fill(symbol_member_or_getter_access(obj, m.name)))
+          return err;
+        else
+          return JSON_OK;
+      } else {
+        if (auto err = json_decode2(p, symbol_member_or_getter_access(obj, m.name), m.type))
+          return err;
+        else
+          return JSON_OK;
+      }
+    };
+
+    i++;
+  };
+
+  std::apply([&](auto... m) { apply_each(prepare, m...); }, schema.schema);
+
+  while (p.peek() != '}') {
+
+    bool found = false;
+    if ((err = p.eat('"')))
+      return err;
+    char symbol[50 + 1];
+    int symbol_size = 0;
+    while (!p.eof() and p.peek() != '"' and symbol_size < 50)
+      symbol[symbol_size++] = p.get();
+    symbol[symbol_size] = 0;
+    if ((err = p.eat('"', false)))
+      return err;
+
+    for (int i = 0; i < n_members; i++) {
+      int len = A[i].name_len;
+      if (len == symbol_size && !strncmp(symbol, A[i].name, len)) {
+        if ((err = p.eat(':')))
+          return err;
+        if (A[i].filled)
+          return p.make_json_error("Duplicate json key: ", A[i].name);
+
+        if ((err = A[i].parse_value(p)))
+          return err;
+        A[i].filled = true;
+        found = true;
+        break;
+      }
+    }
+
+    if (!found)
+      return p.make_json_error("Unknown json key: ", symbol);
+    p.eat_spaces();
+    if (p.peek() == ',') {
+      if ((err = p.eat(',')))
+        return err;
+    }
+  }
+  if ((err = p.eat('}')))
+    return err;
+
+  for (int i = 0; i < n_members; i++) {
+    if (A[i].required and !A[i].filled)
+      return p.make_json_error("Missing json key ", A[i].name);
+  }
+  return JSON_OK;
+}
+
+template <typename C, typename O, typename S> json_error json_decode(C& input, O& obj, S schema) {
+  auto stream = decode_stringstream(input);
+  json_parser<decode_stringstream> p(stream);
+  if (json_decode2(p, obj, schema))
+    return json_error{1, p.error_stream ? p.error_stream->str() : "Json error"};
+  else
+    return json_error{0};
+}
+
+} // namespace impl
+
+} // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_DECODER_HH
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_ENCODER_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_ENCODER_HH
+
+
+namespace li {
+
+using std::string_view;
+
+template <typename... T> struct json_tuple_;
+template <typename T> struct json_object_;
+
+namespace impl {
+
+// Json encoder.
+// =============================================
+
+template <typename C, typename O, typename E>
+inline void json_encode(C& ss, O obj, const json_object_<E>& schema);
+template <typename C, typename... E, typename... T>
+inline void json_encode(C& ss, const std::tuple<T...>& tu, const json_tuple_<E...>& schema);
+template <typename T, typename C, typename E>
+inline void json_encode(C& ss, const T& value, const E& schema);
+template <typename T, typename C, typename E>
+inline void json_encode(C& ss, const std::vector<T>& array, const json_vector_<E>& schema);
+
+template <typename T, typename C> inline void json_encode_value(C& ss, const T& t) { ss << t; }
+
+template <typename C> inline void json_encode_value(C& ss, const char* s) { 
+  //ss << s;
+  utf8_to_json(s, ss);
+ }
+
+template <typename C> inline void json_encode_value(C& ss, const string_view& s) {
+  //ss << s;
+  utf8_to_json(s, ss);
+}
+
+template <typename C> inline void json_encode_value(C& ss, const std::string& s) {
+  //ss << s;
+  utf8_to_json(s, ss);
+}
+
+template <typename C, typename... T> inline void json_encode_value(C& ss, const metamap<T...>& s) {
+  json_encode(ss, s, to_json_schema(s));
+}
+
+template <typename T, typename C> inline void json_encode_value(C& ss, const std::optional<T>& t) {
+  if (t.has_value())
+    json_encode_value(ss, t.value());
+}
+
+template <typename C, typename... T>
+inline void json_encode_value(C& ss, const std::variant<T...>& t) {
+  ss << "{\"idx\":" << t.index() << ",\"value\":";
+  std::visit([&](auto&& value) { json_encode_value(ss, value); }, t);
+  ss << '}';
+}
+
+template <typename C, typename O, typename E>
+inline void json_encode(C& ss, O obj, const json_object_<E>& schema);
+
+template <typename T, typename C, typename E>
+inline void json_encode(C& ss, const T& value, const E& schema) {
+  json_encode_value(ss, value);
+}
+
+template <typename T, typename C, typename E>
+inline void json_encode(C& ss, const std::vector<T>& array, const json_vector_<E>& schema) {
+  ss << '[';
+  for (const auto& t : array) {
+    if constexpr (decltype(json_is_vector(E{})){} or decltype(json_is_object(E{})){}) {
+      json_encode(ss, t, schema.schema);
+    } else
+      json_encode_value(ss, t);
+
+    if (&t != &array.back())
+      ss << ',';
+  }
+  ss << ']';
+}
+
+template <typename V, typename C, typename M>
+inline void json_encode(C& ss, const M& map, const json_map_<V>& schema) {
+  ss << '{';
+  bool first = true;
+  for (const auto& pair : map) {
+    if (!first)
+      ss << ',';
+
+    json_encode_value(ss, pair.first);
+    ss << ':';
+
+    if constexpr (decltype(json_is_value(schema.mapped_schema)){})
+      json_encode_value(ss, pair.second);
+    else
+      json_encode(ss, pair.second, schema.mapped_schema);
+
+    first = false;
+  }
+
+  ss << '}';
+}
+
+template <typename F, typename... E, typename... T, std::size_t... I>
+inline void json_encode_tuple_elements(F& encode_fun, const std::tuple<T...>& tu,
+                                       const std::tuple<E...>& schema, std::index_sequence<I...>) {
+  (void)std::initializer_list<int>{((void)encode_fun(std::get<I>(tu), std::get<I>(schema)), 0)...};
+}
+
+template <typename C, typename... E, typename... T>
+inline void json_encode(C& ss, const std::tuple<T...>& tu, const json_tuple_<E...>& schema) {
+  ss << '[';
+  bool first = true;
+  auto encode_one_element = [&first, &ss](auto value, auto value_schema) {
+    if (!first)
+      ss << ',';
+    first = false;
+    if constexpr (decltype(json_is_value(value_schema)){}) {
+      json_encode_value(ss, value);
+    } else
+      json_encode(ss, value, value_schema);
+  };
+
+  json_encode_tuple_elements(encode_one_element, tu, schema.elements,
+                             std::make_index_sequence<sizeof...(T)>{});
+  ss << ']';
+}
+
+template <typename C, typename O, typename E>
+inline void json_encode(C& ss, O obj, const json_object_<E>& schema) {
+  ss << '{';
+  bool first = true;
+
+  auto encode_one_entity = [&](auto e) {
+    if constexpr (decltype(is_std_optional(symbol_member_or_getter_access(obj, e.name))){}) {
+      if (!symbol_member_or_getter_access(obj, e.name).has_value())
+        return;
+    }
+
+    if (!first) {
+      ss << ',';
+    }
+    first = false;
+    if constexpr (has_key(e, s::json_key)) {
+      json_encode_value(ss, e.json_key);
+    } else
+      json_encode_value(ss, symbol_string(e.name));
+    ss << ':';
+
+    if constexpr (has_key(e, s::type)) {
+      if constexpr (decltype(json_is_vector(e.type)){} or decltype(json_is_object(e.type)){}) {
+        return json_encode(ss, symbol_member_or_getter_access(obj, e.name), e.type);
+      } else
+        json_encode_value(ss, symbol_member_or_getter_access(obj, e.name));
+    } else
+      json_encode_value(ss, symbol_member_or_getter_access(obj, e.name));
+  };
+
+  tuple_map(schema.schema, encode_one_entity);
+  ss << '}';
+}
+} // namespace impl
+
+} // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_ENCODER_HH
+
+
+namespace li {
+
+template <typename T> struct json_object_base {
+
+public:
+  inline auto downcast() const { return static_cast<const T*>(this); }
+
+  template <typename C, typename O> void encode(C& output, O&& obj) const {
+    return impl::json_encode(output, std::forward<O>(obj), *downcast());
+  }
+
+  template <typename C, typename... M> void encode(C& output, const metamap<M...>& obj) const {
+    return impl::json_encode(output, obj, *downcast());
+  }
+
+  template <typename O> std::string encode(O obj) const {
+    std::ostringstream ss;
+    impl::json_encode(ss, std::forward<O>(obj), *downcast());
+    return ss.str();
+  }
+
+  template <typename... M> std::string encode(const metamap<M...>& obj) const {
+    std::ostringstream ss;
+    impl::json_encode(ss, obj, *downcast());
+    return ss.str();
+  }
+
+  template <typename C, typename O> json_error decode(C& input, O& obj) const {
+    return impl::json_decode(input, obj, *downcast());
+  }
+
+  template <typename C, typename... M> auto decode(C& input) const {
+    auto map = impl::json_object_to_metamap(*downcast());
+    impl::json_decode(input, map, *downcast());
+    return map;
+  }
+};
+
+template <typename T> struct json_object_ : public json_object_base<json_object_<T>> {
+  json_object_() = default;
+  json_object_(const T& s) : schema(s) {}
+  T schema;
+};
+
+template <typename... S> auto json_object(S&&... s) {
+  auto members = std::make_tuple(impl::make_json_object_member(std::forward<S>(s))...);
+  return json_object_<decltype(members)>{members};
+}
+
+template <typename V> struct json_value_ : public json_object_base<json_value_<V>> {
+  json_value_() = default;
+};
+
+template <typename V> auto json_value(V&& v) { return json_value_<V>{}; }
+
+template <typename T> struct json_vector_ : public json_object_base<json_vector_<T>> {
+  json_vector_() = default;
+  json_vector_(const T& s) : schema(s) {}
+  T schema;
+};
+
+template <typename... S> auto json_vector(S&&... s) {
+  auto obj = json_object(std::forward<S>(s)...);
+  return json_vector_<decltype(obj)>{obj};
+}
+
+template <typename... T> struct json_tuple_ : public json_object_base<json_tuple_<T...>> {
+  json_tuple_() = default;
+  json_tuple_(const T&... s) : elements(s...) {}
+  std::tuple<T...> elements;
+};
+
+template <typename... S> auto json_tuple(S&&... s) { return json_tuple_<S...>{s...}; }
+
+struct json_key {
+  inline json_key(const char* c) : key(c) {}
+  const char* key;
+};
+
+template <typename V> struct json_map_ : public json_object_base<json_map_<V>> {
+  json_map_() = default;
+  json_map_(const V& s) : mapped_schema(s) {}
+  V mapped_schema;
+};
+
+template <typename V> auto json_map() { return json_map_<V>(); }
+
+template <typename C, typename M> decltype(auto) json_decode(C& input, M& obj) {
+  return impl::to_json_schema(obj).decode(input, obj);
+}
+
+template <typename C, typename M> decltype(auto) json_encode(C& output, const M& obj) {
+  impl::to_json_schema(obj).encode(output, obj);
+}
+
+template <typename M> auto json_encode(const M& obj) {
+  return std::move(impl::to_json_schema(obj).encode(obj));
+}
+
+template <typename A, typename B, typename... C>
+auto json_encode(const assign_exp<A, B>& exp, C... c) {
+  auto obj = mmm(exp, c...);
+  return impl::to_json_schema(obj).encode(obj);
+}
+
+} // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_JSON_HH
+
+
+namespace li {
+
+inline size_t curl_write_callback(char* ptr, size_t size, size_t nmemb, void* userdata);
+
+inline std::streamsize curl_read_callback(void* ptr, size_t size, size_t nmemb, void* stream);
+
+inline size_t curl_header_callback(char* buffer, size_t size, size_t nitems, void* userdata) {
+  auto& headers_map = *(std::unordered_map<std::string, std::string>*)userdata;
+
+  size_t split = 0;
+  size_t total_size = size * nitems;
+  while (split < total_size && buffer[split] != ':')
+    split++;
+
+  if (split == total_size)
+    return total_size;
+  // throw std::runtime_error("Header line does not contains a colon (:)");
+
+  int skip_nl = (buffer[total_size - 1] == '\n');
+  int skip_space = (buffer[split + 1] == ' ');
+  headers_map[std::string(buffer, split)] =
+      std::string(buffer + split + 1 + skip_space, total_size - split - 1 - skip_nl - skip_space);
+  return total_size;
+}
+
+struct http_client {
+
+  enum http_method { HTTP_GET, HTTP_POST, HTTP_PUT, HTTP_DELETE };
+
+  inline http_client(const std::string& prefix = "") : url_prefix_(prefix) {
+    curl_global_init(CURL_GLOBAL_ALL);
+    curl_ = curl_easy_init();
+  }
+
+  inline ~http_client() { curl_easy_cleanup(curl_); }
+
+  inline http_client& operator=(const http_client&) = delete;
+
+  template <typename... A>
+  inline auto operator()(http_method http_method, const std::string_view& url, const A&... args) {
+
+    struct curl_slist* headers_list = NULL;
+
+    auto arguments = mmm(args...);
+    constexpr bool fetch_headers = has_key<decltype(arguments)>(s::fetch_headers);
+
+    // Generate url.
+    std::ostringstream url_ss;
+    url_ss << url_prefix_ << url;
+
+    // Get params
+    auto get_params = li::get_or(arguments, s::get_parameters, mmm());
+    bool first = true;
+    li::map(get_params, [&](auto k, auto v) {
+      if (first)
+        url_ss << '?';
+      else
+        url_ss << "&";
+      std::ostringstream value_ss;
+      value_ss << v;
+      char* escaped = curl_easy_escape(curl_, value_ss.str().c_str(), value_ss.str().size());
+      url_ss << li::symbol_string(k) << '=' << escaped;
+      first = false;
+      curl_free(escaped);
+    });
+
+    // std::cout << url_ss.str() << std::endl;
+    // Pass the url to libcurl.
+    curl_easy_setopt(curl_, CURLOPT_URL, url_ss.str().c_str());
+
+    // HTTP_POST parameters.
+    bool is_urlencoded = not li::has_key(arguments, s::json_encoded);
+    std::ostringstream post_stream;
+    std::string rq_body;
+    if (is_urlencoded) { // urlencoded
+      req_body_buffer_.str("");
+
+      auto post_params = li::get_or(arguments, s::post_parameters, mmm());
+      first = true;
+      li::map(post_params, [&](auto k, auto v) {
+        if (!first)
+          post_stream << "&";
+        post_stream << li::symbol_string(k) << "=";
+        std::ostringstream value_str;
+        value_str << v;
+        char* escaped = curl_easy_escape(curl_, value_str.str().c_str(), value_str.str().size());
+        first = false;
+        post_stream << escaped;
+        curl_free(escaped);
+      });
+      rq_body = post_stream.str();
+      req_body_buffer_.str(rq_body);
+
+    } else // Json encoded
+      rq_body = li::json_encode(li::get_or(arguments, s::post_parameters, mmm()));
+
+    // HTTP HTTP_POST
+    if (http_method == HTTP_POST) {
+      curl_easy_setopt(curl_, CURLOPT_POST, 1);
+      curl_easy_setopt(curl_, CURLOPT_POSTFIELDS, rq_body.c_str());
+    }
+
+    // HTTP HTTP_GET
+    if (http_method == HTTP_GET)
+      curl_easy_setopt(curl_, CURLOPT_HTTPGET, 1);
+
+    // HTTP HTTP_PUT
+    if (http_method == HTTP_PUT) {
+      curl_easy_setopt(curl_, CURLOPT_UPLOAD, 1L);
+      curl_easy_setopt(curl_, CURLOPT_READFUNCTION, curl_read_callback);
+      curl_easy_setopt(curl_, CURLOPT_READDATA, this);
+    }
+
+    if (http_method == HTTP_PUT or http_method == HTTP_POST) {
+      if (is_urlencoded)
+        headers_list =
+            curl_slist_append(headers_list, "Content-Type: application/x-www-form-urlencoded");
+      else
+        headers_list = curl_slist_append(headers_list, "Content-Type: application/json");
+    }
+
+    // HTTP HTTP_DELETE
+    if (http_method == HTTP_DELETE)
+      curl_easy_setopt(curl_, CURLOPT_CUSTOMREQUEST, "HTTP_DELETE");
+
+    // Cookies
+    curl_easy_setopt(curl_, CURLOPT_COOKIEJAR,
+                     0); // Enable cookies but do no write a cookiejar.
+
+    body_buffer_.clear();
+    curl_easy_setopt(curl_, CURLOPT_WRITEFUNCTION, curl_write_callback);
+    curl_easy_setopt(curl_, CURLOPT_WRITEDATA, this);
+
+    curl_easy_setopt(curl_, CURLOPT_HTTPHEADER, headers_list);
+
+    if (li::has_key(arguments, s::disable_check_certificate))
+      curl_easy_setopt(curl_, CURLOPT_SSL_VERIFYPEER, 0);
+    
+    // Setup response header parsing.
+    std::unordered_map<std::string, std::string> response_headers_map;
+    if (fetch_headers) {
+      curl_easy_setopt(curl_, CURLOPT_HEADERDATA, &response_headers_map);
+      curl_easy_setopt(curl_, CURLOPT_HEADERFUNCTION, curl_header_callback);
+    }
+
+    // Send the request.
+    char errbuf[CURL_ERROR_SIZE];
+    curl_easy_setopt(curl_, CURLOPT_ERRORBUFFER, errbuf);
+    if (curl_easy_perform(curl_) != CURLE_OK) {
+      std::ostringstream errss;
+      errss << "Libcurl error when sending request: " << errbuf;
+      throw std::runtime_error(errss.str());
+    }
+    curl_slist_free_all(headers_list);
+    // Read response code.
+    long response_code;
+    curl_easy_getinfo(curl_, CURLINFO_RESPONSE_CODE, &response_code);
+
+    // Return response object.
+    if constexpr (fetch_headers)
+      return mmm(s::status = response_code, s::body = body_buffer_,
+                 s::headers = response_headers_map);
+    else
+      return mmm(s::status = response_code, s::body = body_buffer_);
+  }
+
+  template <typename... P> auto get(const std::string& url, P... params) {
+    return this->operator()(HTTP_GET, url, params...);
+  }
+  template <typename... P> auto put(const std::string& url, P... params) {
+    return this->operator()(HTTP_PUT, url, params...);
+  }
+  template <typename... P> auto post(const std::string& url, P... params) {
+    return this->operator()(HTTP_POST, url, params...);
+  }
+  template <typename... P> auto delete_(const std::string& url, P... params) {
+    return this->operator()(HTTP_DELETE, url, params...);
+  }
+
+  inline void read(char* ptr, int size) { body_buffer_.append(ptr, size); }
+
+  inline std::streamsize write(char* ptr, int size) {
+    std::streamsize ret = req_body_buffer_.sgetn(ptr, size);
+    return ret;
+  }
+
+  CURL* curl_;
+  std::map<std::string, std::string> cookies_;
+  std::string body_buffer_;
+  std::stringbuf req_body_buffer_;
+  std::string url_prefix_;
+};
+
+inline std::streamsize curl_read_callback(void* ptr, size_t size, size_t nmemb, void* userdata) {
+  http_client* client = (http_client*)userdata;
+  return client->write((char*)ptr, size * nmemb);
+}
+
+size_t curl_write_callback(char* ptr, size_t size, size_t nmemb, void* userdata) {
+  http_client* client = (http_client*)userdata;
+  client->read(ptr, size * nmemb);
+  return size * nmemb;
+}
+
+template <typename... P> auto http_get(const std::string& url, P... params) {
+  return http_client{}.get(url, params...);
+}
+template <typename... P> auto http_post(const std::string& url, P... params) {
+  return http_client{}.post(url, params...);
+}
+template <typename... P> auto http_put(const std::string& url, P... params) {
+  return http_client{}.put(url, params...);
+}
+template <typename... P> auto http_delete(const std::string& url, P... params) {
+  return http_client{}.delete_(url, params...);
+}
+
+} // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_CLIENT_HTTP_CLIENT_HH
+
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_ORM_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_ORM_HH
 
@@ -1746,11 +3365,11 @@ template <typename SCHEMA, typename C> struct sql_orm {
   }
 
   template <typename A, typename B, typename... O, typename... W>
-  auto find_one(metamap<O...>&& o, assign_exp<A, B> w1, W... ws) {
-    return find_one(cat(o, mmm(w1)), ws...);
+  auto find_one(metamap<O...>&& o, assign_exp<A, B>&& w1, W... ws) {
+    return find_one(cat(o, mmm(w1)), std::forward<W>(ws)...);
   }
-  template <typename A, typename B, typename... W> auto find_one(assign_exp<A, B> w1, W... ws) {
-    return find_one(mmm(w1), ws...);
+  template <typename A, typename B, typename... W> auto find_one(assign_exp<A, B>&& w1, W&&... ws) {
+    return find_one(mmm(w1), std::forward<W>(ws)...);
   }
 
   template <typename W> bool exists(W&& cond) {
@@ -3122,7 +4741,7 @@ template <typename I> struct sql_database {
         pool.connections.pop_back();
         fiber.epoll_add(impl.get_socket(data), EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
       } else {
-        if (pool.n_connections > pool.max_connections) {
+        if (pool.n_connections >= pool.max_connections) {
           if constexpr (std::is_same_v<Y, active_yield>)
             throw std::runtime_error("Maximum number of sql connection exeeded.");
           else
@@ -3330,1347 +4949,707 @@ inline auto mysql_database_impl::scoped_connection(Y& fiber,
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_HH
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_HTTP_BACKEND_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_HTTP_BACKEND_HH
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_HH
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_JSON_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_JSON_HH
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_DATABASE_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_DATABASE_HH
 
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_DECODER_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_DECODER_HH
+#include "libpq-fe.h"
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_DECODE_STRINGSTREAM_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_DECODE_STRINGSTREAM_HH
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_STATEMENT_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_STATEMENT_HH
 
-#if defined(_MSC_VER)
-#endif
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_RESULT_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_RESULT_HH
+
+namespace li {
+
+template <typename Y> struct pgsql_result {
+
+public:
+  ~pgsql_result() { if (current_result_) PQclear(current_result_); }
+  // Read metamap and tuples.
+  template <typename T> bool read(T&& t1);
+  long long int last_insert_id();
+  // Flush all results.
+  void flush_results();
+
+  PGconn* connection_;
+  Y& fiber_;
+  std::shared_ptr<int> connection_status_;
+
+  int last_insert_id_ = -1;
+  int row_i_ = 0;
+  int current_result_nrows_ = 0;
+  PGresult* current_result_ = nullptr;
+  std::vector<Oid> curent_result_field_types_;
+  
+private:
+
+  // Wait for the next result.
+  PGresult* wait_for_next_result();
+
+  // Fetch a string from a result field.
+  template <typename... A>
+  void fetch_value(std::string& out, char* val, int length, bool is_binary, Oid field_type);
+  // Fetch a blob from a result field.
+  template <typename... A> void fetch_value(sql_blob& out, char* val, int length, bool is_binary, Oid field_type);
+  // Fetch an int from a result field.
+  void fetch_value(int& out, char* val, int length, bool is_binary, Oid field_type);
+  // Fetch an unsigned int from a result field.
+  void fetch_value(unsigned int& out, char* val, int length, bool is_binary, Oid field_type);
+};
+
+} // namespace li
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_RESULT_HPP
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_RESULT_HPP
+
+
+#include "libpq-fe.h"
+
+namespace li {
+
+template <typename Y>
+PGresult* pg_wait_for_next_result(PGconn* connection, Y& fiber, std::shared_ptr<int> connection_status)
+{
+    // std::cout << "WAIT ======================" << std::endl;
+  while (true) {
+    if (PQconsumeInput(connection) == 0)
+      throw std::runtime_error(std::string("PQconsumeInput() failed: ") +
+                               PQerrorMessage(connection));
+
+    if (PQisBusy(connection)) {
+      // std::cout << "isbusy" << std::endl;
+      try {
+        fiber.yield();
+      } catch (typename Y::exception_type& e) {
+        // Yield thrown a exception (probably because a closed connection).
+        // Mark the connection as broken because it is left in a undefined state.
+        *connection_status = 1;
+        throw std::move(e);
+      }
+    } else {
+      // std::cout << "notbusy" << std::endl;
+      PGresult* res = PQgetResult(connection);
+      if (PQresultStatus(res) == PGRES_FATAL_ERROR and PQerrorMessage(connection)[0] != 0)
+        throw std::runtime_error(std::string("Postresql fatal error:") +
+                                 PQerrorMessage(connection));
+      else if (PQresultStatus(res) == PGRES_NONFATAL_ERROR)
+        std::cerr << "Postgresql non fatal error: " << PQerrorMessage(connection) << std::endl;
+      return res;
+    }
+  }
+}
+template <typename Y> PGresult* pgsql_result<Y>::wait_for_next_result() {
+  return pg_wait_for_next_result(connection_, fiber_, connection_status_);
+}
+
+template <typename Y> void pgsql_result<Y>::flush_results() {
+  try {
+    if (*connection_status_ == 0)
+      while (PGresult* res = wait_for_next_result())
+        PQclear(res);
+  } catch (...) {}
+}
+
+// Fetch a string from a result field.
+template <typename Y>
+template <typename... A>
+void pgsql_result<Y>::fetch_value(std::string& out, char* val, int length,
+                                            bool is_binary, Oid field_type) {
+  // assert(!is_binary);
+  // std::cout << "fetch string: " << length << " '"<< val <<"'" << std::endl;
+  out = std::move(std::string(val, strlen(val)));
+}
+
+// Fetch a blob from a result field.
+template <typename Y>
+template <typename... A>
+void pgsql_result<Y>::fetch_value(sql_blob& out, char* val, int length, bool is_binary, Oid field_type) {
+  // assert(is_binary);
+  out = std::move(std::string(val, length));
+}
+
+// Fetch an int from a result field.
+template <typename Y> void pgsql_result<Y>::fetch_value(int& out, char* val, int length, bool is_binary, Oid field_type) {
+  assert(is_binary);
+  // TYPCATEGORY_NUMERIC
+  //std::cout << "fetch integer " << length << " " << is_binary << std::endl;
+  // std::cout << "fetch integer " << be64toh(*((uint64_t *) val)) << std::endl;
+  if (field_type == INT8OID) {
+    // std::cout << "fetch 64b integer " << std::hex << int(32) << std::endl;
+    // std::cout << "fetch 64b integer " << std::hex << uint64_t(*((uint64_t *) val)) << std::endl;
+    // std::cout << "fetch 64b integer " << std::hex << (*((uint64_t *) val)) << std::endl;
+    // std::cout << "fetch 64b integer " << std::hex << be64toh(*((uint64_t *) val)) << std::endl;
+    out = be64toh(*((uint64_t*)val));
+  } else if (field_type == INT4OID)
+    out = (uint32_t)ntohl(*((uint32_t*)val));
+  else if (field_type == INT2OID)
+    out = (uint16_t)ntohs(*((uint16_t*)val));
+  else
+    throw std::runtime_error("The type of request result does not match the destination type");
+}
+
+// Fetch an unsigned int from a result field.
+template <typename Y>
+void pgsql_result<Y>::fetch_value(unsigned int& out, char* val, int length,
+                                            bool is_binary, Oid field_type) {
+  assert(is_binary);
+  // if (length == 8)
+  if (field_type == INT8OID)
+    out = be64toh(*((uint64_t*)val));
+  else if (field_type == INT4OID)
+    out = ntohl(*((uint32_t*)val));
+  else if (field_type == INT2OID)
+    out = ntohs(*((uint16_t*)val));
+  else
+    assert(0);
+}
+
+template <typename B> template <typename T> bool pgsql_result<B>::read(T&& output) {
+
+  if (!current_result_ || row_i_ == current_result_nrows_) {
+    if (current_result_) {
+      PQclear(current_result_);
+      current_result_ = nullptr;
+    }
+    current_result_ = wait_for_next_result();
+    if (!current_result_)
+      return false;
+    row_i_ = 0;
+    current_result_nrows_ = PQntuples(current_result_);
+    if (current_result_nrows_ == 0)
+    {
+      PQclear(current_result_);
+      current_result_ = nullptr;
+      return false;
+    }
+
+    if (curent_result_field_types_.size() == 0)
+    {
+      curent_result_field_types_.resize(PQnfields(current_result_));
+      for (int field_i = 0; field_i < curent_result_field_types_.size(); field_i++)
+        curent_result_field_types_[field_i] = PQftype(current_result_, field_i);
+    }
+  }
+
+  // Tuples
+  if constexpr (is_tuple<T>::value) {
+    int field_i = 0;
+
+    int nfields = curent_result_field_types_.size();
+    if (nfields != std::tuple_size_v<std::decay_t<T>>)
+      throw std::runtime_error("postgresql error: in fetch: Mismatch between the request number of "
+                               "field and the outputs.");
+
+    tuple_map(std::forward<T>(output), [&](auto& m) {
+      fetch_value(m, PQgetvalue(current_result_, row_i_, field_i), PQgetlength(current_result_, row_i_, field_i),
+                  PQfformat(current_result_, field_i), curent_result_field_types_[field_i]);
+      field_i++;
+    });
+  } else { // Metamaps.
+    li::map(std::forward<T>(output), [&](auto k, auto& m) {
+      int field_i = PQfnumber(current_result_, symbol_string(k));
+      if (field_i == -1)
+        throw std::runtime_error(std::string("postgresql errror : Field ") + symbol_string(k) +
+                                 " not fount in result.");
+
+      fetch_value(m, PQgetvalue(current_result_, row_i_, field_i), PQgetlength(current_result_, row_i_, field_i),
+                  PQfformat(current_result_, field_i), curent_result_field_types_[field_i]);
+    });
+  }
+
+  this->row_i_++;
+
+  return true;
+}
+
+// Get the last id of the row inserted by the last command.
+template <typename Y> long long int pgsql_result<Y>::last_insert_id() {
+  // while (PGresult* res = wait_for_next_result())
+  //  PQclear(res);
+  // PQsendQuery(connection_, "LASTVAL()");
+  int t = 0;
+  this->read(std::tie(t));
+  return t;
+  // PGresult *PQexec(connection_, const char *command);
+  // this->operator()
+  //   last_insert_id_ = PQoidValue(res);
+  //   std::cout << "id " << last_insert_id_ << std::endl;
+  //   PQclear(res);
+  // }
+  // return last_insert_id_;
+}
+
+} // namespace li
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_RESULT_HPP
+
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_RESULT_HH
 
 
 namespace li {
 
-using std::string_view;
+struct pgsql_statement_data : std::enable_shared_from_this<pgsql_statement_data> {
+  pgsql_statement_data(const std::string& s) : stmt_name(s) {}
+  std::string stmt_name;
+};
 
-namespace internal {
-template <typename I> void parse_uint(I* val_, const char* str, const char** end) {
-  I& val = *val_;
-  val = 0;
-  int i = 0;
-  while (i < 40) {
-    char c = *str;
-    if (c < '0' or c > '9')
-      break;
-    val = val * 10 + c - '0';
-    str++;
-    i++;
-  }
-  if (end)
-    *end = str;
-}
+template <typename Y> struct pgsql_statement {
 
-template <typename I> void parse_int(I* val, const char* str, const char** end) {
-  bool neg = false;
-
-  if (str[0] == '-') {
-    neg = true;
-    str++;
-  }
-  parse_uint(val, str, end);
-  if constexpr (!std::is_same<I, bool>::value) {
-    if (neg)
-      *val = -(*val);
-  }
-}
-
-inline unsigned long long pow10(unsigned int e) {
-  unsigned long long pows[] = {1,
-                               10,
-                               100,
-                               1000,
-                               10000,
-                               100000,
-                               1000000,
-                               10000000,
-                               100000000,
-                               1000000000,
-                               10000000000,
-                               100000000000,
-                               1000000000000,
-                               10000000000000,
-                               100000000000000,
-                               1000000000000000,
-                               10000000000000000,
-                               100000000000000000};
-
-  if (e < 18)
-    return pows[e];
-  else
-    return 0;
-}
-
-template <typename F> void parse_float(F* f, const char* str, const char** end) {
-  // 1.234e-10
-  // [sign][int][decimal_part][exp]
-
-  const char* it = str;
-  int integer_part;
-  parse_int(&integer_part, it, &it);
-  int sign = integer_part >= 0 ? 1 : -1;
-  *f = integer_part;
-  if (*it == '.') {
-    it++;
-    unsigned long long decimal_part;
-    const char* dec_end;
-    parse_uint(&decimal_part, it, &dec_end);
-
-    if (dec_end > it)
-      *f += (F(decimal_part) / pow10(dec_end - it)) * sign;
-
-    it = dec_end;
-  }
-
-  if (*it == 'e' || *it == 'E') {
-    it++;
-    bool neg = false;
-    if (*it == '-') {
-      neg = true;
-      it++;
-    }
-
-    unsigned int exp = 0;
-    parse_uint(&exp, it, &it);
-    if (neg)
-      *f = *f / pow10(exp);
-    else
-      *f = *f * pow10(exp);
-  }
-
-  if (end)
-    *end = it;
-}
-
-} // namespace internal
-
-class decode_stringstream {
 public:
-  inline decode_stringstream(std::string_view buffer_)
-      : cur(buffer_.data()), bad_(false), buffer(buffer_) {}
+  template <typename... T> sql_result<pgsql_result<Y>> operator()(T&&... args);
 
-  inline bool eof() const { return cur > &buffer.back(); }
-  inline const char peek() const { return *cur; }
-  inline const char get() { return *(cur++); }
-  inline int bad() const { return bad_; }
-  inline int good() const { return !bad_ && !eof(); }
+  PGconn* connection_;
+  Y& fiber_;
+  pgsql_statement_data& data_;
+  std::shared_ptr<int> connection_status_;
 
-  template <typename T> void operator>>(T& value) {
-    eat_spaces();
-    if constexpr (std::is_floating_point<T>::value) {
-      // Decode floating point.
-      eat_spaces();
-      const char* end = nullptr;
-      internal::parse_float(&value, cur, &end);
-      if (end == cur)
-        bad_ = true;
-      cur = end;
-    } else if constexpr (std::is_integral<T>::value) {
-      // Decode integer.
-      const char* end = nullptr;
-      internal::parse_int(&value, cur, &end);
-      if (end == cur)
-        bad_ = true;
-      cur = end;
-    } else if constexpr (std::is_same<T, std::string>::value) {
-      // Decode UTF8 string.
-      json_to_utf8(*this, value);
-    } else if constexpr (std::is_same<T, string_view>::value) {
-      // Decoding to stringview does not decode utf8.
-
-      if (get() != '"') {
-        bad_ = true;
-        return;
-      }
-
-      const char* start = cur;
-      bool escaped = false;
-
-      while (peek() != '\0' and (escaped or peek() != '"')) {
-        int nb = 0;
-        while (peek() == '\\')
-          nb++;
-
-        escaped = nb % 2;
-        cur++;
-      }
-      const char* end = cur;
-      value = string_view(start, end - start);
-
-      if (get() != '"') {
-        bad_ = true;
-        return;
-      }
-    }
-  }
 
 private:
-  inline void eat_spaces() {
-    while (peek() < 33)
-      ++cur;
-  }
 
-  int bad_;
-  const char* cur;
-  std::string_view buffer; //
+  // Bind statement param utils.
+  template <unsigned N>
+  void bind_param(sql_varchar<N>&& m, const char** values, int* lengths, int* binary);
+  template <unsigned N>
+  void bind_param(const sql_varchar<N>& m, const char** values, int* lengths, int* binary);
+  void bind_param(const char* m, const char** values, int* lengths, int* binary);
+  template <typename T>
+  void bind_param(const std::vector<T>& m, const char** values, int* lengths, int* binary);
+  template <typename T> void bind_param(const T& m, const char** values, int* lengths, int* binary);
+  template <typename T> unsigned int bind_compute_nparam(const T& arg);
+  template <typename... T> unsigned int bind_compute_nparam(const metamap<T...>& arg);
+  template <typename T> unsigned int bind_compute_nparam(const std::vector<T>& arg);
+  // Bind parameter to the prepared statement and execute it.
+  // FIXME long long int affected_rows() { return pgsql_stmt_affected_rows(data_.stmt_); }
+
 };
 
 } // namespace li
 
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_DECODE_STRINGSTREAM_HH
-
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_ERROR_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_ERROR_HH
-
-
-namespace li {
-
-enum json_error_code { JSON_OK = 0, JSON_KO = 1 };
-
-struct json_error {
-  json_error& operator=(const json_error&) = default;
-  operator bool() { return code != 0; }
-  bool good() { return code == 0; }
-  bool bad() { return code != 0; }
-  int code;
-  std::string what;
-};
-
-int make_json_error(const char* what) { return 1; }
-int json_no_error() { return 0; }
-
-static int json_ok = json_no_error();
-
-} // namespace li
-
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_ERROR_HH
-
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_UNICODE_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_UNICODE_HH
-
-
-
-
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_SYMBOLS_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_SYMBOLS_HH
-
-#ifndef LI_SYMBOL_append
-#define LI_SYMBOL_append
-    LI_SYMBOL(append)
-#endif
-
-#ifndef LI_SYMBOL_json_key
-#define LI_SYMBOL_json_key
-    LI_SYMBOL(json_key)
-#endif
-
-#ifndef LI_SYMBOL_name
-#define LI_SYMBOL_name
-    LI_SYMBOL(name)
-#endif
-
-#ifndef LI_SYMBOL_type
-#define LI_SYMBOL_type
-    LI_SYMBOL(type)
-#endif
-
-
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_SYMBOLS_HH
-
-
-namespace li {
-
-template <typename O> inline decltype(auto) wrap_json_output_stream(O&& s) {
-  return mmm(s::append = [&s](char c) { s << c; });
-}
-
-inline decltype(auto) wrap_json_output_stream(std::ostringstream& s) {
-  return mmm(s::append = [&s](char c) { s << c; });
-}
-
-inline decltype(auto) wrap_json_output_stream(std::string& s) {
-  return mmm(s::append = [&s](char c) { s.append(1, c); });
-}
-
-inline decltype(auto) wrap_json_input_stream(std::istringstream& s) { return s; }
-inline decltype(auto) wrap_json_input_stream(std::stringstream& s) { return s; }
-inline decltype(auto) wrap_json_input_stream(decode_stringstream& s) { return s; }
-inline decltype(auto) wrap_json_input_stream(const std::string& s) { return decode_stringstream(s); }
-inline decltype(auto) wrap_json_input_stream(const char* s) {
-  return decode_stringstream(s);
-}
-inline decltype(auto) wrap_json_input_stream(const std::string_view& s) {
-  return decode_stringstream(s);
-}
-
-namespace unicode_impl {
-template <typename S, typename T> auto json_to_utf8(S&& s, T&& o);
-
-template <typename S, typename T> auto utf8_to_json(S&& s, T&& o);
-} // namespace unicode_impl
-
-template <typename I, typename O> auto json_to_utf8(I&& i, O&& o) {
-  return unicode_impl::json_to_utf8(wrap_json_input_stream(std::forward<I>(i)),
-                                    wrap_json_output_stream(std::forward<O>(o)));
-}
-
-template <typename I, typename O> auto utf8_to_json(I&& i, O&& o) {
-  return unicode_impl::utf8_to_json(wrap_json_input_stream(std::forward<I>(i)),
-                                    wrap_json_output_stream(std::forward<O>(o)));
-}
-
-enum json_encodings { UTF32BE, UTF32LE, UTF16BE, UTF16LE, UTF8 };
-
-// Detection of encoding depending on the pattern of the
-// first fourth characters.
-auto detect_encoding(char a, char b, char c, char d) {
-  // 00 00 00 xx  UTF-32BE
-  // xx 00 00 00  UTF-32LE
-  // 00 xx 00 xx  UTF-16BE
-  // xx 00 xx 00  UTF-16LE
-  // xx xx xx xx  UTF-8
-
-  if (a == 0 and b == 0)
-    return UTF32BE;
-  else if (c == 0 and d == 0)
-    return UTF32LE;
-  else if (a == 0)
-    return UTF16BE;
-  else if (b == 0)
-    return UTF16LE;
-  else
-    return UTF8;
-}
-
-// The JSON RFC escapes character codepoints prefixed with a \uXXXX (7-11 bits codepoints)
-// or \uXXXX\uXXXX (20 bits codepoints)
-
-// uft8 string have 4 kinds of character representation encoding the codepoint of the character.
-
-// 1 byte : 0xxxxxxx  -> 7 bits codepoint ASCII chars from 0x00 to 0x7F
-// 2 bytes: 110xxxxx 10xxxxxx -> 11 bits codepoint
-// 3 bytes: 1110xxxx 10xxxxxx 10xxxxxx -> 11 bits codepoint
-
-// 1 and 3 bytes representation are escaped as \uXXXX with X a char in the 0-9A-F range. It
-// is possible since the codepoint is less than 16 bits.
-
-// the 4 bytes representation uses the UTF-16 surrogate pair (high and low surrogate).
-
-// The high surrogate is in the 0xD800..0xDBFF range (HR) and
-// the low surrogate is in the 0xDC00..0xDFFF range (LR).
-
-// to encode a given 20bits codepoint c to the surrogate pair.
-//  - substract 0x10000 to c
-//  - separate the result in a high (first 10 bits) and low (last 10bits) surrogate.
-//  - Add 0xD800 to the high surrogate
-//  - Add 0xDC00 to the low surrogate
-//  - the 32 bits code is (high << 16) + low.
-
-// and to json-escape the high-low(H-L) surrogates representation (16+16bits):
-//  - Check that H and L are respectively in the HR and LR ranges.
-//  - add to H-L 0x0001_0000 - 0xD800_DC00 to get the 20bits codepoint c.
-//  - Encode the codepoint in a string of \uXXXX\uYYYY with X and Y the respective hex digits
-//    of the high and low sequence of 10 bits.
-
-// In addition to utf8, JSON escape characters ( " \ / ) with a backslash and translate
-// \n \r \t \b \r in their matching two characters string, for example '\n' to  '\' followed by 'n'.
-
-namespace unicode_impl {
-template <typename S, typename T> auto json_to_utf8(S&& s, T&& o) {
-  // Convert a JSON string into an UTF-8 string.
-  if (s.get() != '"')
-    return JSON_KO; // make_json_error("json_to_utf8: JSON strings should start with a double
-                    // quote.");
-
-  while (true) {
-    // Copy until we find the escaping backslash or the end of the string (double quote).
-    while (s.peek() != EOF and s.peek() != '"' and s.peek() != '\\')
-      o.append(s.get());
-
-    // If eof found before the end of the string, return an error.
-    if (s.eof())
-      return JSON_KO; // make_json_error("json_to_utf8: Unexpected end of string when parsing a
-                      // string.");
-
-    // If end of json string, return
-    if (s.peek() == '"') {
-      break;
-      return JSON_OK;
-    }
-
-    // Get the '\'.
-    assert(s.peek() == '\\');
-    s.get();
-
-    switch (s.get()) {
-      // List of escaped char from http://www.json.org/
-    default:
-      return JSON_KO; // make_json_error("json_to_utf8: Bad JSON escaped character.");
-    case '"':
-      o.append('"');
-      break;
-    case '\\':
-      o.append('\\');
-      break;
-    case '/':
-      o.append('/');
-      break;
-    case 'n':
-      o.append('\n');
-      break;
-    case 'r':
-      o.append('\r');
-      break;
-    case 't':
-      o.append('\t');
-      break;
-    case 'b':
-      o.append('\b');
-      break;
-    case 'f':
-      o.append('\f');
-      break;
-    case 'u':
-      char a, b, c, d;
-
-      a = s.get();
-      b = s.get();
-      c = s.get();
-      d = s.get();
-
-      if (s.eof())
-        return JSON_KO; // make_json_error("json_to_utf8: Unexpected end of string when decoding an
-                        // utf8 character");
-
-      auto decode_hex_c = [](char c) {
-        if (c >= '0' and c <= '9')
-          return c - '0';
-        else
-          return (10 + std::toupper(c) - 'A');
-      };
-
-      uint16_t x = (decode_hex_c(a) << 12) + (decode_hex_c(b) << 8) + (decode_hex_c(c) << 4) +
-                   decode_hex_c(d);
-
-      // If x in the  0xD800..0xDBFF range -> decode a surrogate pair \uXXXX\uYYYY -> 20 bits
-      // codepoint.
-      if (x >= 0xD800 and x <= 0xDBFF) {
-        if (s.get() != '\\' or s.get() != 'u')
-          return JSON_KO; // make_json_error("json_to_utf8: Missing low surrogate.");
-
-        uint16_t y = (decode_hex_c(s.get()) << 12) + (decode_hex_c(s.get()) << 8) +
-                     (decode_hex_c(s.get()) << 4) + decode_hex_c(s.get());
-
-        if (s.eof())
-          return JSON_KO; // make_json_error("json_to_utf8: Unexpected end of string when decoding
-                          // an utf8 character");
-
-        x -= 0xD800;
-        y -= 0xDC00;
-
-        int cp = (x << 10) + y + 0x10000;
-
-        o.append(0b11110000 | (cp >> 18));
-        o.append(0b10000000 | ((cp & 0x3F000) >> 12));
-        o.append(0b10000000 | ((cp & 0x00FC0) >> 6));
-        o.append(0b10000000 | (cp & 0x003F));
-
-      }
-      // else encode the codepoint with the 1-2, or 3 bytes utf8 representation.
-      else {
-        if (x <= 0x007F) // 7bits codepoints, ASCII 0xxxxxxx.
-        {
-          o.append(uint8_t(x));
-        } else if (x >= 0x0080 and x <= 0x07FF) // 11bits codepoint -> 110xxxxx 10xxxxxx
-        {
-          o.append(0b11000000 | (x >> 6));
-          o.append(0b10000000 | (x & 0x003F));
-        } else if (x >= 0x0800 and x <= 0xFFFF) // 16bits codepoint -> 1110xxxx 10xxxxxx 10xxxxxx
-        {
-          o.append(0b11100000 | (x >> 12));
-          o.append(0b10000000 | ((x & 0x0FC0) >> 6));
-          o.append(0b10000000 | (x & 0x003F));
-        } else
-          return JSON_KO; // make_json_error("json_to_utf8: Bad UTF8 codepoint.");
-      }
-      break;
-    }
-  }
-
-  if (s.get() != '"')
-    return JSON_KO; // make_json_error("JSON strings must end with a double quote.");
-
-  return JSON_OK; // json_no_error();
-}
-
-template <typename S, typename T> auto utf8_to_json(S&& s, T&& o) {
-  o.append('"');
-
-  auto encode_16bits = [&](uint16_t b) {
-    const char lt[] = "0123456789ABCDEF";
-    o.append(lt[b >> 12]);
-    o.append(lt[(b & 0x0F00) >> 8]);
-    o.append(lt[(b & 0x00F0) >> 4]);
-    o.append(lt[b & 0x000F]);
-  };
-
-  while (!s.eof()) {
-    // 7-bits codepoint
-    while (s.good() and s.peek() <= 0x7F and s.peek() != EOF) {
-      switch (s.peek()) {
-      case '"':
-        o.append('\\');
-        o.append('"');
-        break;
-      case '\\':
-        o.append('\\');
-        o.append('\\');
-        break;
-        // case '/': o.append('/'); break; Do not escape /
-      case '\n':
-        o.append('\\');
-        o.append('n');
-        break;
-      case '\r':
-        o.append('\\');
-        o.append('r');
-        break;
-      case '\t':
-        o.append('\\');
-        o.append('t');
-        break;
-      case '\b':
-        o.append('\\');
-        o.append('b');
-        break;
-      case '\f':
-        o.append('\\');
-        o.append('f');
-        break;
-      default:
-        o.append(s.peek());
-      }
-      s.get();
-    }
-
-    if (s.eof())
-      break;
-
-    // uft8 prefix \u.
-    o.append('\\');
-    o.append('u');
-
-    uint8_t c1 = s.get();
-    uint8_t c2 = s.get();
-    {
-      // extract codepoints.
-      if (c1 < 0b11100000) // 11bits - 2 char: 110xxxxx	10xxxxxx
-      {
-        uint16_t cp = ((c1 & 0b00011111) << 6) + (c2 & 0b00111111);
-        if (cp >= 0x0080 and cp <= 0x07FF)
-          encode_16bits(cp);
-        else
-          return JSON_KO;         // make_json_error("utf8_to_json: Bad UTF8 codepoint.");
-      } else if (c1 < 0b11110000) // 16 bits - 3 char: 1110xxxx	10xxxxxx	10xxxxxx
-      {
-        uint16_t cp = ((c1 & 0b00001111) << 12) + ((c2 & 0b00111111) << 6) + (s.get() & 0b00111111);
-
-        if (cp >= 0x0800 and cp <= 0xFFFF)
-          encode_16bits(cp);
-        else
-          return JSON_KO; // make_json_error("utf8_to_json: Bad UTF8 codepoint.");
-      } else              // 21 bits - 4 chars: 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
-      {
-        int cp = ((c1 & 0b00000111) << 18) + ((c2 & 0b00111111) << 12) +
-                 ((s.get() & 0b00111111) << 6) + (s.get() & 0b00111111);
-
-        cp -= 0x10000;
-
-        uint16_t H = (cp >> 10) + 0xD800;
-        uint16_t L = (cp & 0x03FF) + 0xDC00;
-
-        // check if we are in the right range.
-        // The high surrogate is in the 0xD800..0xDBFF range (HR) and
-        // the low surrogate is in the 0xDC00..0xDFFF range (LR).
-        assert(H >= 0xD800 and H <= 0xDBFF and L >= 0xDC00 and L <= 0xDFFF);
-
-        encode_16bits(H);
-        o.append('\\');
-        o.append('u');
-        encode_16bits(L);
-      }
-    }
-  }
-  o.append('"');
-  return JSON_OK;
-}
-} // namespace unicode_impl
-} // namespace li
-
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_UNICODE_HH
-
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_UTILS_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_UTILS_HH
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_STATEMENT_HPP
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_STATEMENT_HPP
 
 
 
 namespace li {
 
-template <typename T> struct json_object_base;
-
-template <typename T> struct json_object_;
-template <typename T> struct json_vector_;
-template <typename V> struct json_value_;
-template <typename V> struct json_map_;
-template <typename... T> struct json_tuple_;
-struct json_key;
-
-namespace impl {
-template <typename S, typename... A>
-auto make_json_object_member(const function_call_exp<S, A...>& e);
-template <typename S> auto make_json_object_member(const li::symbol<S>&);
-
-template <typename S, typename T> auto make_json_object_member(const assign_exp<S, T>& e) {
-  return cat(make_json_object_member(e.left), mmm(s::type = e.right));
+// Execute a request with placeholders.
+template <typename Y>
+template <unsigned N>
+void pgsql_statement<Y>::bind_param(sql_varchar<N>&& m, const char** values, int* lengths,
+                                    int* binary) {
+  // std::cout << "send param varchar " << m << std::endl;
+  *values = m.c_str();
+  *lengths = m.size();
+  *binary = 0;
+}
+template <typename Y>
+template <unsigned N>
+void pgsql_statement<Y>::bind_param(const sql_varchar<N>& m, const char** values, int* lengths,
+                                    int* binary) {
+  // std::cout << "send param const varchar " << m << std::endl;
+  *values = m.c_str();
+  *lengths = m.size();
+  *binary = 0;
+}
+template <typename Y>
+void pgsql_statement<Y>::bind_param(const char* m, const char** values, int* lengths, int* binary) {
+  // std::cout << "send param const char*[N] " << m << std::endl;
+  *values = m;
+  *lengths = strlen(m);
+  *binary = 0;
 }
 
-template <typename S> auto make_json_object_member(const li::symbol<S>&) {
-  return mmm(s::name = S{});
-}
-
-template <typename V> auto to_json_schema(V v) { return json_value_<V>{}; }
-
-template <typename... M> auto to_json_schema(const metamap<M...>& m);
-
-template <typename V> auto to_json_schema(const std::vector<V>& arr) {
-  auto elt = to_json_schema(decltype(arr[0]){});
-  return json_vector_<decltype(elt)>{elt};
-}
-
-template <typename... V> auto to_json_schema(const std::tuple<V...>& arr) {
-  return json_tuple_<decltype(to_json_schema(V{}))...>(to_json_schema(V{})...);
-}
-template <typename K, typename V> auto to_json_schema(const std::unordered_map<K, V>& arr) {
-  return json_map_<decltype(to_json_schema(V{}))>(to_json_schema(V{}));
-}
-template <typename K, typename V> auto to_json_schema(const std::map<K, V>& arr) {
-  return json_map_<decltype(to_json_schema(V{}))>(to_json_schema(V{}));
-}
-
-template <typename... M> auto to_json_schema(const metamap<M...>& m) {
-  auto tuple_maker = [](auto&&... t) { return std::make_tuple(std::forward<decltype(t)>(t)...); };
-
-  auto entities = map_reduce(
-      m, [](auto k, auto v) { return mmm(s::name = k, s::type = to_json_schema(v)); }, tuple_maker);
-
-  return json_object_<decltype(entities)>(entities);
-}
-
-template <typename... E> auto json_object_to_metamap(const json_object_<std::tuple<E...>>& s) {
-  auto make_kvs = [](auto... elt) { return std::make_tuple((elt.name = elt.type)...); };
-
-  auto kvs = std::apply(make_kvs, s.entities);
-  return std::apply(mmm, kvs);
-}
-
-template <typename S, typename... A>
-auto make_json_object_member(const function_call_exp<S, A...>& e) {
-  auto res = mmm(s::name = e.method, s::json_key = symbol_string(e.method));
-
-  auto parse = [&](auto a) {
-    if constexpr (std::is_same<decltype(a), json_key>::value) {
-      res.json_key = a.key;
-    }
-  };
-
-  ::li::tuple_map(e.args, parse);
-  return res;
-}
-
-} // namespace impl
-
-template <typename T> struct json_object_;
-
-template <typename O> struct json_vector_;
-
-template <typename E> constexpr auto json_is_vector(json_vector_<E>) -> std::true_type {
-  return {};
-}
-template <typename E> constexpr auto json_is_vector(E) -> std::false_type { return {}; }
-
-template <typename... E> constexpr auto json_is_tuple(json_tuple_<E...>) -> std::true_type {
-  return {};
-}
-template <typename E> constexpr auto json_is_tuple(E) -> std::false_type { return {}; }
-
-template <typename E> constexpr auto json_is_object(json_object_<E>) -> std::true_type {
-  return {};
-}
-template <typename E> constexpr auto json_is_object(json_map_<E>) -> std::true_type {
-  return {};
-}
-template <typename E> constexpr auto json_is_object(E) -> std::false_type { return {}; }
-
-
-template <typename E> constexpr auto json_is_value(json_object_<E>) -> std::false_type {
-  return {};
-}
-template <typename E> constexpr auto json_is_value(json_vector_<E>) -> std::false_type {
-  return {};
-}
-template <typename... E> constexpr auto json_is_value(json_tuple_<E...>) -> std::false_type {
-  return {};
-}
-template <typename E> constexpr auto json_is_value(json_map_<E>) -> std::false_type {
-  return {};
-}
-template <typename E> constexpr auto json_is_value(E) -> std::true_type { return {}; }
-
-template <typename T> constexpr auto is_std_optional(std::optional<T>) -> std::true_type;
-template <typename T> constexpr auto is_std_optional(T) -> std::false_type;
-
-} // namespace li
-
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_UTILS_HH
-
-
-namespace li {
-
-namespace impl {
-
-template <typename S> struct json_parser {
-  inline json_parser(S&& s) : ss(s) {}
-  inline json_parser(S& s) : ss(s) {}
-
-  inline decltype(auto) peek() { return ss.peek(); }
-  inline decltype(auto) get() { return ss.get(); }
-
-  inline void skip_one() { ss.get(); }
-
-  inline bool eof() { return ss.eof(); }
-  inline json_error_code eat(char c, bool skip_spaces = true) {
-    if (skip_spaces)
-      eat_spaces();
-
-    char g = ss.get();
-    if (g != c)
-      return make_json_error("Unexpected char. Got '", char(g), "' expected ", c);
-    return JSON_OK;
-  }
-
-  inline json_error_code eat(const char* str, bool skip_spaces = true) {
-    if (skip_spaces)
-      eat_spaces();
-
-    const char* str_it = str;
-    while (*str_it) {
-      char g = ss.get();
-      if (g != *str_it)
-        return make_json_error("Unexpected char. Got '", char(g), "' expected '", *str_it,
-                               "' when parsing string ", str);
-      str_it++;
-    }
-    return JSON_OK;
-  }
-
-  json_error_code eat_json_key(char* buffer, int buffer_size, int& key_size) {
-    if (auto err = eat('"'))
-      return err;
-    key_size = 0;
-    while (!eof() and peek() != '"' and key_size < (buffer_size-1))
-      buffer[key_size++] = get();
-    buffer[key_size] = 0;
-    if (auto err = eat('"', false))
-      return err;
-    return JSON_OK;
-  }
-
-  template <typename... T> inline json_error_code make_json_error(T&&... t) {
-    if (!error_stream)
-      error_stream = new std::ostringstream();
-    *error_stream << "json error: ";
-    auto add = [this](auto w) { *error_stream << w; };
-    apply_each(add, t...);
-    return JSON_KO;
-  }
-  inline void eat_spaces() {
-    while (ss.peek() >= 0 and ss.peek() < 33)
-      ss.get();
-  }
-
-  template <typename X> struct JSON_INVALID_TYPE;
-
-  // Integers and floating points.
-  template <typename T> json_error_code fill(T& t) {
-
-    if constexpr (std::is_floating_point<T>::value or std::is_integral<T>::value or
-                  std::is_same<T, std::string_view>::value) {
-      ss >> t;
-      if (ss.bad())
-        return make_json_error("Ill-formated value.");
-      return JSON_OK;
-    } else
-      // The JSON decoder only parses floating-point, integral and string types.
-      return JSON_INVALID_TYPE<T>::error;
-  }
-
-  // Strings
-  inline json_error_code fill(std::string& str) {
-    eat_spaces();
-    str.clear();
-    return json_to_utf8(ss, str);
-  }
-
-  template <typename T> inline json_error_code fill(std::optional<T>& opt) {
-    opt.emplace();
-    return fill(opt.value());
-  }
-
-  template <typename... T> inline json_error_code fill(std::variant<T...>& v) {
-    if (auto err = eat('{'))
-      return err;
-    if (auto err = eat("\"idx\""))
-      return err;
-    if (auto err = eat(':'))
-      return err;
-
-    int idx = 0;
-    fill(idx);
-    if (auto err = eat(','))
-      return err;
-    if (auto err = eat("\"value\""))
-      return err;
-    if (auto err = eat(':'))
-      return err;
-
-    int cpt = 0;
-    apply_each(
-        [&](auto* x) {
-          if (cpt == idx) {
-            std::remove_pointer_t<decltype(x)> value{};
-            fill(value);
-            v = std::move(value);
-          }
-          cpt++;
-        },
-        (T*)nullptr...);
-
-    if (auto err = eat('}'))
-      return err;
-    return JSON_OK;
-  }
-
-  S& ss;
-  std::ostringstream* error_stream = nullptr;
-};
-
-template <typename P, typename O, typename S> json_error_code json_decode2(P& p, O& obj, S) {
-  auto err = p.fill(obj);
-  if (err)
-    return err;
-  else
-    return JSON_OK;
-}
-
-template <typename P, typename O, typename S>
-json_error_code json_decode2(P& p, O& obj, json_vector_<S> schema) {
-  obj.clear();
-  bool first = true;
-  auto err = p.eat('[');
-  if (err)
-    return err;
-
-  p.eat_spaces();
-  while (p.peek() != ']') {
-    if (!first) {
-      if ((err = p.eat(',')))
-        return err;
-    }
-    first = false;
-
-    obj.resize(obj.size() + 1);
-    if ((err = json_decode2(p, obj.back(), S{})))
-      return err;
-    p.eat_spaces();
-  }
-
-  if ((err = p.eat(']')))
-    return err;
-  else
-    return JSON_OK;
-}
-
-template <typename F, typename... E, typename... T, std::size_t... I>
-inline void json_decode_tuple_elements(F& decode_fun, std::tuple<T...>& tu,
-                                       const std::tuple<E...>& schema, std::index_sequence<I...>) {
-  (void)std::initializer_list<int>{((void)decode_fun(std::get<I>(tu), std::get<I>(schema)), 0)...};
-}
-
-template <typename P, typename... O, typename... S>
-json_error_code json_decode2(P& p, std::tuple<O...>& tu, json_tuple_<S...> schema) {
-  bool first = true;
-  auto err = p.eat('[');
-  if (err)
-    return err;
-
-  auto decode_one_element = [&first, &p, &err](auto& value, auto value_schema) {
-    if (!first) {
-      if ((err = p.eat(',')))
-        return err;
-    }
-    first = false;
-    if ((err = json_decode2(p, value, value_schema)))
-      return err;
-    p.eat_spaces();
-    return JSON_OK;
-  };
-
-  json_decode_tuple_elements(decode_one_element, tu, schema.elements,
-                             std::make_index_sequence<sizeof...(O)>{});
-
-  if ((err = p.eat(']')))
-    return err;
-  else
-    return JSON_OK;
-}
-
-template <typename P, typename O, typename V>
-json_error_code json_decode2(json_parser<P>& p, O& obj, json_map_<V> schema) {
-  if (auto err = p.eat('{'))
-    return err;
-
-  p.eat_spaces();
-
-  using mapped_type = typename O::mapped_type;
-  while(true)
-  {
-    // Parse key:
-    char key[50];
-    int key_size = 0;
-    if (auto err = p.eat_json_key(key, sizeof(key), key_size))
-      return err;
-    
-    std::string_view key_str(key, key_size);
-
-    if (auto err = p.eat(':'))
-      return err;
-
-    // Parse value.
-    mapped_type& map_value = obj[std::string(key_str)];
-    if (auto err = json_decode2(p, map_value, V{}))
-      return err;
-
-    p.eat_spaces();
-    if (p.peek() == ',')
-      p.get();
+template <typename Y>
+template <typename T>
+void pgsql_statement<Y>::bind_param(const std::vector<T>& m, const char** values, int* lengths,
+                                    int* binary) {
+  int tsize = [&] {
+    if constexpr (is_metamap<T>::value)
+      return metamap_size<T>();
     else
-      break;
-  }
+      return 1;
+  }();
 
-  if (auto err = p.eat('}'))
-    return err;
-
-  return JSON_OK;
-}
-
-template <typename P, typename O, typename S>
-json_error_code json_decode2(P& p, O& obj, json_object_<S> schema) {
-  json_error_code err;
-  if ((err = p.eat('{')))
-    return err;
-
-  struct attr_info {
-    bool filled;
-    bool required;
-    const char* name;
-    int name_len;
-    std::function<json_error_code(P&)> parse_value;
-  };
-  constexpr int n_members = std::tuple_size<decltype(schema.schema)>();
-  attr_info A[n_members];
   int i = 0;
-  auto prepare = [&](auto m) {
-    A[i].filled = false;
-    A[i].required = true;
-    A[i].name = symbol_string(m.name);
-    A[i].name_len = strlen(symbol_string(m.name));
-
-    if constexpr (has_key(m, s::json_key)) {
-      A[i].name = m.json_key;
-      A[i].name_len = strlen(m.json_key);
-    }
-
-    if constexpr (decltype(is_std_optional(symbol_member_or_getter_access(obj, m.name))){}) {
-      A[i].required = false;
-    }
-
-    A[i].parse_value = [m, &obj](P& p) {
-      using V = decltype(symbol_member_or_getter_access(obj, m.name));
-      using VS = decltype(get_or(m, s::type, json_value_<V>{}));
-
-      if constexpr (decltype(json_is_value(VS{})){}) {
-        if (auto err = p.fill(symbol_member_or_getter_access(obj, m.name)))
-          return err;
-        else
-          return JSON_OK;
-      } else {
-        if (auto err = json_decode2(p, symbol_member_or_getter_access(obj, m.name), m.type))
-          return err;
-        else
-          return JSON_OK;
-      }
-    };
-
-    i++;
-  };
-
-  std::apply([&](auto... m) { apply_each(prepare, m...); }, schema.schema);
-
-  while (p.peek() != '}') {
-
-    bool found = false;
-    if ((err = p.eat('"')))
-      return err;
-    char symbol[50 + 1];
-    int symbol_size = 0;
-    while (!p.eof() and p.peek() != '"' and symbol_size < 50)
-      symbol[symbol_size++] = p.get();
-    symbol[symbol_size] = 0;
-    if ((err = p.eat('"', false)))
-      return err;
-
-    for (int i = 0; i < n_members; i++) {
-      int len = A[i].name_len;
-      if (len == symbol_size && !strncmp(symbol, A[i].name, len)) {
-        if ((err = p.eat(':')))
-          return err;
-        if (A[i].filled)
-          return p.make_json_error("Duplicate json key: ", A[i].name);
-
-        if ((err = A[i].parse_value(p)))
-          return err;
-        A[i].filled = true;
-        found = true;
-        break;
-      }
-    }
-
-    if (!found)
-      return p.make_json_error("Unknown json key: ", symbol);
-    p.eat_spaces();
-    if (p.peek() == ',') {
-      if ((err = p.eat(',')))
-        return err;
-    }
-  }
-  if ((err = p.eat('}')))
-    return err;
-
-  for (int i = 0; i < n_members; i++) {
-    if (A[i].required and !A[i].filled)
-      return p.make_json_error("Missing json key ", A[i].name);
-  }
-  return JSON_OK;
+  for (int i = 0; i < m.size(); i++)
+    bind_param(m[i], values + i * tsize, lengths + i * tsize, binary + i * tsize);
 }
 
-template <typename C, typename O, typename S> json_error json_decode(C& input, O& obj, S schema) {
-  auto stream = decode_stringstream(input);
-  json_parser<decode_stringstream> p(stream);
-  if (json_decode2(p, obj, schema))
-    return json_error{1, p.error_stream ? p.error_stream->str() : "Json error"};
-  else
-    return json_error{0};
+template <typename Y>
+template <typename T>
+void pgsql_statement<Y>::bind_param(const T& m, const char** values, int* lengths, int* binary) {
+  if constexpr (is_metamap<std::decay_t<decltype(m)>>::value) {
+    int i = 0;
+    li::map(m, [&](auto k, const auto& m) {
+      bind_param(m, values + i, lengths + i, binary + i);
+      i++;
+    });
+  } else if constexpr (std::is_same<std::decay_t<decltype(m)>, std::string>::value or
+                       std::is_same<std::decay_t<decltype(m)>, std::string_view>::value) {
+    // std::cout << "send param string: " << m << std::endl;
+    *values = m.c_str();
+    *lengths = m.size();
+    *binary = 0;
+  } else if constexpr (std::is_same<std::remove_reference_t<decltype(m)>, const char*>::value) {
+    // std::cout << "send param const char* " << m << std::endl;
+    *values = m;
+    *lengths = strlen(m);
+    *binary = 0;
+  } else if constexpr (std::is_same<std::decay_t<decltype(m)>, int>::value) {
+    *values = (char*)new int(htonl(m));
+    *lengths = sizeof(m);
+    *binary = 1;
+  } else if constexpr (std::is_same<std::decay_t<decltype(m)>, long long int>::value) {
+    // FIXME send 64bit values.
+    // std::cout << "long long int param: " << m << std::endl;
+    *values = (char*)new int(htonl(uint32_t(m)));
+    *lengths = sizeof(uint32_t);
+    // does not work:
+    // values = (char*)new uint64_t(htobe64((uint64_t) m));
+    // lengths = sizeof(uint64_t);
+    *binary = 1;
+  }
 }
 
-} // namespace impl
+template <typename Y>
+template <typename T>
+unsigned int pgsql_statement<Y>::bind_compute_nparam(const T& arg) {
+  return 1;
+}
+template <typename Y>
+template <typename... T>
+unsigned int pgsql_statement<Y>::bind_compute_nparam(const metamap<T...>& arg) {
+  return sizeof...(T);
+}
+template <typename Y>
+template <typename T>
+unsigned int pgsql_statement<Y>::bind_compute_nparam(const std::vector<T>& arg) {
+  return arg.size() * bind_compute_nparam(arg[0]);
+}
+
+// Bind parameter to the prepared statement and execute it.
+template <typename Y>
+template <typename... T>
+sql_result<pgsql_result<Y>> pgsql_statement<Y>::operator()(T&&... args) {
+
+  unsigned int nparams = 0;
+  if constexpr (sizeof...(T) > 0)
+    nparams = (bind_compute_nparam(std::forward<T>(args)) + ...);
+  const char* values_[nparams];
+  int lengths_[nparams];
+  int binary_[nparams];
+
+  const char** values = values_;
+  int* lengths = lengths_;
+  int* binary = binary_;
+
+  int i = 0;
+  tuple_map(std::forward_as_tuple(args...), [&](const auto& a) {
+    bind_param(a, values + i, lengths + i, binary + i);
+    i += bind_compute_nparam(a);
+  });
+
+  // std::cout << "flush" << std::endl;
+  // FIXME: do we really need to flush the results here ?
+  // flush_results();
+  // std::cout << "flushed" << std::endl;
+  // std::cout << "sending " << data_.stmt_name.c_str() << " with " << nparams << " params" <<
+  // std::endl;
+  if (!PQsendQueryPrepared(connection_, data_.stmt_name.c_str(), nparams, values, lengths, binary,
+                           1)) {
+    throw std::runtime_error(std::string("Postresql error:") + PQerrorMessage(connection_));
+  }
+  return sql_result<pgsql_result<Y>>{
+      pgsql_result<Y>{this->connection_, this->fiber_, this->connection_status_}};
+}
+
+// FIXME long long int affected_rows() { return pgsql_stmt_affected_rows(data_.stmt_); }
 
 } // namespace li
 
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_DECODER_HH
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_STATEMENT_HPP
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_ENCODER_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_ENCODER_HH
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_STATEMENT_HH
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_CONNECTION_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_CONNECTION_HH
+
+
+#include "libpq-fe.h"
 
 
 namespace li {
 
-using std::string_view;
+struct pgsql_tag {};
 
-template <typename... T> struct json_tuple_;
-template <typename T> struct json_object_;
+struct pgsql_connection_data {
 
-namespace impl {
-
-// Json encoder.
-// =============================================
-
-template <typename C, typename O, typename E>
-inline void json_encode(C& ss, O obj, const json_object_<E>& schema);
-template <typename C, typename... E, typename... T>
-inline void json_encode(C& ss, const std::tuple<T...>& tu, const json_tuple_<E...>& schema);
-template <typename T, typename C, typename E>
-inline void json_encode(C& ss, const T& value, const E& schema);
-template <typename T, typename C, typename E>
-inline void json_encode(C& ss, const std::vector<T>& array, const json_vector_<E>& schema);
-
-template <typename T, typename C> inline void json_encode_value(C& ss, const T& t) { ss << t; }
-
-template <typename C> inline void json_encode_value(C& ss, const char* s) { 
-  //ss << s;
-  utf8_to_json(s, ss);
- }
-
-template <typename C> inline void json_encode_value(C& ss, const string_view& s) {
-  //ss << s;
-  utf8_to_json(s, ss);
-}
-
-template <typename C> inline void json_encode_value(C& ss, const std::string& s) {
-  //ss << s;
-  utf8_to_json(s, ss);
-}
-
-template <typename C, typename... T> inline void json_encode_value(C& ss, const metamap<T...>& s) {
-  json_encode(ss, s, to_json_schema(s));
-}
-
-template <typename T, typename C> inline void json_encode_value(C& ss, const std::optional<T>& t) {
-  if (t.has_value())
-    json_encode_value(ss, t.value());
-}
-
-template <typename C, typename... T>
-inline void json_encode_value(C& ss, const std::variant<T...>& t) {
-  ss << "{\"idx\":" << t.index() << ",\"value\":";
-  std::visit([&](auto&& value) { json_encode_value(ss, value); }, t);
-  ss << '}';
-}
-
-template <typename C, typename O, typename E>
-inline void json_encode(C& ss, O obj, const json_object_<E>& schema);
-
-template <typename T, typename C, typename E>
-inline void json_encode(C& ss, const T& value, const E& schema) {
-  json_encode_value(ss, value);
-}
-
-template <typename T, typename C, typename E>
-inline void json_encode(C& ss, const std::vector<T>& array, const json_vector_<E>& schema) {
-  ss << '[';
-  for (const auto& t : array) {
-    if constexpr (decltype(json_is_vector(E{})){} or decltype(json_is_object(E{})){}) {
-      json_encode(ss, t, schema.schema);
-    } else
-      json_encode_value(ss, t);
-
-    if (&t != &array.back())
-      ss << ',';
+  ~pgsql_connection_data() {
+    if (connection) {
+      cancel();
+      PQfinish(connection);
+    }
   }
-  ss << ']';
-}
-
-template <typename V, typename C, typename M>
-inline void json_encode(C& ss, const M& map, const json_map_<V>& schema) {
-  ss << '{';
-  bool first = true;
-  for (const auto& pair : map) {
-    if (!first)
-      ss << ',';
-
-    json_encode_value(ss, pair.first);
-    ss << ':';
-
-    if constexpr (decltype(json_is_value(schema.mapped_schema)){})
-      json_encode_value(ss, pair.second);
-    else
-      json_encode(ss, pair.second, schema.mapped_schema);
-
-    first = false;
+  void cancel() {
+    if (connection) {
+      // Cancel any pending request.
+      PGcancel* cancel = PQgetCancel(connection);
+      char x[256];
+      if (cancel) {
+        PQcancel(cancel, x, 256);
+        PQfreeCancel(cancel);
+      }
+    }
   }
 
-  ss << '}';
-}
+  PGconn* connection = nullptr;
+  int fd = -1;
+  std::unordered_map<std::string, std::shared_ptr<pgsql_statement_data>> statements;
+  type_hashmap<std::shared_ptr<pgsql_statement_data>> statements_hashmap;
+};
 
-template <typename F, typename... E, typename... T, std::size_t... I>
-inline void json_encode_tuple_elements(F& encode_fun, const std::tuple<T...>& tu,
-                                       const std::tuple<E...>& schema, std::index_sequence<I...>) {
-  (void)std::initializer_list<int>{((void)encode_fun(std::get<I>(tu), std::get<I>(schema)), 0)...};
-}
+thread_local std::deque<std::shared_ptr<pgsql_connection_data>> pgsql_connection_pool;
 
-template <typename C, typename... E, typename... T>
-inline void json_encode(C& ss, const std::tuple<T...>& tu, const json_tuple_<E...>& schema) {
-  ss << '[';
-  bool first = true;
-  auto encode_one_element = [&first, &ss](auto value, auto value_schema) {
-    if (!first)
-      ss << ',';
-    first = false;
-    if constexpr (decltype(json_is_value(value_schema)){}) {
-      json_encode_value(ss, value);
+// template <typename Y> void pq_wait(Y& yield, PGconn* con) {
+//   while (PQisBusy(con))
+//     yield();
+// }
+
+template <typename Y> struct pgsql_connection {
+
+  Y& fiber_;
+  std::shared_ptr<pgsql_connection_data> data_;
+  std::unordered_map<std::string, std::shared_ptr<pgsql_statement_data>>& stm_cache_;
+  PGconn* connection_;
+  std::shared_ptr<int> connection_status_;
+
+  typedef pgsql_tag db_tag;
+
+  inline pgsql_connection(const pgsql_connection&) = delete;
+  inline pgsql_connection& operator=(const pgsql_connection&) = delete;
+  inline pgsql_connection(pgsql_connection&&) = default;
+
+  template <typename P>
+  inline pgsql_connection(Y& fiber, std::shared_ptr<li::pgsql_connection_data> data,
+                          P put_data_back_in_pool)
+      : fiber_(fiber), data_(data), stm_cache_(data->statements), connection_(data->connection) {
+
+    connection_status_ =
+        std::shared_ptr<int>(new int(0), [data, put_data_back_in_pool](int* p) mutable {
+          put_data_back_in_pool(data, *p);
+        });
+  }
+
+  ~pgsql_connection() {
+    if (connection_status_ && *connection_status_ == 0) {
+      // flush results if needed.
+      // while (PGresult* res = wait_for_next_result())
+      //   PQclear(res);
+    }
+  }
+
+  // FIXME long long int last_insert_rowid() { return pgsql_insert_id(connection_); }
+
+  // pgsql_statement<Y> operator()(const std::string& rq) { return prepare(rq)(); }
+
+  auto operator()(const std::string& rq) {
+    if (!PQsendQueryParams(connection_, rq.c_str(), 0, nullptr, nullptr, nullptr, nullptr, 1))
+      throw std::runtime_error(std::string("Postresql error:") + PQerrorMessage(connection_));
+    return sql_result<pgsql_result<Y>>{
+        pgsql_result<Y>{this->connection_, this->fiber_, this->connection_status_}};
+  }
+
+  // PQsendQueryParams
+  template <typename F, typename... K> pgsql_statement<Y> cached_statement(F f, K... keys) {
+    if (data_->statements_hashmap(f, keys...).get() == nullptr) {
+      pgsql_statement<Y> res = prepare(f());
+      data_->statements_hashmap(f, keys...) = res.data_.shared_from_this();
+      return res;
     } else
-      json_encode(ss, value, value_schema);
-  };
+      return pgsql_statement<Y>{connection_, fiber_, *data_->statements_hashmap(f, keys...),
+                                connection_status_};
+  }
 
-  json_encode_tuple_elements(encode_one_element, tu, schema.elements,
-                             std::make_index_sequence<sizeof...(T)>{});
-  ss << ']';
-}
+  pgsql_statement<Y> prepare(const std::string& rq) {
+    auto it = stm_cache_.find(rq);
+    if (it != stm_cache_.end()) {
+      // pgsql_wrapper_.pgsql_stmt_free_result(it->second->stmt_);
+      // pgsql_wrapper_.pgsql_stmt_reset(it->second->stmt_);
+      return pgsql_statement<Y>{connection_, fiber_, *it->second, connection_status_};
+    }
+    std::stringstream stmt_name;
+    stmt_name << (void*)connection_ << stm_cache_.size();
+    // std::cout << "prepare " << rq << " NAME: " << stmt_name.str() << std::endl;
 
-template <typename C, typename O, typename E>
-inline void json_encode(C& ss, O obj, const json_object_<E>& schema) {
-  ss << '{';
-  bool first = true;
+    // FIXME REALLY USEFUL??
+    // while (PGresult* res = wait_for_next_result())
+    //   PQclear(res);
 
-  auto encode_one_entity = [&](auto e) {
-    if constexpr (decltype(is_std_optional(symbol_member_or_getter_access(obj, e.name))){}) {
-      if (!symbol_member_or_getter_access(obj, e.name).has_value())
-        return;
+    if (!PQsendPrepare(connection_, stmt_name.str().c_str(), rq.c_str(), 0, nullptr)) {
+      throw std::runtime_error(std::string("PQsendPrepare error") + PQerrorMessage(connection_));
     }
 
-    if (!first) {
-      ss << ',';
-    }
-    first = false;
-    if constexpr (has_key(e, s::json_key)) {
-      json_encode_value(ss, e.json_key);
-    } else
-      json_encode_value(ss, symbol_string(e.name));
-    ss << ':';
+    // flush results.
+    while (PGresult* ret = pg_wait_for_next_result(connection_, fiber_, connection_status_))
+      PQclear(ret);
 
-    if constexpr (has_key(e, s::type)) {
-      if constexpr (decltype(json_is_vector(e.type)){} or decltype(json_is_object(e.type)){}) {
-        return json_encode(ss, symbol_member_or_getter_access(obj, e.name), e.type);
-      } else
-        json_encode_value(ss, symbol_member_or_getter_access(obj, e.name));
-    } else
-      json_encode_value(ss, symbol_member_or_getter_access(obj, e.name));
-  };
+    // while (PGresult* ret = PQgetResult(connection_)) {
+    //   if (PQresultStatus(ret) == PGRES_FATAL_ERROR)
+    //     throw std::runtime_error(std::string("Postresql fatal error:") +
+    //                              PQerrorMessage(connection_));
+    //   if (PQresultStatus(ret) == PGRES_NONFATAL_ERROR)
+    //     std::cerr << "Postgresql non fatal error: " << PQerrorMessage(connection_) << std::endl;
+    //   PQclear(ret);
+    // }
+    // pq_wait(yield_, connection_);
 
-  tuple_map(schema.schema, encode_one_entity);
-  ss << '}';
-}
-} // namespace impl
+    auto pair = stm_cache_.emplace(rq, std::make_shared<pgsql_statement_data>(stmt_name.str()));
+    return pgsql_statement<Y>{connection_, fiber_, *pair.first->second, connection_status_};
+  }
+
+  template <typename T>
+  inline std::string type_to_string(const T&, std::enable_if_t<std::is_integral<T>::value>* = 0) {
+    return "INT";
+  }
+  template <typename T>
+  inline std::string type_to_string(const T&,
+                                    std::enable_if_t<std::is_floating_point<T>::value>* = 0) {
+    return "DOUBLE";
+  }
+  inline std::string type_to_string(const std::string&) { return "TEXT"; }
+  inline std::string type_to_string(const sql_blob&) { return "BLOB"; }
+  template <unsigned S> inline std::string type_to_string(const sql_varchar<S>) {
+    std::ostringstream ss;
+    ss << "VARCHAR(" << S << ')';
+    return ss.str();
+  }
+};
 
 } // namespace li
 
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_ENCODER_HH
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_CONNECTION_HH
 
 
 namespace li {
 
-template <typename T> struct json_object_base {
+struct pgsql_database_impl {
 
-public:
-  inline auto downcast() const { return static_cast<const T*>(this); }
+  typedef pgsql_connection_data  connection_data_type;
 
-  template <typename C, typename O> void encode(C& output, O&& obj) const {
-    return impl::json_encode(output, std::forward<O>(obj), *downcast());
+  typedef pgsql_tag db_tag;
+  std::string host_, user_, passwd_, database_;
+  unsigned int port_;
+  std::string character_set_;
+
+  template <typename... O> inline pgsql_database_impl(O... opts) {
+
+    auto options = mmm(opts...);
+    static_assert(has_key(options, s::host), "open_pgsql_connection requires the s::host argument");
+    static_assert(has_key(options, s::database),
+                  "open_pgsql_connection requires the s::databaser argument");
+    static_assert(has_key(options, s::user), "open_pgsql_connection requires the s::user argument");
+    static_assert(has_key(options, s::password),
+                  "open_pgsql_connection requires the s::password argument");
+
+    host_ = options.host;
+    database_ = options.database;
+    user_ = options.user;
+    passwd_ = options.password;
+    port_ = get_or(options, s::port, 5432);
+    character_set_ = get_or(options, s::charset, "utf8");
+
+    if (!PQisthreadsafe())
+      throw std::runtime_error("LibPQ is not threadsafe.");
   }
 
-  template <typename C, typename... M> void encode(C& output, const metamap<M...>& obj) const {
-    return impl::json_encode(output, obj, *downcast());
+  inline int get_socket(std::shared_ptr<pgsql_connection_data> data) {
+    return PQsocket(data->connection);
   }
 
-  template <typename O> std::string encode(O obj) const {
-    std::ostringstream ss;
-    impl::json_encode(ss, std::forward<O>(obj), *downcast());
-    return ss.str();
+  template <typename Y> inline std::shared_ptr<pgsql_connection_data> new_connection(Y& fiber) {
+
+    PGconn* connection = nullptr;
+    int pgsql_fd = -1;
+    std::stringstream coninfo;
+    coninfo << "postgresql://" << user_ << ":" << passwd_ << "@" << host_ << ":" << port_ << "/"
+            << database_;
+    // connection = PQconnectdb(coninfo.str().c_str());
+    connection = PQconnectStart(coninfo.str().c_str());
+    if (!connection) {
+      std::cerr << "Warning: PQconnectStart returned null." << std::endl;
+      return nullptr;
+    }
+    if (PQsetnonblocking(connection, 1) == -1) {
+      std::cerr << "Warning: PQsetnonblocking returned -1: " << PQerrorMessage(connection)
+                << std::endl;
+      PQfinish(connection);
+      return nullptr;
+    }
+
+    int status = PQconnectPoll(connection);
+
+    pgsql_fd = PQsocket(connection);
+    if (pgsql_fd == -1) {
+      std::cerr << "Warning: PQsocket returned -1: " << PQerrorMessage(connection) << std::endl;
+      // If PQsocket return -1, retry later.
+      PQfinish(connection);
+      return nullptr;
+    }
+    fiber.epoll_add(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP);
+
+    try {
+      while (status != PGRES_POLLING_FAILED and status != PGRES_POLLING_OK) {
+        int new_pgsql_fd = PQsocket(connection);
+        if (new_pgsql_fd != pgsql_fd) {
+          pgsql_fd = new_pgsql_fd;
+          fiber.epoll_add(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP);
+        }
+        fiber.yield();
+        status = PQconnectPoll(connection);
+      }
+    } catch (typename Y::exception_type& e) {
+      // Yield thrown a exception (probably because a closed connection).
+      PQfinish(connection);
+      throw std::move(e);
+    }
+    // std::cout << "CONNECTED " << std::endl;
+    fiber.epoll_mod(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
+    if (status != PGRES_POLLING_OK) {
+      std::cerr << "Warning: cannot connect to the postgresql server " << host_ << ": "
+                << PQerrorMessage(connection) << std::endl;
+      PQfinish(connection);
+      return nullptr;
+    }
+
+    // pgsql_set_character_set(pgsql, character_set_.c_str());
+    return std::shared_ptr<pgsql_connection_data>(new pgsql_connection_data{connection, pgsql_fd});
   }
 
-  template <typename... M> std::string encode(const metamap<M...>& obj) const {
-    std::ostringstream ss;
-    impl::json_encode(ss, obj, *downcast());
-    return ss.str();
-  }
-
-  template <typename C, typename O> json_error decode(C& input, O& obj) const {
-    return impl::json_decode(input, obj, *downcast());
-  }
-
-  template <typename C, typename... M> auto decode(C& input) const {
-    auto map = impl::json_object_to_metamap(*downcast());
-    impl::json_decode(input, map, *downcast());
-    return map;
+  template <typename Y, typename F>
+  auto scoped_connection(Y& fiber, std::shared_ptr<pgsql_connection_data>& data,
+                         F put_back_in_pool) {
+    return pgsql_connection(fiber, data, put_back_in_pool);
   }
 };
 
-template <typename T> struct json_object_ : public json_object_base<json_object_<T>> {
-  json_object_() = default;
-  json_object_(const T& s) : schema(s) {}
-  T schema;
-};
-
-template <typename... S> auto json_object(S&&... s) {
-  auto members = std::make_tuple(impl::make_json_object_member(std::forward<S>(s))...);
-  return json_object_<decltype(members)>{members};
-}
-
-template <typename V> struct json_value_ : public json_object_base<json_value_<V>> {
-  json_value_() = default;
-};
-
-template <typename V> auto json_value(V&& v) { return json_value_<V>{}; }
-
-template <typename T> struct json_vector_ : public json_object_base<json_vector_<T>> {
-  json_vector_() = default;
-  json_vector_(const T& s) : schema(s) {}
-  T schema;
-};
-
-template <typename... S> auto json_vector(S&&... s) {
-  auto obj = json_object(std::forward<S>(s)...);
-  return json_vector_<decltype(obj)>{obj};
-}
-
-template <typename... T> struct json_tuple_ : public json_object_base<json_tuple_<T...>> {
-  json_tuple_() = default;
-  json_tuple_(const T&... s) : elements(s...) {}
-  std::tuple<T...> elements;
-};
-
-template <typename... S> auto json_tuple(S&&... s) { return json_tuple_<S...>{s...}; }
-
-struct json_key {
-  inline json_key(const char* c) : key(c) {}
-  const char* key;
-};
-
-template <typename V> struct json_map_ : public json_object_base<json_map_<V>> {
-  json_map_() = default;
-  json_map_(const V& s) : mapped_schema(s) {}
-  V mapped_schema;
-};
-
-template <typename V> auto json_map() { return json_map_<V>(); }
-
-template <typename C, typename M> decltype(auto) json_decode(C& input, M& obj) {
-  return impl::to_json_schema(obj).decode(input, obj);
-}
-
-template <typename C, typename M> decltype(auto) json_encode(C& output, const M& obj) {
-  impl::to_json_schema(obj).encode(output, obj);
-}
-
-template <typename M> auto json_encode(const M& obj) {
-  return std::move(impl::to_json_schema(obj).encode(obj));
-}
-
-template <typename A, typename B, typename... C>
-auto json_encode(const assign_exp<A, B>& exp, C... c) {
-  auto obj = mmm(exp, c...);
-  return impl::to_json_schema(obj).encode(obj);
-}
+typedef sql_database<pgsql_database_impl> pgsql_database;
 
 } // namespace li
 
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_JSON_HH
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_DATABASE_HH
+
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_HH
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_HTTP_BACKEND_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_HTTP_BACKEND_HH
 
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_API_HH

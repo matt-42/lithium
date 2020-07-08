@@ -1,7 +1,7 @@
 #include <cassert>
 #include <iomanip>
 #include <iostream>
-#include <li/json/json.hh>
+#include <lithium.hh>
 
 int test_integer(const char* str) {
   int f;

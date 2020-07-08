@@ -1,6 +1,5 @@
 #pragma once
 
-#include <arpa/inet.h>
 #include <libpq-fe.h>
 
 #include <li/callable_traits/callable_traits.hh>

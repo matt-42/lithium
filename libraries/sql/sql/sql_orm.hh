@@ -148,11 +148,11 @@ template <typename SCHEMA, typename C> struct sql_orm {
   }
 
   template <typename A, typename B, typename... O, typename... W>
-  auto find_one(metamap<O...>&& o, assign_exp<A, B> w1, W... ws) {
-    return find_one(cat(o, mmm(w1)), ws...);
+  auto find_one(metamap<O...>&& o, assign_exp<A, B>&& w1, W... ws) {
+    return find_one(cat(o, mmm(w1)), std::forward<W>(ws)...);
   }
-  template <typename A, typename B, typename... W> auto find_one(assign_exp<A, B> w1, W... ws) {
-    return find_one(mmm(w1), ws...);
+  template <typename A, typename B, typename... W> auto find_one(assign_exp<A, B>&& w1, W&&... ws) {
+    return find_one(mmm(w1), std::forward<W>(ws)...);
   }
 
   template <typename W> bool exists(W&& cond) {
