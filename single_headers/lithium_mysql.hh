@@ -2104,7 +2104,7 @@ template <typename I> struct sql_database {
       return *(sql_database_thread_local_data<I>*) it->second;
   }
   /**
-   * @brief Provide a new mysql non blocking connection. The connection provides RAII: it will be
+   * @brief Build aa new database connection. The connection provides RAII: it will be
    * placed back in the available connection pool whenever its constructor is called.
    *
    * @param fiber the fiber object providing the 3 non blocking logic methods:
@@ -2150,7 +2150,7 @@ template <typename I> struct sql_database {
           if constexpr (std::is_same_v<Y, active_yield>)
             throw std::runtime_error("Maximum number of sql connection exeeded.");
           else
-            // std::cout << "Waiting for a free mysql connection..." << std::endl;
+            // std::cout << "Waiting for a free sql connection..." << std::endl;
             fiber.yield();
           continue;
         }
