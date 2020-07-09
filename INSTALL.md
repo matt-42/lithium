@@ -22,3 +22,9 @@ cmake .. -DCMAKE_INSTALL_PREFIX=_your_prefix_; make -j4 install;
 The `li_symbol_generator` will be install in `_your_prefix_/bin`
 
 Check https://github.com/matt-42/lithium/tree/master/libraries/symbol for more information on how to use automatic symbol generation.
+
+
+# Getting started with CMake
+
+Check the cmake+lithium project starter here:
+https://github.com/matt-42/lithium/tree/master/cmake_project_template
