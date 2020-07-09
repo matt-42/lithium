@@ -190,30 +190,34 @@ int main(int argc, char* argv[]) {
     write_symbol_file(find_symbols_in_files(files), std::cout);
   }
   if (fs::is_directory(argv[1])) {
+    std::vector<fs::path> directories = {fs::path(argv[1])};
+   
     for (auto& p : fs::recursive_directory_iterator(argv[1]))
-      if (fs::is_directory(p.path())) {
-        std::vector<std::string> files;
-        std::vector<std::string> extentions = {".cc", ".cpp", ".h", ".hh", ".hpp"};
+      if (fs::is_directory(p.path()))
+        directories.push_back(p.path());
 
-        for (auto p2 : fs::directory_iterator(p.path()))
-          if (std::find(extentions.begin(), extentions.end(), p2.path().extension()) !=
-              extentions.end())
-            files.push_back(p2.path().string());
+    for (auto& p : directories) {
+      std::vector<std::string> files;
+      std::vector<std::string> extentions = {".cc", ".cpp", ".h", ".hh", ".hpp"};
 
-        auto symbols = find_symbols_in_files(files);
-        if (!symbols.empty()) {
-          auto symbol_file = p / fs::path("symbols.hh");
-          std::ostringstream ss;
-          write_symbol_file(symbols, ss);
+      for (auto p2 : fs::directory_iterator(p))
+        if (std::find(extentions.begin(), extentions.end(), p2.path().extension()) !=
+            extentions.end())
+          files.push_back(p2.path().string());
 
-          if (fs::is_regular_file(symbol_file) &&
-              ss.str() == get_file_contents(symbol_file.string()))
-            continue;
-          else {
-            auto of = std::ofstream(symbol_file.string());
-            of << ss.str();
-          }
+      auto symbols = find_symbols_in_files(files);
+      if (!symbols.empty()) {
+        auto symbol_file = p / fs::path("symbols.hh");
+        std::ostringstream ss;
+        write_symbol_file(symbols, ss);
+
+        if (fs::is_regular_file(symbol_file) && ss.str() == get_file_contents(symbol_file.string()))
+          continue;
+        else {
+          auto of = std::ofstream(symbol_file.string());
+          of << ss.str();
         }
       }
+    }
   }
 }
