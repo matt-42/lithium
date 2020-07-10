@@ -2157,6 +2157,11 @@ template <unsigned SIZE> struct sql_varchar : public std::string {
     LI_SYMBOL(ssl_key)
 #endif
 
+#ifndef LI_SYMBOL_ssl_ciphers
+#define LI_SYMBOL_ssl_ciphers
+    LI_SYMBOL(ssl_ciphers)
+#endif
+
 #ifndef LI_SYMBOL_update_secret_key
 #define LI_SYMBOL_update_secret_key
     LI_SYMBOL(update_secret_key)
@@ -3422,7 +3427,8 @@ struct ssl_context {
       SSL_CTX_free(ctx);
   }
 
-  ssl_context(const std::string& key_path, const std::string& cert_path) {
+  ssl_context(const std::string& key_path, const std::string& cert_path,
+              const std::string& ciphers) {
     if (!openssl_initialized) {
       SSL_load_error_strings();
       OpenSSL_add_ssl_algorithms();
@@ -3441,6 +3447,12 @@ struct ssl_context {
     }
 
     SSL_CTX_set_ecdh_auto(ctx, 1);
+
+    /* Set the ciphersuite if provided */
+    if (ciphers.size() && SSL_CTX_set_cipher_list(ctx, ciphers.c_str()) <= 0) {
+      ERR_print_errors_fp(stderr);
+      exit(EXIT_FAILURE);
+    }
 
     /* Set the key and cert */
     if (SSL_CTX_use_certificate_file(ctx, cert_path.c_str(), SSL_FILETYPE_PEM) <= 0) {
@@ -3812,7 +3824,8 @@ void async_fiber_context::epoll_mod(int fd, int flags) { reactor->epoll_mod(fd, 
 
 template <typename H>
 void start_tcp_server(int port, int socktype, int nthreads, H conn_handler,
-                      std::string ssl_key_path = "", std::string ssl_cert_path = "") {
+                      std::string ssl_key_path = "", std::string ssl_cert_path = "",
+                      std::string ssl_ciphers = "") {
 
   struct sigaction act;
   memset(&act, 0, sizeof(act));
@@ -3828,7 +3841,7 @@ void start_tcp_server(int port, int socktype, int nthreads, H conn_handler,
     ths.push_back(std::thread([&] {
       async_reactor reactor;
       if (ssl_cert_path.size()) // Initialize the SSL/TLS context.
-        reactor.ssl_ctx = std::make_unique<ssl_context>(ssl_key_path, ssl_cert_path);
+        reactor.ssl_ctx = std::make_unique<ssl_context>(ssl_key_path, ssl_cert_path, ssl_ciphers);
       reactor.event_loop(server_fd, conn_handler);
     }));
 
@@ -5021,9 +5034,10 @@ auto http_serve(api<http_request, http_response> api, int port, O... opts) {
       static_assert(has_key(options, s::ssl_certificate), "You need to provide both the ssl_certificate option and the ssl_key option.");
       std::string ssl_key = options.ssl_key;
       std::string ssl_cert = options.ssl_certificate;
+      std::string ssl_ciphers = options.ssl_ciphers;
       start_tcp_server(port, SOCK_STREAM, nthreads,
                        http_async_impl::make_http_processor(std::move(handler)),
-                       ssl_key, ssl_cert);
+                       ssl_key, ssl_cert, ssl_ciphers);
     }
     else
       start_tcp_server(port, SOCK_STREAM, nthreads,

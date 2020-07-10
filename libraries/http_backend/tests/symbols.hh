@@ -135,6 +135,11 @@
     LI_SYMBOL(ssl_key)
 #endif
 
+#ifndef LI_SYMBOL_ssl_ciphers
+#define LI_SYMBOL_ssl_ciphers
+    LI_SYMBOL(ssl_ciphers)
+#endif
+
 #ifndef LI_SYMBOL_test1
 #define LI_SYMBOL_test1
     LI_SYMBOL(test1)

@@ -40,8 +40,8 @@ struct ssl_context {
 
     SSL_CTX_set_ecdh_auto(ctx, 1);
 
-    /* Set the ciphersuite */
-    if (ciphers.c_str().size() && SSL_CTX_set_cipher_list(ctx, ciphers.c_str()) <= 0) {
+    /* Set the ciphersuite if provided */
+    if (ciphers.size() && SSL_CTX_set_cipher_list(ctx, ciphers.c_str()) <= 0) {
       ERR_print_errors_fp(stderr);
       exit(EXIT_FAILURE);
     }
