@@ -664,9 +664,10 @@ auto http_serve(api<http_request, http_response> api, int port, O... opts) {
       static_assert(has_key(options, s::ssl_certificate), "You need to provide both the ssl_certificate option and the ssl_key option.");
       std::string ssl_key = options.ssl_key;
       std::string ssl_cert = options.ssl_certificate;
+      std::string ssl_ciphers = options.ssl_ciphers;
       start_tcp_server(port, SOCK_STREAM, nthreads,
                        http_async_impl::make_http_processor(std::move(handler)),
-                       ssl_key, ssl_cert);
+                       ssl_key, ssl_cert, ssl_ciphers);
     }
     else
       start_tcp_server(port, SOCK_STREAM, nthreads,
