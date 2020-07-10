@@ -19,7 +19,8 @@ struct ssl_context {
       SSL_CTX_free(ctx);
   }
 
-  ssl_context(const std::string& key_path, const std::string& cert_path) {
+  ssl_context(const std::string& key_path, const std::string& cert_path, 
+              const std::string& ciphers) {
     if (!openssl_initialized) {
       SSL_load_error_strings();
       OpenSSL_add_ssl_algorithms();
@@ -38,6 +39,12 @@ struct ssl_context {
     }
 
     SSL_CTX_set_ecdh_auto(ctx, 1);
+
+    /* Set the ciphersuite */
+    if (ciphers.c_str().size() && SSL_CTX_set_cipher_list(ctx, ciphers.c_str()) <= 0) {
+      ERR_print_errors_fp(stderr);
+      exit(EXIT_FAILURE);
+    }
 
     /* Set the key and cert */
     if (SSL_CTX_use_certificate_file(ctx, cert_path.c_str(), SSL_FILETYPE_PEM) <= 0) {
