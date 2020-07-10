@@ -11,6 +11,6 @@ int main() {
   };
 
   system("openssl req -new -newkey rsa:4096 -x509 -sha256 -days 365 -nodes -out ./server.crt -keyout ./server.key -subj \"/CN=localhost\"");
-  http_serve(my_api, 12334, s::non_blocking, s::ssl_key = "./server.key", s::ssl_certificate = "./server.crt");
+  http_serve(my_api, 12334, s::non_blocking, s::ssl_key = "./server.key", s::ssl_certificate = "./server.crt", s::ssl_ciphers = "ALL:!NULL");
   assert(http_get("https://localhost:12334/hello_world", s::disable_check_certificate).body == "hello world.");
 }
