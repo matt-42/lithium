@@ -42,9 +42,8 @@ template <typename R, typename S> void test_result(R&& query, S&& new_query) {
 
   //query("SELECTT 1+2").template read<int>();
   // Invalid queries must throw.
-
-  EXPECT_THROW(new_query("SELECTT 1+2").template read<int>());
-
+  EXPECT_THROW(new_query("SELECTTT 1+2").template read<int>());
+  
   // //   long long int affected_rows();
   // //   template <typename T> T read();
   EXPECT_EQUAL(3, query("SELECT 1+2").template read<int>());

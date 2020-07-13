@@ -3527,7 +3527,7 @@ struct fiber_exception {
 
   std::string what;
   boost::context::continuation c;
-  fiber_exception(fiber_exception&& e) : what{std::move(e.what)}, c{std::move(e.c)} {}
+  fiber_exception(fiber_exception&& e) = default;
   fiber_exception(boost::context::continuation&& c_, std::string const& what)
       : what{what}, c{std::move(c_)} {}
 };
