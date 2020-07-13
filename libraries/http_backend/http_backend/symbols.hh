@@ -99,6 +99,11 @@
 #define LI_SYMBOL_ssl_key
     LI_SYMBOL(ssl_key)
 #endif
+        
+#ifndef LI_SYMBOL_ssl_ciphers
+#define LI_SYMBOL_ssl_ciphers
+    LI_SYMBOL(ssl_ciphers)
+#endif
 
 #ifndef LI_SYMBOL_update_secret_key
 #define LI_SYMBOL_update_secret_key

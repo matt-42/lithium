@@ -57,6 +57,9 @@ int main() {
 
   // Or start a https server:
   http_serve(api, 443, s::ssl_key = "./server.key", s::ssl_certificate = "./server.crt");
+
+  // Optionally start a https with your ciphersuite
+  http_serve(api, 443, s::ssl_key = "./server.key", s::ssl_certificate = "./server.crt", s::ssl_ciphers = "ALL:!NULL");
 }
 ```
 
