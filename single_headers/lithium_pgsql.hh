@@ -2155,6 +2155,11 @@ typedef sql_database<pgsql_database_impl> pgsql_database;
     LI_SYMBOL(ssl_key)
 #endif
 
+#ifndef LI_SYMBOL_ssl_ciphers
+#define LI_SYMBOL_ssl_ciphers
+    LI_SYMBOL(ssl_ciphers)
+#endif
+
 #ifndef LI_SYMBOL_update_secret_key
 #define LI_SYMBOL_update_secret_key
     LI_SYMBOL(update_secret_key)

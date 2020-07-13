@@ -371,7 +371,8 @@ void async_fiber_context::epoll_mod(int fd, int flags) { reactor->epoll_mod(fd, 
 
 template <typename H>
 void start_tcp_server(int port, int socktype, int nthreads, H conn_handler,
-                      std::string ssl_key_path = "", std::string ssl_cert_path = "") {
+                      std::string ssl_key_path = "", std::string ssl_cert_path = "",
+                      std::string ssl_ciphers = "") {
 
   struct sigaction act;
   memset(&act, 0, sizeof(act));
@@ -387,7 +388,7 @@ void start_tcp_server(int port, int socktype, int nthreads, H conn_handler,
     ths.push_back(std::thread([&] {
       async_reactor reactor;
       if (ssl_cert_path.size()) // Initialize the SSL/TLS context.
-        reactor.ssl_ctx = std::make_unique<ssl_context>(ssl_key_path, ssl_cert_path);
+        reactor.ssl_ctx = std::make_unique<ssl_context>(ssl_key_path, ssl_cert_path, ssl_ciphers);
       reactor.event_loop(server_fd, conn_handler);
     }));
 
