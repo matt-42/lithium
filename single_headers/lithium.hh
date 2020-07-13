@@ -3205,14 +3205,14 @@ template <typename... P> auto http_delete(const std::string& url, P... params) {
     LI_SYMBOL(ssl_certificate)
 #endif
 
-#ifndef LI_SYMBOL_ssl_key
-#define LI_SYMBOL_ssl_key
-    LI_SYMBOL(ssl_key)
-#endif
-
 #ifndef LI_SYMBOL_ssl_ciphers
 #define LI_SYMBOL_ssl_ciphers
     LI_SYMBOL(ssl_ciphers)
+#endif
+
+#ifndef LI_SYMBOL_ssl_key
+#define LI_SYMBOL_ssl_key
+    LI_SYMBOL(ssl_key)
 #endif
 
 #ifndef LI_SYMBOL_update_secret_key
@@ -6269,7 +6269,7 @@ struct ssl_context {
       SSL_CTX_free(ctx);
   }
 
-  ssl_context(const std::string& key_path, const std::string& cert_path,
+  ssl_context(const std::string& key_path, const std::string& cert_path, 
               const std::string& ciphers) {
     if (!openssl_initialized) {
       SSL_load_error_strings();
