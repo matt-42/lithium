@@ -120,10 +120,15 @@ int nprocs = std::thread::hardware_concurrency();
 
 #ifdef BENCH_MYSQL
 int nthread = 4;
-int db_nconn = 4*nprocs;
-int queries_nconn = 2*nprocs;
-int fortunes_nconn = 4*nprocs;
-int updates_nconn = 100*nprocs;
+// int db_nconn = 4*nprocs;
+// int queries_nconn = 2*nprocs;
+// int fortunes_nconn = 4*nprocs;
+// int updates_nconn = 100*nprocs;
+
+int db_nconn = 90;
+int queries_nconn = 40;
+int fortunes_nconn = 4000;
+int updates_nconn = 30;
 
 // int nthread = nprocs;
 // int db_nconn = 4;
@@ -138,10 +143,10 @@ int updates_nconn = 100*nprocs;
 // int updates_nconn = 3*nprocs;
 
 int nthread = nprocs;
-int db_nconn = 90;
-int queries_nconn = 40;
-int fortunes_nconn = 70;
-int updates_nconn = 30;
+int db_nconn = 90 / 4;
+int queries_nconn = 90 / 4;
+int fortunes_nconn = 90 / 4;
+int updates_nconn = 90 / 4;
 #endif
 
 auto make_api() {
@@ -191,7 +196,7 @@ auto make_api() {
   my_api.get("/updates") = [&](http_request& request, http_response& response) {
     // try {
     // std::cout << "up" << std::endl;
-    // set_max_sql_connections_per_thread(updates_nconn);
+    set_max_sql_connections_per_thread(updates_nconn);
     std::string N_str = request.get_parameters(s::N = std::optional<std::string>()).N.value_or("1");
     int N = atoi(N_str.c_str());
     N = std::max(1, std::min(N, 500));
@@ -271,7 +276,7 @@ auto make_api() {
     auto comp = [](const fortune& a, const fortune& b) { return a.message < b.message; };
     std::vector<fortune> table = { fortune(0, std::string("Additional fortune added at request time.")) };
     auto c = fortunes.connect(request.fiber);
-    c.forall([&](auto f) { insert_sorted(table, f, comp); });
+    c.forall([&](const auto& f) { insert_sorted(table, metamap_clone(f), comp); });
 
     char b[100000];
     li::output_buffer ss(b, sizeof(b));

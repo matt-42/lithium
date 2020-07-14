@@ -18,3 +18,6 @@ add_test(substract substract)
 
 li_add_executable(tuple tests/tuple.cc)
 add_test(tuple tuple)
+
+li_add_executable(forward_tuple_as_metamap tests/forward_tuple_as_metamap.cc)
+add_test(forward_tuple_as_metamap forward_tuple_as_metamap)

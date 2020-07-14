@@ -87,6 +87,10 @@ template <typename... Ks> decltype(auto) metamap_values(metamap<Ks...>& map) {
   return std::forward_as_tuple(map[typename Ks::_iod_symbol_type()]...);
 }
 
+template <typename... Ks> decltype(auto) metamap_keys(const metamap<Ks...>& map) {
+  return std::make_tuple(typename Ks::_iod_symbol_type()...);
+}
+
 template <typename K, typename M> constexpr auto has_key(M&& map, K k) {
   return decltype(has_member(map, k)){};
 }
@@ -120,4 +124,5 @@ template <typename... M> struct is_metamap<metamap<M...>> {
 #include <li/metamap/algorithms/map_reduce.hh>
 #include <li/metamap/algorithms/substract.hh>
 #include <li/metamap/algorithms/tuple_utils.hh>
+#include <li/metamap/algorithms/forward_tuple_as_metamap.hh>
 #include <li/metamap/make.hh>

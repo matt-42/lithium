@@ -42,4 +42,8 @@ template <typename... T> inline decltype(auto) make_metamap_reference(T&&... arg
   return internal::make_metamap_helper(internal::exp_to_variable_ref(std::forward<T>(args))...);
 }
 
+template <typename... Ks> decltype(auto) metamap_clone(const metamap<Ks...>& map) {
+  return mmm((typename Ks::_iod_symbol_type() = map[typename Ks::_iod_symbol_type()])...);
+}
+
 } // namespace li
