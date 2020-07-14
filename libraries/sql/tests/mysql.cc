@@ -2,7 +2,7 @@
 #include "symbols.hh"
 #include <cassert>
 #include <iostream>
-#include <lithium.hh>
+#include <lithium_mysql.hh>
 
 #include "generic_sql_tests.hh"
 

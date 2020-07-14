@@ -2,7 +2,7 @@
 #include "test.hh"
 #include <filesystem>
 #include <fstream>
-#include <lithium.hh>
+#include <lithium_http_backend.hh>
 
 
 using namespace li;

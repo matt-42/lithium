@@ -13,6 +13,7 @@
 #include <unordered_map>
 
 #include <li/callable_traits/callable_traits.hh>
+#include <li/callable_traits/tuple_utils.hh>
 #include <li/metamap/metamap.hh>
 #include <li/sql/sql_common.hh>
 #include <li/sql/sql_result.hh>
@@ -23,11 +24,6 @@
 namespace li {
 
 struct sqlite_tag {};
-
-template <typename T> struct tuple_remove_references_and_const;
-template <typename... T> struct tuple_remove_references_and_const<std::tuple<T...>> {
-  typedef std::tuple<std::remove_const_t<std::remove_reference_t<T>>...> type;
-};
 
 template <typename T>
 using tuple_remove_references_and_const_t = typename tuple_remove_references_and_const<T>::type;

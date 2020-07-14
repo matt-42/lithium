@@ -1,5 +1,6 @@
 #pragma once
 
+#include <arpa/inet.h>
 #include "libpq-fe.h"
 #include <li/sql/internal/utils.hh>
 //#include <catalog/pg_type_d.h>

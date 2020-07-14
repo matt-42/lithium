@@ -1,7 +1,7 @@
 #include <cassert>
 #include <iostream>
-#include <lithium.hh>
 
+#include <lithium_metamap.hh>
 
 int main() {
   std::tuple<int, float, int> x{2, 3.2f, 1};

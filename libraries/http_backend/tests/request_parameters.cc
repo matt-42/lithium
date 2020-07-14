@@ -1,5 +1,5 @@
 #include "test.hh"
-#include <lithium.hh>
+#include <lithium_http_backend.hh>
 
 #include <sched.h>
 #include <sys/resource.h>

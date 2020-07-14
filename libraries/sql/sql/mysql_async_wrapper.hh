@@ -39,6 +39,10 @@ struct mysql_functions_blocking {
 
 };
 
+// ========================================================================
+// =================== MARIADB ASYNC WRAPPERS =============================
+// ========================================================================
+#ifdef LIBMARIADB
 // Non blocking version.
 template <typename Y> struct mysql_functions_non_blocking {
   enum { is_blocking = false };
@@ -94,5 +98,11 @@ template <typename Y> struct mysql_functions_non_blocking {
 
   Y& fiber_;
 };
+
+#else
+// MYSQL not supported yet because it does not have a
+// nonblocking API for prepared statements.
+#error Only the MariaDB libmysqlclient is supported.
+#endif
 
 } // namespace li

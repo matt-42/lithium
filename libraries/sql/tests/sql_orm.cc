@@ -1,5 +1,7 @@
 #include <cassert>
-#include <lithium.hh>
+#include <lithium_mysql.hh>
+#include <lithium_pgsql.hh>
+#include <lithium_sqlite.hh>
 
 #include "../../http_backend/tests/test.hh"
 

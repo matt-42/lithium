@@ -15,7 +15,7 @@ def process_file(library_name, f, processed, output):
     processed.append(f)
 
     if not os.path.isfile(f):
-        raise Exception(f"file not found {f}")
+        raise Exception(f"file not found {f} when building {library_name}")
 
     header_guard = "LITHIUM_SINGLE_HEADER_GUARD_" + re.match(".*include/(li/.+)", f).group(1).upper().replace('/', '_').replace('.', "_");
     output += f"#ifndef {header_guard}\n" 
@@ -148,4 +148,17 @@ if __name__ == "__main__":
         "lithium": ["li/sql/sqlite.hh","li/http_client/http_client.hh","li/sql/sql_orm.hh", "li/sql/mysql.hh", "li/sql/pgsql.hh","li/http_backend/http_backend.hh"],
              })
     for libname, files in data.items():
-        make_single_header(install_dir, libname, files, f"{output_dir}/{libname}.hh")
+        if not WITH_LINE_DIRECTIVES:
+            make_single_header(install_dir, libname, files, f"{output_dir}/{libname}.hh")
+        else:
+            output_path = f"{output_dir}/{libname}.hh"
+            result = '\n'.join([f"#include <{file}>" for file in files]) + "\n"
+            # read previosu content
+            previous_content = ""
+            if os.path.exists(output_path):
+                with open(output_path, 'r') as content_file:
+                    previous_content = content_file.read()
+            # only write if new content is different.
+            if previous_content != result:
+                with open(output_path, 'w') as output:
+                    output.write(result)
