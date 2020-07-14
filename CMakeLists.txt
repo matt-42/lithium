@@ -64,15 +64,16 @@ add_custom_target(
     symbols_generation DEPENDS li_symbol_generator
     COMMAND ${CMAKE_BINARY_DIR}/libraries/symbol/li_symbol_generator ${CMAKE_CURRENT_SOURCE_DIR}/libraries)
 
-# Automatic single header generation (for tests with line directives to map compile error to original headers)
-add_custom_target(
-      single_headers
-      COMMAND python3 ${CMAKE_SOURCE_DIR}/single_headers/make_single_headers.py --with-line-directives ${CMAKE_BINARY_DIR} ${CMAKE_BINARY_DIR}/single_headers)
 
 # Automatic single header generation for release (without line directives)
 add_custom_target(
       single_headers_release
       COMMAND python3 ${CMAKE_SOURCE_DIR}/single_headers/make_single_headers.py ${CMAKE_BINARY_DIR} ${CMAKE_SOURCE_DIR}/single_headers)
+
+# Automatic single header generation (for tests with line directives to map compile error to original headers)
+add_custom_target(
+  single_headers DEPENDS single_headers_release
+  COMMAND python3 ${CMAKE_SOURCE_DIR}/single_headers/make_single_headers.py --with-line-directives ${CMAKE_BINARY_DIR} ${CMAKE_BINARY_DIR}/single_headers)
 
 # add_library(precompiled_header_target ${CMAKE_SOURCE_DIR}/single_headers/test.cc)
 # target_precompile_headers(precompiled_header_target 
@@ -93,5 +94,6 @@ add_subdirectory(libraries/symbol)
 add_subdirectory(libraries/http_backend)
 add_subdirectory(libraries/http_client)
 add_subdirectory(libraries/sql)
+add_subdirectory(single_headers/tests)
 
 install(DIRECTORY single_headers/ DESTINATION include FILES_MATCHING PATTERN "*.hh")
