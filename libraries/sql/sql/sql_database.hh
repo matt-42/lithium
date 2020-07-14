@@ -51,12 +51,20 @@ template <typename I> struct sql_database {
   }
 
   ~sql_database() {
+    clear_connections();
+  }
+
+  void clear_connections() {
     auto it = sql_thread_local_data.find(this->database_id_);
     if (it != sql_thread_local_data.end())
     {
       delete (sql_database_thread_local_data<I>*) sql_thread_local_data[this->database_id_];
       sql_thread_local_data.erase(this->database_id_);
     }
+
+    std::lock_guard<std::mutex> lock(this->sync_connections_mutex_);
+    sync_connections_.clear();
+    n_sync_connections_ = 0;
   }
 
   auto& thread_local_data() {

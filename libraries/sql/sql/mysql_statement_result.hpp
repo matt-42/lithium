@@ -116,8 +116,6 @@ bool mysql_statement_result<B>::read(T&& output) {
 template <typename B>
 template <typename T>
 bool mysql_statement_result<B>::read(T&& output, MYSQL_BIND* bind, unsigned long* real_lengths) {
-  // Todo: skip useless mysql_bind_output and mysql_stmt_bind_result if too costly.
-  // if (bound_ptr_ == (void*)output)...
   try {
 
     // Fetch row.

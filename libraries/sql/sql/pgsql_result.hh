@@ -21,6 +21,7 @@ public:
   int current_result_nrows_ = 0;
   PGresult* current_result_ = nullptr;
   std::vector<Oid> curent_result_field_types_;
+  std::vector<int> curent_result_field_positions_;
   
 private:
 

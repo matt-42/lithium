@@ -337,6 +337,9 @@ template <typename M> constexpr int metamap_size() {
 template <typename... Ks> decltype(auto) metamap_values(const metamap<Ks...>& map) {
   return std::forward_as_tuple(map[typename Ks::_iod_symbol_type()]...);
 }
+template <typename... Ks> decltype(auto) metamap_values(metamap<Ks...>& map) {
+  return std::forward_as_tuple(map[typename Ks::_iod_symbol_type()]...);
+}
 
 template <typename K, typename M> constexpr auto has_key(M&& map, K k) {
   return decltype(has_member(map, k)){};

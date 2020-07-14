@@ -70,15 +70,15 @@ template <typename B> mysql_statement<B> mysql_connection<B>::prepare(const std:
     // mysql_wrapper_.mysql_stmt_reset(it->second->stmt_);
     return mysql_statement<B>{mysql_wrapper_, *it->second, connection_status_};
   }
-  // std::cout << "prepare " << rq << std::endl;
+  //std::cout << "prepare " << rq << "  "  << data_->statements_.size() << std::endl;
   MYSQL_STMT* stmt = mysql_stmt_init(data_->connection_);
   if (!stmt) {
-    *connection_status_ = true;
+    *connection_status_ = 1;
     throw std::runtime_error(std::string("mysql_stmt_init error: ") +
                              mysql_error(data_->connection_));
   }
   if (mysql_wrapper_.mysql_stmt_prepare(connection_status_, stmt, rq.data(), rq.size())) {
-    *connection_status_ = true;
+    *connection_status_ = 1;
     throw std::runtime_error(std::string("mysql_stmt_prepare error: ") +
                              mysql_error(data_->connection_));
   }

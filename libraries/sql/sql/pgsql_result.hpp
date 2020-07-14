@@ -153,7 +153,20 @@ template <typename B> template <typename T> bool pgsql_result<B>::read(T&& outpu
       return false;
     }
 
+    // 
+    if constexpr (is_metamap<std::decay_t<T>>::value) {
+      curent_result_field_positions_.clear();
+      li::map(std::forward<T>(output), [&](auto k, auto& m) {
+        curent_result_field_positions_.push_back(PQfnumber(current_result_, symbol_string(k)));
+        if (curent_result_field_positions_.back() == -1)
+          throw std::runtime_error(std::string("postgresql errror : Field ") + symbol_string(k) +
+                                    " not found in result.");
+
+      });
+    }
+
     if (curent_result_field_types_.size() == 0) {
+
       curent_result_field_types_.resize(PQnfields(current_result_));
       for (int field_i = 0; field_i < curent_result_field_types_.size(); field_i++)
         curent_result_field_types_[field_i] = PQftype(current_result_, field_i);
@@ -176,15 +189,14 @@ template <typename B> template <typename T> bool pgsql_result<B>::read(T&& outpu
       field_i++;
     });
   } else { // Metamaps.
+    int i = 0;
     li::map(std::forward<T>(output), [&](auto k, auto& m) {
-      int field_i = PQfnumber(current_result_, symbol_string(k));
-      if (field_i == -1)
-        throw std::runtime_error(std::string("postgresql errror : Field ") + symbol_string(k) +
-                                 " not fount in result.");
+      int field_i = curent_result_field_positions_[i];
 
       fetch_value(m, PQgetvalue(current_result_, row_i_, field_i),
                   PQgetlength(current_result_, row_i_, field_i),
                   PQfformat(current_result_, field_i), curent_result_field_types_[field_i]);
+      i++;
     });
   }
 

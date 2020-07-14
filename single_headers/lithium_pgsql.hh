@@ -220,6 +220,9 @@ template <typename M> constexpr int metamap_size() {
 template <typename... Ks> decltype(auto) metamap_values(const metamap<Ks...>& map) {
   return std::forward_as_tuple(map[typename Ks::_iod_symbol_type()]...);
 }
+template <typename... Ks> decltype(auto) metamap_values(metamap<Ks...>& map) {
+  return std::forward_as_tuple(map[typename Ks::_iod_symbol_type()]...);
+}
 
 template <typename K, typename M> constexpr auto has_key(M&& map, K k) {
   return decltype(has_member(map, k)){};
@@ -956,6 +959,7 @@ public:
   int current_result_nrows_ = 0;
   PGresult* current_result_ = nullptr;
   std::vector<Oid> curent_result_field_types_;
+  std::vector<int> curent_result_field_positions_;
   
 private:
 
@@ -1146,7 +1150,20 @@ template <typename B> template <typename T> bool pgsql_result<B>::read(T&& outpu
       return false;
     }
 
+    // 
+    if constexpr (is_metamap<std::decay_t<T>>::value) {
+      curent_result_field_positions_.clear();
+      li::map(std::forward<T>(output), [&](auto k, auto& m) {
+        curent_result_field_positions_.push_back(PQfnumber(current_result_, symbol_string(k)));
+        if (curent_result_field_positions_.back() == -1)
+          throw std::runtime_error(std::string("postgresql errror : Field ") + symbol_string(k) +
+                                    " not found in result.");
+
+      });
+    }
+
     if (curent_result_field_types_.size() == 0) {
+
       curent_result_field_types_.resize(PQnfields(current_result_));
       for (int field_i = 0; field_i < curent_result_field_types_.size(); field_i++)
         curent_result_field_types_[field_i] = PQftype(current_result_, field_i);
@@ -1169,15 +1186,14 @@ template <typename B> template <typename T> bool pgsql_result<B>::read(T&& outpu
       field_i++;
     });
   } else { // Metamaps.
+    int i = 0;
     li::map(std::forward<T>(output), [&](auto k, auto& m) {
-      int field_i = PQfnumber(current_result_, symbol_string(k));
-      if (field_i == -1)
-        throw std::runtime_error(std::string("postgresql errror : Field ") + symbol_string(k) +
-                                 " not fount in result.");
+      int field_i = curent_result_field_positions_[i];
 
       fetch_value(m, PQgetvalue(current_result_, row_i_, field_i),
                   PQgetlength(current_result_, row_i_, field_i),
                   PQfformat(current_result_, field_i), curent_result_field_types_[field_i]);
+      i++;
     });
   }
 
@@ -1840,12 +1856,20 @@ template <typename I> struct sql_database {
   }
 
   ~sql_database() {
+    clear_connections();
+  }
+
+  void clear_connections() {
     auto it = sql_thread_local_data.find(this->database_id_);
     if (it != sql_thread_local_data.end())
     {
       delete (sql_database_thread_local_data<I>*) sql_thread_local_data[this->database_id_];
       sql_thread_local_data.erase(this->database_id_);
     }
+
+    std::lock_guard<std::mutex> lock(this->sync_connections_mutex_);
+    sync_connections_.clear();
+    n_sync_connections_ = 0;
   }
 
   auto& thread_local_data() {
@@ -2329,10 +2353,16 @@ template <typename SCHEMA, typename C> struct sql_orm {
         return ss.str();
     });
 
-    auto res = li::tuple_reduce(metamap_values(where), stmt).template read_optional<O>();
-    if (res)
-      call_callback(s::read_access, *res, cb_args...);
-    return res;
+    O result;
+    bool read_success = li::tuple_reduce(metamap_values(where), stmt).template read(metamap_values(result));
+    if (read_success)
+    {
+      call_callback(s::read_access, result, cb_args...);
+      return std::optional<O>{result};
+    }
+    else {
+      return std::optional<O>{};
+    }
   }
 
   template <typename A, typename B, typename... O, typename... W>

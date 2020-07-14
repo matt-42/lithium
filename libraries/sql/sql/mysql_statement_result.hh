@@ -29,9 +29,9 @@ template <typename B> struct mysql_statement_result {
   inline ~mysql_statement_result() { flush_results(); }
 
   inline void flush_results() {
-    if (result_allocated_)
-      mysql_wrapper_.mysql_stmt_free_result(connection_status_, data_.stmt_);
-    result_allocated_ = false;
+    // if (result_allocated_)
+    mysql_wrapper_.mysql_stmt_free_result(connection_status_, data_.stmt_);
+    // result_allocated_ = false;
   }
 
   // Read std::tuple and li::metamap.

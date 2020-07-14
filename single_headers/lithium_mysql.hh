@@ -217,6 +217,9 @@ template <typename M> constexpr int metamap_size() {
 template <typename... Ks> decltype(auto) metamap_values(const metamap<Ks...>& map) {
   return std::forward_as_tuple(map[typename Ks::_iod_symbol_type()]...);
 }
+template <typename... Ks> decltype(auto) metamap_values(metamap<Ks...>& map) {
+  return std::forward_as_tuple(map[typename Ks::_iod_symbol_type()]...);
+}
 
 template <typename K, typename M> constexpr auto has_key(M&& map, K k) {
   return decltype(has_member(map, k)){};
@@ -1060,7 +1063,8 @@ struct mysql_statement_data : std::enable_shared_from_this<mysql_statement_data>
     if (metadata_)
       mysql_free_result(metadata_);
     mysql_stmt_free_result(stmt_);
-    mysql_stmt_close(stmt_);
+    if (mysql_stmt_close(stmt_))
+      std::cerr << "Error: could not free mysql statement" << std::endl;
   }
 };
 
@@ -1542,9 +1546,9 @@ template <typename B> struct mysql_statement_result {
   inline ~mysql_statement_result() { flush_results(); }
 
   inline void flush_results() {
-    if (result_allocated_)
-      mysql_wrapper_.mysql_stmt_free_result(connection_status_, data_.stmt_);
-    result_allocated_ = false;
+    // if (result_allocated_)
+    mysql_wrapper_.mysql_stmt_free_result(connection_status_, data_.stmt_);
+    // result_allocated_ = false;
   }
 
   // Read std::tuple and li::metamap.
@@ -1707,8 +1711,6 @@ bool mysql_statement_result<B>::read(T&& output) {
 template <typename B>
 template <typename T>
 bool mysql_statement_result<B>::read(T&& output, MYSQL_BIND* bind, unsigned long* real_lengths) {
-  // Todo: skip useless mysql_bind_output and mysql_stmt_bind_result if too costly.
-  // if (bound_ptr_ == (void*)output)...
   try {
 
     // Fetch row.
@@ -2078,15 +2080,15 @@ template <typename B> mysql_statement<B> mysql_connection<B>::prepare(const std:
     // mysql_wrapper_.mysql_stmt_reset(it->second->stmt_);
     return mysql_statement<B>{mysql_wrapper_, *it->second, connection_status_};
   }
-  // std::cout << "prepare " << rq << std::endl;
+  //std::cout << "prepare " << rq << "  "  << data_->statements_.size() << std::endl;
   MYSQL_STMT* stmt = mysql_stmt_init(data_->connection_);
   if (!stmt) {
-    *connection_status_ = true;
+    *connection_status_ = 1;
     throw std::runtime_error(std::string("mysql_stmt_init error: ") +
                              mysql_error(data_->connection_));
   }
   if (mysql_wrapper_.mysql_stmt_prepare(connection_status_, stmt, rq.data(), rq.size())) {
-    *connection_status_ = true;
+    *connection_status_ = 1;
     throw std::runtime_error(std::string("mysql_stmt_prepare error: ") +
                              mysql_error(data_->connection_));
   }
@@ -2155,12 +2157,20 @@ template <typename I> struct sql_database {
   }
 
   ~sql_database() {
+    clear_connections();
+  }
+
+  void clear_connections() {
     auto it = sql_thread_local_data.find(this->database_id_);
     if (it != sql_thread_local_data.end())
     {
       delete (sql_database_thread_local_data<I>*) sql_thread_local_data[this->database_id_];
       sql_thread_local_data.erase(this->database_id_);
     }
+
+    std::lock_guard<std::mutex> lock(this->sync_connections_mutex_);
+    sync_connections_.clear();
+    n_sync_connections_ = 0;
   }
 
   auto& thread_local_data() {
@@ -2685,10 +2695,16 @@ template <typename SCHEMA, typename C> struct sql_orm {
         return ss.str();
     });
 
-    auto res = li::tuple_reduce(metamap_values(where), stmt).template read_optional<O>();
-    if (res)
-      call_callback(s::read_access, *res, cb_args...);
-    return res;
+    O result;
+    bool read_success = li::tuple_reduce(metamap_values(where), stmt).template read(metamap_values(result));
+    if (read_success)
+    {
+      call_callback(s::read_access, result, cb_args...);
+      return std::optional<O>{result};
+    }
+    else {
+      return std::optional<O>{};
+    }
   }
 
   template <typename A, typename B, typename... O, typename... W>
