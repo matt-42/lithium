@@ -224,6 +224,10 @@ template <typename... Ks> decltype(auto) metamap_values(metamap<Ks...>& map) {
   return std::forward_as_tuple(map[typename Ks::_iod_symbol_type()]...);
 }
 
+template <typename... Ks> decltype(auto) metamap_keys(const metamap<Ks...>& map) {
+  return std::make_tuple(typename Ks::_iod_symbol_type()...);
+}
+
 template <typename K, typename M> constexpr auto has_key(M&& map, K k) {
   return decltype(has_member(map, k)){};
 }
@@ -562,6 +566,10 @@ template <typename... T> inline decltype(auto) make_metamap_reference(T&&... arg
   return internal::make_metamap_helper(internal::exp_to_variable_ref(std::forward<T>(args))...);
 }
 
+template <typename... Ks> decltype(auto) metamap_clone(const metamap<Ks...>& map) {
+  return mmm((typename Ks::_iod_symbol_type() = map[typename Ks::_iod_symbol_type()])...);
+}
+
 } // namespace li
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_MAKE_HH
@@ -762,6 +770,37 @@ inline auto substract(const metamap<T...>& a, const metamap<U...>& b) {
 } // namespace li
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_SUBSTRACT_HH
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_FORWARD_TUPLE_AS_METAMAP_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_FORWARD_TUPLE_AS_METAMAP_HH
+
+
+namespace li {
+
+namespace internal {
+
+template <typename... S, typename... V, typename T, T... I>
+auto forward_tuple_as_metamap_impl(std::tuple<S...> keys, std::tuple<V...>& values, std::integer_sequence<T, I...>) {
+  return make_metamap_reference((std::get<I>(keys) = std::get<I>(values))...);
+}
+template <typename... S, typename... V, typename T, T... I>
+auto forward_tuple_as_metamap_impl(std::tuple<S...> keys, const std::tuple<V...>& values, std::integer_sequence<T, I...>) {
+  return make_metamap_reference((std::get<I>(keys) = std::get<I>(values))...);
+}
+
+} // namespace internal
+
+template <typename... S, typename... V>
+auto forward_tuple_as_metamap(std::tuple<S...> keys, std::tuple<V...>& values) {
+  return internal::forward_tuple_as_metamap_impl(keys, values, std::make_index_sequence<sizeof...(V)>{});
+}
+template <typename... S, typename... V>
+auto forward_tuple_as_metamap(std::tuple<S...> keys, const std::tuple<V...>& values) {
+  return internal::forward_tuple_as_metamap_impl(keys, values, std::make_index_sequence<sizeof...(V)>{});
+}
+
+} // namespace li
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_FORWARD_TUPLE_AS_METAMAP_HH
 
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_METAMAP_HH
@@ -2475,7 +2514,11 @@ template <typename SCHEMA, typename C> struct sql_orm {
         ss << " FROM " << schema_.table_name();
         return ss.str();
     });
-    stmt().map([&](const O& o) { f(o); });
+    // stmt().map([&](const O& o) { f(o); });
+    using values_tuple = tuple_remove_references_and_const_t<decltype(metamap_values(std::declval<O>()))>;
+    using keys_tuple = decltype(metamap_keys(std::declval<O>()));
+    stmt().map([&](const values_tuple& values) { f(forward_tuple_as_metamap(keys_tuple{}, values)); });
+
   }
 
   // Update N's members except auto increment members.
