@@ -37,6 +37,11 @@ template <typename B> struct mysql_statement_result {
   // Read std::tuple and li::metamap.
   template <typename T> bool read(T&& output);
 
+  template <typename T>
+  bool read(T&& output, MYSQL_BIND* bind, unsigned long* real_lengths);
+
+  template <typename F> void map(F map_callback);
+
   /**
    * @return the number of rows affected by the request.
    */

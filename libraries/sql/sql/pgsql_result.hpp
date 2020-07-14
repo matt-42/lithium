@@ -22,6 +22,9 @@ PGresult* pg_wait_for_next_result(PGconn* connection, Y& fiber,
                                  PQerrorMessage(connection));
       else
         std::cerr << "PQconsumeInput() failed: " << PQerrorMessage(connection) << std::endl;
+#ifdef DEBUG
+      assert(0);
+#endif
     }
 
     if (PQisBusy(connection)) {
@@ -45,7 +48,9 @@ PGresult* pg_wait_for_next_result(PGconn* connection, Y& fiber,
                                   PQerrorMessage(connection));
         else
           std::cerr << "Postgresql FATAL error: " << PQerrorMessage(connection) << std::endl;
-
+#ifdef DEBUG
+        assert(0);
+#endif
       }
       else if (PQresultStatus(res) == PGRES_NONFATAL_ERROR)
         std::cerr << "Postgresql non fatal error: " << PQerrorMessage(connection) << std::endl;
