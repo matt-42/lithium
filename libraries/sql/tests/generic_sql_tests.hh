@@ -99,6 +99,20 @@ template <typename R, typename S> void test_result(R&& query, S&& new_query) {
     EXPECT_EQUAL(name[0], 'a' + index - 1);
     index++;
   });
+
+
+  // map with growing string
+  init_test_table(query);
+  query("INSERT into users_test(id, name, age) values (1,'aaaaaaaaaaaaaaaaaaa',41);");
+  query("INSERT into users_test(id, name, age) values (2,'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',42);");
+  query("INSERT into users_test(id, name, age) values (3,'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',43);");
+  int sizes[] = {19, 57, 114};
+  index = 0;
+  query("SELECT name from users_test order by id;").map([&](std::string name) {
+    EXPECT_EQUAL(name.size(), sizes[index]);
+    index++;
+  });
+
 }
 
 template <typename D> std::string placeholder(int pos) {

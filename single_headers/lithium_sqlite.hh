@@ -1158,20 +1158,21 @@ template <typename B> template <typename F> void sql_result<B>::map(F map_functi
     this->impl_.map(map_function);
 
   typedef typename unconstref_tuple_elements<callable_arguments_tuple_t<F>>::ret TP;
+  typedef std::tuple_element_t<0, TP> TP0;
 
   auto t = [] {
     static_assert(std::tuple_size_v<TP> > 0, "sql_result map function must take at least 1 argument.");
 
-    if constexpr (std::tuple_size_v<TP> == 1)
-      return std::tuple_element_t<0, TP>{};
-    else if constexpr (std::tuple_size_v<TP> > 1)
+    if constexpr (is_tuple<TP0>::value || is_metamap<TP0>::value)
+      return TP0{};
+    else
       return TP{};
   }();
 
   while (this->read(t)) {
-    if constexpr (std::tuple_size<TP>::value == 1)
+    if constexpr (is_tuple<TP0>::value || is_metamap<TP0>::value)
       map_function(t);
-    else if constexpr (std::tuple_size<TP>::value > 1)
+    else
       std::apply(map_function, t);
   }
 

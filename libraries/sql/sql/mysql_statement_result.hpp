@@ -56,20 +56,22 @@ template <typename F>
 void mysql_statement_result<B>::map(F map_callback) {
 
   typedef typename unconstref_tuple_elements<callable_arguments_tuple_t<F>>::ret TP;
+  typedef std::tuple_element_t<0, TP> TP0;
+
   // std::cout << " specialized" << std::endl;
-  auto t = [] {
+  auto row_object = [] {
     static_assert(std::tuple_size_v<TP> > 0, "sql_result map function must take at least 1 argument.");
 
-    if constexpr (std::tuple_size_v<TP> == 1)
-      return std::tuple_element_t<0, TP>{};
-    else if constexpr (std::tuple_size_v<TP> > 1)
+    if constexpr (is_tuple<TP0>::value || is_metamap<TP0>::value)
+      return TP0{};
+    else
       return TP{};
   }();
 
   result_allocated_ = true;
 
   // Bind output.
-  auto bind_data = mysql_bind_output(data_, t);
+  auto bind_data = mysql_bind_output(data_, row_object);
   unsigned long* real_lengths = bind_data.real_lengths.data();
   MYSQL_BIND* bind = bind_data.bind.data();
 
@@ -81,11 +83,11 @@ void mysql_statement_result<B>::map(F map_callback) {
   }
 
 
-  while (this->read(t, bind, real_lengths)) {
-    if constexpr (std::tuple_size<TP>::value == 1)
-      map_callback(t);
-    else if constexpr (std::tuple_size<TP>::value > 1)
-      std::apply(map_callback, t);
+  while (this->read(row_object, bind, real_lengths)) {
+    if constexpr (is_tuple<TP0>::value || is_metamap<TP0>::value)
+      map_callback(row_object);
+    else
+      std::apply(map_callback, row_object);
   }
 
 }
