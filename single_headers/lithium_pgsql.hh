@@ -15,7 +15,6 @@
 #include <deque>
 #include <iostream>
 #include <libpq-fe.h>
-#include <lithium_symbol.hh>
 #include <map>
 #include <memory>
 #include <mutex>

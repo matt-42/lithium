@@ -19,7 +19,6 @@
 #include <fcntl.h>
 #include <functional>
 #include <iostream>
-#include <lithium_symbol.hh>
 #include <map>
 #include <memory>
 #include <mutex>

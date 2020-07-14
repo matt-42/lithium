@@ -14,7 +14,6 @@
 #include <cstring>
 #include <deque>
 #include <iostream>
-#include <lithium_symbol.hh>
 #include <map>
 #include <memory>
 #include <mutex>
