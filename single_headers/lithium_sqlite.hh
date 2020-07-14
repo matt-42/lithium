@@ -1137,7 +1137,23 @@ auto sql_result<B>::read_optional() {
     return std::optional<decltype(t)>{};
 }
 
+namespace internal {
+
+  template<typename T, typename F>
+  constexpr auto is_valid(F&& f) -> decltype(f(std::declval<T>()), true) { return true; }
+
+  template<typename>
+  constexpr bool is_valid(...) { return false; }
+
+}
+
+#define IS_VALID(T, EXPR) internal::is_valid<T>( [](auto&& obj)->decltype(obj.EXPR){} )
+
 template <typename B> template <typename F> void sql_result<B>::map(F map_function) {
+
+
+  if constexpr (IS_VALID(B, map(map_function)))
+    this->impl_.map(map_function);
 
   typedef typename unconstref_tuple_elements<callable_arguments_tuple_t<F>>::ret TP;
 
@@ -1150,13 +1166,13 @@ template <typename B> template <typename F> void sql_result<B>::map(F map_functi
       return TP{};
   }();
 
-
-  while (auto res = this->read_optional<decltype(t)>()) {
+  while (this->read(t)) {
     if constexpr (std::tuple_size<TP>::value == 1)
-      map_function(res.value());
+      map_function(t);
     else if constexpr (std::tuple_size<TP>::value > 1)
-      std::apply(map_function, res.value());
+      std::apply(map_function, t);
   }
+
 }
 } // namespace li
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_RESULT_HPP
