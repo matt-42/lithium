@@ -4133,7 +4133,7 @@ void mysql_bind_output(MYSQL_BIND& b, unsigned long* real_length, std::string& v
   v.resize(100);
   b.buffer_type = MYSQL_TYPE_STRING;
   b.buffer_length = v.size();
-  b.buffer = &v[0];
+  b.buffer = v.data();
   b.length = real_length;
 }
 
@@ -4335,10 +4335,9 @@ void mysql_statement_result<B>::fetch_column(MYSQL_BIND* b, unsigned long real_l
 
   // Reserve enough space to fetch the string.
   v.resize(real_length);
-
   // Bind result.
-  b[i].buffer_length = real_length;
-  b[i].buffer = &v[0];
+  b[i].buffer_length = v.size();
+  b[i].buffer = v.data();
   mysql_stmt_bind_result(data_.stmt_, b);
   result_allocated_ = true;
 
@@ -4394,6 +4393,18 @@ void mysql_statement_result<B>::map(F map_callback) {
       map_callback(row_object);
     else
       std::apply(map_callback, row_object);
+
+    // restore string sizes to 100.
+    if constexpr (is_tuple<std::decay_t<decltype(row_object)>>::value)
+      tuple_map(row_object, [] (auto& v) { 
+        if constexpr (std::is_same_v<std::decay_t<decltype(v)>, std::string>)
+          v.resize(100);
+      });
+    if constexpr (is_metamap<std::decay_t<decltype(row_object)>>::value)
+      map(row_object, [] (auto& k, auto& v) { 
+        if constexpr (std::is_same_v<std::decay_t<decltype(v)>, std::string>)
+          v.resize(100);
+      });
   }
 
 }
@@ -5124,6 +5135,8 @@ inline std::shared_ptr<mysql_connection_data> mysql_database_impl::new_connectio
     }
   }
 
+  char on = 1;
+  mysql_options(mysql, MYSQL_REPORT_DATA_TRUNCATION, &on);
   mysql_set_character_set(mysql, character_set_.c_str());
   return std::shared_ptr<mysql_connection_data>(new mysql_connection_data{mysql});
 }

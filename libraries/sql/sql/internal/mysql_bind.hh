@@ -111,7 +111,7 @@ void mysql_bind_output(MYSQL_BIND& b, unsigned long* real_length, std::string& v
   v.resize(100);
   b.buffer_type = MYSQL_TYPE_STRING;
   b.buffer_length = v.size();
-  b.buffer = &v[0];
+  b.buffer = v.data();
   b.length = real_length;
 }
 

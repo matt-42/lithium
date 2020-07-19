@@ -108,6 +108,8 @@ inline std::shared_ptr<mysql_connection_data> mysql_database_impl::new_connectio
     }
   }
 
+  char on = 1;
+  mysql_options(mysql, MYSQL_REPORT_DATA_TRUNCATION, &on);
   mysql_set_character_set(mysql, character_set_.c_str());
   return std::shared_ptr<mysql_connection_data>(new mysql_connection_data{mysql});
 }
