@@ -1830,7 +1830,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     if (read_success)
     {
       call_callback(s::read_access, result, cb_args...);
-      return std::optional<O>{result};
+      return std::make_optional<O>(std::move(result));
     }
     else {
       return std::optional<O>{};
