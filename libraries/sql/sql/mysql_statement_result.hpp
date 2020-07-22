@@ -88,17 +88,17 @@ void mysql_statement_result<B>::map(F map_callback) {
     else
       std::apply(map_callback, row_object);
 
-    // // restore string sizes to 100.
-    // if constexpr (is_tuple<std::decay_t<decltype(row_object)>>::value)
-    //   tuple_map(row_object, [] (auto& v) { 
-    //     if constexpr (std::is_same_v<std::decay_t<decltype(v)>, std::string>)
-    //       v.resize(100);
-    //   });
-    // if constexpr (is_metamap<std::decay_t<decltype(row_object)>>::value)
-    //   map(row_object, [] (auto& k, auto& v) { 
-    //     if constexpr (std::is_same_v<std::decay_t<decltype(v)>, std::string>)
-    //       v.resize(100);
-    //   });
+    // restore string sizes to 100.
+    if constexpr (is_tuple<std::decay_t<decltype(row_object)>>::value)
+      tuple_map(row_object, [] (auto& v) { 
+        if constexpr (std::is_same_v<std::decay_t<decltype(v)>, std::string>)
+          v.resize(100);
+      });
+    if constexpr (is_metamap<std::decay_t<decltype(row_object)>>::value)
+      map(row_object, [] (auto& k, auto& v) { 
+        if constexpr (std::is_same_v<std::decay_t<decltype(v)>, std::string>)
+          v.resize(100);
+      });
   }
 
 }
