@@ -20,18 +20,18 @@
 
 #include <li/callable_traits/callable_traits.hh>
 #include <li/metamap/metamap.hh>
+#include <li/sql/pgsql_connection.hh>
 #include <li/sql/pgsql_statement.hh>
 #include <li/sql/sql_common.hh>
+#include <li/sql/sql_database.hh>
 #include <li/sql/symbols.hh>
 #include <li/sql/type_hashmap.hh>
-#include <li/sql/pgsql_connection.hh>
-#include <li/sql/sql_database.hh>
 
 namespace li {
 
 struct pgsql_database_impl {
 
-  typedef pgsql_connection_data  connection_data_type;
+  typedef pgsql_connection_data connection_data_type;
 
   typedef pgsql_tag db_tag;
   std::string host_, user_, passwd_, database_;
@@ -59,11 +59,11 @@ struct pgsql_database_impl {
       throw std::runtime_error("LibPQ is not threadsafe.");
   }
 
-  inline int get_socket(std::shared_ptr<pgsql_connection_data> data) {
-    return PQsocket(data->connection);
+  inline int get_socket(const std::shared_ptr<pgsql_connection_data>& data) {
+    return PQsocket(data->pgconn_);
   }
 
-  template <typename Y> inline std::shared_ptr<pgsql_connection_data> new_connection(Y& fiber) {
+  template <typename Y> inline pgsql_connection_data* new_connection(Y& fiber) {
 
     PGconn* connection = nullptr;
     int pgsql_fd = -1;
@@ -119,13 +119,12 @@ struct pgsql_database_impl {
     }
 
     // pgsql_set_character_set(pgsql, character_set_.c_str());
-    return std::shared_ptr<pgsql_connection_data>(new pgsql_connection_data{connection, pgsql_fd});
+    return new pgsql_connection_data{connection, pgsql_fd};
   }
 
-  template <typename Y, typename F>
-  auto scoped_connection(Y& fiber, std::shared_ptr<pgsql_connection_data>& data,
-                         F put_back_in_pool) {
-    return pgsql_connection(fiber, data, put_back_in_pool);
+  template <typename Y>
+  auto scoped_connection(Y& fiber, std::shared_ptr<pgsql_connection_data>& data) {
+    return pgsql_connection<Y>(fiber, data);
   }
 };
 

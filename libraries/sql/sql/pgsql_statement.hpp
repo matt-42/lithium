@@ -133,12 +133,12 @@ sql_result<pgsql_result<Y>> pgsql_statement<Y>::operator()(T&&... args) {
   // std::cout << "flushed" << std::endl;
   // std::cout << "sending " << data_.stmt_name.c_str() << " with " << nparams << " params" <<
   // std::endl;
-  if (!PQsendQueryPrepared(connection_, data_.stmt_name.c_str(), nparams, values, lengths, binary,
+  if (!PQsendQueryPrepared(connection_->pgconn_, data_.stmt_name.c_str(), nparams, values, lengths, binary,
                            1)) {
-    throw std::runtime_error(std::string("Postresql error:") + PQerrorMessage(connection_));
+    throw std::runtime_error(std::string("Postresql error:") + PQerrorMessage(connection_->pgconn_));
   }
   return sql_result<pgsql_result<Y>>{
-      pgsql_result<Y>{this->connection_, this->fiber_, this->connection_status_}};
+      pgsql_result<Y>{this->connection_, this->fiber_}};
 }
 
 // FIXME long long int affected_rows() { return pgsql_stmt_affected_rows(data_.stmt_); }

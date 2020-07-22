@@ -4,6 +4,7 @@
 #include <memory>
 #include <li/sql/type_hashmap.hh>
 #include <li/sql/mysql_result.hh>
+#include <li/sql/mysql_connection_data.hh>
 
 namespace li {
 
@@ -23,9 +24,7 @@ struct mysql_connection {
    * @param mysql_wrapper the [non]blocking mysql wrapper.
    * @param data the connection data.
    */
-  template <typename P>
-  inline mysql_connection(B mysql_wrapper, std::shared_ptr<li::mysql_connection_data> data,
-  P put_data_back_in_pool);
+  inline mysql_connection(B mysql_wrapper, std::shared_ptr<li::mysql_connection_data>& data);
 
   /**
    * @brief Last inserted row id.
@@ -64,20 +63,6 @@ struct mysql_connection {
 
   B mysql_wrapper_;
   std::shared_ptr<mysql_connection_data> data_;
-  std::shared_ptr<int> connection_status_;
-};
-
-/**
- * @brief Data of a connection.
- *
- */
-struct mysql_connection_data {
-
-  ~mysql_connection_data();
-
-  MYSQL* connection_;
-  std::unordered_map<std::string, std::shared_ptr<mysql_statement_data>> statements_;
-  type_hashmap<std::shared_ptr<mysql_statement_data>> statements_hashmap_;
 };
 
 } // namespace li

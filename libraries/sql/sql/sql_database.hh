@@ -14,7 +14,7 @@ template <typename I> struct sql_database_thread_local_data {
   typedef typename I::connection_data_type connection_data_type;
 
   // Async connection pools.
-  std::deque<std::shared_ptr<connection_data_type>> async_connections_;
+  std::deque<connection_data_type*> async_connections_;
 
   int n_connections_on_this_thread_ = 0;
 };
@@ -33,7 +33,7 @@ template <typename I> struct sql_database {
   typedef typename I::db_tag db_tag;
 
   // Sync connections pool.
-  std::deque<std::shared_ptr<connection_data_type>> sync_connections_;
+  std::deque<connection_data_type*> sync_connections_;
   // Sync connections mutex.
   std::mutex sync_connections_mutex_;
 
@@ -108,7 +108,8 @@ template <typename I> struct sql_database {
             s::max_connections = this->max_async_connections_per_thread_);
     }();
 
-    std::shared_ptr<connection_data_type> data = nullptr;
+    connection_data_type* data = nullptr;
+    bool reuse = false;
     while (!data) {
 
       if (!pool.connections.empty()) {
@@ -119,7 +120,7 @@ template <typename I> struct sql_database {
         }();
         data = pool.connections.back();
         pool.connections.pop_back();
-        fiber.epoll_add(impl.get_socket(data), EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
+        reuse = true;
       } else {
         if (pool.n_connections >= pool.max_connections) {
           if constexpr (std::is_same_v<Y, active_yield>)
@@ -132,7 +133,6 @@ template <typename I> struct sql_database {
         pool.n_connections++;
 
         try {
-
           data = impl.new_connection(fiber);
         } catch (typename Y::exception_type& e) {
           pool.n_connections--;
@@ -143,25 +143,33 @@ template <typename I> struct sql_database {
           pool.n_connections--;
       }
     }
+
     assert(data);
-    return impl.scoped_connection(
-        fiber, data, [pool, this](std::shared_ptr<connection_data_type> data, int error) {
-          if (!error && pool.connections.size() < pool.max_connections) {
+    assert(data->error_ == 0);
+    
+    auto sptr = std::shared_ptr<connection_data_type>(data, [pool, this](connection_data_type* data) {
+          if (!data->error_ && pool.connections.size() < pool.max_connections) {
             auto lock = [&pool, this] {
               if constexpr (std::is_same_v<Y, active_yield>)
                 return std::lock_guard<std::mutex>(this->sync_connections_mutex_);
               else return 0;
             }();
 
-            pool.connections.push_back(data);
+            pool.connections.push_back(std::move(data));
             
           } else {
             if (pool.connections.size() >= pool.max_connections)
               std::cerr << "Error: connection pool size " << pool.connections.size()
                         << " exceed pool max_connections " << pool.max_connections << std::endl;
             pool.n_connections--;
+            delete data;
           }
         });
+
+    if (reuse) 
+      fiber.epoll_add(impl.get_socket(sptr), EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
+
+    return impl.scoped_connection(fiber, sptr);
   }
 
   /**

@@ -33,7 +33,7 @@ template <typename B> struct mysql_statement {
 
   B& mysql_wrapper_;
   mysql_statement_data& data_;
-  std::shared_ptr<int> connection_status_;
+  std::shared_ptr<mysql_connection_data> connection_;
 };
 
 } // namespace li

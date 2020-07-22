@@ -10,6 +10,7 @@
 #include <li/sql/internal/mysql_bind.hh>
 #include <li/sql/internal/mysql_statement_data.hh>
 #include <li/sql/mysql_async_wrapper.hh>
+#include <li/sql/mysql_connection_data.hh>
 
 namespace li {
 
@@ -30,7 +31,7 @@ template <typename B> struct mysql_statement_result {
 
   inline void flush_results() {
     // if (result_allocated_)
-    mysql_wrapper_.mysql_stmt_free_result(connection_status_, data_.stmt_);
+    mysql_wrapper_.mysql_stmt_free_result(connection_->error_, data_.stmt_);
     // result_allocated_ = false;
   }
 
@@ -70,7 +71,7 @@ template <typename B> struct mysql_statement_result {
 
   B& mysql_wrapper_;
   mysql_statement_data& data_;
-  std::shared_ptr<int> connection_status_;
+  std::shared_ptr<mysql_connection_data> connection_;
   bool result_allocated_ = false;
 };
 

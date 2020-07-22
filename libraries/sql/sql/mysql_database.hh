@@ -52,12 +52,11 @@ struct mysql_database_impl {
 
   inline ~mysql_database_impl();
 
-  template <typename Y> inline std::shared_ptr<mysql_connection_data> new_connection(Y& fiber);
-  inline int get_socket(std::shared_ptr<mysql_connection_data> data);
+  template <typename Y> inline mysql_connection_data* new_connection(Y& fiber);
+  inline int get_socket(const std::shared_ptr<mysql_connection_data>& data);
 
-  template <typename Y, typename F>
-  inline auto scoped_connection(Y& fiber, std::shared_ptr<mysql_connection_data>& data,
-                                F put_back_in_pool);
+  template <typename Y>
+  inline auto scoped_connection(Y& fiber, std::shared_ptr<mysql_connection_data>& data);
 
   std::string host_, user_, passwd_, database_;
   unsigned int port_;
