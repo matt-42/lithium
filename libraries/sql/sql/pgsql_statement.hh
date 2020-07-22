@@ -25,8 +25,6 @@ public:
   std::shared_ptr<pgsql_connection_data> connection_;
   Y& fiber_;
   pgsql_statement_data& data_;
-  int& connection_status_;
-
 
 private:
 

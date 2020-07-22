@@ -5518,8 +5518,6 @@ public:
   std::shared_ptr<pgsql_connection_data> connection_;
   Y& fiber_;
   pgsql_statement_data& data_;
-  int& connection_status_;
-
 
 private:
 
@@ -5743,7 +5741,7 @@ template <typename Y> struct pgsql_connection {
     if (it != stm_cache_.end()) {
       // pgsql_wrapper_.pgsql_stmt_free_result(it->second->stmt_);
       // pgsql_wrapper_.pgsql_stmt_reset(it->second->stmt_);
-      return pgsql_statement<Y>{data_, fiber_, *it->second, data_->error_};
+      return pgsql_statement<Y>{data_, fiber_, *it->second};
     }
     std::stringstream stmt_name;
     stmt_name << (void*)connection_ << stm_cache_.size();
@@ -5772,7 +5770,7 @@ template <typename Y> struct pgsql_connection {
     // pq_wait(yield_, connection_);
 
     auto pair = stm_cache_.emplace(rq, std::make_shared<pgsql_statement_data>(stmt_name.str()));
-    return pgsql_statement<Y>{data_, fiber_, *pair.first->second, data_->error_};
+    return pgsql_statement<Y>{data_, fiber_, *pair.first->second};
   }
 
   template <typename T>
