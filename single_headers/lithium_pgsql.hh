@@ -1026,6 +1026,7 @@ PGresult* pg_wait_for_next_result(PGconn* connection, Y& fiber,
       try {
         fiber.yield();
       } catch (typename Y::exception_type& e) {
+        // Free results.
         // Yield thrown a exception (probably because a closed connection).
         // Mark the connection as broken because it is left in a undefined state.
         connection_status = 1;
@@ -1036,6 +1037,7 @@ PGresult* pg_wait_for_next_result(PGconn* connection, Y& fiber,
       PGresult* res = PQgetResult(connection);
       if (PQresultStatus(res) == PGRES_FATAL_ERROR and PQerrorMessage(connection)[0] != 0)
       {
+        PQclear(res);
         connection_status = 1;          
         if (!nothrow)
           throw std::runtime_error(std::string("Postresql fatal error:") +
@@ -1899,11 +1901,17 @@ template <typename I> struct sql_database {
     auto it = sql_thread_local_data.find(this->database_id_);
     if (it != sql_thread_local_data.end())
     {
-      delete (sql_database_thread_local_data<I>*) sql_thread_local_data[this->database_id_];
+      auto store = (sql_database_thread_local_data<I>*) it->second;
+      for (auto ptr : store->async_connections_)
+        delete ptr;
+      delete store;
+      // delete (sql_database_thread_local_data<I>*) sql_thread_local_data[this->database_id_];
       sql_thread_local_data.erase(this->database_id_);
     }
 
     std::lock_guard<std::mutex> lock(this->sync_connections_mutex_);
+    for (auto* ptr : this->sync_connections_)
+      delete ptr;
     sync_connections_.clear();
     n_sync_connections_ = 0;
   }
@@ -1996,7 +2004,7 @@ template <typename I> struct sql_database {
               else return 0;
             }();
 
-            pool.connections.push_back(std::move(data));
+            pool.connections.push_back(data);
             
           } else {
             if (pool.connections.size() >= pool.max_connections)

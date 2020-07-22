@@ -155,13 +155,20 @@ template <typename D> void generic_sql_tests(D& database) {
   //   fun("SELECTT 1+2").template read<int>();
   // } catch(...) {}
 
-  // try {
-  //   // database.connect();
-  //   auto fun = [&](std::string q) { return database.connect().prepare(q)(); };
-  //   fun("SELECTT 1+2").template read<int>();
-  // } catch(...) {}
+  try {
+    // query.prepare("SELECT 2+2")().template read<int>();
+    // query.prepare()
+    // database.connect();
+    auto fun = [&](std::string q) { return database.connect().prepare(q)(); };
+    fun("SELECTT 1+2").template read<int>();
+  } catch(...) {}
 
-  // return;
+  // auto fun = [&](std::string q) { return database.connect().prepare(q)(); };
+    // fun("SELECTT 1+2").template read<int>();
+  // query.prepare("SELECT 1+2")().template read<int>();
+  // query.prepare("SELECT 2+2")().template read<int>();
+  // test_result([&](std::string q) { return query.prepare(q)(); }, [&](std::string q) { return database.connect().prepare(q)(); });
+  return;
 
 
 

@@ -70,10 +70,16 @@ template <typename B> mysql_statement<B> mysql_connection<B>::prepare(const std:
     throw std::runtime_error(std::string("mysql_stmt_init error: ") +
                              mysql_error(data_->connection_));
   }
-  if (mysql_wrapper_.mysql_stmt_prepare(data_->error_, stmt, rq.data(), rq.size())) {
-    data_->error_ = 1;
-    throw std::runtime_error(std::string("mysql_stmt_prepare error: ") +
-                             mysql_error(data_->connection_));
+
+  try {
+    if (mysql_wrapper_.mysql_stmt_prepare(data_->error_, stmt, rq.data(), rq.size())) {
+      data_->error_ = 1;
+      throw std::runtime_error(std::string("mysql_stmt_prepare error: ") +
+                              mysql_error(data_->connection_));
+    }
+  } catch (...) {
+    mysql_stmt_close(stmt);
+    throw;
   }
 
   auto pair = data_->statements_.emplace(rq, std::make_shared<mysql_statement_data>(stmt));

@@ -1100,6 +1100,7 @@ struct mysql_statement_data : std::enable_shared_from_this<mysql_statement_data>
   MYSQL_FIELD* fields_ = nullptr;
 
   mysql_statement_data(MYSQL_STMT* stmt) {
+    // std::cout << "create statement " << std::endl;
     stmt_ = stmt;
     metadata_ = mysql_stmt_result_metadata(stmt_);
     if (metadata_) {
@@ -1114,6 +1115,7 @@ struct mysql_statement_data : std::enable_shared_from_this<mysql_statement_data>
     mysql_stmt_free_result(stmt_);
     if (mysql_stmt_close(stmt_))
       std::cerr << "Error: could not free mysql statement" << std::endl;
+    // std::cout << "delete statement " << std::endl;
   }
 };
 
@@ -2152,10 +2154,16 @@ template <typename B> mysql_statement<B> mysql_connection<B>::prepare(const std:
     throw std::runtime_error(std::string("mysql_stmt_init error: ") +
                              mysql_error(data_->connection_));
   }
-  if (mysql_wrapper_.mysql_stmt_prepare(data_->error_, stmt, rq.data(), rq.size())) {
-    data_->error_ = 1;
-    throw std::runtime_error(std::string("mysql_stmt_prepare error: ") +
-                             mysql_error(data_->connection_));
+
+  try {
+    if (mysql_wrapper_.mysql_stmt_prepare(data_->error_, stmt, rq.data(), rq.size())) {
+      data_->error_ = 1;
+      throw std::runtime_error(std::string("mysql_stmt_prepare error: ") +
+                              mysql_error(data_->connection_));
+    }
+  } catch (...) {
+    mysql_stmt_close(stmt);
+    throw;
   }
 
   auto pair = data_->statements_.emplace(rq, std::make_shared<mysql_statement_data>(stmt));
@@ -2229,11 +2237,17 @@ template <typename I> struct sql_database {
     auto it = sql_thread_local_data.find(this->database_id_);
     if (it != sql_thread_local_data.end())
     {
-      delete (sql_database_thread_local_data<I>*) sql_thread_local_data[this->database_id_];
+      auto store = (sql_database_thread_local_data<I>*) it->second;
+      for (auto ptr : store->async_connections_)
+        delete ptr;
+      delete store;
+      // delete (sql_database_thread_local_data<I>*) sql_thread_local_data[this->database_id_];
       sql_thread_local_data.erase(this->database_id_);
     }
 
     std::lock_guard<std::mutex> lock(this->sync_connections_mutex_);
+    for (auto* ptr : this->sync_connections_)
+      delete ptr;
     sync_connections_.clear();
     n_sync_connections_ = 0;
   }
@@ -2326,7 +2340,7 @@ template <typename I> struct sql_database {
               else return 0;
             }();
 
-            pool.connections.push_back(std::move(data));
+            pool.connections.push_back(data);
             
           } else {
             if (pool.connections.size() >= pool.max_connections)
@@ -2439,8 +2453,7 @@ inline mysql_connection_data* mysql_database_impl::new_connection(Y& fiber) {
   int status;
   MYSQL* connection;
 
-  mysql = new MYSQL;
-  mysql_init(mysql);
+  mysql = mysql_init(nullptr);
 
   if constexpr (std::is_same_v<Y, active_yield>) { // Synchronous connection
     connection = mysql;

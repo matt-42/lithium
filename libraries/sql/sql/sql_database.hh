@@ -58,11 +58,17 @@ template <typename I> struct sql_database {
     auto it = sql_thread_local_data.find(this->database_id_);
     if (it != sql_thread_local_data.end())
     {
-      delete (sql_database_thread_local_data<I>*) sql_thread_local_data[this->database_id_];
+      auto store = (sql_database_thread_local_data<I>*) it->second;
+      for (auto ptr : store->async_connections_)
+        delete ptr;
+      delete store;
+      // delete (sql_database_thread_local_data<I>*) sql_thread_local_data[this->database_id_];
       sql_thread_local_data.erase(this->database_id_);
     }
 
     std::lock_guard<std::mutex> lock(this->sync_connections_mutex_);
+    for (auto* ptr : this->sync_connections_)
+      delete ptr;
     sync_connections_.clear();
     n_sync_connections_ = 0;
   }
@@ -155,7 +161,7 @@ template <typename I> struct sql_database {
               else return 0;
             }();
 
-            pool.connections.push_back(std::move(data));
+            pool.connections.push_back(data);
             
           } else {
             if (pool.connections.size() >= pool.max_connections)

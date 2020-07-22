@@ -15,6 +15,7 @@ struct mysql_statement_data : std::enable_shared_from_this<mysql_statement_data>
   MYSQL_FIELD* fields_ = nullptr;
 
   mysql_statement_data(MYSQL_STMT* stmt) {
+    // std::cout << "create statement " << std::endl;
     stmt_ = stmt;
     metadata_ = mysql_stmt_result_metadata(stmt_);
     if (metadata_) {
@@ -29,5 +30,6 @@ struct mysql_statement_data : std::enable_shared_from_this<mysql_statement_data>
     mysql_stmt_free_result(stmt_);
     if (mysql_stmt_close(stmt_))
       std::cerr << "Error: could not free mysql statement" << std::endl;
+    // std::cout << "delete statement " << std::endl;
   }
 };

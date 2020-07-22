@@ -33,6 +33,7 @@ PGresult* pg_wait_for_next_result(PGconn* connection, Y& fiber,
       try {
         fiber.yield();
       } catch (typename Y::exception_type& e) {
+        // Free results.
         // Yield thrown a exception (probably because a closed connection).
         // Mark the connection as broken because it is left in a undefined state.
         connection_status = 1;
@@ -43,6 +44,7 @@ PGresult* pg_wait_for_next_result(PGconn* connection, Y& fiber,
       PGresult* res = PQgetResult(connection);
       if (PQresultStatus(res) == PGRES_FATAL_ERROR and PQerrorMessage(connection)[0] != 0)
       {
+        PQclear(res);
         connection_status = 1;          
         if (!nothrow)
           throw std::runtime_error(std::string("Postresql fatal error:") +

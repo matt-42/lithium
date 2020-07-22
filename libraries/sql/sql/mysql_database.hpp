@@ -64,8 +64,7 @@ inline mysql_connection_data* mysql_database_impl::new_connection(Y& fiber) {
   int status;
   MYSQL* connection;
 
-  mysql = new MYSQL;
-  mysql_init(mysql);
+  mysql = mysql_init(nullptr);
 
   if constexpr (std::is_same_v<Y, active_yield>) { // Synchronous connection
     connection = mysql;

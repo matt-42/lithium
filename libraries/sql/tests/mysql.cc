@@ -14,4 +14,6 @@ int main() {
                      s::password = "lithium_test", s::port = 14550, s::charset = "utf8");
 
   generic_sql_tests(database);
+
+  database.clear_connections();
 }
