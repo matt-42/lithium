@@ -290,7 +290,7 @@ my_api.post("/auth_test") = [&] (http_request& request, http_response& response)
       throw http_error::unauthorized("Bad login.");
 
   // Access the current user.
-  auto u = auth.current_user();
+  auto u = auth.current_user(request, response);
   // u is a std::optional.
   if (!u) throw http_error::unauthorized("Please login.");
   // Logout: destroy the session.
