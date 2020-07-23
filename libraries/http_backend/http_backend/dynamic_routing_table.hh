@@ -15,10 +15,6 @@ namespace internal {
 template <typename V> struct drt_node {
 
   drt_node() : v_{0, nullptr} {}
-  ~drt_node() {
-    // for (auto pair : children_)
-    //   delete pair.second;
-  }
   
   struct iterator {
     const drt_node<V>* ptr;
