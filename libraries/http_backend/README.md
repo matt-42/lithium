@@ -231,7 +231,7 @@ https://github.com/matt-42/lithium/blob/master/libraries/http_backend/http_backe
 // By default, we set the username to "unknown"
 // Store sessions in a sql db:
 auto session = sql_http_session(db, "user_sessions_table", "test_cookie", s::name = "unknown");
-// Or in-memory
+// Or in-memory (does not persist after a server shutdown).
 auto session = hashmap_http_session("test_cookie", s::name = "unknown");
 
 api.get("/sessions") = [&] (http_request& request, http_response& response) {
@@ -259,6 +259,10 @@ auto users =
                 s::email = std::string(),
                 s::password = std::string());
 
+// Store user session in sql:
+auto sessions = sql_http_session(db, "user_sessions_table", "test_cookie", s::name = "unknown");
+
+// Or in memory:
 auto sessions = li::hashmap_http_session("auth_cookie", s::user_id = -1);
 
 //
@@ -303,6 +307,8 @@ https://github.com/matt-42/lithium/blob/master/libraries/http_backend/http_backe
 
 
 # Testing
+
+Lithium provide a http client and a server non blocking mode so you can easily tests your server responses:
 
 ```c++
 // Use the s::non_blocking parameters so the http_serve will run in a separate thread. 
