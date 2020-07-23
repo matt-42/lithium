@@ -2965,6 +2965,7 @@ namespace internal {
 template <typename V> struct drt_node {
 
   drt_node() : v_{0, nullptr} {}
+  
   struct iterator {
     const drt_node<V>* ptr;
     std::string_view first;
@@ -3061,12 +3062,12 @@ template <typename V> struct dynamic_routing_table {
 
   // Find a route and return reference to a procedure.
   auto& operator[](const std::string_view& r) {
-    strings.push_back(std::shared_ptr<std::string>(new std::string(r)));
+    strings.push_back(std::make_shared<std::string>(r));
     std::string_view r2(*strings.back());
     return root.find_or_create(r2, 0);
   }
   auto& operator[](const std::string& r) {
-    strings.push_back(std::shared_ptr<std::string>(new std::string(r)));
+    strings.push_back(std::make_shared<std::string>(r));
     std::string_view r2(*strings.back());
     return root.find_or_create(r2, 0);
   }
@@ -3554,6 +3555,7 @@ struct input_buffer {
 
     int received = fiber.read(buffer_.data() + end, size);
     end = end + received;
+    assert(end <= buffer_.size());
     return received;
   }
 
