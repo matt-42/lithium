@@ -68,6 +68,7 @@ struct input_buffer {
 
     int received = fiber.read(buffer_.data() + end, size);
     end = end + received;
+    assert(end <= buffer_.size());
     return received;
   }
 
