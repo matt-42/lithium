@@ -14,7 +14,7 @@ matrix:
         - sudo apt-add-repository -y 'deb https://apt.kitware.com/ubuntu/ bionic main'
         - sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test;
         - sudo apt-get install -qq gcc-9 g++-9;
-        - sudo apt-get install -qq libboost-all-dev libpq-dev  postgresql-server-dev-all libssl-dev lcov libsqlite3-dev libmicrohttpd-dev cmake libcurl4-openssl-dev
+        - sudo apt-get install -qq libboost-all-dev libpq-dev  postgresql-server-dev-all libssl-dev lcov libsqlite3-dev cmake libcurl4-openssl-dev
 
         - sudo apt-get install software-properties-common
         - sudo apt-key adv --recv-keys --keyserver hkp://keyserver.ubuntu.com:80 0xF1656F24C74CD1D8
@@ -37,7 +37,7 @@ matrix:
         - sudo echo deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-9 main >> /etc/apt/sources.list;
         - sudo apt-get update -qq;
         - sudo apt-get install -qq clang-9 libc++-9-dev libpq-dev  postgresql-server-dev-all libc++abi-9-dev libclang-9-dev;
-        - sudo apt-get install -qq libboost-all-dev libssl-dev lcov libsqlite3-dev libmicrohttpd-dev cmake libcurl4-openssl-dev
+        - sudo apt-get install -qq libboost-all-dev libssl-dev lcov libsqlite3-dev cmake libcurl4-openssl-dev
 
         - sudo apt-get install software-properties-common
         - sudo apt-key adv --recv-keys --keyserver hkp://keyserver.ubuntu.com:80 0xF1656F24C74CD1D8
@@ -53,7 +53,7 @@ matrix:
     #   env: COMPILER=clang++
     #   before_install:
     #     - brew update
-    #     - brew install boost sqlite mariadb cmake libmicrohttpd
+    #     - brew install boost sqlite mariadb cmake
   
 before_script:
     - cd $HOME/build/$TRAVIS_REPO_SLUG

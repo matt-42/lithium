@@ -1011,6 +1011,7 @@ PGresult* pg_wait_for_next_result(PGconn* connection, Y& fiber,
   while (true) {
     if (PQconsumeInput(connection) == 0)
     {
+      connection_status = 1;          
       if (!nothrow)
         throw std::runtime_error(std::string("PQconsumeInput() failed: ") +
                                  PQerrorMessage(connection));
@@ -1028,8 +1029,21 @@ PGresult* pg_wait_for_next_result(PGconn* connection, Y& fiber,
       } catch (typename Y::exception_type& e) {
         // Free results.
         // Yield thrown a exception (probably because a closed connection).
-        // Mark the connection as broken because it is left in a undefined state.
-        connection_status = 1;
+        // Flush the remaining results.
+        while (true)
+        {
+          if (PQconsumeInput(connection) == 0)
+          {
+            connection_status = 1;
+            break;
+          }
+          if (!PQisBusy(connection))
+          {
+            PGresult* res = PQgetResult(connection);
+            if (res) PQclear(res);
+            else break;
+          }
+        }
         throw std::move(e);
       }
     } else {
@@ -2011,6 +2025,7 @@ template <typename I> struct sql_database {
               std::cerr << "Error: connection pool size " << pool.connections.size()
                         << " exceed pool max_connections " << pool.max_connections << std::endl;
             pool.n_connections--;
+            std::cout << "discard error connection " << data->error_ << std::endl;
             delete data;
           }
         });
