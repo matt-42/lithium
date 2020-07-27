@@ -1,18 +1,16 @@
 #include <lithium.hh>
-#include <lithium.hh>
-#include <lithium.hh>
 
 #include "symbols.hh"
 using namespace li;
 
 template< typename T, typename Pred >
 typename std::vector<T>::iterator
-    insert_sorted( std::vector<T> & vec, const T& item, Pred&& pred )
+    insert_sorted( std::vector<T> & vec, T&& item, Pred&& pred )
 {
     return vec.emplace
         ( 
-           std::upper_bound( vec.begin(), vec.end(), item, pred ),
-           item
+           std::upper_bound( vec.begin(), vec.end(), std::forward<T>(item), pred ),
+           std::forward<T>(item)
         );
 }
 template <typename B> void escape_html_entities_(B& buffer, const std::string& data) {
@@ -105,11 +103,11 @@ auto sql_db = pgsql_database(s::host = "127.0.0.1", s::database = "postgres", s:
 #endif
 
 auto fortunes =
-    sql_orm_schema(sql_db, "Fortune")
+    sql_orm_schema(sql_db, "fortune")
         .fields(s::id(s::auto_increment, s::primary_key) = int(), s::message = std::string());
 
 auto random_numbers =
-    sql_orm_schema(sql_db, "World")
+    sql_orm_schema(sql_db, "world")
         .fields(s::id(s::auto_increment, s::primary_key) = int(), s::randomNumber = int());
 
 void set_max_sql_connections_per_thread(int max) {
@@ -125,10 +123,15 @@ int nthread = 4;
 // int fortunes_nconn = 4*nprocs;
 // int updates_nconn = 100*nprocs;
 
-int db_nconn = 90;
-int queries_nconn = 40;
-int fortunes_nconn = 4000;
-int updates_nconn = 30;
+// int db_nconn = 90;
+// int queries_nconn = 40;
+// int fortunes_nconn = 4000;
+// int updates_nconn = 30;
+
+int db_nconn = 99989 / 4;
+int queries_nconn = 99989 / 4;
+int fortunes_nconn = 99989 / 4;
+int updates_nconn = 99989 / 4;
 
 // int nthread = nprocs;
 // int db_nconn = 4;
@@ -143,6 +146,7 @@ int updates_nconn = 30;
 // int updates_nconn = 3*nprocs;
 
 int nthread = nprocs;
+// int nthread = 1;
 int db_nconn = 90 / 4;
 int queries_nconn = 90 / 4;
 int fortunes_nconn = 90 / 4;
@@ -204,7 +208,7 @@ auto make_api() {
 
     {
       auto c = random_numbers.connect(request.fiber);
-      // auto& raw_c = c.backend_connection();
+      auto& raw_c = c.backend_connection();
 
       {
         // auto c2 = random_numbers.connect(request.fiber);
@@ -218,8 +222,7 @@ auto make_api() {
         for (int i = 0; i < N; i++) {
           numbers[i] = c.find_one(s::id = 1 + rand() % 9999).value();
           // numbers[i].id = 1 + rand() % 9999;
-          // numbers[i].randomNumber = raw_c2.cached_statement([] { return "select randomNumber from
-          // World where id=$1"; })(numbers[i].id).read<int>();
+          // numbers[i].randomNumber = raw_c.cached_statement([] { return "select randomNumber from world where id=?"; })(numbers[i].id).read<int>();
           numbers[i].randomNumber = 1 + rand() % 9999;
         }
         // raw_c("COMMIT");
@@ -275,8 +278,14 @@ auto make_api() {
 
     auto comp = [](const fortune& a, const fortune& b) { return a.message < b.message; };
     std::vector<fortune> table = { fortune(0, std::string("Additional fortune added at request time.")) };
+
     auto c = fortunes.connect(request.fiber);
-    c.forall([&](const auto& f) { insert_sorted(table, metamap_clone(f), comp); });
+    c.forall([&] (const auto& f) { table.emplace_back(metamap_clone(f)); });
+    
+    // std::sort(table.begin(), table.end(),
+    //           [] (const fortune& a, const fortune& b) { return a.message < b.message; });
+
+    // c.forall([&](const auto& f) { insert_sorted(table, metamap_clone(f), comp); });
 
     char b[100000];
     li::output_buffer ss(b, sizeof(b));
