@@ -25,6 +25,18 @@ struct pgsql_connection_data {
       }
     }
   }
+  template <typename Y>
+  void flush(Y& fiber) {
+    while(int ret = PQflush(pgconn_))
+    {
+      if (ret == -1)
+      {
+        std::cerr << "PQflush error" << std::endl;
+      }
+      if (ret == 1)
+        fiber.yield();
+    }
+  }
 
   PGconn* pgconn_ = nullptr;
   int fd = -1;

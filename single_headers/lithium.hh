@@ -5008,7 +5008,6 @@ template <typename I> struct sql_database {
               std::cerr << "Error: connection pool size " << pool.connections.size()
                         << " exceed pool max_connections " << pool.max_connections << std::endl;
             pool.n_connections--;
-            std::cout << "discard error connection " << data->error_ << std::endl;
             delete data;
           }
         });
@@ -5226,6 +5225,18 @@ struct pgsql_connection_data {
         PQcancel(cancel, x, 256);
         PQfreeCancel(cancel);
       }
+    }
+  }
+  template <typename Y>
+  void flush(Y& fiber) {
+    while(int ret = PQflush(pgconn_))
+    {
+      if (ret == -1)
+      {
+        std::cerr << "PQflush error" << std::endl;
+      }
+      if (ret == 1)
+        fiber.yield();
     }
   }
 
@@ -5704,6 +5715,9 @@ sql_result<pgsql_result<Y>> pgsql_statement<Y>::operator()(T&&... args) {
                            1)) {
     throw std::runtime_error(std::string("Postresql error:") + PQerrorMessage(connection_->pgconn_));
   }
+
+  connection_->flush(this->fiber_);
+
   return sql_result<pgsql_result<Y>>{
       pgsql_result<Y>{this->connection_, this->fiber_}};
 }
@@ -5769,19 +5783,11 @@ template <typename Y> struct pgsql_connection {
   pgsql_statement<Y> prepare(const std::string& rq) {
     auto it = stm_cache_.find(rq);
     if (it != stm_cache_.end()) {
-      // pgsql_wrapper_.pgsql_stmt_free_result(it->second->stmt_);
-      // pgsql_wrapper_.pgsql_stmt_reset(it->second->stmt_);
       return pgsql_statement<Y>{data_, fiber_, *it->second};
     }
-    std::stringstream stmt_name;
-    stmt_name << (void*)connection_ << stm_cache_.size();
-    // std::cout << "prepare " << rq << " NAME: " << stmt_name.str() << std::endl;
+    std::string stmt_name = boost::lexical_cast<std::string>(stm_cache_.size());
 
-    // FIXME REALLY USEFUL??
-    // while (PGresult* res = wait_for_next_result())
-    //   PQclear(res);
-
-    if (!PQsendPrepare(connection_, stmt_name.str().c_str(), rq.c_str(), 0, nullptr)) {
+    if (!PQsendPrepare(connection_, stmt_name.c_str(), rq.c_str(), 0, nullptr)) {
       throw std::runtime_error(std::string("PQsendPrepare error") + PQerrorMessage(connection_));
     }
 
@@ -5789,17 +5795,7 @@ template <typename Y> struct pgsql_connection {
     while (PGresult* ret = pg_wait_for_next_result(connection_, fiber_, data_->error_))
       PQclear(ret);
 
-    // while (PGresult* ret = PQgetResult(connection_)) {
-    //   if (PQresultStatus(ret) == PGRES_FATAL_ERROR)
-    //     throw std::runtime_error(std::string("Postresql fatal error:") +
-    //                              PQerrorMessage(connection_));
-    //   if (PQresultStatus(ret) == PGRES_NONFATAL_ERROR)
-    //     std::cerr << "Postgresql non fatal error: " << PQerrorMessage(connection_) << std::endl;
-    //   PQclear(ret);
-    // }
-    // pq_wait(yield_, connection_);
-
-    auto pair = stm_cache_.emplace(rq, std::make_shared<pgsql_statement_data>(stmt_name.str()));
+    auto pair = stm_cache_.emplace(rq, std::make_shared<pgsql_statement_data>(stmt_name));
     return pgsql_statement<Y>{data_, fiber_, *pair.first->second};
   }
 

@@ -2347,7 +2347,6 @@ template <typename I> struct sql_database {
               std::cerr << "Error: connection pool size " << pool.connections.size()
                         << " exceed pool max_connections " << pool.max_connections << std::endl;
             pool.n_connections--;
-            std::cout << "discard error connection " << data->error_ << std::endl;
             delete data;
           }
         });
