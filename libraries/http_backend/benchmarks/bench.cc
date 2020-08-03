@@ -145,9 +145,10 @@ int updates_nconn = 99989 / 4;
 // int fortunes_nconn = 2*nprocs;
 // int updates_nconn = 3*nprocs;
 
-int nthread = nprocs;
+int nthread = 1;//nprocs;
 // int nthread = 1;
-int db_nconn = 90 / 4;
+int db_nconn = 1;
+// int db_nconn = 90 / 4;
 int queries_nconn = 90 / 4;
 int fortunes_nconn = 90 / 4;
 int updates_nconn = 90 / 4;
@@ -167,8 +168,10 @@ auto make_api() {
   };
   my_api.get("/db") = [&](http_request& request, http_response& response) {
     set_max_sql_connections_per_thread(db_nconn);
-    // std::cout << "start" << std::endl;
-    response.write_json(random_numbers.connect(request.fiber).find_one(s::id = 14).value());
+    // std::cout << "start DB" << std::endl;
+    auto n = random_numbers.connect(request.fiber).find_one(s::id = 14).value();
+    // std::cout << "read: " << n.randomNumber << std::endl;
+    response.write_json(n);
     // std::cout << "end" << std::endl;
   };
 

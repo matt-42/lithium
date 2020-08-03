@@ -8,12 +8,15 @@ find_package(MYSQL REQUIRED)
 find_package(SQLite3 REQUIRED)
 find_package(CURL REQUIRED)
 find_package(Threads REQUIRED)
-find_package(PostgreSQL REQUIRED)
+# find_package(PostgreSQL REQUIRED)
 find_package(OpenSSL REQUIRED)
 
 include_directories(${SQLite3_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS} ${MYSQL_INCLUDE_DIR} ${OPENSSL_INCLUDE_DIR})
 
-include_directories(${PostgreSQL_INCLUDE_DIRS})
+# include_directories(${PostgreSQL_INCLUDE_DIRS})
+include_directories($ENV{HOME}/local/libpq-pipelining/include)
+
+link_directories($ENV{HOME}/local/libpq-pipelining/lib)
 
 #SET(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} -lgcov --coverage -fprofile-generate")
 #add_definitions(-fprofile-generate)
@@ -38,7 +41,9 @@ include_directories(${OPENSSL_INCLUDE_DIR})
 
 set(LIBS ${SQLite3_LIBRARIES} ${CURL_LIBRARIES} 
           ${MYSQL_LIBRARY} ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT}
-          ${PostgreSQL_LIBRARIES} ${OPENSSL_LIBRARIES})
+          # ${PostgreSQL_LIBRARIES} 
+          pq
+          ${OPENSSL_LIBRARIES})
 
 li_add_executable(bench bench.cc)
 target_link_libraries(bench ${LIBS})
