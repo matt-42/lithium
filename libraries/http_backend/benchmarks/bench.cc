@@ -98,7 +98,7 @@ auto sql_db =
 
 #else
 auto sql_db = pgsql_database(s::host = "127.0.0.1", s::database = "postgres", s::user = "postgres",
-                             s::password = "lithium_test", s::port = 32768, s::charset = "utf8");
+                             s::password = "lithium_test", s::port = 32768, s::charset = "utf8", s::max_async_connections_per_thread = 1);
 
 #endif
 
@@ -145,13 +145,13 @@ int updates_nconn = 99989 / 4;
 // int fortunes_nconn = 2*nprocs;
 // int updates_nconn = 3*nprocs;
 
-int nthread = 1;//nprocs;
+int nthread = 4;//nprocs;
 // int nthread = 1;
 int db_nconn = 1;
 // int db_nconn = 90 / 4;
-int queries_nconn = 90 / 4;
-int fortunes_nconn = 90 / 4;
-int updates_nconn = 90 / 4;
+int queries_nconn = 3;
+int fortunes_nconn = 3;
+int updates_nconn = 3;
 #endif
 
 auto make_api() {
@@ -178,24 +178,28 @@ auto make_api() {
   my_api.get("/queries") = [&](http_request& request, http_response& response) {
     set_max_sql_connections_per_thread(queries_nconn);
     std::string N_str = request.get_parameters(s::N = std::optional<std::string>()).N.value_or("1");
-    // std::cout << N_str << std::endl;
     int N = atoi(N_str.c_str());
 
     N = std::max(1, std::min(N, 500));
 
-    auto c = random_numbers.connect(request.fiber);
-    // auto& raw_c = c.backend_connection();
-    // raw_c("START TRANSACTION");
+    auto c = sql_db.connect(request.fiber);
+    // auto c = random_numbers.connect(request.fiber);
+    // std::vector<decltype(random_numbers.all_fields())> numbers(N);
+    // for (int i = 0; i < N; i++)
+    //   numbers[i] = c.find_one(s::id = 1 + rand() % 99).value();
+
+    std::vector<sql_result<pgsql_result<std::remove_reference_t<decltype(request.fiber)>>>> results;
     std::vector<decltype(random_numbers.all_fields())> numbers(N);
-    // auto stm = c.backend_connection().prepare("SELECT randomNumber from World where id=$1");
     for (int i = 0; i < N; i++)
-      numbers[i] = c.find_one(s::id = 1 + rand() % 99).value();
-    // numbers[i] = stm(1 + rand() % 99).read<std::remove_reference_t<decltype(numbers[i])>>();
-  // {
-  //   numbers[i].id = 1 + rand() % 99;
-  //     numbers[i].randomNumber = stm(1 + rand() % 99).read<int>();
-  // }
-    // raw_c("COMMIT");
+    {
+      numbers[i].id = 1 + rand() % 99;
+      results.emplace_back(c.cached_statement([] { return "SELECT randomNumber from world where id=$1"; })(numbers[i].id));
+    }
+    for (int i = 0; i < N; i++)
+    {
+      numbers[i].randomNumber = results[i].read<int>();
+      results[i].impl_.cleanup();
+    }
 
     response.write_json(numbers);
   };

@@ -35,6 +35,11 @@
     LI_SYMBOL(id)
 #endif
 
+#ifndef LI_SYMBOL_max_async_connections_per_thread
+#define LI_SYMBOL_max_async_connections_per_thread
+    LI_SYMBOL(max_async_connections_per_thread)
+#endif
+
 #ifndef LI_SYMBOL_message
 #define LI_SYMBOL_message
     LI_SYMBOL(message)

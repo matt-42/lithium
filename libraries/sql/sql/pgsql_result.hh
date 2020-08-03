@@ -9,7 +9,10 @@ namespace li {
 template <typename Y> struct pgsql_result {
 
 public:
-  ~pgsql_result() { if (current_result_) PQclear(current_result_); }
+  ~pgsql_result() {  }
+
+  void cleanup() { if (current_result_) PQclear(current_result_); }
+
   // Read metamap and tuples.
   template <typename T> bool read(T&& t1);
   long long int last_insert_id();

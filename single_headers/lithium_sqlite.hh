@@ -1217,9 +1217,9 @@ template <typename I> struct sql_result {
 
   I impl_;
 
-  sql_result() = delete;
-  sql_result& operator=(sql_result&) = delete;
-  sql_result(const sql_result&) = delete;
+  // sql_result() = delete;
+  // sql_result& operator=(sql_result&) = delete;
+  // sql_result(const sql_result&) = delete;
 
   inline ~sql_result() { 
     // this->flush_results(); 
