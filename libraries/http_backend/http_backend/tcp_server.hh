@@ -150,8 +150,11 @@ struct async_fiber_context {
 
   void epoll_add(int fd, int flags);
   void epoll_mod(int fd, int flags);
+  void reassign_fd_to_fiber(int fd, int fiber_idx);
 
- 
+  void defer(const std::function<void()>& fun);
+  void defer_fiber_resume(int fiber_id);
+
   inline int read_impl(char* buf, int size) {
     if (ssl)
       return SSL_read(ssl, buf, size);
@@ -206,6 +209,8 @@ struct async_reactor {
   std::vector<continuation> fibers;
   std::vector<int> fd_to_fiber_idx;
   std::unique_ptr<ssl_context> ssl_ctx = nullptr;
+  std::vector<std::function<void()>> defered_functions;
+  std::vector<int> defered_resume;
 
   continuation& fd_to_fiber(int fd) {
     assert(fd >= 0 and fd < fd_to_fiber_idx.size());
@@ -213,6 +218,10 @@ struct async_reactor {
     assert(fiber_idx >= 0 and fiber_idx < fibers.size());
 
     return fibers[fiber_idx];
+  }
+
+  void reassign_fd_to_fiber(int fd, int fiber_idx) {
+    fd_to_fiber_idx[fd] = fiber_idx;
   }
 
   void epoll_ctl(int epoll_fd, int fd, int action, uint32_t flags) {
@@ -249,7 +258,7 @@ struct async_reactor {
       if (quit_signal_catched)
         break;
 
-      if (n_events == 0)
+      if (n_events == 0 )
         for (int i = 0; i < fibers.size(); i++)
           if (fibers[i])
             fibers[i] = fibers[i].resume();
@@ -352,6 +361,34 @@ struct async_reactor {
             std::cerr << "Epoll returned a file descriptor that we did not register: " << event_fd
                       << std::endl;
         }
+        
+      }
+
+      // Call and Flush the defered functions.
+      if (defered_functions.size())
+      {
+        for (auto& f : defered_functions)
+          f();
+        defered_functions.clear();
+      }
+      // Wakeup fibers if needed.
+      if (defered_resume.size())
+      {
+        for (auto& fiber_id : defered_resume)
+        {
+          // std::cout << " wakeup " << fiber_id << std::endl;
+          assert(fiber_id < fibers.size());
+          auto& fiber = fibers[fiber_id];
+          if (fiber)
+          {
+            // std::cout << " wakeup " << fiber_id << std::endl;
+            fiber = fiber.resume();
+          }
+          else 
+            std::cout << " not waking up " << fiber_id << std::endl;
+
+        }
+        defered_resume.clear();
       }
     }
     std::cout << "END OF EVENT LOOP" << std::endl;
@@ -368,6 +405,21 @@ void async_fiber_context::epoll_add(int fd, int flags) {
   reactor->epoll_add(fd, flags, continuation_idx);
 }
 void async_fiber_context::epoll_mod(int fd, int flags) { reactor->epoll_mod(fd, flags); }
+
+void async_fiber_context::defer(const std::function<void()>& fun)
+{
+  this->reactor->defered_functions.push_back(fun);
+}
+
+void async_fiber_context::defer_fiber_resume(int fiber_id)
+{
+  this->reactor->defered_resume.push_back(fiber_id);
+}
+
+void async_fiber_context::reassign_fd_to_fiber(int fd, int fiber_idx)
+{
+  this->reactor->reassign_fd_to_fiber(fd, fiber_idx);
+}
 
 template <typename H>
 void start_tcp_server(int port, int socktype, int nthreads, H conn_handler,

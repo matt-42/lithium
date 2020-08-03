@@ -935,14 +935,123 @@ struct pgsql_connection_data {
     }
   }
 
+  struct batch_query_info {int fiber_id; int result_id; bool ignore_result; bool is_batch_end=false; };
+
+  // Go to next batched query result
+  template <typename Y>
+  int batch_query(Y& fiber, bool ignore_result = false) {
+    // std::cout << "batch query " << ignore_result << std::endl; 
+    int result_id = next_result_id++;//batched_queries.size() == 0 ? 1 : batched_queries.back().result_id + 1;
+    batched_queries.push_back(batch_query_info{fiber.continuation_idx, result_id, ignore_result});
+    // std::cout << "PQqueriesInBatch(pgconn_) " << PQqueriesInBatch(pgconn_) << " batched_queries.size() " << batched_queries.size() << std::endl; 
+    // assert(PQqueriesInBatch(pgconn_) == batched_queries.size());
+    // if (batched_queries.size() == 1)
+    // {
+    //     std::cout << "PQsendEndBatch" << std::endl; 
+    //     if (0 == PQsendEndBatch(this->pgconn_))
+    //       std::cerr << "PQsendEndBatch error"  << std::endl; 
+    // }
+    if (!end_batch_defered)
+    {
+      end_batch_defered = true;
+      // std::cout << "defer endbatch" << std::endl;
+      fiber.defer([this] { 
+        // std::cout << "PQsendEndBatch" << std::endl; 
+        if (0 == PQsendEndBatch(this->pgconn_))
+          std::cerr << "PQsendEndBatch error"  << std::endl; 
+        int result_id = this->next_result_id++;// batched_queries.size() == 0 ? 1 : batched_queries.back().result_id + 1;
+        batched_queries.push_back(batch_query_info{0, result_id, true, true});
+        end_batch_defered = false;
+        // std::cout << "PQqueriesInBatch(pgconn_) " << PQqueriesInBatch(pgconn_) << " batched_queries.size() " << batched_queries.size() << std::endl; 
+        // assert(PQqueriesInBatch(pgconn_) == batched_queries.size());
+
+        // this->end_of_current_result(fiber);        
+        // if (0 == PQgetNextQuery(pgconn_))
+        //   std::cerr << "PQgetNextQuery error" << std::endl;
+         
+        });
+    }
+    return result_id;
+  }
+
+  // The current result is totally consumed. Go to the next one.
+  template <typename Y>
+  void end_of_current_result(Y& fiber) {
+    // std::cout << " end_of_current_result fiber " << fiber.continuation_idx << std::endl;
+    if (batched_queries.size() == 0) 
+    {
+      // std::cout << "queue empty" << std::endl; 
+      current_result_id = -1;        
+      return;
+    }
+
+    // Get next query.
+    bool ignore_result = true;
+    while (ignore_result == true && batched_queries.size() > 0) {
+      // std::cout << "PQgetNextQuery" << std::endl; 
+      if (0 == PQgetNextQuery(pgconn_))
+      {
+        std::cerr << "PQgetNextQuery error : " <<  PQerrorMessage(pgconn_) << std::endl;
+        throw std::runtime_error(std::string("PQgetNextQuery error : ") + PQerrorMessage(pgconn_));
+      }
+      ignore_result = batched_queries.front().ignore_result;
+      this->current_result_id = batched_queries.front().result_id;
+
+      if (batched_queries.front().is_batch_end)
+      {
+        PGresult* res = pg_wait_for_next_result(pgconn_, fiber, error_, false);
+        assert(res);
+        assert(PQresultStatus(res) == PGRES_BATCH_END);
+        PQclear(res);
+      }
+      else if (ignore_result)
+        {
+          // std::cout << "ignore result " << std::endl;
+          while (true)
+          {
+            PGresult* res = pg_wait_for_next_result(pgconn_, fiber, error_, false);
+            if (res)
+              PQclear(res);
+            else break;
+          }
+        }
+      else
+      {
+        // Wake up the fiber waiting for this query if not the calling one.
+        if (batched_queries.front().fiber_id != fiber.continuation_idx)
+        {
+          // std::cout << " Next fiber to read result is " << batched_queries.front().fiber_id << " with result id " << this->current_result_id << std::endl;
+          fiber.reassign_fd_to_fiber(PQsocket(pgconn_), batched_queries.front().fiber_id);
+          fiber.defer_fiber_resume(batched_queries.front().fiber_id);
+        }
+      }
+      batched_queries.pop_front();
+      // assert(PQqueriesInBatch(pgconn_) == batched_queries.size());
+      // std::cout << "PQqueriesInBatch(pgconn_) " << PQqueriesInBatch(pgconn_) << " batched_queries.size() " << batched_queries.size() << std::endl; 
+    };
+
+    if (batched_queries.size() == 0 && ignore_result) 
+    {
+      // std::cout << "current_result_id = -1" << std::endl; 
+      current_result_id = -1;        
+      return;
+    }
+
+  }
+
   PGconn* pgconn_ = nullptr;
   int fd = -1;
   std::unordered_map<std::string, std::shared_ptr<pgsql_statement_data>> statements;
   type_hashmap<std::shared_ptr<pgsql_statement_data>> statements_hashmap;
+  std::deque<batch_query_info> batched_queries;
+  int current_result_id = -1;
   int error_ = 0;
+  int next_result_id = 1;
+  bool end_batch_defered = false;
 };
 
 }
+
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_CONNECTION_DATA_HH
 
 
@@ -956,12 +1065,18 @@ public:
   // Read metamap and tuples.
   template <typename T> bool read(T&& t1);
   long long int last_insert_id();
+  
   // Flush all results.
   void flush_results();
 
+  // Fetch next result, used internally by read.
+  template <typename T> bool fetch_next_result(T&& output);
+
   std::shared_ptr<pgsql_connection_data> connection_;
   Y& fiber_;
+  int result_id_;
 
+  bool end_of_result_ = false;
   int last_insert_id_ = -1;
   int row_i_ = 0;
   int current_result_nrows_ = 0;
@@ -1061,7 +1176,8 @@ PGresult* pg_wait_for_next_result(PGconn* connection, Y& fiber,
     } else {
       // std::cout << "notbusy" << std::endl;
       PGresult* res = PQgetResult(connection);
-      if (PQresultStatus(res) == PGRES_FATAL_ERROR and PQerrorMessage(connection)[0] != 0)
+      auto status = PQresultStatus(res);
+      if (status == PGRES_FATAL_ERROR and PQerrorMessage(connection)[0] != 0)
       {
         PQclear(res);
         connection_status = 1;          
@@ -1074,9 +1190,15 @@ PGresult* pg_wait_for_next_result(PGconn* connection, Y& fiber,
         assert(0);
 #endif
       }
-      else if (PQresultStatus(res) == PGRES_NONFATAL_ERROR)
+      else if (status == PGRES_NONFATAL_ERROR)
+      {
+        PQclear(res);
         std::cerr << "Postgresql non fatal error: " << PQerrorMessage(connection) << std::endl;
-
+      }        
+      else if (status == PGRES_BATCH_ABORTED) {
+        PQclear(res);
+        std::cerr << "Postgresql batch aborted: " << PQerrorMessage(connection) << std::endl;        
+      }
       return res;
     }
   }
@@ -1086,6 +1208,14 @@ template <typename Y> PGresult* pgsql_result<Y>::wait_for_next_result() {
 }
 
 template <typename Y> void pgsql_result<Y>::flush_results() {
+  if (end_of_result_) return;
+
+  if (connection_->current_result_id == -1)
+    this->connection_->end_of_current_result(fiber_);
+
+  while (connection_->current_result_id != this->result_id_)
+    this->fiber_.yield();
+
   try {
     while (true)
     {
@@ -1162,22 +1292,52 @@ void pgsql_result<Y>::fetch_value(unsigned int& out, int field_i, Oid field_type
     assert(0);
 }
 
-template <typename B> template <typename T> bool pgsql_result<B>::read(T&& output) {
+
+template <typename B> template <typename T> bool pgsql_result<B>::fetch_next_result(T&& output) {
+
+  if (end_of_result_) return false;
+
+  if (connection_->current_result_id == -1)
+  {
+    this->connection_->end_of_current_result(fiber_);
+  }
+
+  // std::cout << "read: fiber_.continuation_idx " << fiber_.continuation_idx << std::endl;
+  // std::cout << "connection_->current_result_id " << connection_->current_result_id << " this->result_id_ " << this->result_id_ << std::endl;
+
+  while (connection_->current_result_id != this->result_id_)
+  {
+    // std::cout << "read: fiber_.continuation_idx " << fiber_.continuation_idx << std::endl;
+    // std::cout << "connection_->current_result_id " << connection_->current_result_id << " this->result_id_ " << this->result_id_ << std::endl;
+    this->fiber_.yield();
+  }
+
+  // std::cout << "GO read: fiber_.continuation_idx " << fiber_.continuation_idx << std::endl;
+  // std::cout << "GO connection_->current_result_id " << connection_->current_result_id << " this->result_id_ " << this->result_id_ << std::endl;
+  assert(connection_->current_result_id == this->result_id_);
 
   if (!current_result_ || row_i_ == current_result_nrows_) {
-    if (current_result_) {
-      PQclear(current_result_);
-      current_result_ = nullptr;
-    }
-    current_result_ = wait_for_next_result();
-    if (!current_result_)
-      return false;
-    row_i_ = 0;
-    current_result_nrows_ = PQntuples(current_result_);
-    if (current_result_nrows_ == 0) {
-      PQclear(current_result_);
-      current_result_ = nullptr;
-      return false;
+
+    current_result_nrows_ = 0;
+    while (current_result_nrows_ == 0)
+    {
+      if (current_result_) {
+        PQclear(current_result_);
+        current_result_ = nullptr;
+      }
+
+      current_result_ = wait_for_next_result();
+      assert(connection_->current_result_id == this->result_id_);
+      if (!current_result_)
+      {
+        this->connection_->end_of_current_result(fiber_);
+        // std::cout << " connection_->current_result_id " << connection_->current_result_id << " this->result_id_: " << this->result_id_ << std::endl;
+        // assert(connection_->current_result_id != this->result_id_);
+        end_of_result_ = true; 
+        return false;
+      }
+      row_i_ = 0;
+      current_result_nrows_ = PQntuples(current_result_);
     }
 
     // Metamaps.
@@ -1199,6 +1359,16 @@ template <typename B> template <typename T> bool pgsql_result<B>::read(T&& outpu
         curent_result_field_types_[field_i] = PQftype(current_result_, field_i);
     }
   }
+  return true;
+}
+
+template <typename B> template <typename T> bool pgsql_result<B>::read(T&& output) {
+
+  if (!current_result_ && !this->fetch_next_result<T>(std::forward<T>(output))) return false;
+
+  assert(connection_->current_result_id == this->result_id_);
+
+  // std::cout << "got a row! " << std::endl;
 
   // Tuples
   if constexpr (is_tuple<T>::value) {
@@ -1223,7 +1393,7 @@ template <typename B> template <typename T> bool pgsql_result<B>::read(T&& outpu
   }
 
   this->row_i_++;
-
+  if (this->row_i_ == current_result_nrows_) this->fetch_next_result<T>(std::forward<T>(output));
   return true;
 }
 
@@ -1414,9 +1584,13 @@ template <typename I> struct sql_result {
   sql_result& operator=(sql_result&) = delete;
   sql_result(const sql_result&) = delete;
 
-  inline ~sql_result() { this->flush_results(); }
+  inline ~sql_result() { 
+    // this->flush_results(); 
+    }
 
-  inline void flush_results() { impl_.flush_results(); }
+  inline void flush_results() { 
+    impl_.flush_results(); 
+  }
 
   /**
    * @brief Return the last id generated by a insert comment.
@@ -1736,21 +1910,20 @@ sql_result<pgsql_result<Y>> pgsql_statement<Y>::operator()(T&&... args) {
     i += bind_compute_nparam(a);
   });
 
-  // std::cout << "flush" << std::endl;
-  // FIXME: do we really need to flush the results here ?
-  // flush_results();
-  // std::cout << "flushed" << std::endl;
-  // std::cout << "sending " << data_.stmt_name.c_str() << " with " << nparams << " params" <<
-  // std::endl;
+  // std::cout << "PQsendQueryPrepared" << std::endl; 
   if (!PQsendQueryPrepared(connection_->pgconn_, data_.stmt_name.c_str(), nparams, values, lengths, binary,
                            1)) {
     throw std::runtime_error(std::string("Postresql error:") + PQerrorMessage(connection_->pgconn_));
   }
 
-  connection_->flush(this->fiber_);
+  // Not calling pqflush seems to work aswell...
+  // connection_->flush(this->fiber_);
+
+  // this->connection_->batch_query(this->fiber_, true);
+  int query_result_id = this->connection_->batch_query(this->fiber_);
 
   return sql_result<pgsql_result<Y>>{
-      pgsql_result<Y>{this->connection_, this->fiber_}};
+      pgsql_result<Y>{this->connection_, this->fiber_, query_result_id}};
 }
 
 // FIXME long long int affected_rows() { return pgsql_stmt_affected_rows(data_.stmt_); }
@@ -1823,8 +1996,11 @@ template <typename Y> struct pgsql_connection {
     }
 
     // flush results.
-    while (PGresult* ret = pg_wait_for_next_result(connection_, fiber_, data_->error_))
-      PQclear(ret);
+    // FIXME do we need to flush in batch mode ?
+    // while (PGresult* ret = pg_wait_for_next_result(connection_, fiber_, data_->error_))
+    //   PQclear(ret);
+
+    this->data_->batch_query(this->fiber_, true);
 
     auto pair = stm_cache_.emplace(rq, std::make_shared<pgsql_statement_data>(stmt_name));
     return pgsql_statement<Y>{data_, fiber_, *pair.first->second};
@@ -1875,6 +2051,10 @@ template <typename I> struct sql_database_thread_local_data {
 
 struct active_yield {
   typedef std::runtime_error exception_type;
+  int continuation_idx = 0;
+  void defer(std::function<void()>) {}
+  void defer_fiber_resume(int fiber_id) {}
+  void reassign_fd_to_fiber(int fd, int fiber_id) {}
   void epoll_add(int, int) {}
   void epoll_mod(int, int) {}
   void yield() {}
@@ -1970,23 +2150,25 @@ template <typename I> struct sql_database {
 
     connection_data_type* data = nullptr;
     bool reuse = false;
+    // std::cout << "Try CONNECT!" << std::endl;
     while (!data) {
 
       if (!pool.connections.empty()) {
+        // std::cout << "Try to reuse!" << std::endl;
         auto lock = [&pool, this] {
           if constexpr (std::is_same_v<Y, active_yield>)
             return std::lock_guard<std::mutex>(this->sync_connections_mutex_);
           else return 0;
         }();
         data = pool.connections.back();
-        pool.connections.pop_back();
+        // pool.connections.pop_back();
         reuse = true;
       } else {
         if (pool.n_connections >= pool.max_connections) {
           if constexpr (std::is_same_v<Y, active_yield>)
             throw std::runtime_error("Maximum number of sql connection exeeded.");
           else
-            // std::cout << "Waiting for a free sql connection..." << std::endl;
+            std::cout << "Waiting for a free sql connection..." << std::endl;
             fiber.yield();
           continue;
         }
@@ -2001,29 +2183,32 @@ template <typename I> struct sql_database {
 
         if (!data)
           pool.n_connections--;
+        else
+          pool.connections.push_back(data);
       }
     }
 
     assert(data);
     assert(data->error_ == 0);
     
+    // std::cout << "CONNECT!" << std::endl;
     auto sptr = std::shared_ptr<connection_data_type>(data, [pool, this](connection_data_type* data) {
-          if (!data->error_ && pool.connections.size() < pool.max_connections) {
-            auto lock = [&pool, this] {
-              if constexpr (std::is_same_v<Y, active_yield>)
-                return std::lock_guard<std::mutex>(this->sync_connections_mutex_);
-              else return 0;
-            }();
+          // if (!data->error_ && pool.connections.size() < pool.max_connections) {
+          //   auto lock = [&pool, this] {
+          //     if constexpr (std::is_same_v<Y, active_yield>)
+          //       return std::lock_guard<std::mutex>(this->sync_connections_mutex_);
+          //     else return 0;
+          //   }();
 
-            pool.connections.push_back(data);
+          //   pool.connections.push_back(data);
             
-          } else {
-            if (pool.connections.size() >= pool.max_connections)
-              std::cerr << "Error: connection pool size " << pool.connections.size()
-                        << " exceed pool max_connections " << pool.max_connections << std::endl;
-            pool.n_connections--;
-            delete data;
-          }
+          // } else {
+          //   if (pool.connections.size() >= pool.max_connections)
+          //     std::cerr << "Error: connection pool size " << pool.connections.size()
+          //               << " exceed pool max_connections " << pool.max_connections << std::endl;
+          //   pool.n_connections--;
+          //   delete data;
+          // }
         });
 
     if (reuse) 
@@ -2134,6 +2319,13 @@ struct pgsql_database_impl {
                 << PQerrorMessage(connection) << std::endl;
       PQfinish(connection);
       return nullptr;
+    }
+
+    if (PQbeginBatchMode(connection) == 0)
+    {
+      std::cerr << "PQbeginBatchMode error: Is the connection idle?" << std::endl;
+      PQfinish(connection);
+      return nullptr;      
     }
 
     // pgsql_set_character_set(pgsql, character_set_.c_str());

@@ -21,6 +21,10 @@ template <typename I> struct sql_database_thread_local_data {
 
 struct active_yield {
   typedef std::runtime_error exception_type;
+  int continuation_idx = 0;
+  void defer(std::function<void()>) {}
+  void defer_fiber_resume(int fiber_id) {}
+  void reassign_fd_to_fiber(int fd, int fiber_id) {}
   void epoll_add(int, int) {}
   void epoll_mod(int, int) {}
   void yield() {}
@@ -116,23 +120,25 @@ template <typename I> struct sql_database {
 
     connection_data_type* data = nullptr;
     bool reuse = false;
+    // std::cout << "Try CONNECT!" << std::endl;
     while (!data) {
 
       if (!pool.connections.empty()) {
+        // std::cout << "Try to reuse!" << std::endl;
         auto lock = [&pool, this] {
           if constexpr (std::is_same_v<Y, active_yield>)
             return std::lock_guard<std::mutex>(this->sync_connections_mutex_);
           else return 0;
         }();
         data = pool.connections.back();
-        pool.connections.pop_back();
+        // pool.connections.pop_back();
         reuse = true;
       } else {
         if (pool.n_connections >= pool.max_connections) {
           if constexpr (std::is_same_v<Y, active_yield>)
             throw std::runtime_error("Maximum number of sql connection exeeded.");
           else
-            // std::cout << "Waiting for a free sql connection..." << std::endl;
+            std::cout << "Waiting for a free sql connection..." << std::endl;
             fiber.yield();
           continue;
         }
@@ -147,29 +153,32 @@ template <typename I> struct sql_database {
 
         if (!data)
           pool.n_connections--;
+        else
+          pool.connections.push_back(data);
       }
     }
 
     assert(data);
     assert(data->error_ == 0);
     
+    // std::cout << "CONNECT!" << std::endl;
     auto sptr = std::shared_ptr<connection_data_type>(data, [pool, this](connection_data_type* data) {
-          if (!data->error_ && pool.connections.size() < pool.max_connections) {
-            auto lock = [&pool, this] {
-              if constexpr (std::is_same_v<Y, active_yield>)
-                return std::lock_guard<std::mutex>(this->sync_connections_mutex_);
-              else return 0;
-            }();
+          // if (!data->error_ && pool.connections.size() < pool.max_connections) {
+          //   auto lock = [&pool, this] {
+          //     if constexpr (std::is_same_v<Y, active_yield>)
+          //       return std::lock_guard<std::mutex>(this->sync_connections_mutex_);
+          //     else return 0;
+          //   }();
 
-            pool.connections.push_back(data);
+          //   pool.connections.push_back(data);
             
-          } else {
-            if (pool.connections.size() >= pool.max_connections)
-              std::cerr << "Error: connection pool size " << pool.connections.size()
-                        << " exceed pool max_connections " << pool.max_connections << std::endl;
-            pool.n_connections--;
-            delete data;
-          }
+          // } else {
+          //   if (pool.connections.size() >= pool.max_connections)
+          //     std::cerr << "Error: connection pool size " << pool.connections.size()
+          //               << " exceed pool max_connections " << pool.max_connections << std::endl;
+          //   pool.n_connections--;
+          //   delete data;
+          // }
         });
 
     if (reuse) 

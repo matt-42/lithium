@@ -118,6 +118,13 @@ struct pgsql_database_impl {
       return nullptr;
     }
 
+    if (PQbeginBatchMode(connection) == 0)
+    {
+      std::cerr << "PQbeginBatchMode error: Is the connection idle?" << std::endl;
+      PQfinish(connection);
+      return nullptr;      
+    }
+
     // pgsql_set_character_set(pgsql, character_set_.c_str());
     return new pgsql_connection_data{connection, pgsql_fd};
   }

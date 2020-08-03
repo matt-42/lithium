@@ -127,16 +127,20 @@ sql_result<pgsql_result<Y>> pgsql_statement<Y>::operator()(T&&... args) {
     i += bind_compute_nparam(a);
   });
 
+  // std::cout << "PQsendQueryPrepared" << std::endl; 
   if (!PQsendQueryPrepared(connection_->pgconn_, data_.stmt_name.c_str(), nparams, values, lengths, binary,
                            1)) {
     throw std::runtime_error(std::string("Postresql error:") + PQerrorMessage(connection_->pgconn_));
   }
 
-  // Now calling pqflush seems to work aswell...
+  // Not calling pqflush seems to work aswell...
   // connection_->flush(this->fiber_);
 
+  // this->connection_->batch_query(this->fiber_, true);
+  int query_result_id = this->connection_->batch_query(this->fiber_);
+
   return sql_result<pgsql_result<Y>>{
-      pgsql_result<Y>{this->connection_, this->fiber_}};
+      pgsql_result<Y>{this->connection_, this->fiber_, query_result_id}};
 }
 
 // FIXME long long int affected_rows() { return pgsql_stmt_affected_rows(data_.stmt_); }

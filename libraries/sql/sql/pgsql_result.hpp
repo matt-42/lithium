@@ -56,7 +56,8 @@ PGresult* pg_wait_for_next_result(PGconn* connection, Y& fiber,
     } else {
       // std::cout << "notbusy" << std::endl;
       PGresult* res = PQgetResult(connection);
-      if (PQresultStatus(res) == PGRES_FATAL_ERROR and PQerrorMessage(connection)[0] != 0)
+      auto status = PQresultStatus(res);
+      if (status == PGRES_FATAL_ERROR and PQerrorMessage(connection)[0] != 0)
       {
         PQclear(res);
         connection_status = 1;          
@@ -69,9 +70,15 @@ PGresult* pg_wait_for_next_result(PGconn* connection, Y& fiber,
         assert(0);
 #endif
       }
-      else if (PQresultStatus(res) == PGRES_NONFATAL_ERROR)
+      else if (status == PGRES_NONFATAL_ERROR)
+      {
+        PQclear(res);
         std::cerr << "Postgresql non fatal error: " << PQerrorMessage(connection) << std::endl;
-
+      }        
+      else if (status == PGRES_BATCH_ABORTED) {
+        PQclear(res);
+        std::cerr << "Postgresql batch aborted: " << PQerrorMessage(connection) << std::endl;        
+      }
       return res;
     }
   }
@@ -81,6 +88,14 @@ template <typename Y> PGresult* pgsql_result<Y>::wait_for_next_result() {
 }
 
 template <typename Y> void pgsql_result<Y>::flush_results() {
+  if (end_of_result_) return;
+
+  if (connection_->current_result_id == -1)
+    this->connection_->end_of_current_result(fiber_);
+
+  while (connection_->current_result_id != this->result_id_)
+    this->fiber_.yield();
+
   try {
     while (true)
     {
@@ -157,22 +172,52 @@ void pgsql_result<Y>::fetch_value(unsigned int& out, int field_i, Oid field_type
     assert(0);
 }
 
-template <typename B> template <typename T> bool pgsql_result<B>::read(T&& output) {
+
+template <typename B> template <typename T> bool pgsql_result<B>::fetch_next_result(T&& output) {
+
+  if (end_of_result_) return false;
+
+  if (connection_->current_result_id == -1)
+  {
+    this->connection_->end_of_current_result(fiber_);
+  }
+
+  // std::cout << "read: fiber_.continuation_idx " << fiber_.continuation_idx << std::endl;
+  // std::cout << "connection_->current_result_id " << connection_->current_result_id << " this->result_id_ " << this->result_id_ << std::endl;
+
+  while (connection_->current_result_id != this->result_id_)
+  {
+    // std::cout << "read: fiber_.continuation_idx " << fiber_.continuation_idx << std::endl;
+    // std::cout << "connection_->current_result_id " << connection_->current_result_id << " this->result_id_ " << this->result_id_ << std::endl;
+    this->fiber_.yield();
+  }
+
+  // std::cout << "GO read: fiber_.continuation_idx " << fiber_.continuation_idx << std::endl;
+  // std::cout << "GO connection_->current_result_id " << connection_->current_result_id << " this->result_id_ " << this->result_id_ << std::endl;
+  assert(connection_->current_result_id == this->result_id_);
 
   if (!current_result_ || row_i_ == current_result_nrows_) {
-    if (current_result_) {
-      PQclear(current_result_);
-      current_result_ = nullptr;
-    }
-    current_result_ = wait_for_next_result();
-    if (!current_result_)
-      return false;
-    row_i_ = 0;
-    current_result_nrows_ = PQntuples(current_result_);
-    if (current_result_nrows_ == 0) {
-      PQclear(current_result_);
-      current_result_ = nullptr;
-      return false;
+
+    current_result_nrows_ = 0;
+    while (current_result_nrows_ == 0)
+    {
+      if (current_result_) {
+        PQclear(current_result_);
+        current_result_ = nullptr;
+      }
+
+      current_result_ = wait_for_next_result();
+      assert(connection_->current_result_id == this->result_id_);
+      if (!current_result_)
+      {
+        this->connection_->end_of_current_result(fiber_);
+        // std::cout << " connection_->current_result_id " << connection_->current_result_id << " this->result_id_: " << this->result_id_ << std::endl;
+        // assert(connection_->current_result_id != this->result_id_);
+        end_of_result_ = true; 
+        return false;
+      }
+      row_i_ = 0;
+      current_result_nrows_ = PQntuples(current_result_);
     }
 
     // Metamaps.
@@ -194,6 +239,16 @@ template <typename B> template <typename T> bool pgsql_result<B>::read(T&& outpu
         curent_result_field_types_[field_i] = PQftype(current_result_, field_i);
     }
   }
+  return true;
+}
+
+template <typename B> template <typename T> bool pgsql_result<B>::read(T&& output) {
+
+  if (!current_result_ && !this->fetch_next_result<T>(std::forward<T>(output))) return false;
+
+  assert(connection_->current_result_id == this->result_id_);
+
+  // std::cout << "got a row! " << std::endl;
 
   // Tuples
   if constexpr (is_tuple<T>::value) {
@@ -218,7 +273,7 @@ template <typename B> template <typename T> bool pgsql_result<B>::read(T&& outpu
   }
 
   this->row_i_++;
-
+  if (this->row_i_ == current_result_nrows_) this->fetch_next_result<T>(std::forward<T>(output));
   return true;
 }
 

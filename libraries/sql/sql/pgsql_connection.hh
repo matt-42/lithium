@@ -87,8 +87,11 @@ template <typename Y> struct pgsql_connection {
     }
 
     // flush results.
-    while (PGresult* ret = pg_wait_for_next_result(connection_, fiber_, data_->error_))
-      PQclear(ret);
+    // FIXME do we need to flush in batch mode ?
+    // while (PGresult* ret = pg_wait_for_next_result(connection_, fiber_, data_->error_))
+    //   PQclear(ret);
+
+    this->data_->batch_query(this->fiber_, true);
 
     auto pair = stm_cache_.emplace(rq, std::make_shared<pgsql_statement_data>(stmt_name));
     return pgsql_statement<Y>{data_, fiber_, *pair.first->second};

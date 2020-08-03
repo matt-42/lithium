@@ -13,12 +13,18 @@ public:
   // Read metamap and tuples.
   template <typename T> bool read(T&& t1);
   long long int last_insert_id();
+  
   // Flush all results.
   void flush_results();
 
+  // Fetch next result, used internally by read.
+  template <typename T> bool fetch_next_result(T&& output);
+
   std::shared_ptr<pgsql_connection_data> connection_;
   Y& fiber_;
+  int result_id_;
 
+  bool end_of_result_ = false;
   int last_insert_id_ = -1;
   int row_i_ = 0;
   int current_result_nrows_ = 0;
