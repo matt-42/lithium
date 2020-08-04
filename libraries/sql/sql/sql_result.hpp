@@ -78,7 +78,10 @@ template <typename B> template <typename F> void sql_result<B>::map(F map_functi
       return TP{};
   }();
 
+  // int i = 0; 
   while (this->read(t)) {
+    // println("read result ", i++);
+
     if constexpr (is_tuple<TP0>::value || is_metamap<TP0>::value)
       map_function(t);
     else

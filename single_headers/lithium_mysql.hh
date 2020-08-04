@@ -1475,6 +1475,16 @@ template <typename I> struct sql_result {
 
 
 namespace li {
+
+inline void println() { 
+  std::cout << std::endl; 
+}
+
+template <typename A, typename... T> inline void println(A &&a, T &&... args) {
+  std::cout << a << " ";
+  println(std::forward<T>(args)...);
+}
+
 template <typename T> struct is_tuple_after_decay : std::false_type {};
 template <typename... T> struct is_tuple_after_decay<std::tuple<T...>> : std::true_type {};
 
@@ -1564,7 +1574,10 @@ template <typename B> template <typename F> void sql_result<B>::map(F map_functi
       return TP{};
   }();
 
+  // int i = 0; 
   while (this->read(t)) {
+    // println("read result ", i++);
+
     if constexpr (is_tuple<TP0>::value || is_metamap<TP0>::value)
       map_function(t);
     else
@@ -2335,6 +2348,7 @@ template <typename I> struct sql_database {
       else {
         fiber.yield();
       }
+
       // if (!pool.connections.empty()) {
       //   // std::cout << "Try to reuse!" << std::endl;
       //   auto lock = [&pool, this] {
@@ -2375,7 +2389,7 @@ template <typename I> struct sql_database {
     
     // std::cout << "CONNECT!" << std::endl;
     auto sptr = std::shared_ptr<connection_data_type>(data, [pool, this](connection_data_type* data) {
-          // if (!data->error_ && pool.connections.size() < pool.max_connections) {
+          // if (!data->error_) { // && pool.connections.size() < pool.max_connections) {
           //   auto lock = [&pool, this] {
           //     if constexpr (std::is_same_v<Y, active_yield>)
           //       return std::lock_guard<std::mutex>(this->sync_connections_mutex_);
@@ -2388,8 +2402,8 @@ template <typename I> struct sql_database {
           //   if (pool.connections.size() >= pool.max_connections)
           //     std::cerr << "Error: connection pool size " << pool.connections.size()
           //               << " exceed pool max_connections " << pool.max_connections << std::endl;
-          //   pool.n_connections--;
-          //   delete data;
+          //   // pool.n_connections--;
+          //   // delete data;
           // }
         });
 
@@ -3012,12 +3026,12 @@ template <typename SCHEMA, typename C> struct sql_orm {
   // Update N's members except auto increment members.
   // N must have at least one primary key named id.
   // Only postgres is supported for now.
-  template <typename N, typename... CB> void bulk_update(const N& elements, CB&&... args) {
+  template <typename N, typename... CB> auto bulk_update(const N& elements, CB&&... args) {
 
-    if constexpr(!std::is_same<typename C::db_tag, pgsql_tag>::value)
-      for (const auto& o : elements)
-        this->update(o);
-    else
+    // if constexpr(!std::is_same<typename C::db_tag, pgsql_tag>::value)
+    //   for (const auto& o : elements)
+    //     this->update(o);
+    // else
     {
       
       auto stmt = con_.cached_statement([&] { 
@@ -3069,7 +3083,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
         call_callback(s::before_update, o, args...);
       }
 
-      stmt(elements).flush_results();
+      return stmt(elements);
     }
   }
 

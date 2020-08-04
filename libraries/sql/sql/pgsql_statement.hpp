@@ -163,7 +163,7 @@ sql_result<pgsql_result<Y>> pgsql_statement<Y>::operator()(T&&... args) {
 
   // this->connection_->batch_query(this->fiber_, true);
   int query_result_id = this->connection_->batch_query(this->fiber_);
-
+  // println("build result ", query_result_id);
   return sql_result<pgsql_result<Y>>{
       pgsql_result<Y>(this->connection_, this->fiber_, query_result_id)};
 }

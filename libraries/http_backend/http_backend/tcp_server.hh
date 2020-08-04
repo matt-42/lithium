@@ -369,17 +369,12 @@ struct async_reactor {
       {
         int fiber_id = defered_resume.front();
         defered_resume.pop_front();
-        // std::cout << " wakeup " << fiber_id << std::endl;
         assert(fiber_id < fibers.size());
         auto& fiber = fibers[fiber_id];
         if (fiber)
         {
-          // std::cout << " wakeup " << fiber_id << std::endl;
+          // std::cout << "wakeup " << fiber_id << std::endl; 
           fiber = fiber.resume();
-        }
-        else 
-        {
-          // std::cout << " not waking up " << fiber_id << std::endl;
         }
       }
 

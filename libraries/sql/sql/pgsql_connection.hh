@@ -75,6 +75,10 @@ template <typename Y> struct pgsql_connection {
       return pgsql_statement<Y>{data_, fiber_, *data_->statements_hashmap(f, keys...)};
   }
 
+  void end_of_batch() {
+    this->data_->send_end_batch();
+  }
+
   pgsql_statement<Y> prepare(const std::string& rq) {
     auto it = stm_cache_.find(rq);
     if (it != stm_cache_.end()) {

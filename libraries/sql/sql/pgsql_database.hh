@@ -118,6 +118,8 @@ struct pgsql_database_impl {
       return nullptr;
     }
 
+    // PQexec(connection, "SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED");
+
     if (PQbeginBatchMode(connection) == 0)
     {
       std::cerr << "PQbeginBatchMode error: Is the connection idle?" << std::endl;

@@ -17,10 +17,12 @@ template <typename Y> PGresult* pgsql_result<Y>::wait_for_next_result() {
 
 template <typename Y> void pgsql_result<Y>::flush_results() {
   if (end_of_result_) return;
-
+  // println("pgsql_result<Y>::flush_results ", this->result_id_);
   this->connection_->wait_for_result(fiber_, this->result_id_);
 
-  try {
+  // println("pgsql_result<Y>::flush_results result ready for flush.");
+
+  // try {
     if (current_result_)
     {
       PQclear(current_result_);
@@ -34,11 +36,12 @@ template <typename Y> void pgsql_result<Y>::flush_results() {
         PQclear(res);
       else break;
     }
-  } catch (typename Y::exception_type& e) {
-    // Forward fiber execptions.
-    throw std::move(e);
-  }
+  // } catch (typename Y::exception_type& e) {
+  //   // Forward fiber execptions.
+  //   throw std::move(e);
+  // }
 
+  // println("pgsql_result<Y>::flush_results OK ", this->result_id_);
   end_of_result_ = true; 
   this->connection_->end_of_current_result(fiber_);
 }
@@ -107,8 +110,8 @@ void pgsql_result<Y>::fetch_value(unsigned int& out, int field_i, Oid field_type
 
 template <typename B> template <typename T> bool pgsql_result<B>::fetch_next_result(T&& output) {
 
+  // println("pgsql_result<B>::fetch_next_result", this->result_id_);
   if (end_of_result_) return false;
-
   // std::cout << "read: fiber_.continuation_idx " << fiber_.continuation_idx << std::endl;
   // std::cout << "connection_->current_result_id " << connection_->current_result_id << " this->result_id_ " << this->result_id_ << std::endl;
 
@@ -119,7 +122,11 @@ template <typename B> template <typename T> bool pgsql_result<B>::fetch_next_res
   // std::cout << "GO connection_->current_result_id " << connection_->current_result_id << " this->result_id_ " << this->result_id_ << std::endl;
   assert(connection_->current_result_id == this->result_id_);
   // std::cout << "currently reading result " << this->result_id_ << std::endl;
-  if (!current_result_ || row_i_ == current_result_nrows_) {
+  if (current_result_ && row_i_ < current_result_nrows_ - 1)
+  {
+    this->row_i_++;
+  }
+  else {
 
     current_result_nrows_ = 0;
     while (current_result_nrows_ == 0)
@@ -131,6 +138,7 @@ template <typename B> template <typename T> bool pgsql_result<B>::fetch_next_res
 
       assert(connection_->current_result_id == this->result_id_);
       current_result_ = wait_for_next_result();
+      // println("got next result ", current_result_);
       // std::cout <<
       if (connection_->current_result_id != this->result_id_) 
       {
@@ -140,6 +148,8 @@ template <typename B> template <typename T> bool pgsql_result<B>::fetch_next_res
       assert(connection_->current_result_id == this->result_id_);
       if (!current_result_)
       {
+        current_result_nrows_ = 0;
+        row_i_ = 0;
         end_of_result_ = true; 
         this->connection_->end_of_current_result(fiber_);
         // std::cout << " connection_->current_result_id " << connection_->current_result_id << " this->result_id_: " << this->result_id_ << std::endl;
@@ -174,6 +184,11 @@ template <typename B> template <typename T> bool pgsql_result<B>::fetch_next_res
 
 template <typename B> template <typename T> bool pgsql_result<B>::read(T&& output) {
 
+  if (end_of_result_) return false;
+  // println("pgsql_result<B>::read");
+
+  // Just for the first row, we fetch the result.
+  // For the next calls fetch_next_result is called at the end of this function.
   if (!current_result_ && !this->fetch_next_result<T>(std::forward<T>(output))) return false;
 
   assert(connection_->current_result_id == this->result_id_);
@@ -202,8 +217,7 @@ template <typename B> template <typename T> bool pgsql_result<B>::read(T&& outpu
     });
   }
 
-  this->row_i_++;
-  if (this->row_i_ == current_result_nrows_) this->fetch_next_result<T>(std::forward<T>(output));
+  this->fetch_next_result<T>(std::forward<T>(output));
   return true;
 }
 

@@ -152,6 +152,7 @@ template <typename I> struct sql_database {
       else {
         fiber.yield();
       }
+
       // if (!pool.connections.empty()) {
       //   // std::cout << "Try to reuse!" << std::endl;
       //   auto lock = [&pool, this] {
@@ -192,7 +193,7 @@ template <typename I> struct sql_database {
     
     // std::cout << "CONNECT!" << std::endl;
     auto sptr = std::shared_ptr<connection_data_type>(data, [pool, this](connection_data_type* data) {
-          // if (!data->error_ && pool.connections.size() < pool.max_connections) {
+          // if (!data->error_) { // && pool.connections.size() < pool.max_connections) {
           //   auto lock = [&pool, this] {
           //     if constexpr (std::is_same_v<Y, active_yield>)
           //       return std::lock_guard<std::mutex>(this->sync_connections_mutex_);
@@ -205,8 +206,8 @@ template <typename I> struct sql_database {
           //   if (pool.connections.size() >= pool.max_connections)
           //     std::cerr << "Error: connection pool size " << pool.connections.size()
           //               << " exceed pool max_connections " << pool.max_connections << std::endl;
-          //   pool.n_connections--;
-          //   delete data;
+          //   // pool.n_connections--;
+          //   // delete data;
           // }
         });
 

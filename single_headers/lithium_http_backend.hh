@@ -2682,12 +2682,12 @@ template <typename SCHEMA, typename C> struct sql_orm {
   // Update N's members except auto increment members.
   // N must have at least one primary key named id.
   // Only postgres is supported for now.
-  template <typename N, typename... CB> void bulk_update(const N& elements, CB&&... args) {
+  template <typename N, typename... CB> auto bulk_update(const N& elements, CB&&... args) {
 
-    if constexpr(!std::is_same<typename C::db_tag, pgsql_tag>::value)
-      for (const auto& o : elements)
-        this->update(o);
-    else
+    // if constexpr(!std::is_same<typename C::db_tag, pgsql_tag>::value)
+    //   for (const auto& o : elements)
+    //     this->update(o);
+    // else
     {
       
       auto stmt = con_.cached_statement([&] { 
@@ -2739,7 +2739,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
         call_callback(s::before_update, o, args...);
       }
 
-      stmt(elements).flush_results();
+      return stmt(elements);
     }
   }
 
@@ -4054,17 +4054,12 @@ struct async_reactor {
       {
         int fiber_id = defered_resume.front();
         defered_resume.pop_front();
-        // std::cout << " wakeup " << fiber_id << std::endl;
         assert(fiber_id < fibers.size());
         auto& fiber = fibers[fiber_id];
         if (fiber)
         {
-          // std::cout << " wakeup " << fiber_id << std::endl;
+          // std::cout << "wakeup " << fiber_id << std::endl; 
           fiber = fiber.resume();
-        }
-        else 
-        {
-          // std::cout << " not waking up " << fiber_id << std::endl;
         }
       }
 

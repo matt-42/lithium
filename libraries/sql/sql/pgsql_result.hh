@@ -6,6 +6,42 @@
 namespace li {
 
 
+struct refcount {
+
+  refcount() : count_(nullptr) {}
+  refcount(const refcount& o) : count_(nullptr) {
+    assign(o);
+  }
+  const refcount& operator=(const refcount& o){
+    assign(o);
+    return *this;
+  }
+
+  ~refcount() {
+    if (!count_) return;
+
+    if (*count_ == 1) delete count_; 
+    else (*count_)--;
+    count_ = nullptr;
+  }
+
+  void assign(const refcount& o) {
+    if (count_) (*count_)--;
+
+    refcount& o2 = *const_cast<refcount*>(&o);
+    if (!o2.count_)
+    {
+      o2.count_ = new int(1);
+    }
+    count_ = o2.count_;
+    (*count_)++;
+  }
+
+  int count() { return count_ ? *count_ : 1; }
+
+  int* count_ = nullptr;
+};
+
 template <typename Y> struct pgsql_result {
 
 public:
@@ -14,28 +50,38 @@ public:
   int result_id_) : connection_(connection_), fiber_(fiber_), result_id_(result_id_) {
       // std::cout << " build result " << result_id_ << std::endl;
 
-    cleaner_ = std::shared_ptr<int>((int*)42,
-     [connection_, result_id_, this] (int* p) mutable {
-       this->cleanup();
+  }
+  ~pgsql_result() {  
+    if (this->refcount_.count() == 1) cleanup();
+  }
+
+  void cleanup() { 
+
       //delete p;
       // std::cout << " destroy result " << std::endl;
       // std::cout << " destroy result " << result_id_ << " this: " << this->result_id_ << std::endl;
-      if (this->end_of_result_) return;
+      if (this->end_of_result_) {
+        // println("destroy totally consumed result. ", this->result_id_);
+        return;
+      }
 
-      else if (connection_->current_result_id == result_id_)
+      // assert(this->current_result_);
+      else if (connection_->current_result_id == this->result_id_)
       {
+        // println("destroy result being read:", this->result_id_);
+        // println(this->current_result_);
+        // connection_->ignore_current_query_result();
         connection_->flush_current_query_result();
         connection_->end_of_current_result(this->fiber_, false);
       }
       else {
-        connection_->ignore_result(result_id_);
+        // println("will ignore future result because it is destroyed:", this->result_id_);
+        connection_->ignore_result(this->result_id_);
       }
-    });
 
+      if (this->current_result_) { PQclear(this->current_result_); this->current_result_ = nullptr; } 
+    
   }
-  ~pgsql_result() {  }
-
-  void cleanup() { if (current_result_) { PQclear(current_result_); current_result_ = nullptr; } }
 
   // Read metamap and tuples.
   template <typename T> bool read(T&& t1);
@@ -59,7 +105,7 @@ public:
   std::vector<Oid> curent_result_field_types_;
   std::vector<int> curent_result_field_positions_;
 
-  std::shared_ptr<int> cleaner_;
+  refcount refcount_;
 
 private:
 

@@ -1299,6 +1299,16 @@ template <typename I> struct sql_result {
 
 
 namespace li {
+
+inline void println() { 
+  std::cout << std::endl; 
+}
+
+template <typename A, typename... T> inline void println(A &&a, T &&... args) {
+  std::cout << a << " ";
+  println(std::forward<T>(args)...);
+}
+
 template <typename T> struct is_tuple_after_decay : std::false_type {};
 template <typename... T> struct is_tuple_after_decay<std::tuple<T...>> : std::true_type {};
 
@@ -1388,7 +1398,10 @@ template <typename B> template <typename F> void sql_result<B>::map(F map_functi
       return TP{};
   }();
 
+  // int i = 0; 
   while (this->read(t)) {
+    // println("read result ", i++);
+
     if constexpr (is_tuple<TP0>::value || is_metamap<TP0>::value)
       map_function(t);
     else
@@ -1963,12 +1976,12 @@ template <typename SCHEMA, typename C> struct sql_orm {
   // Update N's members except auto increment members.
   // N must have at least one primary key named id.
   // Only postgres is supported for now.
-  template <typename N, typename... CB> void bulk_update(const N& elements, CB&&... args) {
+  template <typename N, typename... CB> auto bulk_update(const N& elements, CB&&... args) {
 
-    if constexpr(!std::is_same<typename C::db_tag, pgsql_tag>::value)
-      for (const auto& o : elements)
-        this->update(o);
-    else
+    // if constexpr(!std::is_same<typename C::db_tag, pgsql_tag>::value)
+    //   for (const auto& o : elements)
+    //     this->update(o);
+    // else
     {
       
       auto stmt = con_.cached_statement([&] { 
@@ -2020,7 +2033,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
         call_callback(s::before_update, o, args...);
       }
 
-      stmt(elements).flush_results();
+      return stmt(elements);
     }
   }
 
