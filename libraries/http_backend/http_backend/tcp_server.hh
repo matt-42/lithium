@@ -210,7 +210,7 @@ struct async_reactor {
   std::vector<int> fd_to_fiber_idx;
   std::unique_ptr<ssl_context> ssl_ctx = nullptr;
   std::vector<std::function<void()>> defered_functions;
-  std::vector<int> defered_resume;
+  std::deque<int> defered_resume;
 
   continuation& fd_to_fiber(int fd) {
     assert(fd >= 0 and fd < fd_to_fiber_idx.size());
@@ -364,6 +364,25 @@ struct async_reactor {
         
       }
 
+      // Wakeup fibers if needed.
+      while (defered_resume.size())
+      {
+        int fiber_id = defered_resume.front();
+        defered_resume.pop_front();
+        // std::cout << " wakeup " << fiber_id << std::endl;
+        assert(fiber_id < fibers.size());
+        auto& fiber = fibers[fiber_id];
+        if (fiber)
+        {
+          // std::cout << " wakeup " << fiber_id << std::endl;
+          fiber = fiber.resume();
+        }
+        else 
+        {
+          // std::cout << " not waking up " << fiber_id << std::endl;
+        }
+      }
+
       // Call and Flush the defered functions.
       if (defered_functions.size())
       {
@@ -371,25 +390,7 @@ struct async_reactor {
           f();
         defered_functions.clear();
       }
-      // Wakeup fibers if needed.
-      if (defered_resume.size())
-      {
-        for (auto& fiber_id : defered_resume)
-        {
-          // std::cout << " wakeup " << fiber_id << std::endl;
-          assert(fiber_id < fibers.size());
-          auto& fiber = fibers[fiber_id];
-          if (fiber)
-          {
-            // std::cout << " wakeup " << fiber_id << std::endl;
-            fiber = fiber.resume();
-          }
-          else 
-            std::cout << " not waking up " << fiber_id << std::endl;
 
-        }
-        defered_resume.clear();
-      }
     }
     std::cout << "END OF EVENT LOOP" << std::endl;
     close(epoll_fd);

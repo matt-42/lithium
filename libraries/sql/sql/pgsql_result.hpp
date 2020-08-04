@@ -11,96 +11,25 @@
 
 namespace li {
 
-template <typename Y>
-PGresult* pg_wait_for_next_result(PGconn* connection, Y& fiber,
-                                  int& connection_status, bool nothrow = false) {
-  // std::cout << "WAIT ======================" << std::endl;
-  while (true) {
-    if (PQconsumeInput(connection) == 0)
-    {
-      connection_status = 1;          
-      if (!nothrow)
-        throw std::runtime_error(std::string("PQconsumeInput() failed: ") +
-                                 PQerrorMessage(connection));
-      else
-        std::cerr << "PQconsumeInput() failed: " << PQerrorMessage(connection) << std::endl;
-#ifdef DEBUG
-      assert(0);
-#endif
-    }
-
-    if (PQisBusy(connection)) {
-      // std::cout << "isbusy" << std::endl;
-      try {
-        fiber.yield();
-      } catch (typename Y::exception_type& e) {
-        // Free results.
-        // Yield thrown a exception (probably because a closed connection).
-        // Flush the remaining results.
-        while (true)
-        {
-          if (PQconsumeInput(connection) == 0)
-          {
-            connection_status = 1;
-            break;
-          }
-          if (!PQisBusy(connection))
-          {
-            PGresult* res = PQgetResult(connection);
-            if (res) PQclear(res);
-            else break;
-          }
-        }
-        throw std::move(e);
-      }
-    } else {
-      // std::cout << "notbusy" << std::endl;
-      PGresult* res = PQgetResult(connection);
-      auto status = PQresultStatus(res);
-      if (status == PGRES_FATAL_ERROR and PQerrorMessage(connection)[0] != 0)
-      {
-        PQclear(res);
-        connection_status = 1;          
-        if (!nothrow)
-          throw std::runtime_error(std::string("Postresql fatal error:") +
-                                  PQerrorMessage(connection));
-        else
-          std::cerr << "Postgresql FATAL error: " << PQerrorMessage(connection) << std::endl;
-#ifdef DEBUG
-        assert(0);
-#endif
-      }
-      else if (status == PGRES_NONFATAL_ERROR)
-      {
-        PQclear(res);
-        std::cerr << "Postgresql non fatal error: " << PQerrorMessage(connection) << std::endl;
-      }        
-      else if (status == PGRES_BATCH_ABORTED) {
-        PQclear(res);
-        std::cerr << "Postgresql batch aborted: " << PQerrorMessage(connection) << std::endl;        
-      }
-      return res;
-    }
-  }
-}
 template <typename Y> PGresult* pgsql_result<Y>::wait_for_next_result() {
-  return pg_wait_for_next_result(connection_->pgconn_, fiber_, connection_->error_);
+  return connection_->wait_for_next_result(fiber_);
 }
 
 template <typename Y> void pgsql_result<Y>::flush_results() {
   if (end_of_result_) return;
 
-  if (connection_->current_result_id == -1)
-    this->connection_->end_of_current_result(fiber_);
-
-  while (connection_->current_result_id != this->result_id_)
-    this->fiber_.yield();
+  this->connection_->wait_for_result(fiber_, this->result_id_);
 
   try {
+    if (current_result_)
+    {
+      PQclear(current_result_);
+      current_result_ = nullptr;
+    }
     while (true)
     {
       if (connection_->error_ == 1) break;
-      PGresult* res = pg_wait_for_next_result(connection_->pgconn_, fiber_, connection_->error_, true);
+      PGresult* res = connection_->wait_for_next_result(fiber_, true);
       if (res)
         PQclear(res);
       else break;
@@ -109,6 +38,9 @@ template <typename Y> void pgsql_result<Y>::flush_results() {
     // Forward fiber execptions.
     throw std::move(e);
   }
+
+  end_of_result_ = true; 
+  this->connection_->end_of_current_result(fiber_);
 }
 
 // Fetch a string from a result field.
@@ -177,25 +109,16 @@ template <typename B> template <typename T> bool pgsql_result<B>::fetch_next_res
 
   if (end_of_result_) return false;
 
-  if (connection_->current_result_id == -1)
-  {
-    this->connection_->end_of_current_result(fiber_);
-  }
-
   // std::cout << "read: fiber_.continuation_idx " << fiber_.continuation_idx << std::endl;
   // std::cout << "connection_->current_result_id " << connection_->current_result_id << " this->result_id_ " << this->result_id_ << std::endl;
 
-  while (connection_->current_result_id != this->result_id_)
-  {
-    // std::cout << "read: fiber_.continuation_idx " << fiber_.continuation_idx << std::endl;
-    // std::cout << "connection_->current_result_id " << connection_->current_result_id << " this->result_id_ " << this->result_id_ << std::endl;
-    this->fiber_.yield();
-  }
+  // if (!current_result_)
+  connection_->wait_for_result(fiber_, this->result_id_);
 
   // std::cout << "GO read: fiber_.continuation_idx " << fiber_.continuation_idx << std::endl;
   // std::cout << "GO connection_->current_result_id " << connection_->current_result_id << " this->result_id_ " << this->result_id_ << std::endl;
   assert(connection_->current_result_id == this->result_id_);
-
+  // std::cout << "currently reading result " << this->result_id_ << std::endl;
   if (!current_result_ || row_i_ == current_result_nrows_) {
 
     current_result_nrows_ = 0;
@@ -206,14 +129,21 @@ template <typename B> template <typename T> bool pgsql_result<B>::fetch_next_res
         current_result_ = nullptr;
       }
 
+      assert(connection_->current_result_id == this->result_id_);
       current_result_ = wait_for_next_result();
+      // std::cout <<
+      if (connection_->current_result_id != this->result_id_) 
+      {
+        std::cout << " in fetch_next_result: fiberid " << fiber_.continuation_idx << std::endl;
+        std::cout << " connection_->current_result_id " << connection_->current_result_id << " this->result_id_: " << this->result_id_ << std::endl;
+      }
       assert(connection_->current_result_id == this->result_id_);
       if (!current_result_)
       {
+        end_of_result_ = true; 
         this->connection_->end_of_current_result(fiber_);
         // std::cout << " connection_->current_result_id " << connection_->current_result_id << " this->result_id_: " << this->result_id_ << std::endl;
         // assert(connection_->current_result_id != this->result_id_);
-        end_of_result_ = true; 
         return false;
       }
       row_i_ = 0;

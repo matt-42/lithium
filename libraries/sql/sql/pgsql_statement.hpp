@@ -91,6 +91,25 @@ void pgsql_statement<Y>::bind_param(const T& m, const char** values, int* length
 
 template <typename Y>
 template <typename T>
+void pgsql_statement<Y>::free_bind_param(const T& m, const char** values) {
+  if constexpr (is_metamap<std::decay_t<decltype(m)>>::value) {
+    int i = 0;
+    li::map(m, [&](auto k, const auto& m) {
+      free_bind_param(m, values + i);
+      i++;
+    });
+  } else if constexpr (std::is_same<std::decay_t<decltype(m)>, std::string>::value or
+                       std::is_same<std::decay_t<decltype(m)>, std::string_view>::value) {
+  } else if constexpr (std::is_same<std::remove_reference_t<decltype(m)>, const char*>::value) {
+  } else if constexpr (std::is_same<std::decay_t<decltype(m)>, int>::value) {
+    delete *values;
+  } else if constexpr (std::is_same<std::decay_t<decltype(m)>, long long int>::value) {
+    delete *values;
+  }
+}
+
+template <typename Y>
+template <typename T>
 unsigned int pgsql_statement<Y>::bind_compute_nparam(const T& arg) {
   return 1;
 }
@@ -133,6 +152,12 @@ sql_result<pgsql_result<Y>> pgsql_statement<Y>::operator()(T&&... args) {
     throw std::runtime_error(std::string("Postresql error:") + PQerrorMessage(connection_->pgconn_));
   }
 
+  i = 0;
+  tuple_map(std::forward_as_tuple(args...), [&](const auto& a) {
+    free_bind_param(a, values + i);
+    i += bind_compute_nparam(a);
+  });
+
   // Not calling pqflush seems to work aswell...
   // connection_->flush(this->fiber_);
 
@@ -140,7 +165,7 @@ sql_result<pgsql_result<Y>> pgsql_statement<Y>::operator()(T&&... args) {
   int query_result_id = this->connection_->batch_query(this->fiber_);
 
   return sql_result<pgsql_result<Y>>{
-      pgsql_result<Y>{this->connection_, this->fiber_, query_result_id}};
+      pgsql_result<Y>(this->connection_, this->fiber_, query_result_id)};
 }
 
 // FIXME long long int affected_rows() { return pgsql_stmt_affected_rows(data_.stmt_); }

@@ -28,6 +28,9 @@ public:
 
 private:
 
+  template <typename T>
+  void free_bind_param(const T& m, const char** values);
+  
   // Bind statement param utils.
   template <unsigned N>
   void bind_param(sql_varchar<N>&& m, const char** values, int* lengths, int* binary);

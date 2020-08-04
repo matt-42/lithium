@@ -2303,7 +2303,7 @@ template <typename I> struct sql_database {
     }();
 
     connection_data_type* data = nullptr;
-    bool reuse = false;
+    // bool reuse = false;
     // std::cout << "Try CONNECT!" << std::endl;
     while (!data) {
 
@@ -2878,16 +2878,19 @@ template <typename SCHEMA, typename C> struct sql_orm {
         return ss.str();
     });
 
-    O result;
-    bool read_success = li::tuple_reduce(metamap_values(where), stmt).template read(metamap_values(result));
-    if (read_success)
-    {
-      call_callback(s::read_access, result, cb_args...);
-      return std::make_optional<O>(std::move(result));
-    }
-    else {
-      return std::optional<O>{};
-    }
+    return [=, query=li::tuple_reduce(metamap_values(where), stmt)] () mutable {
+      O result;
+      bool read_success = query.template read(metamap_values(result));
+      if (read_success)
+      {
+        call_callback(s::read_access, result, cb_args...);
+        return std::make_optional<O>(std::move(result));
+      }
+      else {
+        return std::optional<O>{};
+      }
+    };
+
   }
 
   template <typename A, typename B, typename... O, typename... W>

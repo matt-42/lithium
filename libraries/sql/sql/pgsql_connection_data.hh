@@ -1,6 +1,18 @@
 #pragma once
 
+
+
 #include <li/sql/type_hashmap.hh>
+
+#define PRINT(X) std::cout << #X << ": " << X << std::endl;
+inline void println() { 
+  std::cout << std::endl; 
+}
+
+template <typename A, typename... T> inline void println(A &&a, T &&... args) {
+  std::cout << a;
+  println(std::forward<T>(args)...);
+}
 
 namespace li
 {
@@ -38,33 +50,146 @@ struct pgsql_connection_data {
     }
   }
 
+  void flush_current_query_result() {
+    // println("flush_current_query_result ", current_result_id);
+    while (true)
+    {
+      if (PQconsumeInput(pgconn_) == 0)
+      {
+        error_ = 1;
+        break;
+      }
+      if (!PQisBusy(pgconn_))
+      {
+        PGresult* res = PQgetResult(pgconn_);
+        if (res) PQclear(res);
+        else break;
+      }
+    }
+  }
+
+  void ignore_next_query_of_fiber(int fiber_id) {
+    for (auto& q : batched_queries)
+      if (q.fiber_id == fiber_id)
+        q.ignore_result = true;
+  }
+  void ignore_result(int result_id) {
+    for (int i = batched_queries.size() - 1; i >= 0; i--)
+      if (batched_queries[i].result_id == result_id)
+      {
+        batched_queries[i].ignore_result = true;
+        return;
+      }
+
+    // println("ignore_result error: result does not exists: ", result_id);
+    // assert(0);
+
+  }
+
+  template <typename Y>
+  PGresult* wait_for_next_result(Y& fiber, bool nothrow = false, bool async = true) {
+    // std::cout << "WAIT ======================" << std::endl;
+    while (true) {
+      if (PQconsumeInput(pgconn_) == 0)
+      {
+        error_ = 1;          
+        if (!nothrow)
+          throw std::runtime_error(std::string("PQconsumeInput() failed: ") +
+                                  PQerrorMessage(pgconn_));
+        else
+          std::cerr << "PQconsumeInput() failed: " << PQerrorMessage(pgconn_) << std::endl;
+        assert(0);
+      }
+
+      if (PQisBusy(pgconn_)) {
+        // std::cout << "isbusy" << std::endl;
+        try {
+          if (async) {
+            fiber.reassign_fd_to_fiber(PQsocket(pgconn_), fiber.continuation_idx);
+            fiber.yield();
+          }
+        } catch (typename Y::exception_type& e) {
+          // std::cout << "wait for next result ERROR WITH fiber " << fiber.continuation_idx << std::endl;
+
+          // Free results.
+          // Yield thrown a exception (probably because a closed connection).
+          // Ignore batched result of this fiber.
+          //this->ignore_next_query_of_fiber(fiber.continuation_idx);
+
+          // Flush the remaining result of this query.
+          // this->flush_current_query_result();
+
+          // // Go to the next result.
+          // end_of_current_result(fiber);
+
+          throw std::move(e);
+        }
+      } else {
+        // std::cout << "notbusy" << std::endl;
+        PGresult* res = PQgetResult(pgconn_);
+        auto status = PQresultStatus(res);
+        if (status == PGRES_FATAL_ERROR and PQerrorMessage(pgconn_)[0] != 0)
+        {
+          PQclear(res);
+          error_ = 1;          
+          if (!nothrow)
+            throw std::runtime_error(std::string("Postresql fatal error:") +
+                                    PQerrorMessage(pgconn_));
+          else
+            std::cerr << "Postgresql FATAL error: " << PQerrorMessage(pgconn_) << std::endl;
+
+          assert(0);
+        }
+        else if (status == PGRES_NONFATAL_ERROR)
+        {
+          PQclear(res);
+          std::cerr << "Postgresql non fatal error: " << PQerrorMessage(pgconn_) << std::endl;
+        }        
+        else if (status == PGRES_BATCH_ABORTED) {
+          PQclear(res);
+          std::cerr << "Postgresql batch aborted: " << PQerrorMessage(pgconn_) << std::endl;        
+        }
+        return res;
+      }
+    }
+  }
   struct batch_query_info {int fiber_id; int result_id; bool ignore_result; bool is_batch_end=false; };
 
+  void send_end_batch() {
+      // println("PQsendEndBatch"); 
+      if (0 == PQsendEndBatch(this->pgconn_))
+        std::cerr << "PQsendEndBatch error"  << std::endl; 
+      int result_id = this->next_result_id++;// batched_queries.size() == 0 ? 1 : batched_queries.back().result_id + 1;
+      batched_queries.push_back(batch_query_info{0, result_id, true, true});
+  }
   // Go to next batched query result
   template <typename Y>
   int batch_query(Y& fiber, bool ignore_result = false) {
-    // std::cout << "batch query " << ignore_result << std::endl; 
-    int result_id = next_result_id++;//batched_queries.size() == 0 ? 1 : batched_queries.back().result_id + 1;
-    batched_queries.push_back(batch_query_info{fiber.continuation_idx, result_id, ignore_result});
-    // std::cout << "PQqueriesInBatch(pgconn_) " << PQqueriesInBatch(pgconn_) << " batched_queries.size() " << batched_queries.size() << std::endl; 
-    // assert(PQqueriesInBatch(pgconn_) == batched_queries.size());
-    // if (batched_queries.size() == 1)
+    // if (!result_processing_in_progress_ && batched_queries.size() > 100)
     // {
-    //     std::cout << "PQsendEndBatch" << std::endl; 
-    //     if (0 == PQsendEndBatch(this->pgconn_))
-    //       std::cerr << "PQsendEndBatch error"  << std::endl; 
+    //   println(" flush ", batched_queries.size());
+    //   // fiber.reassign_fd_to_fiber(PQsocket(pgconn_), fiber.continuation_idx);
+    //   this->send_end_batch();
+    //   this->flush_ignored_results(fiber);
     // }
+
+    int result_id = next_result_id++;//batched_queries.size() == 0 ? 1 : batched_queries.back().result_id + 1;
+    // println("batch query ", result_id, " ignore: ", ignore_result);
+    batched_queries.push_back(batch_query_info{fiber.continuation_idx, result_id, ignore_result});
+    // std::cout << " batched_queries " << batched_queries.size() << std::endl; 
     if (!end_batch_defered)
     {
       end_batch_defered = true;
       // std::cout << "defer endbatch" << std::endl;
       fiber.defer([this] { 
-        // std::cout << "PQsendEndBatch" << std::endl; 
-        if (0 == PQsendEndBatch(this->pgconn_))
-          std::cerr << "PQsendEndBatch error"  << std::endl; 
-        int result_id = this->next_result_id++;// batched_queries.size() == 0 ? 1 : batched_queries.back().result_id + 1;
-        batched_queries.push_back(batch_query_info{0, result_id, true, true});
         end_batch_defered = false;
+        this->send_end_batch();
+        // if (!result_processing_in_progress_ && batched_queries.size())
+        // {
+        //   std::cout << " resuming processing " << batched_queries.size() << std::endl;
+        //   this->end_of_current_result(fiber);
+        // }
+
         // std::cout << "PQqueriesInBatch(pgconn_) " << PQqueriesInBatch(pgconn_) << " batched_queries.size() " << batched_queries.size() << std::endl; 
         // assert(PQqueriesInBatch(pgconn_) == batched_queries.size());
 
@@ -77,69 +202,140 @@ struct pgsql_connection_data {
     return result_id;
   }
 
+  inline void pq_get_next_query() {
+    // println("pq_get_next_query");
+    if (0 == PQgetNextQuery(pgconn_))
+    {
+      std::cerr << "PQgetNextQuery error : " <<  PQerrorMessage(pgconn_) << std::endl;
+      assert(0);
+      throw std::runtime_error(std::string("PQgetNextQuery error : ") + PQerrorMessage(pgconn_));
+    }
+  }
+
+  template <typename Y>
+  void flush_ignored_results(Y& fiber, bool async = true) {
+
+    // println("flush_ignored_results");
+
+    assert(!result_processing_in_progress_);
+    
+    result_processing_in_progress_ = true;
+    // println(" flush_ignored_results: result_processing_in_progress_ = true");
+
+    while (batched_queries.size() > 0 && batched_queries.front().ignore_result) {
+      assert(batched_queries.front().ignore_result);
+
+      auto query = batched_queries.front();
+      // println(" ignore ", batched_queries.front().result_id);
+      this->current_result_id = query.result_id;
+      batched_queries.pop_front();
+
+      // std::cout << "PQgetNextQuery" << std::endl; 
+      this->pq_get_next_query();
+
+      // std::cout << "ignore result " << std::endl;
+      while (true)
+      {
+        // println("wait one result");
+        PGresult* res = this->wait_for_next_result(fiber, false, async);
+        // println("one result ok");
+        if (res)
+        {
+          // if (query.is_batch_end) println("got PGRES_BATCH_END");
+          assert(!query.is_batch_end || PQresultStatus(res) == PGRES_BATCH_END);
+          PQclear(res);
+        }
+        else break;
+      }
+    }
+    // println("end flush_ignored_results");
+
+    result_processing_in_progress_ = false;
+  }
+
   // The current result is totally consumed. Go to the next one.
   template <typename Y>
-  void end_of_current_result(Y& fiber) {
-    // std::cout << " end_of_current_result fiber " << fiber.continuation_idx << std::endl;
-    if (batched_queries.size() == 0) 
+  void end_of_current_result(Y& fiber, bool async = true) {
+    // println("end_of_current_result");
+    // assert(result_processing_in_progress_);
+    result_processing_in_progress_ = false;
+
+    // Ignored result.
+    flush_ignored_results(fiber, async);
+
+    if (batched_queries.size() > 0)
     {
-      // std::cout << "queue empty" << std::endl; 
-      current_result_id = -1;        
-      return;
-    }
-
-    // Get next query.
-    bool ignore_result = true;
-    while (ignore_result == true && batched_queries.size() > 0) {
-      // std::cout << "PQgetNextQuery" << std::endl; 
-      if (0 == PQgetNextQuery(pgconn_))
-      {
-        std::cerr << "PQgetNextQuery error : " <<  PQerrorMessage(pgconn_) << std::endl;
-        throw std::runtime_error(std::string("PQgetNextQuery error : ") + PQerrorMessage(pgconn_));
-      }
-      ignore_result = batched_queries.front().ignore_result;
+      assert(!batched_queries.front().ignore_result);
+      this->pq_get_next_query();
       this->current_result_id = batched_queries.front().result_id;
+      // std::cout << "current_result_id = " << current_result_id << std::endl; 
 
-      if (batched_queries.front().is_batch_end)
+      // Wake up the fiber waiting for this query if not the calling one.
+      if (batched_queries.front().fiber_id != fiber.continuation_idx)
       {
-        PGresult* res = pg_wait_for_next_result(pgconn_, fiber, error_, false);
-        assert(res);
-        assert(PQresultStatus(res) == PGRES_BATCH_END);
-        PQclear(res);
-      }
-      else if (ignore_result)
-        {
-          // std::cout << "ignore result " << std::endl;
-          while (true)
-          {
-            PGresult* res = pg_wait_for_next_result(pgconn_, fiber, error_, false);
-            if (res)
-              PQclear(res);
-            else break;
-          }
-        }
-      else
-      {
-        // Wake up the fiber waiting for this query if not the calling one.
-        if (batched_queries.front().fiber_id != fiber.continuation_idx)
-        {
-          // std::cout << " Next fiber to read result is " << batched_queries.front().fiber_id << " with result id " << this->current_result_id << std::endl;
-          fiber.reassign_fd_to_fiber(PQsocket(pgconn_), batched_queries.front().fiber_id);
-          fiber.defer_fiber_resume(batched_queries.front().fiber_id);
-        }
+        // std::cout << " Next fiber to read result is " << batched_queries.front().fiber_id << " with result id " << this->current_result_id << std::endl;
+        // fiber.reassign_fd_to_fiber(PQsocket(pgconn_), batched_queries.front().fiber_id);
+        fiber.defer_fiber_resume(batched_queries.front().fiber_id);
       }
       batched_queries.pop_front();
-      // assert(PQqueriesInBatch(pgconn_) == batched_queries.size());
-      // std::cout << "PQqueriesInBatch(pgconn_) " << PQqueriesInBatch(pgconn_) << " batched_queries.size() " << batched_queries.size() << std::endl; 
-    };
-
-    if (batched_queries.size() == 0 && ignore_result) 
+    }
+    else
     {
       // std::cout << "current_result_id = -1" << std::endl; 
       current_result_id = -1;        
-      return;
     }
 
+    // Ready for processing next result.
+    // println(" end of result: result_processing_in_progress_ = false");
+
+    result_processing_in_progress_ = false;
+
+  }
+
+  template <typename Y>
+  void wait_for_result(Y& fiber, int result_id) {
+    if (current_result_id == result_id) return;
+    
+    // println("wait_for_result current_result_id: ", current_result_id);
+    if (current_result_id == -1)// || !result_processing_in_progress_)
+    {
+      // this->flush_ignored_results(fiber);
+      // this->pg_get_next_query();
+      this->end_of_current_result(fiber);
+    }
+    
+    while (current_result_id != result_id)
+    {
+      try {
+        fiber.yield();
+      }
+      catch (typename Y::exception_type& e) {
+        // std::cout << "wait for next query ERROR WITH fiber " << fiber.continuation_idx << std::endl;
+        // for (auto& q : batched_queries)
+        //   if (q.fiber_id == fiber.continuation_idx)
+        //     q.ignore_result = true;
+
+        // // Flush the remaining results.
+        // this->flush_current_query_result();
+
+        // // Go to the next result.
+        // end_of_current_result(fiber);
+
+        // Forward fiber execptions.
+        throw std::move(e);
+      }
+    }
+    // assert(!result_processing_in_progress_);
+    // Flush any ignored result.
+    // flush_ignored_results(fiber);
+
+    // println(" PQ GET NEXT QUERY ", current_result_id);
+    // this->pq_get_next_query();
+    // println("wait for result done.");
+
+    assert(!result_processing_in_progress_);
+    // println(" wait for result: result_processing_in_progress_ = true");
+    result_processing_in_progress_ = true;
   }
 
   PGconn* pgconn_ = nullptr;
@@ -151,6 +347,7 @@ struct pgsql_connection_data {
   int error_ = 0;
   int next_result_id = 1;
   bool end_batch_defered = false;
+  bool result_processing_in_progress_ = false;
 };
 
 }

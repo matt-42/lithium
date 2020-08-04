@@ -120,7 +120,7 @@ template <typename I> struct sql_database {
     }();
 
     connection_data_type* data = nullptr;
-    bool reuse = false;
+    // bool reuse = false;
     // std::cout << "Try CONNECT!" << std::endl;
     while (!data) {
 
