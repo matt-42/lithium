@@ -2316,9 +2316,12 @@ template <typename I> struct sql_database {
     }();
 
     connection_data_type* data = nullptr;
-    // bool reuse = false;
+    bool reuse = false;
     // std::cout << "Try CONNECT!" << std::endl;
     while (!data) {
+
+#define SHARED_CONNECTION_BETWEEN_FIBER
+#ifdef SHARED_CONNECTION_BETWEEN_FIBER
 
       // std::cout << pool.connections.size() << " " << pool.n_connections << " " <<  pool.max_connections << std::endl; 
       if (pool.n_connections < pool.max_connections) {
@@ -2349,39 +2352,41 @@ template <typename I> struct sql_database {
         fiber.yield();
       }
 
-      // if (!pool.connections.empty()) {
-      //   // std::cout << "Try to reuse!" << std::endl;
-      //   auto lock = [&pool, this] {
-      //     if constexpr (std::is_same_v<Y, active_yield>)
-      //       return std::lock_guard<std::mutex>(this->sync_connections_mutex_);
-      //     else return 0;
-      //   }();
-      //   data = pool.connections.back();
-      //   // pool.connections.pop_back();
-      //   reuse = true;
-      // } else {
-      //   if (pool.n_connections >= pool.max_connections) {
-      //     if constexpr (std::is_same_v<Y, active_yield>)
-      //       throw std::runtime_error("Maximum number of sql connection exeeded.");
-      //     else
-      //       std::cout << "Waiting for a free sql connection..." << std::endl;
-      //       fiber.yield();
-      //     continue;
-      //   }
-      //   pool.n_connections++;
+#else
+      if (!pool.connections.empty()) {
+        // std::cout << "Try to reuse!" << std::endl;
+        auto lock = [&pool, this] {
+          if constexpr (std::is_same_v<Y, active_yield>)
+            return std::lock_guard<std::mutex>(this->sync_connections_mutex_);
+          else return 0;
+        }();
+        data = pool.connections.back();
+        // pool.connections.pop_back();
+        reuse = true;
+      } else {
+        if (pool.n_connections >= pool.max_connections) {
+          if constexpr (std::is_same_v<Y, active_yield>)
+            throw std::runtime_error("Maximum number of sql connection exeeded.");
+          else
+            std::cout << "Waiting for a free sql connection..." << std::endl;
+            fiber.yield();
+          continue;
+        }
+        pool.n_connections++;
 
-      //   try {
-      //     data = impl.new_connection(fiber);
-      //   } catch (typename Y::exception_type& e) {
-      //     pool.n_connections--;
-      //     throw std::move(e);
-      //   }
+        try {
+          data = impl.new_connection(fiber);
+        } catch (typename Y::exception_type& e) {
+          pool.n_connections--;
+          throw std::move(e);
+        }
 
-      //   if (!data)
-      //     pool.n_connections--;
-      //   else
-      //     pool.connections.push_back(data);
-      // }
+        if (!data)
+          pool.n_connections--;
+        else
+          pool.connections.push_back(data);
+      }
+#endif
     }
 
     assert(data);
@@ -2389,6 +2394,7 @@ template <typename I> struct sql_database {
     
     // std::cout << "CONNECT!" << std::endl;
     auto sptr = std::shared_ptr<connection_data_type>(data, [pool, this](connection_data_type* data) {
+#ifndef SHARED_CONNECTION_BETWEEN_FIBER
           // if (!data->error_) { // && pool.connections.size() < pool.max_connections) {
           //   auto lock = [&pool, this] {
           //     if constexpr (std::is_same_v<Y, active_yield>)
@@ -2405,11 +2411,13 @@ template <typename I> struct sql_database {
           //   // pool.n_connections--;
           //   // delete data;
           // }
+#endif
         });
 
-    // if (reuse) 
-    //   fiber.epoll_add(impl.get_socket(sptr), EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
-
+#ifndef SHARED_CONNECTION_BETWEEN_FIBER
+    if (reuse) 
+      fiber.epoll_add(impl.get_socket(sptr), EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
+#endif
     return impl.scoped_connection(fiber, sptr);
   }
 

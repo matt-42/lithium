@@ -165,8 +165,10 @@ auto make_api() {
     std::vector<decltype(orm.find_one(s::id = 1 + rand() % 99))> results;
     for (int i = 0; i < N; i++)
       results.push_back(orm.find_one(s::id = 1 + rand() % 99));
-    for (int i = 0; i < N; i++)
+    for (int i = 0; i < N; i++){
+      // println(" read result " , i);
       numbers[i] = results[i]().value();
+    }
     return numbers;
   };
 
@@ -235,45 +237,123 @@ auto make_api() {
     // std::vector<decltype(random_numbers.all_fields())> numbers;
 
     auto c = random_numbers.connect(request.fiber);
+    // auto c2 = random_numbers.connect(request.fiber);
+    
+    // std::vector<decltype(random_numbers.all_fields())> numbers(N);
+    auto numbers = select_N_random_numbers(c, N);
+    // {
+    //   std::vector<decltype(c.find_one(s::id = 1))> results;
+    //   // println("REQS==========================");
+    //   int id = 0;
+    //   for (int i = 0; i < N; i++)
+    //   {
+    //     id += 1 + rand() % 3;
+    //     // id = 1 + rand() % 99;
+    //     // println(id);
+    //     numbers[i].id = id;
+    //     results.push_back(c.find_one(s::id = id));
+    //   }
+    //   for (int i = 0; i < N; i++)
+    //   {
+    //     auto res = results[i]();
+    //     if (!res.has_value()) println(" error: find one result has no value:",i);
+    //     numbers[i] = *res;
+    //   }
+    // }
 
-    std::vector<decltype(random_numbers.all_fields())> numbers(N);
-    {
-      std::vector<decltype(c.find_one(s::id = 1 + rand() % 99))> results;
-      for (int i = 0; i < N; i++)
-      {
-        numbers[i].id = 1 + rand() % 99;
-        results.push_back(c.find_one(s::id = numbers[i].id));
-      }
-      for (int i = 0; i < N; i++)
-        results[i]();
-    }
-
-    // numbers = select_N_random_numbers(c, N);
+    // // numbers = select_N_random_numbers(c, N);
 
     for (int i = 0; i < N; i++)
     {
+      // numbers[i].id = i + 1;
       numbers[i].randomNumber = 1 + rand() % 99;
     }
 
+    // println("IDS==========================");
+    // // std::vector<int> ids(N);
+    // for (int i = 0; i < N; i++) 
+    // {
+    //   println(numbers[i].id);
+    //   // ids[i] = numbers[i].id;
+    // }
+
+    // c.find_one(s::id = 12)();
     std::sort(numbers.begin(), numbers.end(), [](auto a, auto b) { return a.id < b.id; });
 
+    // for (int i = 0; i < N - 1; i++) 
+    // {
+    //   if (numbers[i].id >= numbers[i].id +1) println("ERROR IN ORDER");
+    // }
+    // for (auto& n : numbers)
+
+    // std::vector<decltype(random_numbers.all_fields())> uniq_numbers;
+    // for (auto& n : numbers)
+    // {
+    //   if (!uniq_numbers.size() || n.id != uniq_numbers.back().id)
+    //     uniq_numbers.push_back(n);
+    // }
     // auto c2 = sql_db.connect(request.fiber);
     // std::cout << numbers[0].id << std::endl;
-    // c2.cached_statement([] { return "UPDATE world SET randomNumber = 42 where id = $1"; })(numbers[0].id);
+    // println("UPDATE STATEMENT");
+    // numbers[0].id = 1;
+    // c.update(numbers[0]);
+    // c2.cached_statement([] { return "INSERT INTO world(randomNumber) VALUES (42)"; })().flush_results();
+    // c.backend_connection().cached_statement([] { return "UPDATE world SET randomNumber = 42 where id = $1"; })(1).flush_results();
 #ifdef BENCH_MYSQL
     for (int i = 0; i < N; i++)
       c.update(numbers[i]);
 #else
+    // c.backend_connection().cached_statement([] {return "BEGIN";})();
+    // c.backend_connection().cached_statement([] {return "SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED";})();
+    // c.backend_connection().cached_statement([] {return "BEGIN TRANSACTION ISOLATION LEVEL READ UNCOMMITTED";})();
     // c.update(numbers[0]);
     // for (int i = 0; i < N; i++)
     //   c.update(numbers[i]);
-    c.bulk_update(numbers);
+    // std::vector<int> ids(N);
+    // for (int i = 0; i < N; i++) 
+    //   ids[i] = numbers[i].id;
+    // c.backend_connection().cached_statement([&] { 
+
+    //   std::stringstream ss;
+    //   ss << "UPDATE world SET randomNumber = case id ";
+    //   for (int i = 0; i < N; i++)
+    //     ss << " when $" << i*2+1 << " then $" << i*2+2;
+    //   ss << " else randomNumber  end where id in (";
+    //   for (int i = 0; i < N; i++)
+    //   {
+    //     ss << "$" << 2*N+i + 1;
+    //     if (i < N - 1) ss << ",";
+    //   }
+    //   ss << ")";
+    //   std::cout << ss.str() << std::endl;
+    //   return ss.str();
+    // }, N)(numbers, ids);
+    // auto tmp = c.bulk_update(numbers);
+    // c.backend_connection().end_of_batch();
+      // for (int i = 0; i < N; i++)
+      //   c.update(numbers[i]);
+    auto tmp = c.bulk_update(numbers);
+    // c.backend_connection().end_of_batch();
+    // tmp.flush_results();
+    // auto tmp = c.backend_connection().cached_statement([] { return "SELECT 1"; })();
+
+    // c.backend_connection().cached_statement([] {return "COMMIT";})();
+    // c.backend_connection().prepare("COMMIT")();
+    // tmp.flush_results();
+    // println("IDS==========================");
+    // std::vector<int> ids(N);
+    // for (int i = 0; i < N; i++) 
+    // {
+    //   // println(numbers[i].id);
+    //   ids[i] = numbers[i].id;
+    // }
+
 
 #endif
-    // c.backend_connection().data_->send_end_batch();
 
     // std::cout << raw_c.prepare("select randomNumber from World where
     // id=$1")(numbers[0].id).read<int>() << " " << numbers[0].randomNumber << std::endl;
+    // response.write("hello");
     response.write_json(numbers);
   };
 

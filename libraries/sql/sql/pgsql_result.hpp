@@ -140,10 +140,10 @@ template <typename B> template <typename T> bool pgsql_result<B>::fetch_next_res
       current_result_ = wait_for_next_result();
       // println("got next result ", current_result_);
       // std::cout <<
-      if (connection_->current_result_id != this->result_id_) 
+      if (connection_->current_result_id_ != this->result_id_) 
       {
         std::cout << " in fetch_next_result: fiberid " << fiber_.continuation_idx << std::endl;
-        std::cout << " connection_->current_result_id " << connection_->current_result_id << " this->result_id_: " << this->result_id_ << std::endl;
+        std::cout << " connection_->current_result_id " << connection_->current_result_id_ << " this->result_id_: " << this->result_id_ << std::endl;
       }
       assert(connection_->current_result_id == this->result_id_);
       if (!current_result_)

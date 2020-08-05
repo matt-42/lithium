@@ -66,7 +66,7 @@ public:
       }
 
       // assert(this->current_result_);
-      else if (connection_->current_result_id == this->result_id_)
+      else if (connection_->current_result_id_ == this->result_id_)
       {
         // println("destroy result being read:", this->result_id_);
         // println(this->current_result_);
