@@ -75,8 +75,14 @@ template <typename Y> struct pgsql_connection {
       return pgsql_statement<Y>{data_, fiber_, *data_->statements_hashmap(f, keys...)};
   }
 
-  void end_of_batch() {
+  inline void end_of_batch() {
     this->data_->send_end_batch();
+  }
+
+  inline int batch_queue_size(Y& fiber) {
+    if (this->data_->current_result_id_ == -1)
+      this->data_->flush_ignored_results(fiber);
+    return this->data_->batched_queries.size();
   }
 
   pgsql_statement<Y> prepare(const std::string& rq) {

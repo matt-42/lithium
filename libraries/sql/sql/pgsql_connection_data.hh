@@ -78,6 +78,7 @@ struct pgsql_connection_data {
   }
   void ignore_result(int result_id) {
     for (int i = batched_queries.size() - 1; i >= 0; i--)
+    // for (int i = 0; i < batched_queries.size(); i++)
       if (batched_queries[i].result_id == result_id)
       {
         batched_queries[i].ignore_result = true;
@@ -180,6 +181,9 @@ struct pgsql_connection_data {
     int result_id = next_result_id++;//batched_queries.size() == 0 ? 1 : batched_queries.back().result_id + 1;
     // println("batch query ", result_id, " ignore: ", ignore_result, "queue size", batched_queries.size());
     batched_queries.push_back(batch_query_info{fiber.continuation_idx, result_id, ignore_result});
+
+    // if (batched_queries.back().result_id - last_batch_end_id_ > 15000)
+    //   this->send_end_batch();
     // if (!end_batch_defered)
     // {
     //   end_batch_defered = true;
@@ -189,6 +193,8 @@ struct pgsql_connection_data {
     //     this->send_end_batch();
     //     });
     // }
+    // while (batched_queries.size() > 15000)
+    //   fiber.yield();
     return result_id;
   }
 
@@ -196,7 +202,6 @@ struct pgsql_connection_data {
 
     auto query = batched_queries.front();
     batched_queries.pop_front();
-    assert(!query.ignore_result);
     current_result_id_ = query.result_id;
 
     // current_result_id_ = result_id;
@@ -228,12 +233,12 @@ struct pgsql_connection_data {
     while (batched_queries.size() > 0 && batched_queries.front().ignore_result) {
 
       // println(" ignore ", query.result_id);
-      // println("ignore result ", query.result_id);
 
       // std::cout << "PQgetNextQuery" << std::endl; 
       auto query = this->pq_get_next_query();
       assert(query.ignore_result);
 
+      // println("ignore result ", query.result_id);
       while (true)
       {
         // println("wait one result");
@@ -313,7 +318,9 @@ struct pgsql_connection_data {
     }
     while (current_result_id_ != result_id)
     {
+      // try {
       fiber.yield();      
+      // } catch 
     }
 
     // Send endbatch if the requested result is in the current (not ended) batch.

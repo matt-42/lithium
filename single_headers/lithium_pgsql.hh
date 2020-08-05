@@ -1000,6 +1000,7 @@ struct pgsql_connection_data {
   }
   void ignore_result(int result_id) {
     for (int i = batched_queries.size() - 1; i >= 0; i--)
+    // for (int i = 0; i < batched_queries.size(); i++)
       if (batched_queries[i].result_id == result_id)
       {
         batched_queries[i].ignore_result = true;
@@ -1102,6 +1103,9 @@ struct pgsql_connection_data {
     int result_id = next_result_id++;//batched_queries.size() == 0 ? 1 : batched_queries.back().result_id + 1;
     // println("batch query ", result_id, " ignore: ", ignore_result, "queue size", batched_queries.size());
     batched_queries.push_back(batch_query_info{fiber.continuation_idx, result_id, ignore_result});
+
+    // if (batched_queries.back().result_id - last_batch_end_id_ > 15000)
+    //   this->send_end_batch();
     // if (!end_batch_defered)
     // {
     //   end_batch_defered = true;
@@ -1111,6 +1115,8 @@ struct pgsql_connection_data {
     //     this->send_end_batch();
     //     });
     // }
+    // while (batched_queries.size() > 15000)
+    //   fiber.yield();
     return result_id;
   }
 
@@ -1118,7 +1124,6 @@ struct pgsql_connection_data {
 
     auto query = batched_queries.front();
     batched_queries.pop_front();
-    assert(!query.ignore_result);
     current_result_id_ = query.result_id;
 
     // current_result_id_ = result_id;
@@ -1150,12 +1155,12 @@ struct pgsql_connection_data {
     while (batched_queries.size() > 0 && batched_queries.front().ignore_result) {
 
       // println(" ignore ", query.result_id);
-      // println("ignore result ", query.result_id);
 
       // std::cout << "PQgetNextQuery" << std::endl; 
       auto query = this->pq_get_next_query();
       assert(query.ignore_result);
 
+      // println("ignore result ", query.result_id);
       while (true)
       {
         // println("wait one result");
@@ -1235,7 +1240,9 @@ struct pgsql_connection_data {
     }
     while (current_result_id_ != result_id)
     {
+      // try {
       fiber.yield();      
+      // } catch 
     }
 
     // Send endbatch if the requested result is in the current (not ended) batch.
@@ -1509,14 +1516,14 @@ template <typename B> template <typename T> bool pgsql_result<B>::fetch_next_res
   // println("pgsql_result<B>::fetch_next_result", this->result_id_);
   if (end_of_result_) return false;
   // std::cout << "read: fiber_.continuation_idx " << fiber_.continuation_idx << std::endl;
-  // std::cout << "connection_->current_result_id " << connection_->current_result_id << " this->result_id_ " << this->result_id_ << std::endl;
+  // std::cout << "connection_->current_result_id_ " << connection_->current_result_id_ << " this->result_id_ " << this->result_id_ << std::endl;
 
   // if (!current_result_)
   connection_->wait_for_result(fiber_, this->result_id_);
 
   // std::cout << "GO read: fiber_.continuation_idx " << fiber_.continuation_idx << std::endl;
-  // std::cout << "GO connection_->current_result_id " << connection_->current_result_id << " this->result_id_ " << this->result_id_ << std::endl;
-  assert(connection_->current_result_id == this->result_id_);
+  // std::cout << "GO connection_->current_result_id_ " << connection_->current_result_id_ << " this->result_id_ " << this->result_id_ << std::endl;
+  assert(connection_->current_result_id_ == this->result_id_);
   // std::cout << "currently reading result " << this->result_id_ << std::endl;
   if (current_result_ && row_i_ < current_result_nrows_ - 1)
   {
@@ -1532,24 +1539,24 @@ template <typename B> template <typename T> bool pgsql_result<B>::fetch_next_res
         current_result_ = nullptr;
       }
 
-      assert(connection_->current_result_id == this->result_id_);
+      assert(connection_->current_result_id_ == this->result_id_);
       current_result_ = wait_for_next_result();
       // println("got next result ", current_result_);
       // std::cout <<
       if (connection_->current_result_id_ != this->result_id_) 
       {
         std::cout << " in fetch_next_result: fiberid " << fiber_.continuation_idx << std::endl;
-        std::cout << " connection_->current_result_id " << connection_->current_result_id_ << " this->result_id_: " << this->result_id_ << std::endl;
+        std::cout << " connection_->current_result_id_ " << connection_->current_result_id_ << " this->result_id_: " << this->result_id_ << std::endl;
       }
-      assert(connection_->current_result_id == this->result_id_);
+      assert(connection_->current_result_id_ == this->result_id_);
       if (!current_result_)
       {
         current_result_nrows_ = 0;
         row_i_ = 0;
         end_of_result_ = true; 
         this->connection_->end_of_current_result(fiber_);
-        // std::cout << " connection_->current_result_id " << connection_->current_result_id << " this->result_id_: " << this->result_id_ << std::endl;
-        // assert(connection_->current_result_id != this->result_id_);
+        // std::cout << " connection_->current_result_id_ " << connection_->current_result_id_ << " this->result_id_: " << this->result_id_ << std::endl;
+        // assert(connection_->current_result_id_ != this->result_id_);
         return false;
       }
       row_i_ = 0;
@@ -1587,7 +1594,7 @@ template <typename B> template <typename T> bool pgsql_result<B>::read(T&& outpu
   // For the next calls fetch_next_result is called at the end of this function.
   if (!current_result_ && !this->fetch_next_result<T>(std::forward<T>(output))) return false;
 
-  assert(connection_->current_result_id == this->result_id_);
+  assert(connection_->current_result_id_ == this->result_id_);
 
   // std::cout << "got a row! " << std::endl;
 
@@ -2235,8 +2242,14 @@ template <typename Y> struct pgsql_connection {
       return pgsql_statement<Y>{data_, fiber_, *data_->statements_hashmap(f, keys...)};
   }
 
-  void end_of_batch() {
+  inline void end_of_batch() {
     this->data_->send_end_batch();
+  }
+
+  inline int batch_queue_size(Y& fiber) {
+    if (this->data_->current_result_id_ == -1)
+      this->data_->flush_ignored_results(fiber);
+    return this->data_->batched_queries.size();
   }
 
   pgsql_statement<Y> prepare(const std::string& rq) {
