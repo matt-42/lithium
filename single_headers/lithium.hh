@@ -5578,7 +5578,6 @@ struct pgsql_connection_data {
       // this->pg_get_next_query();
       this->end_of_current_result(fiber);
     }
-    
     while (current_result_id_ != result_id)
     {
       fiber.yield();      
@@ -7111,7 +7110,6 @@ struct input_buffer {
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_TCP_SERVER_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_TCP_SERVER_HH
-
 
 
 

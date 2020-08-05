@@ -4,6 +4,7 @@
 
 #include <li/sql/type_hashmap.hh>
 #include <li/sql/internal/utils.hh>
+#include <deque>
 
 namespace li
 {
@@ -310,7 +311,6 @@ struct pgsql_connection_data {
       // this->pg_get_next_query();
       this->end_of_current_result(fiber);
     }
-    
     while (current_result_id_ != result_id)
     {
       fiber.yield();      
