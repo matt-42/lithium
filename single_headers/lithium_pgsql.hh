@@ -1425,7 +1425,7 @@ template <typename Y> void pgsql_result<Y>::flush_results() {
 
   // println("pgsql_result<Y>::flush_results result ready for flush.");
 
-  // try {
+  try {
     if (current_result_)
     {
       PQclear(current_result_);
@@ -1439,10 +1439,13 @@ template <typename Y> void pgsql_result<Y>::flush_results() {
         PQclear(res);
       else break;
     }
-  // } catch (typename Y::exception_type& e) {
-  //   // Forward fiber execptions.
-  //   throw std::move(e);
-  // }
+  } catch (typename Y::exception_type& e) {
+    this->connection_->flush_current_query_result();
+    end_of_result_ = true; 
+    this->connection_->end_of_current_result(fiber_, false);
+    // Forward fiber execptions.
+    throw std::move(e);
+  }
 
   // println("pgsql_result<Y>::flush_results OK ", this->result_id_);
   end_of_result_ = true; 
