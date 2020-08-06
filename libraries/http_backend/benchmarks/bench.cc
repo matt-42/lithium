@@ -145,7 +145,7 @@ int updates_nconn = 99989 / 4;
 // int fortunes_nconn = 2*nprocs;
 // int updates_nconn = 3*nprocs;
 
-int nthread = 1;//nprocs;
+int nthread = 4;//nprocs;
 // int nthread = 1;
 int db_nconn = 1;
 // int db_nconn = 90 / 4;
@@ -164,7 +164,10 @@ auto make_api() {
     std::vector<decltype(random_numbers.all_fields())> numbers(N);
     std::vector<decltype(orm.find_one(s::id = 1 + rand() % 99))> results;
     for (int i = 0; i < N; i++)
+    {
+      // println(" find one " , i);
       results.push_back(orm.find_one(s::id = 1 + rand() % 99));
+    }
     for (int i = 0; i < N; i++){
       // println(" read result " , i);
       numbers[i] = results[i]().value();
@@ -238,9 +241,24 @@ auto make_api() {
 
     auto c = random_numbers.connect(request.fiber);
     // auto c2 = random_numbers.connect(request.fiber);
+    while (c.backend_connection().batch_queue_size(request.fiber) > 10000)
+    {
+      // std::cout << c.backend_connection().data_->current_result_id_ << " "  << c.backend_connection().batch_queue_size(request.fiber) << std::endl;
+      request.fiber.yield();
+    }
+
+    auto numbers = select_N_random_numbers(c, N);
     
     // std::vector<decltype(random_numbers.all_fields())> numbers(N);
-    auto numbers = select_N_random_numbers(c, N);
+    // std::vector<decltype(random_numbers.all_fields())> numbers(N);
+    // for (int i = 0; i < N; i++)
+    //   numbers[i] = *c.find_one(s::id = 1 + rand() % 99)();
+    // for (int i = 0; i < N; i++){
+    //   // println(" read result " , i);
+    //   numbers[i] = results[i]().value();
+    // }
+
+    // auto numbers = select_N_random_numbers(c, N);
     // {
     //   std::vector<decltype(c.find_one(s::id = 1))> results;
     //   // println("REQS==========================");
@@ -332,9 +350,16 @@ auto make_api() {
     // c.backend_connection().end_of_batch();
       // for (int i = 0; i < N; i++)
       //   c.update(numbers[i]);
+    // println(" UPDATE ");
+    if (nthread > 1)
+      c.backend_connection().end_of_batch();
     auto tmp = c.bulk_update(numbers);
-    // c.backend_connection().end_of_batch();
-    // tmp.flush_results();
+    if (nthread > 1)
+      c.backend_connection().end_of_batch();
+    // println(" READ UPDATE ");
+    tmp.flush_results();
+    // println("UPDATED ", N);
+
     // auto tmp = c.backend_connection().cached_statement([] { return "SELECT 1"; })();
 
     // c.backend_connection().cached_statement([] {return "COMMIT";})();
@@ -346,7 +371,7 @@ auto make_api() {
     // {
     //   // println(numbers[i].id);
     //   ids[i] = numbers[i].id;
-    // }
+    // }  
 
 
 #endif
