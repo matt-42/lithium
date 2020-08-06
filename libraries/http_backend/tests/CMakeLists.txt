@@ -43,6 +43,10 @@ li_add_executable(crud crud.cc)
 target_link_libraries(crud ${LIBS})
 add_test(crud crud)
 
+li_add_executable(lru_cache lru_cache.cc)
+target_link_libraries(lru_cache ${LIBS})
+add_test(lru_cache lru_cache)
+
 li_add_executable(request_parameters request_parameters.cc)
 target_link_libraries(request_parameters ${LIBS})
 add_test(request_parameters request_parameters)
