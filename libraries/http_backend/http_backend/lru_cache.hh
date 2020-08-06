@@ -22,7 +22,7 @@ struct lru_cache {
       entries_.erase(k);
     }
     assert(entries_.size() < max_size_);
-    K res = fallback();
+    V res = fallback();
     entries_.emplace(key, res);
     queue_.push_back(key);
     return res;
