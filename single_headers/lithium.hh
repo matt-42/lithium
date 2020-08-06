@@ -5770,26 +5770,18 @@ template <typename Y> void pgsql_result<Y>::flush_results() {
 
   // println("pgsql_result<Y>::flush_results result ready for flush.");
 
-  try {
-    if (current_result_)
-    {
-      PQclear(current_result_);
-      current_result_ = nullptr;
-    }
-    while (true)
-    {
-      if (connection_->error_ == 1) break;
-      PGresult* res = connection_->wait_for_next_result(fiber_, true);
-      if (res)
-        PQclear(res);
-      else break;
-    }
-  } catch (typename Y::exception_type& e) {
-    this->connection_->flush_current_query_result();
-    end_of_result_ = true; 
-    this->connection_->end_of_current_result(fiber_, false);
-    // Forward fiber execptions.
-    throw std::move(e);
+  if (current_result_)
+  {
+    PQclear(current_result_);
+    current_result_ = nullptr;
+  }
+  while (true)
+  {
+    if (connection_->error_ == 1) break;
+    PGresult* res = connection_->wait_for_next_result(fiber_, true);
+    if (res)
+      PQclear(res);
+    else break;
   }
 
   // println("pgsql_result<Y>::flush_results OK ", this->result_id_);
@@ -9436,6 +9428,45 @@ float http_benchmark(const std::vector<int>& sockets, int NTHREADS, int duration
 } // namespace li
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_HTTP_BENCHMARK_HH
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_LRU_CACHE_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_LRU_CACHE_HH
+
+
+template <typename K, typename V>
+struct lru_cache {
+
+  lru_cache(int max_size) : max_size_(max_size) {}
+
+  template <typename F>
+  auto operator()(K key, F fallback)
+  {
+    auto it = entries_.find(key);
+    if (it != entries_.end())
+      return it->second;
+
+    if (entries_.size() >= max_size_)
+    {
+      K k = queue_.front();
+      queue_.pop_front();
+      entries_.erase(k);
+    }
+    assert(entries_.size() < max_size_);
+    K res = fallback();
+    entries_.emplace(key, res);
+    queue_.push_back(key);
+    return res;
+  }
+
+  int size() { return queue_.size(); }
+  void clear() { queue_.clear(); entries_.clear(); }
+  
+  int max_size_;
+  std::deque<K> queue_;
+  std::unordered_map<K, V> entries_;
+};
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_LRU_CACHE_HH
 
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_HTTP_BACKEND_HH
