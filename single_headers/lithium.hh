@@ -5705,18 +5705,13 @@ sql_result<pgsql_result<Y>> pgsql_statement<Y>::operator()(T&&... args) {
     i += bind_compute_nparam(a);
   });
 
-  // std::cout << "flush" << std::endl;
-  // FIXME: do we really need to flush the results here ?
-  // flush_results();
-  // std::cout << "flushed" << std::endl;
-  // std::cout << "sending " << data_.stmt_name.c_str() << " with " << nparams << " params" <<
-  // std::endl;
   if (!PQsendQueryPrepared(connection_->pgconn_, data_.stmt_name.c_str(), nparams, values, lengths, binary,
                            1)) {
     throw std::runtime_error(std::string("Postresql error:") + PQerrorMessage(connection_->pgconn_));
   }
 
-  connection_->flush(this->fiber_);
+  // Now calling pqflush seems to work aswell...
+  // connection_->flush(this->fiber_);
 
   return sql_result<pgsql_result<Y>>{
       pgsql_result<Y>{this->connection_, this->fiber_}};
@@ -8883,6 +8878,45 @@ float http_benchmark(const std::vector<int>& sockets, int NTHREADS, int duration
 } // namespace li
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_HTTP_BENCHMARK_HH
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_LRU_CACHE_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_LRU_CACHE_HH
+
+
+template <typename K, typename V>
+struct lru_cache {
+
+  lru_cache(int max_size) : max_size_(max_size) {}
+
+  template <typename F>
+  auto operator()(K key, F fallback)
+  {
+    auto it = entries_.find(key);
+    if (it != entries_.end())
+      return it->second;
+
+    if (entries_.size() >= max_size_)
+    {
+      K k = queue_.front();
+      queue_.pop_front();
+      entries_.erase(k);
+    }
+    assert(entries_.size() < max_size_);
+    K res = fallback();
+    entries_.emplace(key, res);
+    queue_.push_back(key);
+    return res;
+  }
+
+  int size() { return queue_.size(); }
+  void clear() { queue_.clear(); entries_.clear(); }
+  
+  int max_size_;
+  std::deque<K> queue_;
+  std::unordered_map<K, V> entries_;
+};
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_LRU_CACHE_HH
 
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_HTTP_BACKEND_HH

@@ -1736,18 +1736,13 @@ sql_result<pgsql_result<Y>> pgsql_statement<Y>::operator()(T&&... args) {
     i += bind_compute_nparam(a);
   });
 
-  // std::cout << "flush" << std::endl;
-  // FIXME: do we really need to flush the results here ?
-  // flush_results();
-  // std::cout << "flushed" << std::endl;
-  // std::cout << "sending " << data_.stmt_name.c_str() << " with " << nparams << " params" <<
-  // std::endl;
   if (!PQsendQueryPrepared(connection_->pgconn_, data_.stmt_name.c_str(), nparams, values, lengths, binary,
                            1)) {
     throw std::runtime_error(std::string("Postresql error:") + PQerrorMessage(connection_->pgconn_));
   }
 
-  connection_->flush(this->fiber_);
+  // Now calling pqflush seems to work aswell...
+  // connection_->flush(this->fiber_);
 
   return sql_result<pgsql_result<Y>>{
       pgsql_result<Y>{this->connection_, this->fiber_}};
