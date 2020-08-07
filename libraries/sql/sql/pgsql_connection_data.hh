@@ -168,7 +168,7 @@ struct pgsql_connection_data {
 
     // println(" batch size: ", batched_queries.back().result_id - last_batch_end_id_);
     // println("PQsendEndBatch"); 
-    if (0 == PQsendEndBatch(this->pgconn_))
+    if (0 == PQbatchSendQueue(this->pgconn_))
       std::cerr << "PQsendEndBatch error"  << std::endl; 
     int result_id = this->next_result_id++;// batched_queries.size() == 0 ? 1 : batched_queries.back().result_id + 1;
     last_batch_end_id_ = result_id;
@@ -208,7 +208,7 @@ struct pgsql_connection_data {
     if (current_result_id_ > last_batch_end_id_) this->send_end_batch();
     
     // println("pq_get_next_query");
-    if (0 == PQgetNextQuery(pgconn_))
+    if (0 == PQbatchProcessQueue(pgconn_))
     {
       std::cerr << "PQgetNextQuery error : " <<  PQerrorMessage(pgconn_) << std::endl;
       assert(0);
