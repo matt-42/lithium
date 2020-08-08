@@ -31,7 +31,7 @@ A http_client built around the libcurl library.
 
 ### [li::http_backend](https://github.com/matt-42/lithium/tree/master/libraries/http_backend)
 
-A coroutine based, asynchronous, low Latency and high throughput HTTP Server library.
+A coroutine based, asynchronous, low latency and high throughput HTTP Server library.
 
 ### [li::symbol](https://github.com/matt-42/lithium/tree/master/libraries/symbol)
 
