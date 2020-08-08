@@ -1,4 +1,4 @@
-li::http_backend: Asynchronous High Performance HTTP Server
+li::http_backend: Coroutine based, Asynchronous, Low Latency and High Throughput HTTP Server
 =================================
 
 This library goal is to ease the development of HTTP APIs without
