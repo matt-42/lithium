@@ -2406,6 +2406,11 @@ template <template <class> class F, typename T> decltype(auto) tuple_filter(T&& 
     LI_SYMBOL(validate)
 #endif
 
+#ifndef LI_SYMBOL_waiting_list
+#define LI_SYMBOL_waiting_list
+    LI_SYMBOL(waiting_list)
+#endif
+
 #ifndef LI_SYMBOL_write_access
 #define LI_SYMBOL_write_access
     LI_SYMBOL(write_access)
@@ -3637,7 +3642,6 @@ struct input_buffer {
 
 
 
-
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SSL_CONTEXT_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SSL_CONTEXT_HH
 
@@ -3785,7 +3789,7 @@ struct async_fiber_context {
 
   async_reactor* reactor;
   boost::context::continuation sink;
-  int continuation_idx;
+  int fiber_id;
   int socket_fd;
   sockaddr in_addr;
   SSL* ssl = nullptr;
@@ -3794,9 +3798,9 @@ struct async_fiber_context {
   async_fiber_context(const async_fiber_context&) = delete;
 
   async_fiber_context(async_reactor* reactor, boost::context::continuation&& sink,
-                      int continuation_idx, int socket_fd, sockaddr in_addr)
+                      int fiber_id, int socket_fd, sockaddr in_addr)
       : reactor(reactor), sink(std::forward<boost::context::continuation&&>(sink)),
-        continuation_idx(continuation_idx), socket_fd(socket_fd),
+        fiber_id(fiber_id), socket_fd(socket_fd),
         in_addr(in_addr) {}
 
   void yield() { sink = sink.resume(); }
@@ -3833,8 +3837,11 @@ struct async_fiber_context {
 
   void epoll_add(int fd, int flags);
   void epoll_mod(int fd, int flags);
+  void reassign_fd_to_fiber(int fd, int fiber_idx);
 
- 
+  void defer(const std::function<void()>& fun);
+  void defer_fiber_resume(int fiber_id);
+
   inline int read_impl(char* buf, int size) {
     if (ssl)
       return SSL_read(ssl, buf, size);
@@ -3889,6 +3896,8 @@ struct async_reactor {
   std::vector<continuation> fibers;
   std::vector<int> fd_to_fiber_idx;
   std::unique_ptr<ssl_context> ssl_ctx = nullptr;
+  std::vector<std::function<void()>> defered_functions;
+  std::deque<int> defered_resume;
 
   continuation& fd_to_fiber(int fd) {
     assert(fd >= 0 and fd < fd_to_fiber_idx.size());
@@ -3896,6 +3905,10 @@ struct async_reactor {
     assert(fiber_idx >= 0 and fiber_idx < fibers.size());
 
     return fibers[fiber_idx];
+  }
+
+  void reassign_fd_to_fiber(int fd, int fiber_idx) {
+    fd_to_fiber_idx[fd] = fiber_idx;
   }
 
   void epoll_ctl(int epoll_fd, int fd, int action, uint32_t flags) {
@@ -3932,7 +3945,7 @@ struct async_reactor {
       if (quit_signal_catched)
         break;
 
-      if (n_events == 0)
+      if (n_events == 0 )
         for (int i = 0; i < fibers.size(); i++)
           if (fibers[i])
             fibers[i] = fibers[i].resume();
@@ -4035,7 +4048,32 @@ struct async_reactor {
             std::cerr << "Epoll returned a file descriptor that we did not register: " << event_fd
                       << std::endl;
         }
+
+        // Wakeup fibers if needed.
+        while (defered_resume.size())
+        {
+          int fiber_id = defered_resume.front();
+          defered_resume.pop_front();
+          assert(fiber_id < fibers.size());
+          auto& fiber = fibers[fiber_id];
+          if (fiber)
+          {
+            // std::cout << "wakeup " << fiber_id << std::endl; 
+            fiber = fiber.resume();
+          }
+        }
+
+
       }
+
+      // Call and Flush the defered functions.
+      if (defered_functions.size())
+      {
+        for (auto& f : defered_functions)
+          f();
+        defered_functions.clear();
+      }
+
     }
     std::cout << "END OF EVENT LOOP" << std::endl;
     close(epoll_fd);
@@ -4048,9 +4086,24 @@ static void shutdown_handler(int sig) {
 }
 
 void async_fiber_context::epoll_add(int fd, int flags) {
-  reactor->epoll_add(fd, flags, continuation_idx);
+  reactor->epoll_add(fd, flags, fiber_id);
 }
 void async_fiber_context::epoll_mod(int fd, int flags) { reactor->epoll_mod(fd, flags); }
+
+void async_fiber_context::defer(const std::function<void()>& fun)
+{
+  this->reactor->defered_functions.push_back(fun);
+}
+
+void async_fiber_context::defer_fiber_resume(int fiber_id)
+{
+  this->reactor->defered_resume.push_back(fiber_id);
+}
+
+void async_fiber_context::reassign_fd_to_fiber(int fd, int fiber_idx)
+{
+  this->reactor->reassign_fd_to_fiber(fd, fiber_idx);
+}
 
 template <typename H>
 void start_tcp_server(int port, int socktype, int nthreads, H conn_handler,

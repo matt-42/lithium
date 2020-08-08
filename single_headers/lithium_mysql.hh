@@ -963,6 +963,11 @@ template <unsigned SIZE> struct sql_varchar : public std::string {
     LI_SYMBOL(validate)
 #endif
 
+#ifndef LI_SYMBOL_waiting_list
+#define LI_SYMBOL_waiting_list
+    LI_SYMBOL(waiting_list)
+#endif
+
 #ifndef LI_SYMBOL_write_access
 #define LI_SYMBOL_write_access
     LI_SYMBOL(write_access)
@@ -2196,10 +2201,15 @@ template <typename I> struct sql_database_thread_local_data {
   std::deque<connection_data_type*> async_connections_;
 
   int n_connections_on_this_thread_ = 0;
+  std::deque<int> fibers_waiting_for_connections_;
 };
 
 struct active_yield {
   typedef std::runtime_error exception_type;
+  int fiber_id = 0;
+  void defer(std::function<void()>) {}
+  void defer_fiber_resume(int fiber_id) {}
+
   void epoll_add(int, int) {}
   void epoll_mod(int, int) {}
   void yield() {}
@@ -2279,7 +2289,8 @@ template <typename I> struct sql_database {
    */
   template <typename Y> inline auto connect(Y& fiber) {
 
-    auto pool = [this] {
+    auto& tldata = this->thread_local_data();
+    auto pool = [this, &tldata] {
 
       if constexpr (std::is_same_v<Y, active_yield>) // Synchonous mode
         return make_metamap_reference(
@@ -2288,9 +2299,10 @@ template <typename I> struct sql_database {
             s::max_connections = this->max_sync_connections_);
       else  // Asynchonous mode
         return make_metamap_reference(
-            s::connections = this->thread_local_data().async_connections_,
-            s::n_connections =  this->thread_local_data().n_connections_on_this_thread_,
-            s::max_connections = this->max_async_connections_per_thread_);
+            s::connections = tldata.async_connections_,
+            s::n_connections =  tldata.n_connections_on_this_thread_,
+            s::max_connections = this->max_async_connections_per_thread_,
+            s::waiting_list = tldata.fibers_waiting_for_connections_);
     }();
 
     connection_data_type* data = nullptr;
@@ -2311,8 +2323,11 @@ template <typename I> struct sql_database {
           if constexpr (std::is_same_v<Y, active_yield>)
             throw std::runtime_error("Maximum number of sql connection exeeded.");
           else
+          {
             // std::cout << "Waiting for a free sql connection..." << std::endl;
+            //  pool.waiting_list.push_back(fiber.fiber_id);
             fiber.yield();
+          }
           continue;
         }
         pool.n_connections++;
@@ -2332,7 +2347,7 @@ template <typename I> struct sql_database {
     assert(data);
     assert(data->error_ == 0);
     
-    auto sptr = std::shared_ptr<connection_data_type>(data, [pool, this](connection_data_type* data) {
+    auto sptr = std::shared_ptr<connection_data_type>(data, [pool, this, &fiber](connection_data_type* data) {
           if (!data->error_ && pool.connections.size() < pool.max_connections) {
             auto lock = [&pool, this] {
               if constexpr (std::is_same_v<Y, active_yield>)
@@ -2341,7 +2356,14 @@ template <typename I> struct sql_database {
             }();
 
             pool.connections.push_back(data);
-            
+            if constexpr (!std::is_same_v<Y, active_yield>)
+             if (pool.waiting_list.size())
+             {
+               int next_fiber_id = pool.waiting_list.front();
+               pool.waiting_list.pop_front();
+               fiber.defer_fiber_resume(next_fiber_id);
+             }
+           
           } else {
             if (pool.connections.size() >= pool.max_connections)
               std::cerr << "Error: connection pool size " << pool.connections.size()

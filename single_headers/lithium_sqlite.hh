@@ -1143,6 +1143,11 @@ template <unsigned SIZE> struct sql_varchar : public std::string {
     LI_SYMBOL(validate)
 #endif
 
+#ifndef LI_SYMBOL_waiting_list
+#define LI_SYMBOL_waiting_list
+    LI_SYMBOL(waiting_list)
+#endif
+
 #ifndef LI_SYMBOL_write_access
 #define LI_SYMBOL_write_access
     LI_SYMBOL(write_access)
