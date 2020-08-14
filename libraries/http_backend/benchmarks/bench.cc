@@ -145,12 +145,17 @@ int updates_nconn = 99989 / 4;
 // int fortunes_nconn = 2*nprocs;
 // int updates_nconn = 3*nprocs;
 
+int db_nconn = 4;
+int queries_nconn = 4;
+int fortunes_nconn = 2;
+int updates_nconn = 3;
+
 int nthread = nprocs;
 // int nthread = 1;
-int db_nconn = 90 / 4;
-int queries_nconn = 90 / 4;
-int fortunes_nconn = 90 / 4;
-int updates_nconn = 90 / 4;
+// int db_nconn = 90 / 4;
+// int queries_nconn = 90 / 4;
+// int fortunes_nconn = 90 / 4;
+// int updates_nconn = 90 / 4;
 #endif
 
 auto make_api() {
@@ -180,19 +185,21 @@ auto make_api() {
 
     N = std::max(1, std::min(N, 500));
 
-    auto c = random_numbers.connect(request.fiber);
-    // auto& raw_c = c.backend_connection();
-    // raw_c("START TRANSACTION");
     std::vector<decltype(random_numbers.all_fields())> numbers(N);
-    // auto stm = c.backend_connection().prepare("SELECT randomNumber from World where id=$1");
-    for (int i = 0; i < N; i++)
-      numbers[i] = c.find_one(s::id = 1 + rand() % 99).value();
-    // numbers[i] = stm(1 + rand() % 99).read<std::remove_reference_t<decltype(numbers[i])>>();
-  // {
-  //   numbers[i].id = 1 + rand() % 99;
-  //     numbers[i].randomNumber = stm(1 + rand() % 99).read<int>();
-  // }
-    // raw_c("COMMIT");
+    {
+      auto c = random_numbers.connect(request.fiber);
+      // auto& raw_c = c.backend_connection();
+      // raw_c("START TRANSACTION");
+      // auto stm = c.backend_connection().prepare("SELECT randomNumber from World where id=$1");
+      for (int i = 0; i < N; i++)
+        numbers[i] = c.find_one(s::id = 1 + rand() % 99).value();
+      // numbers[i] = stm(1 + rand() % 99).read<std::remove_reference_t<decltype(numbers[i])>>();
+    // {
+    //   numbers[i].id = 1 + rand() % 99;
+    //     numbers[i].randomNumber = stm(1 + rand() % 99).read<int>();
+    // }
+      // raw_c("COMMIT");
+    }
 
     response.write_json(numbers);
   };
@@ -279,9 +286,10 @@ auto make_api() {
     auto comp = [](const fortune& a, const fortune& b) { return a.message < b.message; };
     std::vector<fortune> table = { fortune(0, std::string("Additional fortune added at request time.")) };
 
-    auto c = fortunes.connect(request.fiber);
-    c.forall([&] (const auto& f) { table.emplace_back(metamap_clone(f)); });
-    
+    {
+      auto c = fortunes.connect(request.fiber);
+      c.forall([&] (const auto& f) { table.emplace_back(metamap_clone(f)); });
+    }    
     // std::sort(table.begin(), table.end(),
     //           [] (const fortune& a, const fortune& b) { return a.message < b.message; });
 
