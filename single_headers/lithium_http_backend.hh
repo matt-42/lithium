@@ -5959,8 +5959,8 @@ struct lru_cache {
 
   lru_cache(int max_size) : max_size_(max_size) {}
 
-  template <typename F>
-  auto operator()(K key, F fallback)
+  template <typename F = int>
+  auto operator()(K key, F fallback = 0)
   {
     auto it = entries_.find(key);
     if (it != entries_.end())
@@ -5973,10 +5973,17 @@ struct lru_cache {
       entries_.erase(k);
     }
     assert(entries_.size() < max_size_);
-    V res = fallback();
-    entries_.emplace(key, res);
-    queue_.push_back(key);
-    return res;
+    if constexpr (std::is_same_v<F, int>)
+    {
+      throw std::runtime_error("Error: lru_cache miss with no fallback");
+    }
+    else
+    {
+      V res = fallback();
+      entries_.emplace(key, res);
+      queue_.push_back(key);
+      return res;
+    }
   }
 
   int size() { return queue_.size(); }
