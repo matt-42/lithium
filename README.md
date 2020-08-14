@@ -23,7 +23,7 @@ ease of use and performances.
 
 ### [li::sql](https://github.com/matt-42/lithium/tree/master/libraries/sql)
 
-A set of tools to interact with SQL databases.
+A set of asynchronous and synchronous SQL drivers.
 
 ### [li::http_client](https://github.com/matt-42/lithium/tree/master/libraries/http_client)
 
@@ -31,7 +31,7 @@ A http_client built around the libcurl library.
 
 ### [li::http_backend](https://github.com/matt-42/lithium/tree/master/libraries/http_backend)
 
-A library that eases the writing of web HTTP APIs.
+A coroutine based, asynchronous, low latency and high throughput HTTP Server library.
 
 ### [li::symbol](https://github.com/matt-42/lithium/tree/master/libraries/symbol)
 
