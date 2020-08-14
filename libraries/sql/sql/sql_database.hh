@@ -142,6 +142,9 @@ template <typename I> struct sql_database {
               }();
               pool.connections.push_back(data);
             }
+            else {
+              pool.n_connections--;
+            }
           } catch (typename Y::exception_type& e) {
             pool.n_connections--;
             throw std::move(e);
