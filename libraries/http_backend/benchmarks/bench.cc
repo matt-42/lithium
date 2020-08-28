@@ -91,6 +91,8 @@ template <typename B> void escape_html_entities(B& buffer, const std::string& da
 #define PGSQL
 //#define BENCH_MYSQL
 
+#define PG_CONNECTIONS 1
+
 #ifdef BENCH_MYSQL
 auto sql_db =
     mysql_database(s::host = "127.0.0.1", s::database = "mysql_test", s::user = "root",
@@ -98,7 +100,7 @@ auto sql_db =
 
 #else
 auto sql_db = pgsql_database(s::host = "127.0.0.1", s::database = "postgres", s::user = "postgres",
-                             s::password = "lithium_test", s::port = 32768, s::charset = "utf8", s::max_async_connections_per_thread = 1);
+                             s::password = "lithium_test", s::port = 32768, s::charset = "utf8", s::max_async_connections_per_thread = PG_CONNECTIONS);
 
 #endif
 
@@ -145,13 +147,13 @@ int updates_nconn = 99989 / 4;
 // int fortunes_nconn = 2*nprocs;
 // int updates_nconn = 3*nprocs;
 
-int nthread = 4;//nprocs;
+int nthread = nprocs;
 // int nthread = 1;
-int db_nconn = 1;
-// int db_nconn = 90 / 4;
-int queries_nconn = 1;
-int fortunes_nconn = 1;
-int updates_nconn = 1;
+int db_nconn = PG_CONNECTIONS;
+// int db_nconn = 90 / 1;
+int queries_nconn = PG_CONNECTIONS;
+int fortunes_nconn = PG_CONNECTIONS;
+int updates_nconn = PG_CONNECTIONS;
 #endif
 
 
@@ -241,11 +243,11 @@ auto make_api() {
 
     auto c = random_numbers.connect(request.fiber);
     // auto c2 = random_numbers.connect(request.fiber);
-    while (c.backend_connection().batch_queue_size(request.fiber) > 10000)
-    {
-      // std::cout << c.backend_connection().data_->current_result_id_ << " "  << c.backend_connection().batch_queue_size(request.fiber) << std::endl;
-      request.fiber.yield();
-    }
+    // while (c.backend_connection().batch_queue_size(request.fiber) > 10000)
+    // {
+    //   // std::cout << c.backend_connection().data_->current_result_id_ << " "  << c.backend_connection().batch_queue_size(request.fiber) << std::endl;
+    //   request.fiber.yield();
+    // }
 
     auto numbers = select_N_random_numbers(c, N);
     
@@ -284,7 +286,7 @@ auto make_api() {
     for (int i = 0; i < N; i++)
     {
       // numbers[i].id = i + 1;
-      numbers[i].randomNumber = 1 + rand() % 99;
+      numbers[i].randomNumber = 1 + rand() % 9999;
     }
 
     // println("IDS==========================");
@@ -351,11 +353,11 @@ auto make_api() {
       // for (int i = 0; i < N; i++)
       //   c.update(numbers[i]);
     // println(" UPDATE ");
-    if (nthread > 1)
-      c.backend_connection().end_of_batch();
+    // if (nthread > 1)
+    //   c.backend_connection().end_of_batch();
     auto tmp = c.bulk_update(numbers);
-    if (nthread > 1)
-      c.backend_connection().end_of_batch();
+    // if (nthread > 1)
+    c.backend_connection().end_of_batch();
     // println(" READ UPDATE ");
     tmp.flush_results();
     // println("UPDATED ", N);
