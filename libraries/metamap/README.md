@@ -25,9 +25,11 @@ without loosing the performances of C++:
 ```c++
 // First declare the static map keys.
 // To autmatically generate symbol definitions, check https://github.com/matt-42/lithium/tree/master/libraries/symbol 
-#define LI_SYMBOL_name // Guards to avoid redefinitions.
+#ifndef LI_SYMBOL_name // Guards to avoid redefinitions.
+#define LI_SYMBOL_name
   LI_SYMBOL(name) // Declare s::name
 #endif
+#ifndef LI_SYMBOL_age
 #define LI_SYMBOL_age
   LI_SYMBOL(age) // Declare s::age
 #endif
