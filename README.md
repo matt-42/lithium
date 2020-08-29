@@ -1,5 +1,4 @@
 The Lithium C++ Libraries ![Travis](https://travis-ci.com/matt-42/lithium.svg?branch=master) [![Donate](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://www.paypal.me/matthieugarrigues)
-
 ========================
 
 Lithium's goal is to ease the development of C++ high performance HTTP
