@@ -8760,7 +8760,7 @@ struct growing_output_buffer {
   }
 
   template <typename T>
-  growing_output_buffer& operator<<(T&& s) { buffer_ << s; }
+  growing_output_buffer& operator<<(T&& s) { buffer_ << s; return *this; }
 
   char sbo_[CHUNK_SIZE];
   std::string growing_;
