@@ -62,10 +62,8 @@ template <typename... M> auto to_json_schema(const metamap<M...>& m) {
 }
 
 template <typename... E> auto json_object_to_metamap(const json_object_<std::tuple<E...>>& s) {
-  auto make_kvs = [](auto... elt) { return std::make_tuple((elt.name = elt.type)...); };
-
-  auto kvs = std::apply(make_kvs, s.entities);
-  return std::apply(mmm, kvs);
+  auto make_mmm = [](auto... elt) { return mmm((elt.name = elt.type)...); };
+  return std::apply(make_mmm, s.entities);
 }
 
 template <typename S, typename... A>
