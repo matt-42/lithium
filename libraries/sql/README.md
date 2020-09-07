@@ -14,6 +14,9 @@ It features:
 All the three connectors are following the same API so you can use the same way
 a SQLite, MySQL or PostgreSQL database.
 
+# Dependency
+  MariaDB mysqlClient
+
 # Installation
 
 https://github.com/matt-42/lithium/tree/master/INSTALL.md
