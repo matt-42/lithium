@@ -13,22 +13,22 @@
 namespace li {
 
 // Convert C++ types to mysql types.
-auto type_to_mysql_statement_buffer_type(const char&) { return MYSQL_TYPE_TINY; }
-auto type_to_mysql_statement_buffer_type(const short int&) { return MYSQL_TYPE_SHORT; }
-auto type_to_mysql_statement_buffer_type(const int&) { return MYSQL_TYPE_LONG; }
-auto type_to_mysql_statement_buffer_type(const long long int&) { return MYSQL_TYPE_LONGLONG; }
-auto type_to_mysql_statement_buffer_type(const float&) { return MYSQL_TYPE_FLOAT; }
-auto type_to_mysql_statement_buffer_type(const double&) { return MYSQL_TYPE_DOUBLE; }
-auto type_to_mysql_statement_buffer_type(const sql_blob&) { return MYSQL_TYPE_BLOB; }
-auto type_to_mysql_statement_buffer_type(const char*) { return MYSQL_TYPE_STRING; }
-template <unsigned S> auto type_to_mysql_statement_buffer_type(const sql_varchar<S>) {
+inline auto type_to_mysql_statement_buffer_type(const char&) { return MYSQL_TYPE_TINY; }
+inline auto type_to_mysql_statement_buffer_type(const short int&) { return MYSQL_TYPE_SHORT; }
+inline auto type_to_mysql_statement_buffer_type(const int&) { return MYSQL_TYPE_LONG; }
+inline auto type_to_mysql_statement_buffer_type(const long long int&) { return MYSQL_TYPE_LONGLONG; }
+inline auto type_to_mysql_statement_buffer_type(const float&) { return MYSQL_TYPE_FLOAT; }
+inline auto type_to_mysql_statement_buffer_type(const double&) { return MYSQL_TYPE_DOUBLE; }
+inline auto type_to_mysql_statement_buffer_type(const sql_blob&) { return MYSQL_TYPE_BLOB; }
+inline auto type_to_mysql_statement_buffer_type(const char*) { return MYSQL_TYPE_STRING; }
+template <unsigned S> inline auto type_to_mysql_statement_buffer_type(const sql_varchar<S>) {
   return MYSQL_TYPE_STRING;
 }
 
-auto type_to_mysql_statement_buffer_type(const unsigned char&) { return MYSQL_TYPE_TINY; }
-auto type_to_mysql_statement_buffer_type(const unsigned short int&) { return MYSQL_TYPE_SHORT; }
-auto type_to_mysql_statement_buffer_type(const unsigned int&) { return MYSQL_TYPE_LONG; }
-auto type_to_mysql_statement_buffer_type(const unsigned long long int&) {
+inline auto type_to_mysql_statement_buffer_type(const unsigned char&) { return MYSQL_TYPE_TINY; }
+inline auto type_to_mysql_statement_buffer_type(const unsigned short int&) { return MYSQL_TYPE_SHORT; }
+inline auto type_to_mysql_statement_buffer_type(const unsigned int&) { return MYSQL_TYPE_LONG; }
+inline auto type_to_mysql_statement_buffer_type(const unsigned long long int&) {
   return MYSQL_TYPE_LONGLONG;
 }
 
@@ -67,12 +67,12 @@ template <typename V> void mysql_bind_param(MYSQL_BIND& b, V& v) {
   b.is_unsigned = std::is_unsigned<V>::value;
 }
 
-void mysql_bind_param(MYSQL_BIND& b, std::string& s) {
+inline void mysql_bind_param(MYSQL_BIND& b, std::string& s) {
   b.buffer = &s[0];
   b.buffer_type = MYSQL_TYPE_STRING;
   b.buffer_length = s.size();
 }
-void mysql_bind_param(MYSQL_BIND& b, const std::string& s) {
+inline void mysql_bind_param(MYSQL_BIND& b, const std::string& s) {
   mysql_bind_param(b, *const_cast<std::string*>(&s));
 }
 
@@ -80,23 +80,23 @@ template <unsigned SIZE> void mysql_bind_param(MYSQL_BIND& b, const sql_varchar<
   mysql_bind_param(b, *const_cast<std::string*>(static_cast<const std::string*>(&s)));
 }
 
-void mysql_bind_param(MYSQL_BIND& b, char* s) {
+inline void mysql_bind_param(MYSQL_BIND& b, char* s) {
   b.buffer = s;
   b.buffer_type = MYSQL_TYPE_STRING;
   b.buffer_length = strlen(s);
 }
-void mysql_bind_param(MYSQL_BIND& b, const char* s) { mysql_bind_param(b, const_cast<char*>(s)); }
+inline void mysql_bind_param(MYSQL_BIND& b, const char* s) { mysql_bind_param(b, const_cast<char*>(s)); }
 
-void mysql_bind_param(MYSQL_BIND& b, sql_blob& s) {
+inline void mysql_bind_param(MYSQL_BIND& b, sql_blob& s) {
   b.buffer = &s[0];
   b.buffer_type = MYSQL_TYPE_BLOB;
   b.buffer_length = s.size();
 }
-void mysql_bind_param(MYSQL_BIND& b, const sql_blob& s) {
+inline void mysql_bind_param(MYSQL_BIND& b, const sql_blob& s) {
   mysql_bind_param(b, *const_cast<sql_blob*>(&s));
 }
 
-void mysql_bind_param(MYSQL_BIND& b, sql_null_t n) { b.buffer_type = MYSQL_TYPE_NULL; }
+inline void mysql_bind_param(MYSQL_BIND& b, sql_null_t n) { b.buffer_type = MYSQL_TYPE_NULL; }
 
 //
 // Bind output function.
@@ -107,7 +107,7 @@ template <typename T> void mysql_bind_output(MYSQL_BIND& b, unsigned long* real_
   mysql_bind_param(b, v);
 }
 
-void mysql_bind_output(MYSQL_BIND& b, unsigned long* real_length, std::string& v) {
+inline void mysql_bind_output(MYSQL_BIND& b, unsigned long* real_length, std::string& v) {
   v.resize(100);
   b.buffer_type = MYSQL_TYPE_STRING;
   b.buffer_length = v.size();

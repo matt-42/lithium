@@ -1128,22 +1128,22 @@ struct mysql_statement_data : std::enable_shared_from_this<mysql_statement_data>
 namespace li {
 
 // Convert C++ types to mysql types.
-auto type_to_mysql_statement_buffer_type(const char&) { return MYSQL_TYPE_TINY; }
-auto type_to_mysql_statement_buffer_type(const short int&) { return MYSQL_TYPE_SHORT; }
-auto type_to_mysql_statement_buffer_type(const int&) { return MYSQL_TYPE_LONG; }
-auto type_to_mysql_statement_buffer_type(const long long int&) { return MYSQL_TYPE_LONGLONG; }
-auto type_to_mysql_statement_buffer_type(const float&) { return MYSQL_TYPE_FLOAT; }
-auto type_to_mysql_statement_buffer_type(const double&) { return MYSQL_TYPE_DOUBLE; }
-auto type_to_mysql_statement_buffer_type(const sql_blob&) { return MYSQL_TYPE_BLOB; }
-auto type_to_mysql_statement_buffer_type(const char*) { return MYSQL_TYPE_STRING; }
-template <unsigned S> auto type_to_mysql_statement_buffer_type(const sql_varchar<S>) {
+inline auto type_to_mysql_statement_buffer_type(const char&) { return MYSQL_TYPE_TINY; }
+inline auto type_to_mysql_statement_buffer_type(const short int&) { return MYSQL_TYPE_SHORT; }
+inline auto type_to_mysql_statement_buffer_type(const int&) { return MYSQL_TYPE_LONG; }
+inline auto type_to_mysql_statement_buffer_type(const long long int&) { return MYSQL_TYPE_LONGLONG; }
+inline auto type_to_mysql_statement_buffer_type(const float&) { return MYSQL_TYPE_FLOAT; }
+inline auto type_to_mysql_statement_buffer_type(const double&) { return MYSQL_TYPE_DOUBLE; }
+inline auto type_to_mysql_statement_buffer_type(const sql_blob&) { return MYSQL_TYPE_BLOB; }
+inline auto type_to_mysql_statement_buffer_type(const char*) { return MYSQL_TYPE_STRING; }
+template <unsigned S> inline auto type_to_mysql_statement_buffer_type(const sql_varchar<S>) {
   return MYSQL_TYPE_STRING;
 }
 
-auto type_to_mysql_statement_buffer_type(const unsigned char&) { return MYSQL_TYPE_TINY; }
-auto type_to_mysql_statement_buffer_type(const unsigned short int&) { return MYSQL_TYPE_SHORT; }
-auto type_to_mysql_statement_buffer_type(const unsigned int&) { return MYSQL_TYPE_LONG; }
-auto type_to_mysql_statement_buffer_type(const unsigned long long int&) {
+inline auto type_to_mysql_statement_buffer_type(const unsigned char&) { return MYSQL_TYPE_TINY; }
+inline auto type_to_mysql_statement_buffer_type(const unsigned short int&) { return MYSQL_TYPE_SHORT; }
+inline auto type_to_mysql_statement_buffer_type(const unsigned int&) { return MYSQL_TYPE_LONG; }
+inline auto type_to_mysql_statement_buffer_type(const unsigned long long int&) {
   return MYSQL_TYPE_LONGLONG;
 }
 
@@ -1182,12 +1182,12 @@ template <typename V> void mysql_bind_param(MYSQL_BIND& b, V& v) {
   b.is_unsigned = std::is_unsigned<V>::value;
 }
 
-void mysql_bind_param(MYSQL_BIND& b, std::string& s) {
+inline void mysql_bind_param(MYSQL_BIND& b, std::string& s) {
   b.buffer = &s[0];
   b.buffer_type = MYSQL_TYPE_STRING;
   b.buffer_length = s.size();
 }
-void mysql_bind_param(MYSQL_BIND& b, const std::string& s) {
+inline void mysql_bind_param(MYSQL_BIND& b, const std::string& s) {
   mysql_bind_param(b, *const_cast<std::string*>(&s));
 }
 
@@ -1195,23 +1195,23 @@ template <unsigned SIZE> void mysql_bind_param(MYSQL_BIND& b, const sql_varchar<
   mysql_bind_param(b, *const_cast<std::string*>(static_cast<const std::string*>(&s)));
 }
 
-void mysql_bind_param(MYSQL_BIND& b, char* s) {
+inline void mysql_bind_param(MYSQL_BIND& b, char* s) {
   b.buffer = s;
   b.buffer_type = MYSQL_TYPE_STRING;
   b.buffer_length = strlen(s);
 }
-void mysql_bind_param(MYSQL_BIND& b, const char* s) { mysql_bind_param(b, const_cast<char*>(s)); }
+inline void mysql_bind_param(MYSQL_BIND& b, const char* s) { mysql_bind_param(b, const_cast<char*>(s)); }
 
-void mysql_bind_param(MYSQL_BIND& b, sql_blob& s) {
+inline void mysql_bind_param(MYSQL_BIND& b, sql_blob& s) {
   b.buffer = &s[0];
   b.buffer_type = MYSQL_TYPE_BLOB;
   b.buffer_length = s.size();
 }
-void mysql_bind_param(MYSQL_BIND& b, const sql_blob& s) {
+inline void mysql_bind_param(MYSQL_BIND& b, const sql_blob& s) {
   mysql_bind_param(b, *const_cast<sql_blob*>(&s));
 }
 
-void mysql_bind_param(MYSQL_BIND& b, sql_null_t n) { b.buffer_type = MYSQL_TYPE_NULL; }
+inline void mysql_bind_param(MYSQL_BIND& b, sql_null_t n) { b.buffer_type = MYSQL_TYPE_NULL; }
 
 //
 // Bind output function.
@@ -1222,7 +1222,7 @@ template <typename T> void mysql_bind_output(MYSQL_BIND& b, unsigned long* real_
   mysql_bind_param(b, v);
 }
 
-void mysql_bind_output(MYSQL_BIND& b, unsigned long* real_length, std::string& v) {
+inline void mysql_bind_output(MYSQL_BIND& b, unsigned long* real_length, std::string& v) {
   v.resize(100);
   b.buffer_type = MYSQL_TYPE_STRING;
   b.buffer_length = v.size();
@@ -2186,10 +2186,15 @@ template <typename B> mysql_statement<B> mysql_connection<B>::prepare(const std:
 
 
 namespace li {
-// thread local map of sql_database<I> -> sql_database_thread_local_data<I>;
+// thread local map of sql_database<I>* -> sql_database_thread_local_data<I>*;
 // This is used to store the thread local async connection pool.
-thread_local std::unordered_map<int, void*> sql_thread_local_data;
-thread_local int database_id_counter = 0;
+// void* is used instead of concrete types to handle different I parameter.
+
+#ifdef LI_EXTERN_GLOBALS
+extern thread_local std::unordered_map<void*, void*> sql_thread_local_data;
+#else
+thread_local std::unordered_map<void*, void*> sql_thread_local_data;
+#endif
 
 template <typename I> struct sql_database_thread_local_data {
 
@@ -2205,12 +2210,12 @@ template <typename I> struct sql_database_thread_local_data {
 struct active_yield {
   typedef std::runtime_error exception_type;
   int fiber_id = 0;
-  void defer(std::function<void()>) {}
-  void defer_fiber_resume(int fiber_id) {}
+  inline void defer(std::function<void()>) {}
+  inline void defer_fiber_resume(int fiber_id) {}
 
-  void epoll_add(int, int) {}
-  void epoll_mod(int, int) {}
-  void yield() {}
+  inline void epoll_add(int, int) {}
+  inline void epoll_mod(int, int) {}
+  inline void yield() {}
 };
 
 template <typename I> struct sql_database {
@@ -2227,14 +2232,12 @@ template <typename I> struct sql_database {
   int n_sync_connections_ = 0;
   int max_sync_connections_ = 0;
   int max_async_connections_per_thread_ = 0;
-  int database_id_ = 0;
 
   template <typename... O> sql_database(O&&... opts) : impl(std::forward<O>(opts)...) {
     auto options = mmm(opts...);
     max_async_connections_per_thread_ = get_or(options, s::max_async_connections_per_thread, 200);
     max_sync_connections_ = get_or(options, s::max_sync_connections, 2000);
 
-    this->database_id_ = database_id_counter++;
   }
 
   ~sql_database() {
@@ -2242,15 +2245,14 @@ template <typename I> struct sql_database {
   }
 
   void clear_connections() {
-    auto it = sql_thread_local_data.find(this->database_id_);
+    auto it = sql_thread_local_data.find(this);
     if (it != sql_thread_local_data.end())
     {
       auto store = (sql_database_thread_local_data<I>*) it->second;
       for (auto ptr : store->async_connections_)
         delete ptr;
       delete store;
-      // delete (sql_database_thread_local_data<I>*) sql_thread_local_data[this->database_id_];
-      sql_thread_local_data.erase(this->database_id_);
+      sql_thread_local_data.erase(this);
     }
 
     std::lock_guard<std::mutex> lock(this->sync_connections_mutex_);
@@ -2261,11 +2263,11 @@ template <typename I> struct sql_database {
   }
 
   auto& thread_local_data() {
-    auto it = sql_thread_local_data.find(this->database_id_);
+    auto it = sql_thread_local_data.find(this);
     if (it == sql_thread_local_data.end())
     {
       auto data = new sql_database_thread_local_data<I>;
-      sql_thread_local_data[this->database_id_] = data;
+      sql_thread_local_data[this] = data;
       return *data;
     }
     else

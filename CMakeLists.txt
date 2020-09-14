@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 2.8)
 SET(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH}
                       ${CMAKE_SOURCE_DIR}/cmake)
 
-project(li)
+project(lithium)
 
 find_package(MYSQL REQUIRED)
 find_package(PostgreSQL REQUIRED)
@@ -62,7 +62,7 @@ add_definitions(-Wno-ignored-attributes) # to skip postgresql warnings.
 # Automatic symbol generation
 add_custom_target(
     symbols_generation DEPENDS li_symbol_generator
-    COMMAND ${CMAKE_BINARY_DIR}/libraries/symbol/li_symbol_generator ${CMAKE_CURRENT_SOURCE_DIR}/libraries)
+    COMMAND ${CMAKE_BINARY_DIR}/libraries/symbol/li_symbol_generator ${CMAKE_CURRENT_SOURCE_DIR}/libraries ${CMAKE_CURRENT_SOURCE_DIR}/single_headers)
 
 
 # Automatic single header generation for release (without line directives)

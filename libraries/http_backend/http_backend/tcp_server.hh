@@ -107,18 +107,18 @@ struct async_fiber_context {
   sockaddr in_addr;
   SSL* ssl = nullptr;
 
-  async_fiber_context& operator=(const async_fiber_context&) = delete;
-  async_fiber_context(const async_fiber_context&) = delete;
+  inline async_fiber_context& operator=(const async_fiber_context&) = delete;
+  inline async_fiber_context(const async_fiber_context&) = delete;
 
-  async_fiber_context(async_reactor* reactor, boost::context::continuation&& sink,
+  inline async_fiber_context(async_reactor* reactor, boost::context::continuation&& sink,
                       int fiber_id, int socket_fd, sockaddr in_addr)
       : reactor(reactor), sink(std::forward<boost::context::continuation&&>(sink)),
         fiber_id(fiber_id), socket_fd(socket_fd),
         in_addr(in_addr) {}
 
-  void yield() { sink = sink.resume(); }
+  inline void yield() { sink = sink.resume(); }
        
-  bool ssl_handshake(std::unique_ptr<ssl_context>& ssl_ctx) {
+  inline bool ssl_handshake(std::unique_ptr<ssl_context>& ssl_ctx) {
     if (!ssl_ctx) return false;
 
     ssl = SSL_new(ssl_ctx->ctx);
@@ -140,7 +140,7 @@ struct async_fiber_context {
     return false;
   }
 
-  ~async_fiber_context() {
+  inline ~async_fiber_context() {
     if (ssl)
     {
       SSL_shutdown(ssl);
@@ -148,12 +148,12 @@ struct async_fiber_context {
     }
   }
 
-  void epoll_add(int fd, int flags);
-  void epoll_mod(int fd, int flags);
-  void reassign_fd_to_fiber(int fd, int fiber_idx);
+  inline void epoll_add(int fd, int flags);
+  inline void epoll_mod(int fd, int flags);
+  inline void reassign_fd_to_fiber(int fd, int fiber_idx);
 
-  void defer(const std::function<void()>& fun);
-  void defer_fiber_resume(int fiber_id);
+  inline void defer(const std::function<void()>& fun);
+  inline void defer_fiber_resume(int fiber_id);
 
   inline int read_impl(char* buf, int size) {
     if (ssl)
@@ -168,7 +168,7 @@ struct async_fiber_context {
       return ::send(socket_fd, buf, size, 0);
   }
 
-  int read(char* buf, int max_size) {
+  inline int read(char* buf, int max_size) {
     ssize_t count = read_impl(buf, max_size);
     while (count <= 0) {
       if ((count < 0 and errno != EAGAIN) or count == 0)
@@ -179,7 +179,7 @@ struct async_fiber_context {
     return count;
   };
 
-  bool write(const char* buf, int size) {
+  inline bool write(const char* buf, int size) {
     if (!buf or !size) {
       // std::cout << "pause" << std::endl;
       sink = sink.resume();
@@ -212,7 +212,7 @@ struct async_reactor {
   std::vector<std::function<void()>> defered_functions;
   std::deque<int> defered_resume;
 
-  continuation& fd_to_fiber(int fd) {
+  inline continuation& fd_to_fiber(int fd) {
     assert(fd >= 0 and fd < fd_to_fiber_idx.size());
     int fiber_idx = fd_to_fiber_idx[fd];
     assert(fiber_idx >= 0 and fiber_idx < fibers.size());
@@ -220,11 +220,11 @@ struct async_reactor {
     return fibers[fiber_idx];
   }
 
-  void reassign_fd_to_fiber(int fd, int fiber_idx) {
+  inline void reassign_fd_to_fiber(int fd, int fiber_idx) {
     fd_to_fiber_idx[fd] = fiber_idx;
   }
 
-  void epoll_ctl(int epoll_fd, int fd, int action, uint32_t flags) {
+  inline void epoll_ctl(int epoll_fd, int fd, int action, uint32_t flags) {
     epoll_event event;
     memset(&event, 0, sizeof(event));
     event.data.fd = fd;
@@ -233,7 +233,7 @@ struct async_reactor {
       std::cout << "epoll_ctl error: " << strerror(errno) << std::endl;
   };
 
-  void epoll_add(int new_fd, int flags, int fiber_idx = -1) {
+  inline void epoll_add(int new_fd, int flags, int fiber_idx = -1) {
     epoll_ctl(epoll_fd, new_fd, EPOLL_CTL_ADD, flags);
     // Associate new_fd to the fiber.
     if (int(fd_to_fiber_idx.size()) < new_fd + 1)
@@ -241,7 +241,7 @@ struct async_reactor {
     fd_to_fiber_idx[new_fd] = fiber_idx;
   }
 
-  void epoll_mod(int fd, int flags) { epoll_ctl(epoll_fd, fd, EPOLL_CTL_MOD, flags); }
+  inline void epoll_mod(int fd, int flags) { epoll_ctl(epoll_fd, fd, EPOLL_CTL_MOD, flags); }
 
   template <typename H> void event_loop(int listen_fd, H handler) {
 

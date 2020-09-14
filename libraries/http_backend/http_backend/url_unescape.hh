@@ -3,7 +3,7 @@
 #include <string_view>
 
 namespace li {
-std::string_view url_unescape(std::string_view str) {
+inline std::string_view url_unescape(std::string_view str) {
   char* o = (char*)str.data();
   char* c = (char*)str.data();
   const char* end = c + str.size();

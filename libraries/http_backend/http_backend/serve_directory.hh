@@ -5,7 +5,7 @@
 
 namespace li {
 
-auto serve_file(const std::string& root, std::string_view path, http_response& response) {
+inline auto serve_file(const std::string& root, std::string_view path, http_response& response) {
   std::string base_path = root;
   if (!base_path.empty() && base_path[base_path.size() - 1] != '/') {
     base_path.push_back('/');

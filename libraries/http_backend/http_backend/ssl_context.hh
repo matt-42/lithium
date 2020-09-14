@@ -10,8 +10,8 @@ namespace li {
 
 // SSL context.
 // Initialize the ssl context that will instantiate new ssl connection.
+static bool openssl_initialized = false;
 struct ssl_context {
-  static bool openssl_initialized;
   SSL_CTX* ctx = nullptr;
 
   ~ssl_context() {
@@ -59,7 +59,5 @@ struct ssl_context {
 
   }
 };
-
-bool ssl_context::openssl_initialized = false;
 
 } // namespace li

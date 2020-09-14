@@ -16,8 +16,8 @@ struct json_error {
   std::string what;
 };
 
-int make_json_error(const char* what) { return 1; }
-int json_no_error() { return 0; }
+inline int make_json_error(const char* what) { return 1; }
+inline int json_no_error() { return 0; }
 
 static int json_ok = json_no_error();
 

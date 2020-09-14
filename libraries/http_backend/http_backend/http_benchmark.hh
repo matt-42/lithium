@@ -14,18 +14,18 @@ namespace http_benchmark_impl {
 
 class timer {
 public:
-  void start() { start_ = std::chrono::high_resolution_clock::now(); }
-  void end() { end_ = std::chrono::high_resolution_clock::now(); }
+  inline void start() { start_ = std::chrono::high_resolution_clock::now(); }
+  inline void end() { end_ = std::chrono::high_resolution_clock::now(); }
 
-  unsigned long us() const {
+  inline unsigned long us() const {
     return std::chrono::duration_cast<std::chrono::microseconds>(end_ - start_).count();
   }
 
-  unsigned long ms() const {
+  inline unsigned long ms() const {
     return std::chrono::duration_cast<std::chrono::milliseconds>(end_ - start_).count();
   }
 
-  unsigned long ns() const {
+  inline unsigned long ns() const {
     return std::chrono::duration_cast<std::chrono::nanoseconds>(end_ - start_).count();
   }
 
@@ -33,14 +33,14 @@ private:
   std::chrono::time_point<std::chrono::high_resolution_clock> start_, end_;
 };
 
-void error(std::string msg) {
+inline void error(std::string msg) {
   perror(msg.c_str());
   exit(0);
 }
 
 } // namespace http_benchmark_impl
 
-std::vector<int> http_benchmark_connect(int NCONNECTIONS, int port) {
+inline std::vector<int> http_benchmark_connect(int NCONNECTIONS, int port) {
   std::vector<int> sockets(NCONNECTIONS, 0);
   struct addrinfo hints, *serveraddr;
 
@@ -102,12 +102,12 @@ std::vector<int> http_benchmark_connect(int NCONNECTIONS, int port) {
   return sockets;
 }
 
-void http_benchmark_close(const std::vector<int>& sockets) {
+inline void http_benchmark_close(const std::vector<int>& sockets) {
   for (int i = 0; i < sockets.size(); i++)
     close(sockets[i]);
 }
 
-float http_benchmark(const std::vector<int>& sockets, int NTHREADS, int duration_in_ms,
+inline float http_benchmark(const std::vector<int>& sockets, int NTHREADS, int duration_in_ms,
                      std::string_view req) {
 
   int NCONNECTION_PER_THREAD = sockets.size() / NTHREADS;

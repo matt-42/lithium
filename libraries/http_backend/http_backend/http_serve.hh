@@ -26,10 +26,10 @@ namespace li {
 
 namespace http_async_impl {
 
-char* date_buf = nullptr;
-int date_buf_size = 0;
+static char* date_buf = nullptr;
+static int date_buf_size = 0;
 
-thread_local std::unordered_map<std::string, std::string_view> static_files;
+static thread_local std::unordered_map<std::string, std::string_view> static_files;
 
 struct http_ctx {
 

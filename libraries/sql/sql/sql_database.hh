@@ -4,10 +4,15 @@
 #include <unordered_map>
 
 namespace li {
-// thread local map of sql_database<I> -> sql_database_thread_local_data<I>;
+// thread local map of sql_database<I>* -> sql_database_thread_local_data<I>*;
 // This is used to store the thread local async connection pool.
-thread_local std::unordered_map<int, void*> sql_thread_local_data;
-thread_local int database_id_counter = 0;
+// void* is used instead of concrete types to handle different I parameter.
+
+#ifdef LI_EXTERN_GLOBALS
+extern thread_local std::unordered_map<void*, void*> sql_thread_local_data;
+#else
+thread_local std::unordered_map<void*, void*> sql_thread_local_data;
+#endif
 
 template <typename I> struct sql_database_thread_local_data {
 
@@ -23,12 +28,12 @@ template <typename I> struct sql_database_thread_local_data {
 struct active_yield {
   typedef std::runtime_error exception_type;
   int fiber_id = 0;
-  void defer(std::function<void()>) {}
-  void defer_fiber_resume(int fiber_id) {}
+  inline void defer(std::function<void()>) {}
+  inline void defer_fiber_resume(int fiber_id) {}
 
-  void epoll_add(int, int) {}
-  void epoll_mod(int, int) {}
-  void yield() {}
+  inline void epoll_add(int, int) {}
+  inline void epoll_mod(int, int) {}
+  inline void yield() {}
 };
 
 template <typename I> struct sql_database {
@@ -45,14 +50,12 @@ template <typename I> struct sql_database {
   int n_sync_connections_ = 0;
   int max_sync_connections_ = 0;
   int max_async_connections_per_thread_ = 0;
-  int database_id_ = 0;
 
   template <typename... O> sql_database(O&&... opts) : impl(std::forward<O>(opts)...) {
     auto options = mmm(opts...);
     max_async_connections_per_thread_ = get_or(options, s::max_async_connections_per_thread, 200);
     max_sync_connections_ = get_or(options, s::max_sync_connections, 2000);
 
-    this->database_id_ = database_id_counter++;
   }
 
   ~sql_database() {
@@ -60,15 +63,14 @@ template <typename I> struct sql_database {
   }
 
   void clear_connections() {
-    auto it = sql_thread_local_data.find(this->database_id_);
+    auto it = sql_thread_local_data.find(this);
     if (it != sql_thread_local_data.end())
     {
       auto store = (sql_database_thread_local_data<I>*) it->second;
       for (auto ptr : store->async_connections_)
         delete ptr;
       delete store;
-      // delete (sql_database_thread_local_data<I>*) sql_thread_local_data[this->database_id_];
-      sql_thread_local_data.erase(this->database_id_);
+      sql_thread_local_data.erase(this);
     }
 
     std::lock_guard<std::mutex> lock(this->sync_connections_mutex_);
@@ -79,11 +81,11 @@ template <typename I> struct sql_database {
   }
 
   auto& thread_local_data() {
-    auto it = sql_thread_local_data.find(this->database_id_);
+    auto it = sql_thread_local_data.find(this);
     if (it == sql_thread_local_data.end())
     {
       auto data = new sql_database_thread_local_data<I>;
-      sql_thread_local_data[this->database_id_] = data;
+      sql_thread_local_data[this] = data;
       return *data;
     }
     else

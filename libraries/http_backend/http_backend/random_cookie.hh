@@ -7,7 +7,7 @@
 
 namespace li {
 
-std::string generate_secret_tracking_id() {
+inline std::string generate_secret_tracking_id() {
   std::ostringstream os;
   std::random_device rd;
   os << std::hex << rd() << rd() << rd() << rd();

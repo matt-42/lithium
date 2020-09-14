@@ -56,7 +56,7 @@ enum json_encodings { UTF32BE, UTF32LE, UTF16BE, UTF16LE, UTF8 };
 
 // Detection of encoding depending on the pattern of the
 // first fourth characters.
-auto detect_encoding(char a, char b, char c, char d) {
+inline auto detect_encoding(char a, char b, char c, char d) {
   // 00 00 00 xx  UTF-32BE
   // xx 00 00 00  UTF-32LE
   // 00 xx 00 xx  UTF-16BE

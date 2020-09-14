@@ -271,8 +271,8 @@ struct json_error {
   std::string what;
 };
 
-int make_json_error(const char* what) { return 1; }
-int json_no_error() { return 0; }
+inline int make_json_error(const char* what) { return 1; }
+inline int json_no_error() { return 0; }
 
 static int json_ok = json_no_error();
 
@@ -1025,7 +1025,7 @@ enum json_encodings { UTF32BE, UTF32LE, UTF16BE, UTF16LE, UTF8 };
 
 // Detection of encoding depending on the pattern of the
 // first fourth characters.
-auto detect_encoding(char a, char b, char c, char d) {
+inline auto detect_encoding(char a, char b, char c, char d) {
   // 00 00 00 xx  UTF-32BE
   // xx 00 00 00  UTF-32LE
   // 00 xx 00 xx  UTF-16BE
@@ -3648,8 +3648,8 @@ namespace li {
 
 // SSL context.
 // Initialize the ssl context that will instantiate new ssl connection.
+static bool openssl_initialized = false;
 struct ssl_context {
-  static bool openssl_initialized;
   SSL_CTX* ctx = nullptr;
 
   ~ssl_context() {
@@ -3697,8 +3697,6 @@ struct ssl_context {
 
   }
 };
-
-bool ssl_context::openssl_initialized = false;
 
 } // namespace li
 
@@ -3790,18 +3788,18 @@ struct async_fiber_context {
   sockaddr in_addr;
   SSL* ssl = nullptr;
 
-  async_fiber_context& operator=(const async_fiber_context&) = delete;
-  async_fiber_context(const async_fiber_context&) = delete;
+  inline async_fiber_context& operator=(const async_fiber_context&) = delete;
+  inline async_fiber_context(const async_fiber_context&) = delete;
 
-  async_fiber_context(async_reactor* reactor, boost::context::continuation&& sink,
+  inline async_fiber_context(async_reactor* reactor, boost::context::continuation&& sink,
                       int fiber_id, int socket_fd, sockaddr in_addr)
       : reactor(reactor), sink(std::forward<boost::context::continuation&&>(sink)),
         fiber_id(fiber_id), socket_fd(socket_fd),
         in_addr(in_addr) {}
 
-  void yield() { sink = sink.resume(); }
+  inline void yield() { sink = sink.resume(); }
        
-  bool ssl_handshake(std::unique_ptr<ssl_context>& ssl_ctx) {
+  inline bool ssl_handshake(std::unique_ptr<ssl_context>& ssl_ctx) {
     if (!ssl_ctx) return false;
 
     ssl = SSL_new(ssl_ctx->ctx);
@@ -3823,7 +3821,7 @@ struct async_fiber_context {
     return false;
   }
 
-  ~async_fiber_context() {
+  inline ~async_fiber_context() {
     if (ssl)
     {
       SSL_shutdown(ssl);
@@ -3831,12 +3829,12 @@ struct async_fiber_context {
     }
   }
 
-  void epoll_add(int fd, int flags);
-  void epoll_mod(int fd, int flags);
-  void reassign_fd_to_fiber(int fd, int fiber_idx);
+  inline void epoll_add(int fd, int flags);
+  inline void epoll_mod(int fd, int flags);
+  inline void reassign_fd_to_fiber(int fd, int fiber_idx);
 
-  void defer(const std::function<void()>& fun);
-  void defer_fiber_resume(int fiber_id);
+  inline void defer(const std::function<void()>& fun);
+  inline void defer_fiber_resume(int fiber_id);
 
   inline int read_impl(char* buf, int size) {
     if (ssl)
@@ -3851,7 +3849,7 @@ struct async_fiber_context {
       return ::send(socket_fd, buf, size, 0);
   }
 
-  int read(char* buf, int max_size) {
+  inline int read(char* buf, int max_size) {
     ssize_t count = read_impl(buf, max_size);
     while (count <= 0) {
       if ((count < 0 and errno != EAGAIN) or count == 0)
@@ -3862,7 +3860,7 @@ struct async_fiber_context {
     return count;
   };
 
-  bool write(const char* buf, int size) {
+  inline bool write(const char* buf, int size) {
     if (!buf or !size) {
       // std::cout << "pause" << std::endl;
       sink = sink.resume();
@@ -3895,7 +3893,7 @@ struct async_reactor {
   std::vector<std::function<void()>> defered_functions;
   std::deque<int> defered_resume;
 
-  continuation& fd_to_fiber(int fd) {
+  inline continuation& fd_to_fiber(int fd) {
     assert(fd >= 0 and fd < fd_to_fiber_idx.size());
     int fiber_idx = fd_to_fiber_idx[fd];
     assert(fiber_idx >= 0 and fiber_idx < fibers.size());
@@ -3903,11 +3901,11 @@ struct async_reactor {
     return fibers[fiber_idx];
   }
 
-  void reassign_fd_to_fiber(int fd, int fiber_idx) {
+  inline void reassign_fd_to_fiber(int fd, int fiber_idx) {
     fd_to_fiber_idx[fd] = fiber_idx;
   }
 
-  void epoll_ctl(int epoll_fd, int fd, int action, uint32_t flags) {
+  inline void epoll_ctl(int epoll_fd, int fd, int action, uint32_t flags) {
     epoll_event event;
     memset(&event, 0, sizeof(event));
     event.data.fd = fd;
@@ -3916,7 +3914,7 @@ struct async_reactor {
       std::cout << "epoll_ctl error: " << strerror(errno) << std::endl;
   };
 
-  void epoll_add(int new_fd, int flags, int fiber_idx = -1) {
+  inline void epoll_add(int new_fd, int flags, int fiber_idx = -1) {
     epoll_ctl(epoll_fd, new_fd, EPOLL_CTL_ADD, flags);
     // Associate new_fd to the fiber.
     if (int(fd_to_fiber_idx.size()) < new_fd + 1)
@@ -3924,7 +3922,7 @@ struct async_reactor {
     fd_to_fiber_idx[new_fd] = fiber_idx;
   }
 
-  void epoll_mod(int fd, int flags) { epoll_ctl(epoll_fd, fd, EPOLL_CTL_MOD, flags); }
+  inline void epoll_mod(int fd, int flags) { epoll_ctl(epoll_fd, fd, EPOLL_CTL_MOD, flags); }
 
   template <typename H> void event_loop(int listen_fd, H handler) {
 
@@ -4139,7 +4137,7 @@ void start_tcp_server(int port, int socktype, int nthreads, H conn_handler,
 
 
 namespace li {
-std::string_view url_unescape(std::string_view str) {
+inline std::string_view url_unescape(std::string_view str) {
   char* o = (char*)str.data();
   char* c = (char*)str.data();
   const char* end = c + str.size();
@@ -4168,10 +4166,10 @@ namespace li {
 
 namespace http_async_impl {
 
-char* date_buf = nullptr;
-int date_buf_size = 0;
+static char* date_buf = nullptr;
+static int date_buf_size = 0;
 
-thread_local std::unordered_map<std::string, std::string_view> static_files;
+static thread_local std::unordered_map<std::string, std::string_view> static_files;
 
 struct http_ctx {
 
@@ -5012,7 +5010,7 @@ struct url_parser_info_node {
 };
 using url_parser_info = std::unordered_map<std::string, url_parser_info_node>;
 
-auto make_url_parser_info(const std::string_view url) {
+inline auto make_url_parser_info(const std::string_view url) {
 
   url_parser_info info;
 
@@ -5354,7 +5352,7 @@ using http_api = api<http_request, http_response>;
 
 namespace li {
 
-std::string generate_secret_tracking_id() {
+inline std::string generate_secret_tracking_id() {
   std::ostringstream os;
   std::random_device rd;
   os << std::hex << rd() << rd() << rd() << rd();
@@ -5635,7 +5633,7 @@ template <typename... A> http_api http_authentication_api(http_authentication<A.
 
 namespace li {
 
-auto serve_file(const std::string& root, std::string_view path, http_response& response) {
+inline auto serve_file(const std::string& root, std::string_view path, http_response& response) {
   std::string base_path = root;
   if (!base_path.empty() && base_path[base_path.size() - 1] != '/') {
     base_path.push_back('/');
@@ -5785,18 +5783,18 @@ namespace http_benchmark_impl {
 
 class timer {
 public:
-  void start() { start_ = std::chrono::high_resolution_clock::now(); }
-  void end() { end_ = std::chrono::high_resolution_clock::now(); }
+  inline void start() { start_ = std::chrono::high_resolution_clock::now(); }
+  inline void end() { end_ = std::chrono::high_resolution_clock::now(); }
 
-  unsigned long us() const {
+  inline unsigned long us() const {
     return std::chrono::duration_cast<std::chrono::microseconds>(end_ - start_).count();
   }
 
-  unsigned long ms() const {
+  inline unsigned long ms() const {
     return std::chrono::duration_cast<std::chrono::milliseconds>(end_ - start_).count();
   }
 
-  unsigned long ns() const {
+  inline unsigned long ns() const {
     return std::chrono::duration_cast<std::chrono::nanoseconds>(end_ - start_).count();
   }
 
@@ -5804,14 +5802,14 @@ private:
   std::chrono::time_point<std::chrono::high_resolution_clock> start_, end_;
 };
 
-void error(std::string msg) {
+inline void error(std::string msg) {
   perror(msg.c_str());
   exit(0);
 }
 
 } // namespace http_benchmark_impl
 
-std::vector<int> http_benchmark_connect(int NCONNECTIONS, int port) {
+inline std::vector<int> http_benchmark_connect(int NCONNECTIONS, int port) {
   std::vector<int> sockets(NCONNECTIONS, 0);
   struct addrinfo hints, *serveraddr;
 
@@ -5873,12 +5871,12 @@ std::vector<int> http_benchmark_connect(int NCONNECTIONS, int port) {
   return sockets;
 }
 
-void http_benchmark_close(const std::vector<int>& sockets) {
+inline void http_benchmark_close(const std::vector<int>& sockets) {
   for (int i = 0; i < sockets.size(); i++)
     close(sockets[i]);
 }
 
-float http_benchmark(const std::vector<int>& sockets, int NTHREADS, int duration_in_ms,
+inline float http_benchmark(const std::vector<int>& sockets, int NTHREADS, int duration_in_ms,
                      std::string_view req) {
 
   int NCONNECTION_PER_THREAD = sockets.size() / NTHREADS;

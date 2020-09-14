@@ -55,7 +55,7 @@ struct url_parser_info_node {
 };
 using url_parser_info = std::unordered_map<std::string, url_parser_info_node>;
 
-auto make_url_parser_info(const std::string_view url) {
+inline auto make_url_parser_info(const std::string_view url) {
 
   url_parser_info info;
 
