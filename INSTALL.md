@@ -8,6 +8,23 @@ Copy the compiled single header of the library you need and include it in your C
   - lithium.hh: all libraries
   - lithium_XXXX.hh: library XXXX only.
 
+# Note for projects linking multiple C++ files
+
+The `sql` libraries use a global variable to store the connections. If you encounter
+multiple definitions at link time, you need to `#define LI_EXTERN_GLOBALS` before including the lithium
+header in all your files exept one.
+
+In one file:
+```
+#include <lithium.hh> // or <lithium_XXXX.hh> 
+```
+
+And in all the others:
+```
+#define LI_EXTERN_GLOBALS
+#include <lithium.hh> // or <lithium_XXXX.hh> 
+```
+
 # Automatic symbol generation
 
 The `li_symbol_generator` tool need to be compiled: 
