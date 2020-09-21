@@ -166,6 +166,13 @@ inline void json_encode(C& ss, O obj, const json_object_<E>& schema) {
   tuple_map(schema.schema, encode_one_entity);
   ss << '}';
 }
+
+template <typename C, typename O, typename S>
+inline void json_encode(C& ss, O* obj, const S& schema)
+{
+  json_encode(ss, *obj, schema);
+}
+
 } // namespace impl
 
 } // namespace li

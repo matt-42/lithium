@@ -61,6 +61,8 @@ template <typename... M> auto to_json_schema(const metamap<M...>& m) {
   return json_object_<decltype(entities)>(entities);
 }
 
+template <typename V> auto to_json_schema(V* v) { return to_json_schema(*v); }
+
 template <typename... E> auto json_object_to_metamap(const json_object_<std::tuple<E...>>& s) {
   auto make_mmm = [](auto... elt) { return mmm((elt.name = elt.type)...); };
   return std::apply(make_mmm, s.entities);

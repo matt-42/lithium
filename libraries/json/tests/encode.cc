@@ -137,4 +137,11 @@ int main() {
     assert(test2["test2"] == 4);
   }
 
+  {
+    // Pointers.
+    std::string input = R"json([1,2,3,4])json";
+    auto to_encode = std::vector<int>{1, 2, 3, 4};
+    assert(json_encode(&to_encode) == input);
+         
+  }
 }
