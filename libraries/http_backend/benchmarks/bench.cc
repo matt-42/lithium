@@ -159,7 +159,24 @@ int nthread = nprocs;
 #endif
 
 
-thread_local lru_cache<int, decltype(mmm(s::id = int(), s::randomNumber = int()))> world_cache(10000);
+// thread_local lru_cache<int, decltype(mmm(s::id = int(), s::randomNumber = int()))> world_cache(10000);
+template <typename T>
+struct cache {
+
+  void insert(T o) { 
+    buffer.push_back(o);
+  }
+
+  std::vector<T*> get_array(const std::vector<int>& ids) {
+    std::vector<T*> res;
+    for (int i = 0; i < ids.size(); i++) res.push_back(&buffer[i]);
+    return res;
+  }
+
+  std::vector<T> buffer;
+};
+
+cache<decltype(mmm(s::id = int(), s::randomNumber = int()))> world_cache;
 
 auto make_api() {
 
@@ -207,6 +224,11 @@ auto make_api() {
     response.write_json(numbers);
   };
 
+
+  random_numbers.connect().forall([&] (const auto& number) {
+    world_cache.insert(metamap_clone(number));
+  });
+
   my_api.get("/cached-worlds") = [&](http_request& request, http_response& response) {
     sql_db.max_async_connections_per_thread_ = queries_nconn;
     std::string N_str = request.get_parameters(s::N = std::optional<std::string>()).N.value_or("1");
@@ -214,19 +236,25 @@ auto make_api() {
     
     N = std::max(1, std::min(N, 500));
     
-    if (world_cache.size() == 0)
-      random_numbers.connect(request.fiber).forall([&] (const auto& number) {
-        world_cache(number.id, [&] { return metamap_clone(number); });
-      });
+    // if (world_cache.size() == 0)
+    //   random_numbers.connect(request.fiber).forall([&] (const auto& number) {
+    //     world_cache(number.id, [&] { return metamap_clone(number); });
+    //   });
 
-    std::vector<decltype(random_numbers.all_fields())> numbers(N);
+    // std::vector<decltype(random_numbers.all_fields())> numbers(N);
+    // for (int i = 0; i < N; i++)
+    // {
+    //   int id = 1 + rand() % 10000;
+    //   numbers[i] = world_cache(id);
+    // }
+
+
+    std::vector<int> ids(N);
     for (int i = 0; i < N; i++)
-    {
-      int id = 1 + rand() % 10000;
-      numbers[i] = world_cache(id);
-    }
+      ids[i] = 1 + rand() % 10000;
+    response.write_json(world_cache.get_array(ids));
 
-    response.write_json(numbers);
+    // response.write_json(numbers);
   };
 
   my_api.get("/updates") = [&](http_request& request, http_response& response) {

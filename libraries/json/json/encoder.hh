@@ -22,13 +22,17 @@ namespace impl {
 // =============================================
 
 template <typename C, typename O, typename E>
-inline void json_encode(C& ss, O obj, const json_object_<E>& schema);
+inline std::enable_if_t<!std::is_pointer<O>::value, void> json_encode(C& ss, O obj, const json_object_<E>& schema);
 template <typename C, typename... E, typename... T>
 inline void json_encode(C& ss, const std::tuple<T...>& tu, const json_tuple_<E...>& schema);
 template <typename T, typename C, typename E>
 inline void json_encode(C& ss, const T& value, const E& schema);
 template <typename T, typename C, typename E>
 inline void json_encode(C& ss, const std::vector<T>& array, const json_vector_<E>& schema);
+template <typename C, typename O, typename S>
+inline void json_encode(C& ss, O* obj, const S& schema);
+template <typename C, typename O, typename S>
+inline void json_encode(C& ss, const O* obj, const S& schema);
 
 template <typename T, typename C> inline void json_encode_value(C& ss, const T& t) { ss << t; }
 
@@ -62,9 +66,6 @@ inline void json_encode_value(C& ss, const std::variant<T...>& t) {
   std::visit([&](auto&& value) { json_encode_value(ss, value); }, t);
   ss << '}';
 }
-
-template <typename C, typename O, typename E>
-inline void json_encode(C& ss, O obj, const json_object_<E>& schema);
 
 template <typename T, typename C, typename E>
 inline void json_encode(C& ss, const T& value, const E& schema) {
@@ -134,7 +135,7 @@ inline void json_encode(C& ss, const std::tuple<T...>& tu, const json_tuple_<E..
 }
 
 template <typename C, typename O, typename E>
-inline void json_encode(C& ss, O obj, const json_object_<E>& schema) {
+inline std::enable_if_t<!std::is_pointer<O>::value, void> json_encode(C& ss, O obj, const json_object_<E>& schema) {
   ss << '{';
   bool first = true;
 
@@ -169,6 +170,11 @@ inline void json_encode(C& ss, O obj, const json_object_<E>& schema) {
 
 template <typename C, typename O, typename S>
 inline void json_encode(C& ss, O* obj, const S& schema)
+{
+  json_encode(ss, *obj, schema);
+}
+template <typename C, typename O, typename S>
+inline void json_encode(C& ss, const O* obj, const S& schema)
 {
   json_encode(ss, *obj, schema);
 }

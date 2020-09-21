@@ -141,6 +141,7 @@ int main() {
     // Pointers.
     std::string input = R"json([1,2,3,4])json";
     auto to_encode = std::vector<int>{1, 2, 3, 4};
+    std::cout << json_encode(&to_encode) << std::endl;
     assert(json_encode(&to_encode) == input);
          
   }

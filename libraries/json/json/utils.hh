@@ -33,12 +33,23 @@ template <typename S> auto make_json_object_member(const li::symbol<S>&) {
   return mmm(s::name = S{});
 }
 
-template <typename V> auto to_json_schema(V v) { return json_value_<V>{}; }
-
+template <typename V> auto to_json_schema(V v);
+template <typename... M> auto to_json_schema(const metamap<M...>& m);
+template <typename V> auto to_json_schema(const std::vector<V>& arr);
+template <typename... V> auto to_json_schema(const std::tuple<V...>& arr);
+template <typename K, typename V> auto to_json_schema(const std::unordered_map<K, V>& arr);
+template <typename K, typename V> auto to_json_schema(const std::map<K, V>& arr);
 template <typename... M> auto to_json_schema(const metamap<M...>& m);
 
+template <typename V> auto to_json_schema(V v) {
+  if constexpr (std::is_pointer_v<V>)
+    return to_json_schema(*v);
+  else
+   return json_value_<V>{}; 
+}
+
 template <typename V> auto to_json_schema(const std::vector<V>& arr) {
-  auto elt = to_json_schema(decltype(arr[0]){});
+  auto elt = to_json_schema(V{});
   return json_vector_<decltype(elt)>{elt};
 }
 
@@ -61,7 +72,6 @@ template <typename... M> auto to_json_schema(const metamap<M...>& m) {
   return json_object_<decltype(entities)>(entities);
 }
 
-template <typename V> auto to_json_schema(V* v) { return to_json_schema(*v); }
 
 template <typename... E> auto json_object_to_metamap(const json_object_<std::tuple<E...>>& s) {
   auto make_mmm = [](auto... elt) { return mmm((elt.name = elt.type)...); };
