@@ -1092,9 +1092,9 @@ struct pgsql_connection_data {
     // println("PQsendEndBatch"); 
     if (0 == PQbatchSendQueue(this->pgconn_))
       std::cerr << "PQsendEndBatch error"  << std::endl; 
-    int result_id = this->next_result_id++;// batched_queries.size() == 0 ? 1 : batched_queries.back().result_id + 1;
-    last_batch_end_id_ = result_id;
-    batched_queries.push_back(batch_query_info{0, result_id, true, true});
+    // int result_id = this->next_result_id++;// batched_queries.size() == 0 ? 1 : batched_queries.back().result_id + 1;
+    last_batch_end_id_ = this->next_result_id - 1;
+    // batched_queries.push_back(batch_query_info{0, result_id, true, true});
   }
   // Go to next batched query result
   template <typename Y>
@@ -1130,12 +1130,12 @@ struct pgsql_connection_data {
     if (current_result_id_ > last_batch_end_id_) this->send_end_batch();
     
     // println("pq_get_next_query");
-    if (0 == PQbatchProcessQueue(pgconn_))
-    {
-      std::cerr << "PQgetNextQuery error : " <<  PQerrorMessage(pgconn_) << std::endl;
-      assert(0);
-      throw std::runtime_error(std::string("PQgetNextQuery error : ") + PQerrorMessage(pgconn_));
-    }
+    // if (0 == PQbatchProcessQueue(pgconn_))
+    // {
+    //   std::cerr << "PQgetNextQuery error : " <<  PQerrorMessage(pgconn_) << std::endl;
+    //   assert(0);
+    //   throw std::runtime_error(std::string("PQgetNextQuery error : ") + PQerrorMessage(pgconn_));
+    // }
     return query;
   }
 

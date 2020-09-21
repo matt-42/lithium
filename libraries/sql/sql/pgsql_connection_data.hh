@@ -208,12 +208,12 @@ struct pgsql_connection_data {
     if (current_result_id_ > last_batch_end_id_) this->send_end_batch();
     
     // println("pq_get_next_query");
-    if (0 == PQbatchProcessQueue(pgconn_))
-    {
-      std::cerr << "PQgetNextQuery error : " <<  PQerrorMessage(pgconn_) << std::endl;
-      assert(0);
-      throw std::runtime_error(std::string("PQgetNextQuery error : ") + PQerrorMessage(pgconn_));
-    }
+    // if (0 == PQbatchProcessQueue(pgconn_))
+    // {
+    //   std::cerr << "PQgetNextQuery error : " <<  PQerrorMessage(pgconn_) << std::endl;
+    //   assert(0);
+    //   throw std::runtime_error(std::string("PQgetNextQuery error : ") + PQerrorMessage(pgconn_));
+    // }
     return query;
   }
 
