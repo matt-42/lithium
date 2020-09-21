@@ -2052,7 +2052,7 @@ template <typename C, typename M> decltype(auto) json_encode(C& output, const M&
 }
 
 template <typename M> auto json_encode(const M& obj) {
-  return std::move(impl::to_json_schema(obj).encode(obj));
+  return impl::to_json_schema(obj).encode(obj);
 }
 
 template <typename A, typename B, typename... C>
@@ -3383,23 +3383,23 @@ namespace li {
 
 struct output_buffer {
 
-  constexpr output_buffer() : flush_([](const char*, int) {}) {}
+  output_buffer() : buffer_(nullptr), own_buffer_(false), cursor_(nullptr), end_(nullptr), flush_([] (const char*, int) constexpr {}) {}
 
-  constexpr output_buffer(output_buffer&& o)
+  output_buffer(output_buffer&& o)
       : buffer_(o.buffer_), own_buffer_(o.own_buffer_), cursor_(o.cursor_), end_(o.end_),
         flush_(o.flush_) {
     o.buffer_ = nullptr;
     o.own_buffer_ = false;
   }
 
-  constexpr output_buffer(
+  output_buffer(
       int capacity, std::function<void(const char*, int)> flush_ = [](const char*, int) {})
       : buffer_(new char[capacity]), own_buffer_(true), cursor_(buffer_), end_(buffer_ + capacity),
         flush_(flush_) {
     assert(buffer_);
   }
 
-  constexpr output_buffer(
+  output_buffer(
       void* buffer, int capacity,
       std::function<void(const char*, int)> flush_ = [](const char*, int) {})
       : buffer_((char*)buffer), own_buffer_(false), cursor_(buffer_), end_(buffer_ + capacity),
@@ -3412,7 +3412,7 @@ struct output_buffer {
       delete[] buffer_;
   }
 
-  constexpr output_buffer& operator=(output_buffer&& o) {
+  output_buffer& operator=(output_buffer&& o) {
     buffer_ = o.buffer_;
     own_buffer_ = o.own_buffer_;
     cursor_ = o.cursor_;
@@ -3423,15 +3423,15 @@ struct output_buffer {
     return *this;
   }
 
-  constexpr void reset() { cursor_ = buffer_; }
+  void reset() { cursor_ = buffer_; }
 
-  constexpr std::size_t size() { return cursor_ - buffer_; }
-  constexpr void flush() {
+  std::size_t size() { return cursor_ - buffer_; }
+  void flush() {
     flush_(buffer_, size());
     reset();
   }
 
-  constexpr output_buffer& operator<<(std::string_view s) {
+  output_buffer& operator<<(std::string_view s) {
     if (cursor_ + s.size() >= end_)
       flush();
 
@@ -3441,14 +3441,16 @@ struct output_buffer {
     return *this;
   }
 
-  constexpr output_buffer& operator<<(const char* s) { return operator<<(std::string_view(s, strlen(s))); }
-  constexpr output_buffer& operator<<(char v) {
+  output_buffer& operator<<(const char* s) { return operator<<(std::string_view(s, strlen(s))); }
+  output_buffer& operator<<(char v) {
     cursor_[0] = v;
     cursor_++;
     return *this;
   }
 
-  constexpr output_buffer& operator<<(std::size_t v) {
+  inline output_buffer& append(const char c) { return (*this) << c; }
+  
+  output_buffer& operator<<(std::size_t v) {
     if (v == 0)
       operator<<('0');
 
@@ -3472,13 +3474,14 @@ struct output_buffer {
   // }
 
   template <typename I>
-  constexpr output_buffer& operator<<(I v) {
+  output_buffer& operator<<(I v) {
     typedef std::array<char, 150> buf_t;
     buf_t b = boost::lexical_cast<buf_t>(v);
     return operator<<(std::string_view(b.begin(), strlen(b.begin())));
   }
 
-  constexpr std::string_view to_string_view() { return std::string_view(buffer_, cursor_ - buffer_); }
+  
+  std::string_view to_string_view() { return std::string_view(buffer_, cursor_ - buffer_); }
 
   char* buffer_;
   bool own_buffer_;

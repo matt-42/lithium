@@ -2077,7 +2077,7 @@ template <typename C, typename M> decltype(auto) json_encode(C& output, const M&
 }
 
 template <typename M> auto json_encode(const M& obj) {
-  return std::move(impl::to_json_schema(obj).encode(obj));
+  return impl::to_json_schema(obj).encode(obj);
 }
 
 template <typename A, typename B, typename... C>
