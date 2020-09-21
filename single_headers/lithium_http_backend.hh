@@ -1349,7 +1349,7 @@ template <typename K, typename V> auto to_json_schema(const std::map<K, V>& arr)
 template <typename... M> auto to_json_schema(const metamap<M...>& m);
 
 template <typename V> auto to_json_schema(V v) {
-  if constexpr (std::is_pointer_v<V>)
+  if constexpr (std::is_pointer_v<V> and !std::is_same_v<const char*, V>)
     return to_json_schema(*v);
   else
    return json_value_<V>{}; 
@@ -1971,6 +1971,8 @@ inline void json_encode(C& ss, O* obj, const S& schema)
 template <typename C, typename O, typename S>
 inline void json_encode(C& ss, const O* obj, const S& schema)
 {
+  if constexpr(std::is_same_v<char, O>)
+    return json_encode_value(ss, obj);
   json_encode(ss, *obj, schema);
 }
 

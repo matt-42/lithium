@@ -111,6 +111,7 @@ int main() {
   {
     // Simple values.
     assert(json_encode(12) == "12");
+    std::cout << json_encode("12") << std::endl;
     assert(json_encode("12") == "\"12\"");
     assert(json_encode(std::optional<int>{}) == "");
     assert(json_encode(std::optional<int>{12}) == "12");
