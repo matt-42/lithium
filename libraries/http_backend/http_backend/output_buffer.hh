@@ -9,23 +9,23 @@ namespace li {
 
 struct output_buffer {
 
-  output_buffer() : flush_([](const char*, int) {}) {}
+  constexpr output_buffer() : flush_([](const char*, int) {}) {}
 
-  output_buffer(output_buffer&& o)
+  constexpr output_buffer(output_buffer&& o)
       : buffer_(o.buffer_), own_buffer_(o.own_buffer_), cursor_(o.cursor_), end_(o.end_),
         flush_(o.flush_) {
     o.buffer_ = nullptr;
     o.own_buffer_ = false;
   }
 
-  output_buffer(
+  constexpr output_buffer(
       int capacity, std::function<void(const char*, int)> flush_ = [](const char*, int) {})
       : buffer_(new char[capacity]), own_buffer_(true), cursor_(buffer_), end_(buffer_ + capacity),
         flush_(flush_) {
     assert(buffer_);
   }
 
-  output_buffer(
+  constexpr output_buffer(
       void* buffer, int capacity,
       std::function<void(const char*, int)> flush_ = [](const char*, int) {})
       : buffer_((char*)buffer), own_buffer_(false), cursor_(buffer_), end_(buffer_ + capacity),
@@ -38,7 +38,7 @@ struct output_buffer {
       delete[] buffer_;
   }
 
-  output_buffer& operator=(output_buffer&& o) {
+  constexpr output_buffer& operator=(output_buffer&& o) {
     buffer_ = o.buffer_;
     own_buffer_ = o.own_buffer_;
     cursor_ = o.cursor_;
@@ -49,15 +49,15 @@ struct output_buffer {
     return *this;
   }
 
-  void reset() { cursor_ = buffer_; }
+  constexpr void reset() { cursor_ = buffer_; }
 
-  std::size_t size() { return cursor_ - buffer_; }
-  void flush() {
+  constexpr std::size_t size() { return cursor_ - buffer_; }
+  constexpr void flush() {
     flush_(buffer_, size());
     reset();
   }
 
-  output_buffer& operator<<(std::string_view s) {
+  constexpr output_buffer& operator<<(std::string_view s) {
     if (cursor_ + s.size() >= end_)
       flush();
 
@@ -67,14 +67,16 @@ struct output_buffer {
     return *this;
   }
 
-  output_buffer& operator<<(const char* s) { return operator<<(std::string_view(s, strlen(s))); }
-  output_buffer& operator<<(char v) {
+  constexpr output_buffer& operator<<(const char* s) { return operator<<(std::string_view(s, strlen(s))); }
+  constexpr output_buffer& operator<<(char v) {
     cursor_[0] = v;
     cursor_++;
     return *this;
   }
 
-  output_buffer& operator<<(std::size_t v) {
+  constexpr inline append(const char c) { (*this) << c; }
+  
+  constexpr output_buffer& operator<<(std::size_t v) {
     if (v == 0)
       operator<<('0');
 
@@ -97,13 +99,15 @@ struct output_buffer {
   //   return operator<<(std::string_view(b.begin(), strlen(b.begin())));
   // }
 
-  template <typename I> output_buffer& operator<<(I v) {
+  template <typename I>
+  constexpr output_buffer& operator<<(I v) {
     typedef std::array<char, 150> buf_t;
     buf_t b = boost::lexical_cast<buf_t>(v);
     return operator<<(std::string_view(b.begin(), strlen(b.begin())));
   }
 
-  std::string_view to_string_view() { return std::string_view(buffer_, cursor_ - buffer_); }
+  
+  constexpr std::string_view to_string_view() { return std::string_view(buffer_, cursor_ - buffer_); }
 
   char* buffer_;
   bool own_buffer_;
