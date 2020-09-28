@@ -114,7 +114,7 @@ void set_max_sql_connections_per_thread(int max) {
   sql_db.max_async_connections_per_thread_ = max;
 }
 
-int nprocs = std::thread::hardware_concurrency();
+int nprocs =  std::thread::hardware_concurrency();
 
 #ifdef BENCH_MYSQL
 int nthread = 4;

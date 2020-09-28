@@ -150,7 +150,7 @@ struct async_fiber_context {
 
   inline void epoll_add(int fd, int flags);
   inline void epoll_mod(int fd, int flags);
-  inline void reassign_fd_to_fiber(int fd, int fiber_idx);
+  inline void reassign_fd_to_this_fiber(int fd);
 
   inline void defer(const std::function<void()>& fun);
   inline void defer_fiber_resume(int fiber_id);
@@ -413,9 +413,8 @@ void async_fiber_context::defer_fiber_resume(int fiber_id)
   this->reactor->defered_resume.push_back(fiber_id);
 }
 
-void async_fiber_context::reassign_fd_to_fiber(int fd, int fiber_idx)
-{
-  this->reactor->reassign_fd_to_fiber(fd, fiber_idx);
+void async_fiber_context::reassign_fd_to_this_fiber(int fd) {
+  this->reactor->reassign_fd_to_fiber(fd, this->fiber_id);
 }
 
 template <typename H>

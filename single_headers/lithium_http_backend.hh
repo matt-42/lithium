@@ -1971,8 +1971,12 @@ inline void json_encode(C& ss, O* obj, const S& schema)
 template <typename C, typename O, typename S>
 inline void json_encode(C& ss, const O* obj, const S& schema)
 {
+  // Special case for pointers.
+
+  // const char* -> json_encode_value 
   if constexpr(std::is_same_v<char, O>)
     return json_encode_value(ss, obj);
+  // other pointers, dereference encode(*v);
   json_encode(ss, *obj, schema);
 }
 
@@ -3862,7 +3866,7 @@ struct async_fiber_context {
 
   inline void epoll_add(int fd, int flags);
   inline void epoll_mod(int fd, int flags);
-  inline void reassign_fd_to_fiber(int fd, int fiber_idx);
+  inline void reassign_fd_to_this_fiber(int fd);
 
   inline void defer(const std::function<void()>& fun);
   inline void defer_fiber_resume(int fiber_id);
@@ -4125,9 +4129,8 @@ void async_fiber_context::defer_fiber_resume(int fiber_id)
   this->reactor->defered_resume.push_back(fiber_id);
 }
 
-void async_fiber_context::reassign_fd_to_fiber(int fd, int fiber_idx)
-{
-  this->reactor->reassign_fd_to_fiber(fd, fiber_idx);
+void async_fiber_context::reassign_fd_to_this_fiber(int fd) {
+  this->reactor->reassign_fd_to_fiber(fd, this->fiber_id);
 }
 
 template <typename H>

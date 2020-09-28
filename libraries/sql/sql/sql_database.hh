@@ -30,6 +30,7 @@ struct active_yield {
   int fiber_id = 0;
   inline void defer(std::function<void()>) {}
   inline void defer_fiber_resume(int fiber_id) {}
+  inline void reassign_fd_to_this_fiber(int fd) {}
 
   inline void epoll_add(int, int) {}
   inline void epoll_mod(int, int) {}
@@ -192,7 +193,7 @@ template <typename I> struct sql_database {
         });
 
     if (reuse) 
-      fiber.epoll_add(impl.get_socket(sptr), EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
+      fiber.reassign_fd_to_this_fiber(impl.get_socket(sptr));
 
     return impl.scoped_connection(fiber, sptr);
   }

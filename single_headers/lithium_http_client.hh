@@ -1996,8 +1996,12 @@ inline void json_encode(C& ss, O* obj, const S& schema)
 template <typename C, typename O, typename S>
 inline void json_encode(C& ss, const O* obj, const S& schema)
 {
+  // Special case for pointers.
+
+  // const char* -> json_encode_value 
   if constexpr(std::is_same_v<char, O>)
     return json_encode_value(ss, obj);
+  // other pointers, dereference encode(*v);
   json_encode(ss, *obj, schema);
 }
 
