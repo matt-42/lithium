@@ -21,8 +21,12 @@
 #include <optional>
 #include <sstream>
 #include <string>
+#if __linux__
 #include <sys/epoll.h>
+#endif
+#if __APPLE__
 #include <sys/event.h>
+#endif
 #include <thread>
 #include <tuple>
 #include <unordered_map>

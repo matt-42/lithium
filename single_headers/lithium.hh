@@ -44,8 +44,12 @@
 #include <string.h>
 #include <string>
 #include <string_view>
+#if __linux__
 #include <sys/epoll.h>
+#endif
+#if __APPLE__
 #include <sys/event.h>
+#endif
 #include <sys/mman.h>
 #include <sys/socket.h>
 #include <sys/stat.h>

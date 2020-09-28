@@ -8,6 +8,24 @@ from os.path import join
 
 WITH_LINE_DIRECTIVES = False
 
+LINUX_ONLY_HEADERS = ['sys/epoll.h']
+APPLE_ONLY_HEADERS = ['sys/event.h']
+
+def include_directive(d):
+    linux_only = False
+    apple_only = False
+    for lh in LINUX_ONLY_HEADERS:
+        if lh in d:
+            linux_only = True
+    for ah in APPLE_ONLY_HEADERS:
+        if ah in d:
+            apple_only = True
+    if linux_only:
+        return f"#if __linux__\n{d}#endif\n"
+    if apple_only:
+        return f"#if __APPLE__\n{d}#endif\n"
+    return d
+
 def process_file(library_name, f, processed, output):
 
     if f in processed:
@@ -99,9 +117,9 @@ def make_single_header(install_dir, library_name, input_files, output_path):
     # postgres.h first to avoid compilation errors.
     for l in sorted(set(includes)):
         if "postgres.h" in l:
-            result += l;
+            result += include_directive(l);
     for l in sorted(set(includes)):
-        result += l
+        result += include_directive(l)
     if len(windows_includes):
         result += "\n#if defined(_MSC_VER)\n"
         for l in sorted(set(windows_includes)):
