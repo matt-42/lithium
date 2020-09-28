@@ -47,19 +47,22 @@ matrix:
         - sudo apt-get install -qq libmariadb-dev mariadb-server;
 
     # std::filesystem Need macos 10.15. Not yet on travis.
-    # - os: osx
-    #   osx_image: xcode11.2
-    #   compiler: clang
-    #   env: COMPILER=clang++
-    #   before_install:
-    #     - brew update
-    #     - brew install boost sqlite mariadb cmake
+    - os: osx
+      osx_image: xcode12u
+      compiler: clang
+      env: 
+        - COMPILER=clang++
+        - PLATFORM=apple
+        - CMAKE_ARGS="-DCMAKE_PREFIX_PATH='/usr/local/opt/openssl/;/usr/local/opt/curl;/usr/local/opt/libpq/'"
+      before_install:
+        - brew update
+        - brew install boost sqlite mariadb cmake libpq
   
 before_script:
     - cd $HOME/build/$TRAVIS_REPO_SLUG
     - mkdir -p build 
     - cd build 
-    - cmake .. -DCMAKE_CXX_COMPILER=${LOCAL_CXX} -DCMAKE_INSTALL_PREFIX=$HOME/local
+    - cmake .. -DCMAKE_CXX_COMPILER=${LOCAL_CXX} -DCMAKE_INSTALL_PREFIX=$HOME/local $CMAKE_ARGS
 
 script:
     - bash ../libraries/sql/tests/sql_test_servers.sh start
