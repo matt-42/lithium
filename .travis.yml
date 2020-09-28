@@ -52,18 +52,21 @@ matrix:
       compiler: clang
       env: 
         - COMPILER=clang++
-        - CMAKE_ARGS="-DCMAKE_PREFIX_PATH='/usr/local/opt/openssl;/usr/local/opt/curl;/usr/local/opt/libpq'"
+        - CMAKE_ARGS="-DCMAKE_PREFIX_PATH='/usr/local/opt/openssl;/usr/local/opt/curl;/usr/local/opt/postgresql'"
       addons:
         homebrew:
           packages:
-            - docker
             - boost
             - sqlite
             - mariadb
             - cmake
-            - libpq
+            - postgresql
             - curl
             - openssl
+      after_install:
+        - echo "CREATE ROLE postgres LOGIN ENCRYPTED PASSWORD 'lithium_test';" | sudo -u postgres psql
+        - su postgres -c "createdb lithium --owner deploy"
+        - brew services start postgresql
   
 before_script:
     - cd $HOME/build/$TRAVIS_REPO_SLUG

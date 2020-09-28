@@ -5,11 +5,11 @@ Lithium's goal is to ease the development of C++ high performance HTTP
 APIs. As much effort is put into simplifying it's use as in optimizing its performances.
 According to the [TechEmpower
 benchmark](https://tfb-status.techempower.com), it is one of the
-fastest web framework available.
+fastest web framework available. It is available on MacOS and Linux. Windows support is comming soon.
 
 It is a set of independent header only C++ libraries, each one of them can be used
 independently. Each library solves one problem and can be used
-separately.
+separately:
 
 ### [li::metamap](https://github.com/matt-42/lithium/tree/master/libraries/metamap)
 
@@ -96,9 +96,10 @@ https://github.com/matt-42/lithium/tree/master/INSTALL.md
 
 # Supported compilers:
     - Linux: G++ 9.2, Clang++ 9.0
-    - Macos, Windows: Not supported
+    - MacOS: Apple clang version 12.0.0 
+    - Windows: Not supported
 
 # Support the project
 
-If you find this project helpful, buy me a coffee!
+If you find this project helpful, give a star to lithium or buy me a coffee!
 https://www.paypal.me/matthieugarrigues
