@@ -245,7 +245,7 @@ struct async_reactor {
     {
       struct kevent ev_set;
       EV_SET(&ev_set, fd, flags, action, 0, 0, NULL);
-      kevent(kqueue_fd, &ev_set, 1, NULL, 0, NULL);
+      kevent(epoll_fd, &ev_set, 1, NULL, 0, NULL);
     }
     #endif
   };
@@ -263,7 +263,13 @@ struct async_reactor {
     fd_to_fiber_idx[new_fd] = fiber_idx;
   }
 
-  inline void epoll_mod(int fd, int flags) { epoll_ctl(epoll_fd, fd, EPOLL_CTL_MOD, flags); }
+  inline void epoll_mod(int fd, int flags) { 
+    #if __linux__
+    epoll_ctl(epoll_fd, fd, EPOLL_CTL_MOD, flags); 
+    #elif __APPLE__
+    epoll_ctl(epoll_fd, fd, EV_ADD, flags); 
+    #endif
+    }
 
   template <typename H> void event_loop(int listen_fd, H handler) {
 
