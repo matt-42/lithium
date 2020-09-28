@@ -2,23 +2,9 @@ cmake_minimum_required(VERSION 2.8)
 SET(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH}
                       ${CMAKE_SOURCE_DIR}/../cmake)
 
-enable_testing()
-
-
-#include_directories(${SQLite3_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS} ${MYSQL_INCLUDE_DIR})
-#include_directories(${PostgreSQL_INCLUDE_DIRS})
-
-#find_package( OpenSSL )
-#find_package( Threads )
-#find_package( Boost COMPONENTS system thread date_time program_options filesystem chrono)
-#link_directories(/usr/local/opt/openssl/lib/)
-#include_directories(${OPENSSL_INCLUDE_DIR} /usr/local/opt/openssl/include)
-
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -g -O0")
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --coverage") # enabling coverage
 
-#set(LIBS ${OPENSSL_LIBRARIES} ${SQLite3_LIBRARIES} ${CURL_LIBRARIES} ${MYSQL_LIBRARY} ${PostgreSQL_LIBRARIES} 
-#          ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} z iconv)
 
 li_add_executable(url_parameter url_parameter.cc)
 add_test(url_parameter url_parameter)

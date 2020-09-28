@@ -22,6 +22,7 @@ int main() {
             });
 
     auto orm = user_schema.connect();
+    std::cout << "Connected to db!" << std::endl;
     orm.drop_table_if_exists();
     orm.create_table_if_not_exists();
 

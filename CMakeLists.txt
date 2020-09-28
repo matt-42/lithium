@@ -8,7 +8,7 @@ project(lithium)
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
 find_package(MYSQL REQUIRED)
-find_package(PostgreSQL REQUIRED)
+#find_package(PostgreSQL REQUIRED)
 find_package(Boost REQUIRED filesystem context)
 find_package(SQLite3 REQUIRED)
 #find_package(CURL REQUIRED)
@@ -23,7 +23,11 @@ include_directories(${PostgreSQL_INCLUDE_DIRS})
 include_directories(${Boost_INCLUDE_DIRS})
 include_directories(${OPENSSL_INCLUDE_DIR})
 
-set(LIBS ${OPENSSL_LIBRARIES} ${SQLite3_LIBRARIES} ${CURL_LIBRARIES} ${MYSQL_LIBRARY} ${PostgreSQL_LIBRARIES} 
+#set(PostgreSQL_LIBRARIES /usr/local/Cellar/libpq/13.0/lib/libpq.dylib)
+set(PostgreSQL_LIBRARIES2 /usr/local/Cellar/postgresql/12.4/lib/libpq.5.12.dylib)
+#set(LIBS ${OPENSSL_LIBRARIES} ${SQLite3_LIBRARIES} ${CURL_LIBRARIES} ${MYSQL_LIBRARY} ${PostgreSQL_LIBRARIES} 
+#          ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} z iconv)
+set(LIBS ${OPENSSL_LIBRARIES} ${SQLite3_LIBRARIES} ${CURL_LIBRARIES} ${MYSQL_LIBRARY} ${PostgreSQL_LIBRARIES2} 
           ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} z iconv)
 
 set(CMAKE_CXX_STANDARD 17)

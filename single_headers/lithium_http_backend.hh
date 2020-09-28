@@ -3971,18 +3971,18 @@ struct async_reactor {
     epoll_ctl(kqueue_fd, SIGINT, EV_ADD, EVFILT_SIGNAL);
     epoll_ctl(kqueue_fd, SIGKILL, EV_ADD, EVFILT_SIGNAL);
     epoll_ctl(kqueue_fd, SIGTERM, EV_ADD, EVFILT_SIGNAL);
-    // EV_SET(&kqueue_fd, SIGINT, EVFILT_SIGNAL, EV_ADD, 0, 0, NULL);
-    // EV_SET(&kqueue_fd, SIGKILL, EVFILT_SIGNAL, EV_ADD, 0, 0, NULL);
-    // EV_SET(&kqueue_fd, SIGTERM, EVFILT_SIGNAL, EV_ADD, 0, 0, NULL);
 
     const int MAXEVENTS = 64;
     struct kevent events[MAXEVENTS];
 
     // Main loop.
+    struct timespec timeout;
+    memset(&timeout, 0, sizeof(timeout));
+    timeout.tv_nsec = 10000;
     while (!quit_signal_catched) {
 
       // int n_events = epoll_wait(kqueue_fd, events, MAXEVENTS, 1);
-      int n_events = kevent(kqueue_fd, NULL, 0, events, MAXEVENTS, NULL);
+      int n_events = kevent(kqueue_fd, NULL, 0, events, MAXEVENTS, &timeout);
 
       if (quit_signal_catched)
         break;
