@@ -12,7 +12,7 @@ int main() {
     response.write("hello world.");
   };
 
-  //http_serve(my_api, 12334);
-  http_serve(my_api, 12334, s::non_blocking);
-  assert(http_get("http://localhost:12334/hello_world").body == "hello world.");
+  http_serve(my_api, 12335, s::nthreads = 1);
+  // http_serve(my_api, 12334, s::non_blocking);
+  // assert(http_get("http://localhost:12334/hello_world").body == "hello world.");
 }

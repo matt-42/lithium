@@ -4,20 +4,27 @@ SET(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH}
 
 project(lithium)
 
+
+set(CMAKE_VERBOSE_MAKEFILE ON)
+
 find_package(MYSQL REQUIRED)
 find_package(PostgreSQL REQUIRED)
 find_package(Boost REQUIRED filesystem context)
 find_package(SQLite3 REQUIRED)
-find_package(CURL REQUIRED)
+#find_package(CURL REQUIRED)
+set(CURL_LIBRARIES /usr/local/opt/curl/lib/libcurl.dylib)
+set(CURL_INCLUDE_DIRS /usr/local/opt/curl/include)
+
 find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
 
 include_directories(${SQLite3_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS} ${MYSQL_INCLUDE_DIR})
 include_directories(${PostgreSQL_INCLUDE_DIRS})
 include_directories(${Boost_INCLUDE_DIRS})
+include_directories(${OPENSSL_INCLUDE_DIR})
 
-set(LIBS ${SQLite3_LIBRARIES} ${CURL_LIBRARIES} ${MYSQL_LIBRARY} ${PostgreSQL_LIBRARIES} 
-          ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} ${OPENSSL_LIBRARIES})
+set(LIBS ${OPENSSL_LIBRARIES} ${SQLite3_LIBRARIES} ${CURL_LIBRARIES} ${MYSQL_LIBRARY} ${PostgreSQL_LIBRARIES} 
+          ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} z iconv)
 
 set(CMAKE_CXX_STANDARD 17)
 

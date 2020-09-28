@@ -12,7 +12,6 @@
 #include <string.h>
 
 #include <sys/event.h> // Kqueue
-
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -247,11 +246,17 @@ struct async_reactor {
 
   template <typename H> void event_loop(int listen_fd, H handler) {
 
-    this->kqueue_fd = epoll_create1(0);
+    this->kqueue_fd = kqueue();
     epoll_ctl(kqueue_fd, listen_fd, EV_ADD, EVFILT_READ);
+    epoll_ctl(kqueue_fd, SIGINT, EV_ADD, EVFILT_SIGNAL);
+    epoll_ctl(kqueue_fd, SIGKILL, EV_ADD, EVFILT_SIGNAL);
+    epoll_ctl(kqueue_fd, SIGTERM, EV_ADD, EVFILT_SIGNAL);
+    // EV_SET(&kqueue_fd, SIGINT, EVFILT_SIGNAL, EV_ADD, 0, 0, NULL);
+    // EV_SET(&kqueue_fd, SIGKILL, EVFILT_SIGNAL, EV_ADD, 0, 0, NULL);
+    // EV_SET(&kqueue_fd, SIGTERM, EVFILT_SIGNAL, EV_ADD, 0, 0, NULL);
 
     const int MAXEVENTS = 64;
-    epoll_event events[MAXEVENTS];
+    struct kevent events[MAXEVENTS];
 
     // Main loop.
     while (!quit_signal_catched) {
@@ -274,6 +279,17 @@ struct async_reactor {
         int event_flags = events[i].flags;
         int event_fd = events[i].ident;
 
+        if (events[i].filter == EVFILT_SIGNAL && 
+        (
+          event_fd == SIGINT || event_fd == SIGTERM || event_fd == SIGKILL
+        ))
+        {
+          if (event_fd == SIGINT) std::cout << "SIGINT" << std::endl; 
+          if (event_fd == SIGTERM) std::cout << "SIGTERM" << std::endl; 
+          if (event_fd == SIGKILL) std::cout << "SIGKILL" << std::endl; 
+          quit_signal_catched = true;
+          break;
+        }
         // Handle error on sockets.
         // if (event_flags & (EPOLLERR | EPOLLHUP | EPOLLRDHUP)) {
         if (event_flags & EV_ERROR) {
@@ -386,6 +402,9 @@ struct async_reactor {
 
       }
 
+      if (quit_signal_catched)
+        break;
+
       // Call and Flush the defered functions.
       if (defered_functions.size())
       {
@@ -411,7 +430,7 @@ void async_fiber_context::epoll_add(int fd, int flags) {
 void async_fiber_context::epoll_mod(int fd, int flags) { reactor->epoll_mod(fd, flags); }
 
 void async_fiber_context::wakeup_on_read_write_events(int fd) {
-  reactor->epoll_mod(fd, EV_READ | EV_WRITE, fiber_id);
+  reactor->epoll_mod(fd, EVFILT_READ | EVFILT_WRITE);
 }
 
 void async_fiber_context::reassign_fd_to_this_fiber(int fd) {

@@ -21,7 +21,6 @@
 #include <sqlite3.h>
 #include <sstream>
 #include <string>
-#include <sys/epoll.h>
 #include <thread>
 #include <tuple>
 #include <unordered_map>

@@ -369,7 +369,7 @@ auto make_api() {
 }
 
 float tune_n_sql_connections(int& nc_to_tune, std::string http_req, int port, int max, int nprocs) {
-
+#if __linux__ 
   auto sockets = http_benchmark_connect(512, port);
 
   std::cout << std::endl << "Benchmark " << http_req << std::endl;
@@ -392,6 +392,8 @@ float tune_n_sql_connections(int& nc_to_tune, std::string http_req, int port, in
   std::cout << "best: " << best_nconn << " (" << max_req_per_s << " req/s)." << std::endl;
   nc_to_tune = best_nconn;
   return best_nconn;
+  #endif
+  return 1;
 }
 int main(int argc, char* argv[]) {
 

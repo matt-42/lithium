@@ -22,6 +22,7 @@
 #include <sstream>
 #include <string>
 #include <sys/epoll.h>
+#include <sys/event.h>
 #include <thread>
 #include <tuple>
 #include <unordered_map>
@@ -2436,6 +2437,11 @@ typedef sql_database<mysql_database_impl> mysql_database;
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_DATABASE_HPP
 
 
+#if __linux__
+#elif __APPLE__
+#endif
+
+
 
 namespace li {
 
@@ -2501,7 +2507,12 @@ inline mysql_connection_data* mysql_database_impl::new_connection(Y& fiber) {
     }
 
     if (status)
+    #if __linux__
       fiber.epoll_add(mysql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
+    #elif __APPLE__
+      fiber.epoll_add(mysql_fd, EVFILT_READ | EVFILT_WRITE);
+    #endif
+      
     while (status)
       try {
         fiber.yield();

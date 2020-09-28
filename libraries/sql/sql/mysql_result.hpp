@@ -12,7 +12,6 @@
 #include <mysql.h>
 #include <optional>
 #include <sstream>
-#include <sys/epoll.h>
 #include <thread>
 #include <tuple>
 #include <unordered_map>

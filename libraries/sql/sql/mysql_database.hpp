@@ -12,7 +12,13 @@
 #include <mysql.h>
 #include <optional>
 #include <sstream>
+
+#if __linux__
 #include <sys/epoll.h>
+#elif __APPLE__
+#include <sys/event.h>
+#endif
+
 #include <thread>
 #include <unordered_map>
 
@@ -89,7 +95,12 @@ inline mysql_connection_data* mysql_database_impl::new_connection(Y& fiber) {
     }
 
     if (status)
+    #if __linux__
       fiber.epoll_add(mysql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
+    #elif __APPLE__
+      fiber.epoll_add(mysql_fd, EVFILT_READ | EVFILT_WRITE);
+    #endif
+      
     while (status)
       try {
         fiber.yield();

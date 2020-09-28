@@ -14,7 +14,13 @@
 #include <mutex>
 #include <optional>
 #include <sstream>
+
+#if __linux__
 #include <sys/epoll.h>
+#elif __APPLE__
+#include <sys/event.h>
+#endif
+
 #include <thread>
 #include <unordered_map>
 
@@ -92,14 +98,22 @@ struct pgsql_database_impl {
       PQfinish(connection);
       return nullptr;
     }
-    fiber.epoll_add(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP);
+    #if __linux__
+      fiber.epoll_add(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP);
+    #elif __APPLE__
+      fiber.epoll_add(pgsql_fd, EVFILT_READ | EVFILT_WRITE);
+    #endif
 
     try {
       while (status != PGRES_POLLING_FAILED and status != PGRES_POLLING_OK) {
         int new_pgsql_fd = PQsocket(connection);
         if (new_pgsql_fd != pgsql_fd) {
           pgsql_fd = new_pgsql_fd;
-          fiber.epoll_add(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP);
+          #if __linux__
+            fiber.epoll_add(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP);
+          #elif __APPLE__
+            fiber.epoll_add(pgsql_fd, EVFILT_READ | EVFILT_WRITE);
+          #endif
         }
         fiber.yield();
         status = PQconnectPoll(connection);
@@ -110,7 +124,11 @@ struct pgsql_database_impl {
       throw std::move(e);
     }
     // std::cout << "CONNECTED " << std::endl;
-    fiber.epoll_mod(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
+    #if __linux__
+      fiber.epoll_add(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
+    #elif __APPLE__
+      fiber.epoll_add(pgsql_fd, EVFILT_READ | EVFILT_WRITE);
+    #endif
     if (status != PGRES_POLLING_OK) {
       std::cerr << "Warning: cannot connect to the postgresql server " << host_ << ": "
                 << PQerrorMessage(connection) << std::endl;
