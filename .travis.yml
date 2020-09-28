@@ -73,9 +73,9 @@ before_script:
 
 script:
     - if [ "$PLATFORM" == "APPLE" ]; then
-        brew services start postgresql
-        echo "CREATE ROLE postgres LOGIN ENCRYPTED PASSWORD 'lithium_test';" | sudo -u postgres psql
-        su postgres -c "createdb postgres --owner deploy"
+        brew services start postgresql;
+        echo "CREATE ROLE postgres LOGIN ENCRYPTED PASSWORD 'lithium_test';" | sudo -u postgres psql;
+        su postgres -c "createdb postgres --owner deploy";
       fi
     - bash ../libraries/sql/tests/sql_test_servers.sh start
     - cd $HOME/build/$TRAVIS_REPO_SLUG/build 
