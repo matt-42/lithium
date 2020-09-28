@@ -67,17 +67,17 @@ matrix:
       before_script:
   
 before_script:
-    - if [ "$PLATFORM" == "APPLE" ]; then
-        brew services start postgresql
-        echo "CREATE ROLE postgres LOGIN ENCRYPTED PASSWORD 'lithium_test';" | sudo -u postgres psql
-        su postgres -c "createdb postgres --owner deploy"
-      fi
     - cd $HOME/build/$TRAVIS_REPO_SLUG
     - mkdir -p build 
     - cd build 
     - cmake .. -DCMAKE_CXX_COMPILER=${LOCAL_CXX} -DCMAKE_INSTALL_PREFIX=$HOME/local $CMAKE_ARGS
 
 script:
+    - if [ "$PLATFORM" == "APPLE" ]; then
+        brew services start postgresql
+        echo "CREATE ROLE postgres LOGIN ENCRYPTED PASSWORD 'lithium_test';" | sudo -u postgres psql
+        su postgres -c "createdb postgres --owner deploy"
+      fi
     - bash ../libraries/sql/tests/sql_test_servers.sh start
     - cd $HOME/build/$TRAVIS_REPO_SLUG/build 
     - make all
