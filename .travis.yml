@@ -64,7 +64,6 @@ matrix:
             - postgresql
             - curl
             - openssl
-      before_script:
   
 before_script:
     - cd $HOME/build/$TRAVIS_REPO_SLUG
