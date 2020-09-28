@@ -256,9 +256,6 @@ struct async_reactor {
     struct kevent events[MAXEVENTS];
 
     // Main loop.
-    struct timespec timeout;
-    memset(&timeout, 0, sizeof(timeout));
-    timeout.tv_nsec = 10000;
     while (!quit_signal_catched) {
 
       // int n_events = epoll_wait(kqueue_fd, events, MAXEVENTS, 1);
@@ -279,10 +276,8 @@ struct async_reactor {
         int event_flags = events[i].flags;
         int event_fd = events[i].ident;
 
-        if (events[i].filter == EVFILT_SIGNAL && 
-        (
-          event_fd == SIGINT || event_fd == SIGTERM || event_fd == SIGKILL
-        ))
+#if __APPLE__
+        if (events[i].filter == EVFILT_SIGNAL)
         {
           if (event_fd == SIGINT) std::cout << "SIGINT" << std::endl; 
           if (event_fd == SIGTERM) std::cout << "SIGTERM" << std::endl; 
@@ -290,9 +285,14 @@ struct async_reactor {
           quit_signal_catched = true;
           break;
         }
+#endif
+
         // Handle error on sockets.
-        // if (event_flags & (EPOLLERR | EPOLLHUP | EPOLLRDHUP)) {
+#if __linux__
+        if (event_flags & (EPOLLERR | EPOLLHUP | EPOLLRDHUP)) {
+#if __APPLE__
         if (event_flags & EV_ERROR) {
+#endif
           if (event_fd == listen_fd) {
             std::cout << "FATAL ERROR: Error on server socket " << event_fd << std::endl;
             quit_signal_catched = true;

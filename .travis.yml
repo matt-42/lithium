@@ -52,11 +52,17 @@ matrix:
       compiler: clang
       env: 
         - COMPILER=clang++
-        - PLATFORM=apple
         - CMAKE_ARGS="-DCMAKE_PREFIX_PATH='/usr/local/opt/openssl;/usr/local/opt/curl;/usr/local/opt/libpq'"
-      before_install:
-        - brew update
-        - brew install boost sqlite mariadb cmake libpq curl openssl
+      addons:
+        homebrew:
+          packages:
+            - boost
+            - sqlite
+            - mariadb
+            - cmake
+            - libpq
+            - curl
+            - openssl
   
 before_script:
     - cd $HOME/build/$TRAVIS_REPO_SLUG
