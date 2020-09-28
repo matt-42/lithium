@@ -56,6 +56,7 @@ matrix:
       addons:
         homebrew:
           packages:
+            - docker
             - boost
             - sqlite
             - mariadb
