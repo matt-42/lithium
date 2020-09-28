@@ -51,6 +51,7 @@ matrix:
       osx_image: xcode12u
       compiler: clang
       env: 
+        - PLATFORM=APPLE
         - COMPILER=clang++
         - CMAKE_ARGS="-DCMAKE_PREFIX_PATH='/usr/local/opt/openssl;/usr/local/opt/curl;/usr/local/opt/postgresql'"
       addons:
@@ -63,12 +64,14 @@ matrix:
             - postgresql
             - curl
             - openssl
-      after_install:
-        - echo "CREATE ROLE postgres LOGIN ENCRYPTED PASSWORD 'lithium_test';" | sudo -u postgres psql
-        - su postgres -c "createdb lithium --owner deploy"
-        - brew services start postgresql
+      before_script:
   
 before_script:
+    - if [ "$PLATFORM" == "APPLE" ]; then
+        echo "CREATE ROLE postgres LOGIN ENCRYPTED PASSWORD 'lithium_test';" | sudo -u postgres psql
+        su postgres -c "createdb postgres --owner deploy"
+        brew services start postgresql
+      fi
     - cd $HOME/build/$TRAVIS_REPO_SLUG
     - mkdir -p build 
     - cd build 
