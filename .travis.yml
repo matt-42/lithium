@@ -68,9 +68,9 @@ matrix:
   
 before_script:
     - if [ "$PLATFORM" == "APPLE" ]; then
+        brew services start postgresql
         echo "CREATE ROLE postgres LOGIN ENCRYPTED PASSWORD 'lithium_test';" | sudo -u postgres psql
         su postgres -c "createdb postgres --owner deploy"
-        brew services start postgresql
       fi
     - cd $HOME/build/$TRAVIS_REPO_SLUG
     - mkdir -p build 
