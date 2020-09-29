@@ -333,7 +333,7 @@ struct async_reactor {
 #endif
 
 
-        // Handle error on sockets.
+        // Handle errors on sockets.
 #if __linux__
         if (event_flags & (EPOLLERR | EPOLLHUP | EPOLLRDHUP)) {
 #elif __APPLE__
