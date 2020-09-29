@@ -11,6 +11,9 @@ find_package(Threads REQUIRED)
 find_package(PostgreSQL REQUIRED)
 find_package(OpenSSL REQUIRED)
 
+message(OPENSSL_INCLUDE_DIR : ${OPENSSL_INCLUDE_DIR})
+message(OPENSSL_LIBRARIES : ${OPENSSL_LIBRARIES})
+
 include_directories(${SQLite3_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS} ${MYSQL_INCLUDE_DIR} ${OPENSSL_INCLUDE_DIR})
 
 include_directories(${PostgreSQL_INCLUDE_DIRS})
@@ -33,8 +36,6 @@ include_directories(${PostgreSQL_INCLUDE_DIRS})
 #SET(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} -fprofile-sample-use=/tmp/code.prof")
 # add_definitions(-fno-omit-frame-pointer -pg)
 
-set(CMAKE_VERBOSE_MAKEFILE ON)
-include_directories(${OPENSSL_INCLUDE_DIR})
 
 set(LIBS ${SQLite3_LIBRARIES} ${CURL_LIBRARIES} 
           ${MYSQL_LIBRARY} ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT}

@@ -4,6 +4,26 @@ language: cpp
 
 matrix:
   include:
+    - os: osx
+      osx_image: xcode12u
+      compiler: clang
+      env: 
+        - PLATFORM=APPLE
+        - COMPILER=clang++
+        - CMAKE_ARGS="-DCMAKE_PREFIX_PATH='/usr/local/opt/openssl;/usr/local/opt/curl;/usr/local/opt/postgresql'"
+      services:
+        - postgresql
+      addons:
+        homebrew:
+          packages:
+            - boost
+            - sqlite
+            - mariadb
+            - cmake
+            - postgresql
+            - curl
+            - openssl
+
     - compiler: g++
       env:
         - LOCAL_CC=gcc-9
@@ -46,20 +66,22 @@ matrix:
         - sudo apt-get remove libmysqlclient-dev mysql-server;
         - sudo apt-get install -qq libmariadb-dev mariadb-server;
 
-    # std::filesystem Need macos 10.15. Not yet on travis.
-    # - os: osx
-    #   osx_image: xcode11.2
-    #   compiler: clang
-    #   env: COMPILER=clang++
-    #   before_install:
-    #     - brew update
-    #     - brew install boost sqlite mariadb cmake
   
 before_script:
+    - if [ "$PLATFORM" == "APPLE" ]; then
+        psql -c 'create database postgres;' -U postgres
+        psql -p 32768 -c "CREATE ROLE postgres LOGIN ENCRYPTED PASSWORD 'lithium_test';"  -U postgres;
+        # rm -rf /usr/local/var/postgres; 
+
+        # nitdb /usr/local/var/postgres; 
+        # pg_ctl -D /usr/local/var/postgres -o "-p 32768" start;
+        # psql -p 32768 -c "CREATE ROLE postgres LOGIN ENCRYPTED PASSWORD 'lithium_test';" -U postgres;
+        # createdb -p 32768 postgres --owner postgres;
+      fi
     - cd $HOME/build/$TRAVIS_REPO_SLUG
     - mkdir -p build 
     - cd build 
-    - cmake .. -DCMAKE_CXX_COMPILER=${LOCAL_CXX} -DCMAKE_INSTALL_PREFIX=$HOME/local
+    - cmake .. -DCMAKE_CXX_COMPILER=${LOCAL_CXX} -DCMAKE_INSTALL_PREFIX=$HOME/local $CMAKE_ARGS
 
 script:
     - bash ../libraries/sql/tests/sql_test_servers.sh start

@@ -10,7 +10,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#if __linux__
 #include <sys/epoll.h>
+#elif __APPLE__
+#include <sys/event.h>
+#endif
+
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -225,36 +231,78 @@ struct async_reactor {
   }
 
   inline void epoll_ctl(int epoll_fd, int fd, int action, uint32_t flags) {
-    epoll_event event;
-    memset(&event, 0, sizeof(event));
-    event.data.fd = fd;
-    event.events = flags;
-    if (-1 == ::epoll_ctl(epoll_fd, action, fd, &event) and errno != EEXIST)
-      std::cout << "epoll_ctl error: " << strerror(errno) << std::endl;
+
+    #if __linux__
+    {
+      epoll_event event;
+      memset(&event, 0, sizeof(event));
+      event.data.fd = fd;
+      event.events = flags;
+      if (-1 == ::epoll_ctl(epoll_fd, action, fd, &event) and errno != EEXIST)
+        std::cout << "epoll_ctl error: " << strerror(errno) << std::endl;
+    }
+    #elif __APPLE__
+    {
+      struct kevent ev_set;
+      EV_SET(&ev_set, fd, flags, action, 0, 0, NULL);
+      kevent(epoll_fd, &ev_set, 1, NULL, 0, NULL);
+    }
+    #endif
   };
 
   inline void epoll_add(int new_fd, int flags, int fiber_idx = -1) {
+    #if __linux__
     epoll_ctl(epoll_fd, new_fd, EPOLL_CTL_ADD, flags);
+    #elif __APPLE__
+    epoll_ctl(epoll_fd, new_fd, EV_ADD, flags);
+    #endif
+
     // Associate new_fd to the fiber.
     if (int(fd_to_fiber_idx.size()) < new_fd + 1)
       fd_to_fiber_idx.resize((new_fd + 1) * 2, -1);
     fd_to_fiber_idx[new_fd] = fiber_idx;
   }
 
-  inline void epoll_mod(int fd, int flags) { epoll_ctl(epoll_fd, fd, EPOLL_CTL_MOD, flags); }
+  inline void epoll_mod(int fd, int flags) { 
+    #if __linux__
+    epoll_ctl(epoll_fd, fd, EPOLL_CTL_MOD, flags); 
+    #elif __APPLE__
+    epoll_ctl(epoll_fd, fd, EV_ADD, flags); 
+    #endif
+    }
 
   template <typename H> void event_loop(int listen_fd, H handler) {
 
+    const int MAXEVENTS = 64;
+
+#if __linux__
     this->epoll_fd = epoll_create1(0);
     epoll_ctl(epoll_fd, listen_fd, EPOLL_CTL_ADD, EPOLLIN | EPOLLET);
-
-    const int MAXEVENTS = 64;
     epoll_event events[MAXEVENTS];
+
+#elif __APPLE__
+    this->epoll_fd = kqueue();
+    epoll_ctl(this->epoll_fd, listen_fd, EV_ADD, EVFILT_READ);
+    epoll_ctl(this->epoll_fd, SIGINT, EV_ADD, EVFILT_SIGNAL);
+    epoll_ctl(this->epoll_fd, SIGKILL, EV_ADD, EVFILT_SIGNAL);
+    epoll_ctl(this->epoll_fd, SIGTERM, EV_ADD, EVFILT_SIGNAL);
+    struct kevent events[MAXEVENTS];
+
+    struct timespec timeout;
+    memset(&timeout, 0, sizeof(timeout));
+    timeout.tv_nsec = 10000;
+#endif
+
 
     // Main loop.
     while (!quit_signal_catched) {
 
+#if __linux__
       int n_events = epoll_wait(epoll_fd, events, MAXEVENTS, 1);
+#elif __APPLE__
+      int n_events = kevent(epoll_fd, NULL, 0, events, MAXEVENTS, &timeout);
+#endif
+
       if (quit_signal_catched)
         break;
 
@@ -265,11 +313,32 @@ struct async_reactor {
 
       for (int i = 0; i < n_events; i++) {
 
+
+#if __APPLE__
+        int event_flags = events[i].flags;
+        int event_fd = events[i].ident;
+
+        if (events[i].filter == EVFILT_SIGNAL)
+        {
+          if (event_fd == SIGINT) std::cout << "SIGINT" << std::endl; 
+          if (event_fd == SIGTERM) std::cout << "SIGTERM" << std::endl; 
+          if (event_fd == SIGKILL) std::cout << "SIGKILL" << std::endl; 
+          quit_signal_catched = true;
+          break;
+        }
+
+#elif __linux__
         int event_flags = events[i].events;
         int event_fd = events[i].data.fd;
+#endif
 
-        // Handle error on sockets.
+
+        // Handle errors on sockets.
+#if __linux__
         if (event_flags & (EPOLLERR | EPOLLHUP | EPOLLRDHUP)) {
+#elif __APPLE__
+        if (event_flags & EV_ERROR) {
+#endif
           if (event_fd == listen_fd) {
             std::cout << "FATAL ERROR: Error on server socket " << event_fd << std::endl;
             quit_signal_catched = true;
@@ -311,7 +380,12 @@ struct async_reactor {
             // Subscribe epoll to the socket file descriptor.
             if (-1 == fcntl(socket_fd, F_SETFL, fcntl(socket_fd, F_GETFL, 0) | O_NONBLOCK))
               continue;
+#if __linux__
             this->epoll_add(socket_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET, fiber_idx);
+#elif __APPLE__
+            this->epoll_add(socket_fd, EVFILT_READ | EVFILT_WRITE, fiber_idx);
+#endif
+
             // ============================================
 
             // ============================================

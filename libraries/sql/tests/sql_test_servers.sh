@@ -27,11 +27,6 @@ fi
 
 if [ $1 == "start" ]; then
 
-  docker start lithium-postgres-test 2>&1 > /dev/null
-  if [ $? -ne 0 ]; then 
-    docker pull postgres
-    docker run -p=32768:5432 --name lithium-postgres-test -e POSTGRES_PASSWORD=lithium_test -d postgres
-  fi
 
   # docker start lithium-mysql-test 2>&1 > /dev/null
   # # echo $?
@@ -92,6 +87,12 @@ EOF
   mysqladmin --defaults-file=$CONF -u root password 'lithium_test' # root password
   mysqladmin --defaults-file=$CONF -u root --password=lithium_test create mysql_test # create test database
 
+
+  docker start lithium-postgres-test 2>&1 > /dev/null
+  if [ $? -ne 0 ]; then 
+    docker pull postgres
+    docker run -p=32768:5432 --name lithium-postgres-test -e POSTGRES_PASSWORD=lithium_test -d postgres
+  fi
 
   echo "SQL test servers ready for testing."
 

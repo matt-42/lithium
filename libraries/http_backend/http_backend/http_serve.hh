@@ -5,7 +5,6 @@
 #include <iostream>
 #include <string_view>
 #include <sys/mman.h>
-#include <sys/sendfile.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>

@@ -15,14 +15,21 @@
 #include <cstring>
 #include <deque>
 #include <iostream>
+#include <libkern/OSByteOrder.h>
 #include <libpq-fe.h>
+#include <machine/endian.h>
 #include <map>
 #include <memory>
 #include <mutex>
 #include <optional>
 #include <sstream>
 #include <string>
+#if __linux__
 #include <sys/epoll.h>
+#endif
+#if __APPLE__
+#include <sys/event.h>
+#endif
 #include <thread>
 #include <tuple>
 #include <unistd.h>
@@ -39,6 +46,11 @@
 
 
 #include "libpq-fe.h"
+
+#if __linux__
+#elif __APPLE__
+#endif
+
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_CALLABLE_TRAITS_CALLABLE_TRAITS_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_CALLABLE_TRAITS_CALLABLE_TRAITS_HH
@@ -1006,7 +1018,13 @@ template <typename... T> struct unconstref_tuple_elements<std::tuple<T...>> {
 } // namespace li
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_INTERNAL_UTILS_HH
 
+#if __APPLE__
+#endif
 //#include <catalog/pg_type_d.h>
+
+#if __APPLE__ // from https://gist.github.com/yinyin/2027912
+#define be64toh(x) OSSwapBigToHostInt64(x)
+#endif
 
 #define INT8OID 20
 #define INT2OID 21
@@ -1142,6 +1160,7 @@ void pgsql_result<Y>::fetch_value(int& out, int field_i, Oid field_type) {
   else
     throw std::runtime_error("The type of request result does not match the destination type");
 }
+
 
 // Fetch an unsigned int from a result field.
 template <typename Y>
@@ -2128,14 +2147,22 @@ struct pgsql_database_impl {
       PQfinish(connection);
       return nullptr;
     }
-    fiber.epoll_add(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP);
+    #if __linux__
+      fiber.epoll_add(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP);
+    #elif __APPLE__
+      fiber.epoll_add(pgsql_fd, EVFILT_READ | EVFILT_WRITE);
+    #endif
 
     try {
       while (status != PGRES_POLLING_FAILED and status != PGRES_POLLING_OK) {
         int new_pgsql_fd = PQsocket(connection);
         if (new_pgsql_fd != pgsql_fd) {
           pgsql_fd = new_pgsql_fd;
-          fiber.epoll_add(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP);
+          #if __linux__
+            fiber.epoll_add(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP);
+          #elif __APPLE__
+            fiber.epoll_add(pgsql_fd, EVFILT_READ | EVFILT_WRITE);
+          #endif
         }
         fiber.yield();
         status = PQconnectPoll(connection);
@@ -2146,7 +2173,11 @@ struct pgsql_database_impl {
       throw std::move(e);
     }
     // std::cout << "CONNECTED " << std::endl;
-    fiber.epoll_mod(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
+    #if __linux__
+      fiber.epoll_add(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
+    #elif __APPLE__
+      fiber.epoll_add(pgsql_fd, EVFILT_READ | EVFILT_WRITE);
+    #endif
     if (status != PGRES_POLLING_OK) {
       std::cerr << "Warning: cannot connect to the postgresql server " << host_ << ": "
                 << PQerrorMessage(connection) << std::endl;

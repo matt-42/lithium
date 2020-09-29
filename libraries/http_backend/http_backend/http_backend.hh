@@ -22,5 +22,8 @@ using http_api = api<http_request, http_response>;
 #include <li/http_backend/symbols.hh>
 #include <li/http_backend/growing_output_buffer.hh>
 
+#if __linux__
 #include <li/http_backend/http_benchmark.hh>
+#endif
+
 #include <li/http_backend/lru_cache.hh>

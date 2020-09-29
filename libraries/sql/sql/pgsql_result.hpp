@@ -3,7 +3,15 @@
 #include <arpa/inet.h>
 #include "libpq-fe.h"
 #include <li/sql/internal/utils.hh>
+#if __APPLE__
+#include <machine/endian.h>
+#endif
 //#include <catalog/pg_type_d.h>
+
+#if __APPLE__ // from https://gist.github.com/yinyin/2027912
+#include <libkern/OSByteOrder.h>
+#define be64toh(x) OSSwapBigToHostInt64(x)
+#endif
 
 #define INT8OID 20
 #define INT2OID 21
@@ -139,6 +147,7 @@ void pgsql_result<Y>::fetch_value(int& out, int field_i, Oid field_type) {
   else
     throw std::runtime_error("The type of request result does not match the destination type");
 }
+
 
 // Fetch an unsigned int from a result field.
 template <typename Y>

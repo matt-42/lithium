@@ -22,7 +22,9 @@
 #include <fcntl.h>
 #include <functional>
 #include <iostream>
+#include <libkern/OSByteOrder.h>
 #include <libpq-fe.h>
+#include <machine/endian.h>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -42,9 +44,13 @@
 #include <string.h>
 #include <string>
 #include <string_view>
+#if __linux__
 #include <sys/epoll.h>
+#endif
+#if __APPLE__
+#include <sys/event.h>
+#endif
 #include <sys/mman.h>
-#include <sys/sendfile.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -5126,6 +5132,11 @@ typedef sql_database<mysql_database_impl> mysql_database;
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_DATABASE_HPP
 
 
+#if __linux__
+#elif __APPLE__
+#endif
+
+
 
 namespace li {
 
@@ -5191,7 +5202,12 @@ inline mysql_connection_data* mysql_database_impl::new_connection(Y& fiber) {
     }
 
     if (status)
+    #if __linux__
       fiber.epoll_add(mysql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
+    #elif __APPLE__
+      fiber.epoll_add(mysql_fd, EVFILT_READ | EVFILT_WRITE);
+    #endif
+      
     while (status)
       try {
         fiber.yield();
@@ -5242,6 +5258,11 @@ inline auto mysql_database_impl::scoped_connection(Y& fiber,
 
 
 #include "libpq-fe.h"
+
+#if __linux__
+#elif __APPLE__
+#endif
+
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_CONNECTION_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_CONNECTION_HH
@@ -5348,7 +5369,13 @@ private:
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_RESULT_HPP
 
 #include "libpq-fe.h"
+#if __APPLE__
+#endif
 //#include <catalog/pg_type_d.h>
+
+#if __APPLE__ // from https://gist.github.com/yinyin/2027912
+#define be64toh(x) OSSwapBigToHostInt64(x)
+#endif
 
 #define INT8OID 20
 #define INT2OID 21
@@ -5484,6 +5511,7 @@ void pgsql_result<Y>::fetch_value(int& out, int field_i, Oid field_type) {
   else
     throw std::runtime_error("The type of request result does not match the destination type");
 }
+
 
 // Fetch an unsigned int from a result field.
 template <typename Y>
@@ -5935,14 +5963,22 @@ struct pgsql_database_impl {
       PQfinish(connection);
       return nullptr;
     }
-    fiber.epoll_add(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP);
+    #if __linux__
+      fiber.epoll_add(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP);
+    #elif __APPLE__
+      fiber.epoll_add(pgsql_fd, EVFILT_READ | EVFILT_WRITE);
+    #endif
 
     try {
       while (status != PGRES_POLLING_FAILED and status != PGRES_POLLING_OK) {
         int new_pgsql_fd = PQsocket(connection);
         if (new_pgsql_fd != pgsql_fd) {
           pgsql_fd = new_pgsql_fd;
-          fiber.epoll_add(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP);
+          #if __linux__
+            fiber.epoll_add(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP);
+          #elif __APPLE__
+            fiber.epoll_add(pgsql_fd, EVFILT_READ | EVFILT_WRITE);
+          #endif
         }
         fiber.yield();
         status = PQconnectPoll(connection);
@@ -5953,7 +5989,11 @@ struct pgsql_database_impl {
       throw std::move(e);
     }
     // std::cout << "CONNECTED " << std::endl;
-    fiber.epoll_mod(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
+    #if __linux__
+      fiber.epoll_add(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
+    #elif __APPLE__
+      fiber.epoll_add(pgsql_fd, EVFILT_READ | EVFILT_WRITE);
+    #endif
     if (status != PGRES_POLLING_OK) {
       std::cerr << "Warning: cannot connect to the postgresql server " << host_ << ": "
                 << PQerrorMessage(connection) << std::endl;
@@ -6674,6 +6714,11 @@ struct input_buffer {
 
 
 
+#if __linux__
+#elif __APPLE__
+#endif
+
+
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SSL_CONTEXT_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SSL_CONTEXT_HH
@@ -6943,36 +6988,78 @@ struct async_reactor {
   }
 
   inline void epoll_ctl(int epoll_fd, int fd, int action, uint32_t flags) {
-    epoll_event event;
-    memset(&event, 0, sizeof(event));
-    event.data.fd = fd;
-    event.events = flags;
-    if (-1 == ::epoll_ctl(epoll_fd, action, fd, &event) and errno != EEXIST)
-      std::cout << "epoll_ctl error: " << strerror(errno) << std::endl;
+
+    #if __linux__
+    {
+      epoll_event event;
+      memset(&event, 0, sizeof(event));
+      event.data.fd = fd;
+      event.events = flags;
+      if (-1 == ::epoll_ctl(epoll_fd, action, fd, &event) and errno != EEXIST)
+        std::cout << "epoll_ctl error: " << strerror(errno) << std::endl;
+    }
+    #elif __APPLE__
+    {
+      struct kevent ev_set;
+      EV_SET(&ev_set, fd, flags, action, 0, 0, NULL);
+      kevent(epoll_fd, &ev_set, 1, NULL, 0, NULL);
+    }
+    #endif
   };
 
   inline void epoll_add(int new_fd, int flags, int fiber_idx = -1) {
+    #if __linux__
     epoll_ctl(epoll_fd, new_fd, EPOLL_CTL_ADD, flags);
+    #elif __APPLE__
+    epoll_ctl(epoll_fd, new_fd, EV_ADD, flags);
+    #endif
+
     // Associate new_fd to the fiber.
     if (int(fd_to_fiber_idx.size()) < new_fd + 1)
       fd_to_fiber_idx.resize((new_fd + 1) * 2, -1);
     fd_to_fiber_idx[new_fd] = fiber_idx;
   }
 
-  inline void epoll_mod(int fd, int flags) { epoll_ctl(epoll_fd, fd, EPOLL_CTL_MOD, flags); }
+  inline void epoll_mod(int fd, int flags) { 
+    #if __linux__
+    epoll_ctl(epoll_fd, fd, EPOLL_CTL_MOD, flags); 
+    #elif __APPLE__
+    epoll_ctl(epoll_fd, fd, EV_ADD, flags); 
+    #endif
+    }
 
   template <typename H> void event_loop(int listen_fd, H handler) {
 
+    const int MAXEVENTS = 64;
+
+#if __linux__
     this->epoll_fd = epoll_create1(0);
     epoll_ctl(epoll_fd, listen_fd, EPOLL_CTL_ADD, EPOLLIN | EPOLLET);
-
-    const int MAXEVENTS = 64;
     epoll_event events[MAXEVENTS];
+
+#elif __APPLE__
+    this->epoll_fd = kqueue();
+    epoll_ctl(this->epoll_fd, listen_fd, EV_ADD, EVFILT_READ);
+    epoll_ctl(this->epoll_fd, SIGINT, EV_ADD, EVFILT_SIGNAL);
+    epoll_ctl(this->epoll_fd, SIGKILL, EV_ADD, EVFILT_SIGNAL);
+    epoll_ctl(this->epoll_fd, SIGTERM, EV_ADD, EVFILT_SIGNAL);
+    struct kevent events[MAXEVENTS];
+
+    struct timespec timeout;
+    memset(&timeout, 0, sizeof(timeout));
+    timeout.tv_nsec = 10000;
+#endif
+
 
     // Main loop.
     while (!quit_signal_catched) {
 
+#if __linux__
       int n_events = epoll_wait(epoll_fd, events, MAXEVENTS, 1);
+#elif __APPLE__
+      int n_events = kevent(epoll_fd, NULL, 0, events, MAXEVENTS, &timeout);
+#endif
+
       if (quit_signal_catched)
         break;
 
@@ -6983,11 +7070,32 @@ struct async_reactor {
 
       for (int i = 0; i < n_events; i++) {
 
+
+#if __APPLE__
+        int event_flags = events[i].flags;
+        int event_fd = events[i].ident;
+
+        if (events[i].filter == EVFILT_SIGNAL)
+        {
+          if (event_fd == SIGINT) std::cout << "SIGINT" << std::endl; 
+          if (event_fd == SIGTERM) std::cout << "SIGTERM" << std::endl; 
+          if (event_fd == SIGKILL) std::cout << "SIGKILL" << std::endl; 
+          quit_signal_catched = true;
+          break;
+        }
+
+#elif __linux__
         int event_flags = events[i].events;
         int event_fd = events[i].data.fd;
+#endif
 
-        // Handle error on sockets.
+
+        // Handle errors on sockets.
+#if __linux__
         if (event_flags & (EPOLLERR | EPOLLHUP | EPOLLRDHUP)) {
+#elif __APPLE__
+        if (event_flags & EV_ERROR) {
+#endif
           if (event_fd == listen_fd) {
             std::cout << "FATAL ERROR: Error on server socket " << event_fd << std::endl;
             quit_signal_catched = true;
@@ -7029,7 +7137,12 @@ struct async_reactor {
             // Subscribe epoll to the socket file descriptor.
             if (-1 == fcntl(socket_fd, F_SETFL, fcntl(socket_fd, F_GETFL, 0) | O_NONBLOCK))
               continue;
+#if __linux__
             this->epoll_add(socket_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET, fiber_idx);
+#elif __APPLE__
+            this->epoll_add(socket_fd, EVFILT_READ | EVFILT_WRITE, fiber_idx);
+#endif
+
             // ============================================
 
             // ============================================
@@ -8807,6 +8920,7 @@ struct growing_output_buffer {
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_GROWING_OUTPUT_BUFFER_HH
 
 
+#if __linux__
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_HTTP_BENCHMARK_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_HTTP_BENCHMARK_HH
 
@@ -9020,6 +9134,8 @@ inline float http_benchmark(const std::vector<int>& sockets, int NTHREADS, int d
 } // namespace li
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_HTTP_BENCHMARK_HH
+
+#endif
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_LRU_CACHE_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_LRU_CACHE_HH
