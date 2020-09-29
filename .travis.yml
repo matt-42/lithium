@@ -77,7 +77,7 @@ script:
         initdb /usr/local/var/postgres; 
         pg_ctl -D /usr/local/var/postgres start;
         echo "CREATE ROLE postgres LOGIN ENCRYPTED PASSWORD 'lithium_test';" | sudo -U postgres psql;
-        sudo createdb postgres --owner deploy;
+        sudo -U postgres createdb postgres --owner deploy;
       fi
     - bash ../libraries/sql/tests/sql_test_servers.sh start
     - cd $HOME/build/$TRAVIS_REPO_SLUG/build 
