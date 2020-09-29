@@ -67,7 +67,7 @@ matrix:
   
 before_script:
     - if [ "$PLATFORM" == "APPLE" ]; then
-        dscl . -create /Users/postgres
+        sudo dscl . -create /Users/postgres
         rm -rf /usr/local/var/postgres; 
         sudo -u postgres initdb /usr/local/var/postgres; 
         sudo -u postgres pg_ctl -D /usr/local/var/postgres -o "-p 32768" start;
