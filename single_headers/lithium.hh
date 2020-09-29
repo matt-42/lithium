@@ -6712,9 +6712,6 @@ struct input_buffer {
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_TCP_SERVER_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_TCP_SERVER_HH
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_TCP_SERVER_EPOLL_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_TCP_SERVER_EPOLL_HH
-
 
 
 #if __linux__
@@ -7093,7 +7090,7 @@ struct async_reactor {
 #endif
 
 
-        // Handle error on sockets.
+        // Handle errors on sockets.
 #if __linux__
         if (event_flags & (EPOLLERR | EPOLLHUP | EPOLLRDHUP)) {
 #elif __APPLE__
@@ -7281,9 +7278,6 @@ void start_tcp_server(int port, int socktype, int nthreads, H conn_handler,
 }
 
 } // namespace li
-
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_TCP_SERVER_EPOLL_HH
-
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_TCP_SERVER_HH
 
