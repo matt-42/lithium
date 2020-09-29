@@ -75,7 +75,7 @@ script:
     - if [ "$PLATFORM" == "APPLE" ]; then
         rm -rf /usr/local/var/postgres; 
         initdb /usr/local/var/postgres; 
-        pg_ctl -D /usr/local/var/postgres start;
+        pg_ctl -D /usr/local/var/postgres -o "-p 32768" start;
         echo "CREATE ROLE postgres LOGIN ENCRYPTED PASSWORD 'lithium_test';" | sudo -U postgres psql;
         sudo -U postgres createdb postgres --owner deploy;
       fi
