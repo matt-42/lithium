@@ -70,7 +70,7 @@ matrix:
   
 before_script:
     - if [ "$PLATFORM" == "APPLE" ]; then
-        psql -c 'create database postgres;' -U postgres
+        psql -p 32768 -c 'create database postgres;' -U postgres
         psql -p 32768 -c "CREATE ROLE postgres LOGIN ENCRYPTED PASSWORD 'lithium_test';"  -U postgres;
       fi
     - cd $HOME/build/$TRAVIS_REPO_SLUG
