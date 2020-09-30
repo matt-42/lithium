@@ -72,12 +72,6 @@ before_script:
     - if [ "$PLATFORM" == "APPLE" ]; then
         psql -c 'create database postgres;' -U postgres
         psql -p 32768 -c "CREATE ROLE postgres LOGIN ENCRYPTED PASSWORD 'lithium_test';"  -U postgres;
-        # rm -rf /usr/local/var/postgres; 
-
-        # nitdb /usr/local/var/postgres; 
-        # pg_ctl -D /usr/local/var/postgres -o "-p 32768" start;
-        # psql -p 32768 -c "CREATE ROLE postgres LOGIN ENCRYPTED PASSWORD 'lithium_test';" -U postgres;
-        # createdb -p 32768 postgres --owner postgres;
       fi
     - cd $HOME/build/$TRAVIS_REPO_SLUG
     - mkdir -p build 
