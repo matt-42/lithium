@@ -73,8 +73,8 @@ before_script:
         rm -rf /usr/local/var/postgres;
         initdb /usr/local/var/postgres; 
         pg_ctl -D /usr/local/var/postgres -o "-p 32768" start;
-        psql -p 32768 -c "CREATE ROLE postgres LOGIN ENCRYPTED PASSWORD 'lithium_test';";
         createdb -p 32768 postgres --owner postgres;
+        psql -p 32768 -c "CREATE ROLE postgres LOGIN ENCRYPTED PASSWORD 'lithium_test';" postgres;
       fi
     - cd $HOME/build/$TRAVIS_REPO_SLUG
     - mkdir -p build 
