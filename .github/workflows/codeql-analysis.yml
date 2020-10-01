@@ -68,7 +68,7 @@ jobs:
        sudo apt-get install -qq gcc-9 g++-9;
        sudo apt-get install -yqq libboost-context-dev libboost-filesystem-dev libboost-dev libmariadb-dev postgresql curl
        sudo apt-get install -yqq libpq-dev  postgresql-server-dev-all libssl-dev libsqlite3-dev cmake libcurl4-openssl-dev
-       LOCAL_CXX=g++-9 cmake . && make
+       cmake -DCMAKE_CXX_COMPILER=g++-9 . && make -j4
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v1
