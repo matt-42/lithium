@@ -67,7 +67,7 @@ jobs:
        sudo apt-get remove libmysqlclient-dev mysql-server;
        sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test;
        sudo apt-get install -qq gcc-9 g++-9;
-       sudo apt-get install -yqq libboost-context-dev libboost-filesystem-dev libboost-dev libmariadbclient-dev libmariadb-dev mariadb-server postgresql curl
+       sudo apt-get install -yqq libboost-context-dev libboost-filesystem-dev libboost-dev libmariadbclient-dev libmariadb-dev postgresql curl
        sudo apt-get install -yqq libpq-dev  postgresql-server-dev-all libssl-dev libsqlite3-dev cmake libcurl4-openssl-dev
        cmake -DCMAKE_CXX_COMPILER=g++-9 . && make -j4
 
