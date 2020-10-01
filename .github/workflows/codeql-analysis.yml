@@ -64,7 +64,7 @@ jobs:
     #    uses a compiled language
 
     - run: |
-       sudo apt-get install -yqq libboost-context-dev libboost-dev libmariadb-dev postgresql
+       sudo apt-get install -yqq libboost-context-dev libboost-filesystem-dev libboost-dev libmariadb-dev postgresql
        cmake . && make
 
     - name: Perform CodeQL Analysis
