@@ -646,7 +646,8 @@ auto http_serve(api<http_request, http_response> api, int port, O... opts) {
     char* date_buf_tmp2 = a2;
     while (!quit_signal_catched) {
       time_t t = time(NULL);
-      const tm& tm = *gmtime(&t);
+      struct tm tm;
+      gmtime_r(&t, &tm);
       int size = strftime(date_buf_tmp1, sizeof(a1), "%a, %d %b %Y %T GMT", &tm);
       http_async_impl::date_buf = date_buf_tmp1;
       http_async_impl::date_buf_size = size;
