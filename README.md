@@ -105,3 +105,9 @@ https://github.com/matt-42/lithium/tree/master/INSTALL.md
 
 If you find this project helpful, give a star to lithium or buy me a coffee!
 https://www.paypal.me/matthieugarrigues
+
+# Project using Lithium
+
+If you are using lithium and would like to name your project here, please submit a PR.
+
+    - ffead-cpp
