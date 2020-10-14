@@ -1,5 +1,5 @@
 
-![Lithium Logo. Designed by Yvan Darmet.](https://github.com/matt-42/lithium/raw/master/lithium_logo.png | width=500)
+<img src="https://github.com/matt-42/lithium/raw/master/lithium_logo.png" alt="Lithium Logo. Designed by Yvan Darmet" width=500 height=500/>
 The Lithium C++ Libraries [![Donate](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://www.paypal.me/matthieugarrigues)
 ========================
 
