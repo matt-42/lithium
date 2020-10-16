@@ -1,7 +1,7 @@
 # Installation
 
-There is two way to get started with lithium:
-  - Using the command line interface, which build and run program inside docker container.
+There is two ways to get started with lithium:
+  - Using the command line interface, which build and run programs inside docker containers.
   - By instaling lithium locally
 
 # Using the command line interface
@@ -27,6 +27,8 @@ For more info about the cli:
 $ li -h
 $ li run -h
 ```
+
+If this cli does not suit your workflow, please post a github issue.
 
 # Install Lithium locally
 
