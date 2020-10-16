@@ -102,5 +102,3 @@ And in all the others:
 #define LI_EXTERN_GLOBALS
 #include <lithium.hh> // or <lithium_XXXX.hh> 
 ```
-
-# Getting started with CMake
