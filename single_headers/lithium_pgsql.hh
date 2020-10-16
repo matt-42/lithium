@@ -19,7 +19,9 @@
 #include <libkern/OSByteOrder.h>
 #endif
 #include <libpq-fe.h>
+#if __APPLE__
 #include <machine/endian.h>
+#endif
 #include <map>
 #include <memory>
 #include <mutex>

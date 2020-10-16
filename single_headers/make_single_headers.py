@@ -9,7 +9,7 @@ from os.path import join
 WITH_LINE_DIRECTIVES = False
 
 LINUX_ONLY_HEADERS = ['sys/epoll.h']
-APPLE_ONLY_HEADERS = ['sys/event.h', 'libkern/OSByteOrder.h']
+APPLE_ONLY_HEADERS = ['sys/event.h', 'libkern/OSByteOrder.h', 'machine/endian.h']
 
 def include_directive(d):
     linux_only = False
