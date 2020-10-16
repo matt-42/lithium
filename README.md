@@ -14,7 +14,7 @@ It is a set of independent header only C++ libraries, each one of them can be us
 independently. Each library solves one problem and can be used
 separately.
 
-### [Installation/Getting Started](https://github.com/matt-42/lithium/tree/master/INSTALL.md)
+### [Installation / Getting Started](https://github.com/matt-42/lithium/tree/master/INSTALL.md)
 
 # Libraries
 
@@ -47,13 +47,12 @@ you can check the code if you want to know what is inside the s:: namespace.
 
 # Need some help ?
 
-Post a github issue if you need help with Lithium. And there are no dummy questions !
-
+Please post a github issue if you need help with Lithium. Even the dumiest question are welcome.
 
 # Supported compilers:
     - Linux: G++ 9.2, Clang++ 9.0
     - MacOS: Apple clang version 12.0.0 
-    - Windows: Not supported
+    - Windows: Not supported. Waiting for a bugfix in the MSVC C++ compiler.
 
 # Support the project
 
