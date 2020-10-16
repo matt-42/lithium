@@ -9,7 +9,7 @@ from os.path import join
 WITH_LINE_DIRECTIVES = False
 
 LINUX_ONLY_HEADERS = ['sys/epoll.h']
-APPLE_ONLY_HEADERS = ['sys/event.h']
+APPLE_ONLY_HEADERS = ['sys/event.h', 'libkern/OSByteOrder.h']
 
 def include_directive(d):
     linux_only = False
@@ -19,6 +19,7 @@ def include_directive(d):
             linux_only = True
     for ah in APPLE_ONLY_HEADERS:
         if ah in d:
+            print("apple only: ", d)
             apple_only = True
     if linux_only:
         return f"#if __linux__\n{d}#endif\n"

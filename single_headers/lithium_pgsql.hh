@@ -15,7 +15,9 @@
 #include <cstring>
 #include <deque>
 #include <iostream>
+#if __APPLE__
 #include <libkern/OSByteOrder.h>
+#endif
 #include <libpq-fe.h>
 #include <machine/endian.h>
 #include <map>
