@@ -16,7 +16,7 @@ Once installed, you can compile and run servers in one command:
 $ li run [source files...] [program arguments]
 ```
 
-Only the first time you call `li run`, it will build the lithium docker image.
+When run the first time, `li run` will take 1-2 minutes to build the lithium docker image.
 
 For more info about the cli:
 ```

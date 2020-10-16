@@ -12,7 +12,11 @@ fastest web framework available. It is available on MacOS and Linux. Windows sup
 
 It is a set of independent header only C++ libraries, each one of them can be used
 independently. Each library solves one problem and can be used
-separately:
+separately.
+
+### [Installation/Getting Started](https://github.com/matt-42/lithium/tree/master/INSTALL.md)
+
+# Libraries
 
 ### [li::metamap](https://github.com/matt-42/lithium/tree/master/libraries/metamap)
 
@@ -44,11 +48,6 @@ you can check the code if you want to know what is inside the s:: namespace.
 # Need some help ?
 
 Post a github issue if you need help with Lithium. And there are no dummy questions !
-
-
-# Installation
-
-https://github.com/matt-42/lithium/tree/master/INSTALL.md
 
 
 # Supported compilers:
