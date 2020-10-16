@@ -41,5 +41,6 @@ set(LIBS ${SQLite3_LIBRARIES} ${CURL_LIBRARIES}
           ${MYSQL_LIBRARY} ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT}
           ${PostgreSQL_LIBRARIES} ${OPENSSL_LIBRARIES})
 
+
 li_add_executable(bench bench.cc)
 target_link_libraries(bench ${LIBS})

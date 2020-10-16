@@ -10,7 +10,7 @@ set(CMAKE_VERBOSE_MAKEFILE ON)
 # On MacOS use -DCMAKE_PREFIX_PATH='/usr/local/opt/openssl/;/usr/local/opt/curl;/usr/local/opt/libpq
 # to have find_package look into brew installed locations first.
 find_package(MYSQL REQUIRED)
-find_package(Boost REQUIRED filesystem context)
+find_package(Boost REQUIRED context)
 find_package(SQLite3 REQUIRED)
 find_package(CURL REQUIRED)
 find_package(PostgreSQL REQUIRED)

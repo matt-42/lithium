@@ -4,7 +4,7 @@ project(li)
 
 find_package(MYSQL REQUIRED)
 find_package(PostgreSQL REQUIRED)
-find_package(Boost REQUIRED filesystem context)
+find_package(Boost REQUIRED context)
 find_package(SQLite3 REQUIRED)
 find_package(CURL REQUIRED)
 find_package(Threads REQUIRED)
