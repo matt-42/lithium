@@ -1,5 +1,9 @@
 # Installation
 
+There is two way to get started with lithium:
+  - Using the command line interface, which build and run program inside docker container.
+  - By instaling lithium locally
+
 # Using the command line interface
 
 *Requirements*: Python 3 and Docker
@@ -74,6 +78,11 @@ Now that you have setup symbol generation (or choose manual declaration), you ar
 Lithium is header only. You can  `#include` one of the lithium headers and start coding. Check
 https://github.com/matt-42/lithium/tree/master/single_headers for the full list of available headers.
 
+## CMake
+
+The recommended way (without using the cli) is to use cmake to compile project using lithium.
+Check the cmake+lithium project starter here:
+https://github.com/matt-42/lithium/tree/master/cmake_project_template
 
 # Note for projects linking multiple C++ files
 
@@ -93,6 +102,3 @@ And in all the others:
 ```
 
 # Getting started with CMake
-
-Check the cmake+lithium project starter here:
-https://github.com/matt-42/lithium/tree/master/cmake_project_template
