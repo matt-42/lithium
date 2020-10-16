@@ -7318,7 +7318,15 @@ namespace http_async_impl {
 static char* date_buf = nullptr;
 static int date_buf_size = 0;
 
-static thread_local std::unordered_map<std::string, std::string_view> static_files;
+static std::unordered_map<std::string_view, std::string_view> content_types = {
+  {"html", "text/html"},
+  {"css", "text/css"},
+  {"js", "application/javascript"},
+  {"jpg", "image/jpeg"},
+  {"png", "image/png"}
+};
+
+static thread_local std::unordered_map<std::string, std::pair<std::string_view, std::string_view>> static_files;
 
 struct http_ctx {
 
@@ -7544,17 +7552,36 @@ struct http_ctx {
 
   void send_static_file(const char* path) {
     auto it = static_files.find(path);
-    if (static_files.end() == it or !it->second.size()) {
+    if (static_files.end() == it or !it->second.first.size()) {
       int fd = open(path, O_RDONLY);
       if (fd == -1)
         throw http_error::not_found("File not found.");
+
       int file_size = lseek(fd, (size_t)0, SEEK_END);
       auto content =
           std::string_view((char*)mmap(0, file_size, PROT_READ, MAP_SHARED, fd, 0), file_size);
-      static_files.insert({path, content});
+      close(fd);
+
+      size_t ext_pos = std::string_view(path).rfind('.');
+      std::string_view content_type("");
+      if (ext_pos != std::string::npos)
+      {
+        auto type_itr = content_types.find(std::string_view(path).substr(ext_pos + 1).data());
+        if (type_itr != content_types.end())
+        {
+          content_type = type_itr->second;
+          set_header("Content-Type", content_type);
+        }
+      }
+      static_files.insert({path, {content, content_type}});
       respond(content);
-    } else
-      respond(it->second);
+    } else {
+      if (it->second.second.size())
+      {
+        set_header("Content-Type", it->second.second);
+      }
+      respond(it->second.first);
+    }
   }
 
   // private:
