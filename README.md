@@ -1,5 +1,5 @@
 
-<p align="center"><img src="https://github.com/matt-42/lithium/raw/master/lithium_logo.png" alt="Lithium Logo. Designed by Yvan Darmet" title="The Lithium C++ libraries - Logo designed by Yvan Darmet" width=400 /></p>
+<p align="center"><img src="https://github.com/matt-42/lithium/raw/master/images/lithium_logo.png" alt="Lithium Logo. Designed by Yvan Darmet" title="The Lithium C++ libraries - Logo designed by Yvan Darmet" width=400 /></p>
 
 [![Donate](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://www.paypal.me/matthieugarrigues)
 ![Travis](https://travis-ci.com/matt-42/lithium.svg?branch=master) ![platform](https://img.shields.io/badge/platform-Linux%20%7C%20MacOS-yellow) ![licence](https://img.shields.io/badge/licence-MIT-blue)
