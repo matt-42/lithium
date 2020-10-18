@@ -57,7 +57,7 @@ export const HomePage = () => {
 `$ wget https://raw.githubusercontent.com/matt-42/lithium/master/cli/li
 $ chmod +x ./li`}</HLsh>
 <Typography>
-        Lithium can also run locally. <Link href="#">Check the install guide for more info</Link>. 
+        Lithium can also run locally. <Link href="#"><u>Check the install guide for more info</u></Link>. 
 </Typography>
 
       </Paper>
