@@ -1,6 +1,6 @@
 self.__precacheManifest = (self.__precacheManifest || []).concat([
   {
-    "revision": "b02c666f44d3cc447e447085ab252c11",
+    "revision": "481d42b29d8c64b834db6ba9a5a9ba54",
     "url": "/lithium/index.html"
   },
   {
@@ -8,7 +8,7 @@ self.__precacheManifest = (self.__precacheManifest || []).concat([
     "url": "/lithium/static/css/2.677f2dd4.chunk.css"
   },
   {
-    "revision": "8d5c2338033204056d28",
+    "revision": "c8f07d112ab185b6aebe",
     "url": "/lithium/static/css/main.eaf16dfe.chunk.css"
   },
   {
@@ -20,8 +20,8 @@ self.__precacheManifest = (self.__precacheManifest || []).concat([
     "url": "/lithium/static/js/2.87f67217.chunk.js.LICENSE.txt"
   },
   {
-    "revision": "8d5c2338033204056d28",
-    "url": "/lithium/static/js/main.64a6bae5.chunk.js"
+    "revision": "c8f07d112ab185b6aebe",
+    "url": "/lithium/static/js/main.43a6b2bb.chunk.js"
   },
   {
     "revision": "14bdc5242d3446263461",
