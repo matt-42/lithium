@@ -15,7 +15,7 @@ export const HomePage = () => {
   return <Container>
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", paddingTop: "100px" }}>
 
-      <img src="https://raw.githubusercontent.com/matt-42/lithium/master/images/lithium_logo_white.png" width="300" />
+      <img src="https://raw.githubusercontent.com/matt-42/lithium/master/images/lithium_logo_white.png" width="300" style={{marginRight: "30px"}} />
 
       <div >
         <h1 style={{ fontFamily: "Major Mono Display" }}>lithium</h1>
