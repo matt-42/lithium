@@ -25,7 +25,7 @@ also server <-> database (except SQLite which does not use the network).
   - OpenSSL
   - Boost
 
-## How to write an api:
+## How to write an api
 */
 // hello_lithium.cc
 #include "lithium_http_server.hh"
