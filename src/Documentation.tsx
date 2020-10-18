@@ -67,10 +67,19 @@ interface SectionNode {
 
 export const sectionUrl = (item: SectionNode) => {
   let url = "/";
-  if (item.parent)
-    return url + formatUrl(item.parent.text) + "#" + formatUrl(item.text);
-  else
-    return url + formatUrl(item.text);
+  let path : string[] = [];
+  let it : SectionNode | null = item;
+  while (it)
+  {
+    path.unshift(it.text);
+    it = it.parent;
+  }
+  // return url + formatUrl(path.shift() as string) + "#" + path.map(formatUrl).join("/");
+  console.log(path);
+  url += formatUrl(path.shift() as string);
+  if (path.length)
+    url += "#" + formatUrl(path.pop() as string);
+  return url;
 }
 
 export const sectionPath = (item: SectionNode) => {
