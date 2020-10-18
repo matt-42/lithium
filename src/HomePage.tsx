@@ -10,9 +10,12 @@ import ListItem from "@material-ui/core/ListItem"
 import List from "@material-ui/core/List"
 import ListItemText from "@material-ui/core/ListItemText"
 import useMediaQuery from "@material-ui/core/useMediaQuery"
+import { setLocation } from "./App"
+import { useHistory } from "react-router-dom"
 
 
 export const HomePage = () => {
+  const history = useHistory()
   const screen700 = useMediaQuery('(min-width:700px)');
 
   return <Container>
@@ -27,7 +30,10 @@ export const HomePage = () => {
       </Typography>
         <div style={{ height: "20px" }}></div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-start", }}>    
-        <Button variant="outlined" color="primary" style={{marginRight: "45px"}} href={process.env.PUBLIC_URL + "/getting-started"} >Get Started</Button>
+        <Button variant="outlined" color="primary" onClick={(e) => {
+          setLocation("/getting-started", history);
+          e.preventDefault();
+        }} style={{marginRight: "45px"}} href={process.env.PUBLIC_URL + "/getting-started"} >Get Started</Button>
         <iframe src="https://ghbtns.com/github-btn.html?user=matt-42&repo=lithium&type=star&count=true&size=large" frameBorder="0" scrolling="0" width="170" height="30" title="GitHub"></iframe>
         <a href="https://twitter.com/share" className="twitter-share-button" style={{float: "left", marginLeft: "-37px", paddingTop: "10px"}} data-size="large">Tweet</a>
     </div>
@@ -89,7 +95,7 @@ int main() {
   http_serve(my_api, 8080);
 }
 `}
-        </HLcpp>
+        </HLcpp>, history
 
         <Typography>
         And run it:
@@ -103,7 +109,10 @@ int main() {
         </Typography>
 
         <p style={{textAlign:"right"}}>
-        <Button variant="outlined" color="primary" href="/getting-started">Read the docs</Button>
+        <Button variant="outlined"  onClick={(e) => {
+          setLocation("/getting-started", history);
+          e.preventDefault();
+        }} color="primary" href="/getting-started">Read the docs</Button>
         </p>
 
       </Paper>

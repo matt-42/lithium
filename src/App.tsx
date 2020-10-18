@@ -42,7 +42,7 @@ const darkTheme = createMuiTheme({
 });
 
 export function setLocation(url : string, history : any) {
-  let { pathname, hash } = new URL("http://test.com" + url);
+  let [ pathname, hash ] = (process.env.PUBLIC_URL + url).split("#");
 
   if (window.location.pathname != pathname)
     history.push(url.toString());
