@@ -1,3 +1,4 @@
+// __documentation_starts_here__
 /*
 json
 ============================
@@ -38,7 +39,7 @@ It these specific cases, metajson is faster and produce smaller binaries.
 of metajson performances and does not take into account the fact that other libraries provides
 more features.
 
-# Overview
+## Overview
 
 Note: This example use the single header version.
 
