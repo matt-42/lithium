@@ -11,19 +11,19 @@ There is two ways to get started with lithium:
 The lithium cli allows you to build and run code without installing any dependencies and without writing any Makefile or CMakeFile.
 
 Install the cli somewhere in your $PATH:
-```
+```sh
 wget https://raw.githubusercontent.com/matt-42/lithium/master/cli/li 
 ```
 
 Once installed, you can compile and run servers in one command:
-```
+```sh
 $ li run [source files...] [program arguments]
 ```
 
 When run the first time, `li run` will take 1-2 minutes to build the lithium docker image.
 
 For more info about the cli:
-```
+```sh
 $ li -h
 $ li run -h
 ```
@@ -93,12 +93,12 @@ multiple definitions at link time, you need to `#define LI_EXTERN_GLOBALS` befor
 header in all your files exept one.
 
 In one file:
-```
+```c++
 #include <lithium.hh> // or <lithium_XXXX.hh> 
 ```
 
 And in all the others:
-```
+```c++
 #define LI_EXTERN_GLOBALS
 #include <lithium.hh> // or <lithium_XXXX.hh> 
 ```
