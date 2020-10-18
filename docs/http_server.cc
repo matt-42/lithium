@@ -1,5 +1,5 @@
 /*
-li::http_server: Coroutine based, Asynchronous, Low Latency and High Throughput HTTP Server
+http_server
 =================================
 
 This library goal is to ease the development of HTTP APIs without
