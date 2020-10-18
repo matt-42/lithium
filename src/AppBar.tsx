@@ -159,8 +159,10 @@ export default function PrimarySearchAppBar() {
           >
             <MenuIcon />
           </IconButton> */}
-            <img src="https://raw.githubusercontent.com/matt-42/lithium/master/images/lithium_logo_white.png" width="40" 
+            <a href="#">
+              <img src="https://raw.githubusercontent.com/matt-42/lithium/master/images/lithium_logo_white.png" width="40" 
                   style={{ paddingRight: "15px" }} />
+            </a>
             <Typography color="inherit" className={classes.title} variant="h6" noWrap>
               <Link className={classes.title}  underline="none" href="#">lithium</Link>
           </Typography>
