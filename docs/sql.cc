@@ -24,21 +24,21 @@ It features:
 All the three connectors are following the same API so you can use the same way
 a SQLite, MySQL or PostgreSQL database.
 
-# Dependency
+## Dependency
   MariaDB mysqlClient
 
-# Installation
+## Installation
 
 https://github.com/matt-42/lithium/tree/master/INSTALL.md
 
-# Runtime Performances
+## Runtime Performances
 
 All ``li::sql`` abstractions are unwrapped at compile time so it adds almost zero overhead over the
 raw C drivers of the databases. According to the [Techempower
 benchmark](http://tfb-status.techempower.com/), Lithium MySQL and PostgreSQL drivers are part of the
 fastest available.
 
-# Ease of use
+## Ease of use
 
 While building a fast DB driver, we did not do any compromise on the ease of use of the library.
 The learning curve of this library is inferior to 5 minutes since it's API has only 5 functions
@@ -51,7 +51,7 @@ The learning curve of this library is inferior to 5 minutes since it's API has o
   - `result::read_optional` to read result that may be null
   - `result::map` to map function on result rows
 
-# Sync and Async Database Connections with Pooling
+## Sync and Async Database Connections with Pooling
 
 */
 // MySQL header.
