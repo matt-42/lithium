@@ -2,8 +2,8 @@
 
 #include <optional>
 
-#include <li/http_backend/api.hh>
-#include <li/http_backend/sql_http_session.hh>
+#include <li/http_server/api.hh>
+#include <li/http_server/sql_http_session.hh>
 
 namespace li {
 

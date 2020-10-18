@@ -14,12 +14,12 @@
 
 #include <boost/lexical_cast.hpp>
 
-#include <li/http_backend/output_buffer.hh>
-#include <li/http_backend/input_buffer.hh>
-#include <li/http_backend/error.hh>
-#include <li/http_backend/symbols.hh>
-#include <li/http_backend/tcp_server.hh>
-#include <li/http_backend/url_unescape.hh>
+#include <li/http_server/output_buffer.hh>
+#include <li/http_server/input_buffer.hh>
+#include <li/http_server/error.hh>
+#include <li/http_server/symbols.hh>
+#include <li/http_server/tcp_server.hh>
+#include <li/http_server/url_unescape.hh>
 
 namespace li {
 
@@ -609,8 +609,8 @@ template <typename F> auto make_http_processor(F handler) {
 } // namespace http_async_impl
 } // namespace li
 
-#include <li/http_backend/request.hh>
-#include <li/http_backend/response.hh>
+#include <li/http_server/request.hh>
+#include <li/http_server/response.hh>
 
 namespace li {
 
@@ -657,7 +657,7 @@ auto http_serve(api<http_request, http_response> api, int port, O... opts) {
   });
 
   auto server_thread = std::make_shared<std::thread>([=]() {
-    std::cout << "Starting lithium::http_backend on port " << port << std::endl;
+    std::cout << "Starting lithium::http_server on port " << port << std::endl;
 
     if constexpr (has_key(options, s::ssl_key))
     {

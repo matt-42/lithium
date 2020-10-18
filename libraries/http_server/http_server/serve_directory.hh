@@ -1,6 +1,6 @@
 #pragma once
 
-#include <li/http_backend/response.hh>
+#include <li/http_server/response.hh>
 #include <string>
 
 namespace li {

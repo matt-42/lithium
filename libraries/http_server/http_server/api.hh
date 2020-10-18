@@ -2,9 +2,9 @@
 
 #include <functional>
 #include <iostream>
-#include <li/http_backend/dynamic_routing_table.hh>
-#include <li/http_backend/error.hh>
-#include <li/http_backend/symbols.hh>
+#include <li/http_server/dynamic_routing_table.hh>
+#include <li/http_server/error.hh>
+#include <li/http_server/symbols.hh>
 #include <string_view>
 
 namespace li {

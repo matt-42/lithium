@@ -1,6 +1,6 @@
 #pragma once
 
-#include <li/http_backend/output_buffer.hh>
+#include <li/http_server/output_buffer.hh>
 
 namespace li {
 

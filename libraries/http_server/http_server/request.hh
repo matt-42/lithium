@@ -10,8 +10,8 @@
 #include <vector>
 
 
-#include <li/http_backend/error.hh>
-#include <li/http_backend/url_decode.hh>
+#include <li/http_server/error.hh>
+#include <li/http_server/url_decode.hh>
 
 #include <li/metamap/metamap.hh>
 

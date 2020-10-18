@@ -2,8 +2,8 @@
 
 #include <random>
 #include <sstream>
-#include <li/http_backend/response.hh>
-#include <li/http_backend/request.hh>
+#include <li/http_server/response.hh>
+#include <li/http_server/request.hh>
 
 namespace li {
 

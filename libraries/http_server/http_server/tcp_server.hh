@@ -26,7 +26,7 @@
 
 #include <boost/context/continuation.hpp>
 
-#include <li/http_backend/ssl_context.hh>
+#include <li/http_server/ssl_context.hh>
 
 namespace li {
 

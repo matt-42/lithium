@@ -10,8 +10,8 @@
 #endif
 
 #include <boost/lexical_cast.hpp>
-#include <li/http_backend/error.hh>
-#include <li/http_backend/symbols.hh>
+#include <li/http_server/error.hh>
+#include <li/http_server/symbols.hh>
 #include <li/metamap/metamap.hh>
 
 namespace li {

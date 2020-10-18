@@ -1,6 +1,6 @@
 #pragma once
 
-#include <li/http_backend/error.hh>
+#include <li/http_server/error.hh>
 #include <li/json/json.hh>
 #include <li/sql/sql_orm.hh>
 
