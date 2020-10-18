@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 2.8)
 
-project(silicon)
+project(http_backend)
 find_package(Boost REQUIRED filesystem context)
 
 include_directories(${Boost_INCLUDE_DIRS})

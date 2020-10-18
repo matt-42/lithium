@@ -70,6 +70,20 @@ include_directories(${CMAKE_BINARY_DIR}/include) # just to enable vscode intelli
 #set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -march=native -mtune=native -flto") 
 add_definitions(-Wno-ignored-attributes) # to skip postgresql warnings.
 
+# Generate content type definition header file
+add_custom_target(
+    content_types
+    COMMAND echo \"\#pragma once\" > content_types.hh
+    COMMAND echo \"\#include <unordered_map>\" >> content_types.hh
+    COMMAND echo \"\#include <string_view>\" >> content_types.hh
+    COMMAND echo \"namespace li {\" >> content_types.hh
+    COMMAND echo \"static std::unordered_map<std::string_view, std::string_view> content_types = {\" >> content_types.hh
+    COMMAND wget -qO- http://svn.apache.org/repos/asf/httpd/httpd/trunk/docs/conf/mime.types
+      | egrep -v ^\#
+      | awk '{for(i=2\; i<=NF\; i++) {print \"{\\\"\"$$i"\\\",\\\""$$1\"\\\"},\"}}' | sort >> content_types.hh
+    COMMAND echo \"}\;\" >> content_types.hh
+)
+
 # Automatic symbol generation
 add_custom_target(
     symbols_generation DEPENDS li_symbol_generator
