@@ -38,7 +38,7 @@ export const sectionAnchor = (item: SectionNode) => {
 }
 
 export const sectionUrl = (item: SectionNode) => {
-  return "/" + sectionAnchor(item);
+  return process.env.PUBLIC_URL + "/" + sectionAnchor(item);
 }
 
 export const sectionPath = (item: SectionNode) => {
