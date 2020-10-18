@@ -73,7 +73,7 @@ add_definitions(-Wno-ignored-attributes) # to skip postgresql warnings.
 # Automatic symbol generation
 add_custom_target(
     symbols_generation DEPENDS li_symbol_generator
-    COMMAND ${CMAKE_BINARY_DIR}/libraries/symbol/li_symbol_generator ${CMAKE_CURRENT_SOURCE_DIR}/libraries ${CMAKE_CURRENT_SOURCE_DIR}/single_headers)
+    COMMAND ${CMAKE_BINARY_DIR}/libraries/symbol/li_symbol_generator ${CMAKE_CURRENT_SOURCE_DIR}/libraries ${CMAKE_CURRENT_SOURCE_DIR}/single_headers ${CMAKE_CURRENT_SOURCE_DIR}/docs)
 
 
 # Automatic single header generation for release (without line directives)
@@ -98,6 +98,7 @@ function(li_add_executable target_name)
   # target_precompile_headers(${target_name}  REUSE_FROM precompiled_header_target)
 endfunction(li_add_executable)
 
+add_subdirectory(docs)
 add_subdirectory(libraries/metamap)
 add_subdirectory(libraries/callable_traits)
 add_subdirectory(libraries/json)

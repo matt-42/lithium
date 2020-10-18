@@ -174,8 +174,8 @@ int main(int argc, char* argv[]) {
     cout << "   Output on stdout the definitions of all the symbols used in the input files."
          << endl
          << endl;
-    cout << "Usage: " << argv[0] << " project_root" << endl;
-    cout << "   For each folder under project root write a symbols.hh file containing the" << endl;
+    cout << "Usage: " << argv[0] << " dir1, dir2, ..." << endl;
+    cout << "   For all dirN folder and dirN subfolders write a symbols.hh file containing the" << endl;
     cout << "   declarations of all symbols used in C++ source and header of this same directory."
          << endl;
     return 1;
@@ -190,8 +190,9 @@ int main(int argc, char* argv[]) {
     write_symbol_file(find_symbols_in_files(files), std::cout);
   }
   if (fs::is_directory(argv[1])) {
-    std::vector<fs::path> directories = {fs::path(argv[1])};
-   
+    std::vector<fs::path> directories = {};
+    for (int i = 1; i < argc; i++)
+      directories.push_back(fs::path(argv[i]));
     for (auto& p : fs::recursive_directory_iterator(argv[1]))
       if (fs::is_directory(p.path()))
         directories.push_back(p.path());
@@ -214,6 +215,7 @@ int main(int argc, char* argv[]) {
         if (fs::is_regular_file(symbol_file) && ss.str() == get_file_contents(symbol_file.string()))
           continue;
         else {
+          std::cout << "Update symbols of " << symbol_file.string() << std::endl;
           auto of = std::ofstream(symbol_file.string());
           of << ss.str();
         }
