@@ -180,7 +180,8 @@ export default function PrimarySearchAppBar() {
           >
             <MenuIcon />
           </IconButton> */}
-            <img src="https://raw.githubusercontent.com/matt-42/lithium/master/images/lithium_logo_white.png" width="40" style={{ paddingRight: "15px" }} />
+            <img src="https://raw.githubusercontent.com/matt-42/lithium/master/images/lithium_logo_white.png" width="40" 
+                  style={{ filter: "invert(100%)", paddingRight: "15px" }} />
             <Typography className={classes.title} variant="h6" noWrap>
               lithium
           </Typography>
