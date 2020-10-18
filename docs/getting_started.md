@@ -80,7 +80,7 @@ Now that you have setup symbol generation (or choose manual declaration), you ar
 Lithium is header only. You can  `#include` one of the lithium headers and start coding. Check
 https://github.com/matt-42/lithium/tree/master/single_headers for the full list of available headers.
 
-### CMake
+## CMake
 
 The recommended way (without using the cli) is to use cmake to compile project using lithium.
 Check the cmake+lithium project starter here:
