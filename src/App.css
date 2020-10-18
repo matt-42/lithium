@@ -12,7 +12,7 @@ body {
 }
 
 code.hljs {
-  background-image: url("/brushed.jpg");
+  background-image: url("./images/brushed.jpg");
 }
 
 .App {
