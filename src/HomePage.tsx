@@ -29,7 +29,7 @@ export const HomePage = () => {
     </div>
 
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", }}>    
-      <iframe src="http://ghbtns.com/github-btn.html?user=matt-42&repo=lithium&type=watch&count=true&size=large" height="30" width="160" scrolling="0" frameBorder={0} allowTransparency={true}></iframe> 
+      <iframe src="https://ghbtns.com/github-btn.html?user=matt-42&repo=lithium&type=star&count=true&size=large" frameBorder="0" scrolling="0" width="170" height="30" title="GitHub"></iframe>
       <a href="https://twitter.com/share" className="twitter-share-button" style={{float: "left", paddingTop: "10px"}} data-size="large">Tweet</a>
     </div>
 
