@@ -14,7 +14,7 @@
 importScripts("https://storage.googleapis.com/workbox-cdn/releases/4.3.1/workbox-sw.js");
 
 importScripts(
-  "/lithium/precache-manifest.ba04e62ea33fe146ac93cc41b267711a.js"
+  "/lithium/precache-manifest.5c7dc3978cca467fb60a30c185be662d.js"
 );
 
 self.addEventListener('message', (event) => {
