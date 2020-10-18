@@ -10,7 +10,6 @@ import ListItem from "@material-ui/core/ListItem"
 import List from "@material-ui/core/List"
 import ListItemText from "@material-ui/core/ListItemText"
 import useMediaQuery from "@material-ui/core/useMediaQuery"
-import { setLocation, setLocationCallback } from "./App"
 import { useHistory } from "react-router-dom"
 
 

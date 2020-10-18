@@ -1,24 +1,9 @@
+import { createMuiTheme, ThemeProvider } from '@material-ui/core/styles';
 import React, { useEffect, useState } from 'react';
-import logo from './logo.svg';
 import './App.css';
 import PrimarySearchAppBar from './AppBar';
-import { createMuiTheme, ThemeProvider } from '@material-ui/core/styles';
-import { Container, Box, Button, Typography } from '@material-ui/core';
-import { HomePage } from './HomePage';
 import { Documentation } from './Documentation';
-
-import {
-  BrowserRouter as Router,
-  Switch,
-  Route,
-  Link
-} from "react-router-dom";
-import { createBrowserHistory } from 'history';
-
-
-// export const history = createBrowserHistory({
-//   basename: process.env.PUBLIC_URL
-// });
+import { HomePage } from './HomePage';
 
 const darkTheme = createMuiTheme({
   palette: {
@@ -45,21 +30,6 @@ const darkTheme = createMuiTheme({
   
 });
 
-export function setLocation(url : string, history : any) {
-  let [ pathname, hash ] = (process.env.PUBLIC_URL + url).split("#");
-
-  if (window.location.pathname != pathname)
-    history.push(url.toString());
-  else
-    window.location.hash = hash;
-}
-export function setLocationCallback(url : string, history : any) {
-  return (e : any) => {
-    e.preventDefault();
-    setLocation(url, history);
-  }
-}
-
 function App() {
   const [windowHash, setwindowHash] = useState(window.location.hash);
 
@@ -68,25 +38,15 @@ function App() {
   }, []);
   
   return (
-    <Router basename={process.env.PUBLIC_URL}>
 
       <ThemeProvider theme={darkTheme}>
         <PrimarySearchAppBar />
         {
           windowHash == "" ? <HomePage/> : <Documentation hash={windowHash}/>
         }
-        {/* <Switch>
-          <Route path="/#:sectionId">
-            <Documentation />
-          </Route>
-          <Route path="/">
-            <HomePage></HomePage>
-          </Route>
-        </Switch> */}
         
     
       </ThemeProvider>
-    </Router>
   );
 }
 

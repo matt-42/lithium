@@ -7,8 +7,7 @@ import hljs from 'highlight.js';
 import "highlight.js/styles/vs2015.css";
 import marked, { lexer } from "marked";
 import React, { useEffect, useState } from "react";
-import { useHistory, useParams } from "react-router-dom";
-import { setLocation } from "./App";
+import { useHistory } from "react-router-dom";
 
 const docUrls: { [s: string]: string } = {
   "getting-started": "https://raw.githubusercontent.com/matt-42/lithium/master/docs/getting_started.md",
