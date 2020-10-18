@@ -1,4 +1,5 @@
 import { createMuiTheme, ThemeProvider } from '@material-ui/core/styles';
+import Typography from '@material-ui/core/Typography';
 import React, { useEffect, useState } from 'react';
 import './App.css';
 import PrimarySearchAppBar from './AppBar';
@@ -44,8 +45,7 @@ function App() {
         {
           windowHash == "" ? <HomePage/> : <Documentation hash={windowHash}/>
         }
-        
-    
+      
       </ThemeProvider>
   );
 }

@@ -28,6 +28,7 @@ const useStyles = makeStyles((theme: Theme) =>
     title: {
       display: 'none',
       fontFamily: "Major Mono Display",
+      fontSize: "25px",
       [theme.breakpoints.up('sm')]: {
         display: 'block',
       },

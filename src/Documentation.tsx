@@ -8,6 +8,7 @@ import "highlight.js/styles/vs2015.css";
 import marked, { lexer } from "marked";
 import React, { useEffect, useState } from "react";
 import { useHistory } from "react-router-dom";
+import { Footer } from "./Footer";
 
 const docUrls: { [s: string]: string } = {
   "getting-started": "https://raw.githubusercontent.com/matt-42/lithium/master/docs/getting_started.md",
@@ -249,6 +250,7 @@ export const Documentation = (props: { hash: string }) => {
         <div dangerouslySetInnerHTML={{ __html: content }}>
         </div>
       </Paper>
+      <Footer/>
     </Container>
 
   </div>

@@ -1,6 +1,6 @@
 import { TextField, Typography, useTheme } from "@material-ui/core"
 import React, { useEffect, useState } from "react"
-import { DocIndex, DocIndexEntry, documentationIndex, sectionPath, sectionUrl } from "./Documentation"
+import { DocIndex, DocIndexEntry, documentationIndex, sectionAnchor, sectionPath, sectionUrl } from "./Documentation"
 import Autocomplete, { AutocompleteRenderOptionState, createFilterOptions } from '@material-ui/lab/Autocomplete';
 import { options } from "marked";
 import { useHistory } from "react-router-dom";
@@ -35,8 +35,12 @@ export const Search = () => {
       id="doc_search_bar"
       options={index}
       style={{ width: 600 }}
+      openOnFocus={false}
+      // onOpen={e => { console.log(e); e.preventDefault(); return false; } }
       renderInput={(params) => <TextField {...params}
-        // InputProps={{
+
+      onMouseDownCapture={(e) => e.stopPropagation()}
+      // InputProps={{
         //   // style: { color: theme.palette.common.black, borderColor: theme.palette.common.black },
         //   startAdornment: (
         //     <InputAdornment position="start">
@@ -56,19 +60,13 @@ export const Search = () => {
         console.log(option);
 
         if (option) {
-          let url = sectionUrl(option?.section)
-          let { pathname, hash } = new URL("http://test.com" + url);
-
-          if (window.location.pathname != pathname)
-            history.push(url.toString());
-          else
-            window.location.hash = hash;
+          window.location.hash = sectionAnchor(option.section);
         }
       }}
       getOptionLabel={(option) => ""}
       renderOption={(option: DocIndexEntry, state: AutocompleteRenderOptionState) => {
 
-        console.log(state.inputValue);
+        // console.log(state);
         let idx = option.text.toLowerCase().indexOf(state.inputValue.toLowerCase());
         // Take 100 chars.
         let snippet = option.text.substring(Math.max(idx - 50, 0), Math.min(idx + 50, option.text.length));
