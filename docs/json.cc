@@ -1,7 +1,8 @@
-li::json
+/*
+json
 ============================
 
-li::json is a C++17 JSON serializer/deserializer designed for
+``li::json`` is a C++17 JSON serializer/deserializer designed for
 ease of use and performances.
 
 It handle a subset of other JSON serialization libraries: **Only cases
@@ -41,7 +42,7 @@ more features.
 
 Note: This example use the single header version.
 
-```c++
+*/
 
 LI_SYMBOL(name)
 LI_SYMBOL(age)
@@ -126,22 +127,3 @@ int main ()
   // {"age":12,"last_name":"John"}
 
 }
-
-```
-
-# What is the s:: namespace ?
-
-Everything explained here: https://github.com/matt-42/lithium/tree/master/libraries/symbol#lisymbol
-
-# Installation / Supported compilers
-
-Everything explained here: https://github.com/matt-42/lithium#installation
-
-# Authors
-
-Matthieu Garrigues https://github.com/matt-42
-
-# Support the project
-
-If you find this project helpful, please consider donating:
-https://www.paypal.me/matthieugarrigues
