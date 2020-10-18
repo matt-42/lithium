@@ -6,7 +6,7 @@
 // __documentation_starts_here__
 
 /*
-sql
+SQL
 ================================
 
 ``li::sql`` is a set of high performance and easy to use C++ SQL drivers built on top of the C
