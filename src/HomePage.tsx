@@ -103,7 +103,7 @@ int main() {
         </Typography>
 
         <p style={{textAlign:"right"}}>
-        <Button variant="outlined" color="primary">Read the docs</Button>
+        <Button variant="outlined" color="primary" href="/getting-started">Read the docs</Button>
         </p>
 
       </Paper>

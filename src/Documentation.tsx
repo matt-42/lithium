@@ -50,8 +50,8 @@ function cppToMarkdown(code: string) {
   let markerpos = code.indexOf(marker)
   if (markerpos != -1)
     code = code.substring(markerpos + marker.length);
-  code = code.replace('/*', '```\n');
-  code = code.replace('*/', '```c++\n');
+  code = code.replace(/\n[\s]*\/\*/g, '\n```\n');
+  code = code.replace(/\n[\s]*\*\//g, '\n```c++\n');
   code = '```c++\n' + code + '```\n';
 
   code = code.replace(/```c\+\+[\n ]*```/, '');
@@ -207,7 +207,7 @@ export const Documentation = () => {
   return <div>
 <Container style={{paddingLeft: "240px", position: "relative", paddingTop: "100px"}}>
 
-      <div style={{ position: "fixed", width: "200px", top: "100px", marginLeft: "-240px", height: "100%", overflow: "scroll-y" }}>
+      <div className="docMenu" style={{ position: "fixed", width: "220px", top: "100px", marginLeft: "-240px", height: "100%", overflow: "scroll" }}>
         {menu}
       </div>
       <Paper style={{ flexGrow: 1, textAlign: "left", padding: "20px", }}>

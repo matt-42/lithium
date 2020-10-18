@@ -37,7 +37,8 @@ const darkTheme = createMuiTheme({
       fontFamily: "Major Mono Display",
       fontSize: "30px"
     }
-  }
+  },
+  
 });
 
 export function setLocation(url : string, history : any) {
