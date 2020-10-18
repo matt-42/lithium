@@ -8,6 +8,20 @@ export const codeFont = {
   fontSize: "14px"
 }
 
+
+export const HL = (props: PropsWithChildren<{language : string}>) => {
+
+  const el = useRef<HTMLPreElement>(null);
+
+  useEffect(() => {
+    if (!el.current) return;
+    hljs.highlightBlock(el.current);
+  }, [el.current !== null]);
+
+  return <pre><code ref={el} className={props.language}>{props.children}</code></pre>
+}
+
+
 export const HLsh = (props: PropsWithChildren<{}>) => {
 
   const el = useRef<HTMLPreElement>(null);

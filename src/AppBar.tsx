@@ -32,6 +32,8 @@ const useStyles = makeStyles((theme: Theme) =>
       [theme.breakpoints.up('sm')]: {
         display: 'block',
       },
+      color: theme.palette.common.black,
+      textDecoration: "none"
     },
     search: {
       position: 'relative',
@@ -182,8 +184,8 @@ export default function PrimarySearchAppBar() {
           </IconButton> */}
             <img src="https://raw.githubusercontent.com/matt-42/lithium/master/images/lithium_logo_white.png" width="40" 
                   style={{ filter: "invert(100%)", paddingRight: "15px" }} />
-            <Typography className={classes.title} variant="h6" noWrap>
-              lithium
+            <Typography color="inherit" className={classes.title} variant="h6" noWrap>
+              <Link className={classes.title}  underline="none" href="/">lithium</Link>
           </Typography>
             <div className={classes.grow} />
             <div className={classes.search}>
