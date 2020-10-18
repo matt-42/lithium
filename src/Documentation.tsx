@@ -21,14 +21,85 @@ function formatUrl(s: string) {
   return s.toLowerCase().replace("c++", "cpp").replace(/[^a-zA-Z0-9]/g, "-");
 }
 
+interface SectionNode {
+  text: string,
+  depth: number,
+  children: { [k: string]: SectionNode },
+  parent: SectionNode | null
+};
+
+export const sectionAnchor = (item: SectionNode) => {
+  let path: string[] = [];
+  let it: SectionNode | null = item;
+  while (it) {
+    path.unshift(it.text);
+    it = it.parent;
+  }
+  return "#" + path.map(formatUrl).join("/");
+}
+
+export const sectionUrl = (item: SectionNode) => {
+  return "/" + sectionAnchor(item);
+}
+
+export const sectionPath = (item: SectionNode) => {
+  let path: string[] = [];
+  let it: SectionNode | null = item;
+  while (it) {
+    path.unshift(it.text);
+    it = it.parent;
+  }
+
+  return path.join(" / ");
+}
+
+export type DocHierarchy = { [k: string]: SectionNode };
+export type DocIndexEntry = { text: string, section: SectionNode };
+export type DocIndex = DocIndexEntry[];
+
+function addToHierarchy(item: any, hierarchy: DocHierarchy, parents: (SectionNode | null)[]) {
+  let itempos = item.depth - 1;
+  let parentpos = item.depth - 2;
+
+  if (item.depth > 1) {
+    // find parent.
+    while (parentpos > 0 && !parents[parentpos]) parentpos--;
+
+    let parent = parents[parentpos] as SectionNode;
+    if (!parent) {
+      console.log(parents);
+      console.log(item);
+    }
+    // add item as child to parent.
+    parent.children[item.text] = { text: item.text, depth: item.depth, children: {}, parent };
+
+    // add item to the parent array.
+    // while (parents.length < item.depth) parents.push(null);
+    parents.length = itempos + 1;
+    parents[itempos] = parent.children[item.text];
+  }
+  else {
+    hierarchy[item.text] = { text: item.text, depth: item.depth, children: {}, parent: null };
+    parents.length = itempos + 1;
+    parents[0] = hierarchy[item.text];
+  }
+
+  return parents[itempos] as SectionNode;
+}
+
+const docRendererHierarchy = {} as DocHierarchy;
+const docRendererParents = [] as (SectionNode | null)[];
+
 const docRenderer = {
   code(code: string, infostring: string, escaped: boolean) {
     return `<pre><code class="hljs cpp c++">${hljs.highlight("c++", code).value}</code></pre>`;
   },
   heading(text: string, level: number) {
+    let section = addToHierarchy({ text, depth: level }, docRendererHierarchy, docRendererParents);
+
     const escapedText = formatUrl(text);
     return `
-    <a name="${escapedText}" class="anchor" href="#${escapedText}" style="top: -90px; display: block;
+    <a name="${sectionAnchor(section).substring(1)}" class="anchor" href="${sectionAnchor(section)}" style="top: -90px; display: block;
     position: relative;
     top: -60px;
     visibility: hidden;">
@@ -58,40 +129,7 @@ function cppToMarkdown(code: string) {
   return code;
 }
 
-interface SectionNode {
-  text: string,
-  depth: number,
-  children: { [k: string]: SectionNode },
-  parent: SectionNode | null
-};
 
-export const sectionUrl = (item: SectionNode) => {
-  let url = "/";
-  let path : string[] = [];
-  let it : SectionNode | null = item;
-  while (it)
-  {
-    path.unshift(it.text);
-    it = it.parent;
-  }
-  // return url + formatUrl(path.shift() as string) + "#" + path.map(formatUrl).join("/");
-  console.log(path);
-  url += formatUrl(path.shift() as string);
-  if (path.length)
-    url += "#" + formatUrl(path.pop() as string);
-  return url;
-}
-
-export const sectionPath = (item: SectionNode) => {
-  if (item.parent)
-    return item.parent.text + " / " + item.text;
-  else
-    return item.text;
-}
-
-export type DocHierarchy = { [k: string]: SectionNode };
-export type DocIndexEntry = { text: string, section: SectionNode };
-export type DocIndex = DocIndexEntry[];
 
 export async function indexDocumentation()
   : Promise<[DocHierarchy, DocIndex]> {
@@ -109,33 +147,7 @@ export async function indexDocumentation()
       if (item.type === "heading") {
 
         let itempos = item.depth - 1;
-        let parentpos = item.depth - 2;
-
-        if (item.depth > 1) {
-          // find parent.
-          while (parentpos > 0 && !parents[parentpos]) parentpos--;
-
-          let parent = parents[parentpos] as SectionNode;
-          if (!parent)
-          {
-            console.log(parents);
-            console.log(item);
-          }
-          // add item as child to parent.
-          parent.children[item.text] = { text: item.text, depth: item.depth, children: {}, parent };
-
-          // add item to the parent array.
-          // while (parents.length < item.depth) parents.push(null);
-          parents.length = itempos + 1;
-          console.log("new length: ", parents.length);
-          parents[itempos] = parent.children[item.text];
-        }
-        else {
-          hierarchy[item.text] = { text: item.text, depth: item.depth, children: {}, parent: null };
-          parents.length = itempos + 1;
-          console.log("new length: ", parents.length);
-          parents[0] = hierarchy[item.text];
-        }
+        addToHierarchy(item, hierarchy, parents);
 
         // index item
         searchIndex.push({ text: item.text || "", section: parents[itempos] as SectionNode });
@@ -162,14 +174,18 @@ async function generateDocumentation(doc_url: string) {
   return marked(doc_url.split('.').pop() == "md" ? code : cppToMarkdown(code));
 }
 
-export const Documentation = () => {
+const docsHtml : { [sectionName : string] : Promise<string>} = {};
+
+for (let sectionName of Object.keys(docUrls)) {
+  docsHtml[sectionName] = generateDocumentation(docUrls[sectionName]);
+}
+
+export const Documentation = (props: { hash: string }) => {
 
   const history = useHistory();
-  let { sectionId } = useParams<{ sectionId: string }>();
-
   const [content, setContent] = useState("")
   const [menu, setMenu] = useState<any>(null)
-
+  const [currentSection, setCurrentSection] = useState("")
   function makeMenu(hierarchy: DocHierarchy) {
 
     if (!hierarchy) return <></>;
@@ -178,16 +194,18 @@ export const Documentation = () => {
       {Object.values(hierarchy).map((item: SectionNode) => <>
         <ListItem key={item.text} button
           component="a"
-          href={sectionUrl(item)}  
+          href={sectionUrl(item)}
           // ContainerProps={{ onClick: (e) => e.preventDefault() }}
-          onClick={(e:any) => {
-            e.preventDefault()
-            setLocation(sectionUrl(item), history);
-          }}//"return false;"        
+          // onClick={(e: any) => {
+          //   e.preventDefault()
+          //   console.log(sectionAnchor(item).substring(1));
+          //   window.location.hash = sectionAnchor(item).substring(1);
+          //   // setLocation(sectionUrl(item), history);
+          // }}//"return false;"        
           style={{ paddingLeft: `${10 * item.depth}px` }}>
           {
-            !item.parent ? <span style={{fontFamily: "Major Mono Display"}}>{item.text.toLowerCase()}</span>
-            : <Typography>{item.text}</Typography>          
+            !item.parent ? <span style={{ fontFamily: "Major Mono Display" }}>{item.text.toLowerCase()}</span>
+              : <Typography>{item.text}</Typography>
           }
         </ListItem>
         {makeMenu(item.children)}
@@ -195,26 +213,35 @@ export const Documentation = () => {
     </List>
   }
 
-
   useEffect(() => {
     (async () => {
       let menu = makeMenu((await documentationIndex)[0]);
-      console.log(menu);
       setMenu(menu);
-      if (!docUrls[sectionId])
-        setContent(sectionId + ": Page not found");
+    })();
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      const split = props.hash.split("/");
+      const mainSection = split[0].substring(1);
+      if (mainSection == currentSection)
+        return;
+      console.log("load ", mainSection);
+      setCurrentSection(mainSection);
+      if (!docsHtml[mainSection])
+        setContent(mainSection + ": Section not found");
       else
-        await generateDocumentation(docUrls[sectionId]).then(c => setContent(c));
+        await docsHtml[mainSection].then(c => setContent(c));
       let prevHash = window.location.hash;
       window.location.hash = "";
       window.location.hash = prevHash;
     })();
 
-  }, [sectionId]);
+  }, [props.hash]);
 
 
   return <div>
-<Container style={{paddingLeft: "240px", position: "relative", paddingTop: "100px"}}>
+    <Container style={{ paddingLeft: "240px", position: "relative", paddingTop: "100px" }}>
 
       <div className="docMenu" style={{ position: "fixed", width: "220px", top: "100px", marginLeft: "-240px", height: "100%", overflow: "scroll" }}>
         {menu}
@@ -223,7 +250,7 @@ export const Documentation = () => {
         <div dangerouslySetInnerHTML={{ __html: content }}>
         </div>
       </Paper>
-</Container>
+    </Container>
 
   </div>
 

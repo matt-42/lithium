@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import logo from './logo.svg';
 import './App.css';
 import PrimarySearchAppBar from './AppBar';
@@ -61,20 +61,28 @@ export function setLocationCallback(url : string, history : any) {
 }
 
 function App() {
+  const [windowHash, setwindowHash] = useState(window.location.hash);
+
+  useEffect(() => {
+    window.onhashchange = () => setwindowHash(window.location.hash);
+  }, []);
+  
   return (
     <Router basename={process.env.PUBLIC_URL}>
 
       <ThemeProvider theme={darkTheme}>
         <PrimarySearchAppBar />
-
-        <Switch>
-          <Route path="/:sectionId">
+        {
+          windowHash == "" ? <HomePage/> : <Documentation hash={windowHash}/>
+        }
+        {/* <Switch>
+          <Route path="/#:sectionId">
             <Documentation />
           </Route>
           <Route path="/">
             <HomePage></HomePage>
           </Route>
-        </Switch>
+        </Switch> */}
         
     
       </ThemeProvider>

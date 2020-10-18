@@ -10,7 +10,7 @@ import ListItem from "@material-ui/core/ListItem"
 import List from "@material-ui/core/List"
 import ListItemText from "@material-ui/core/ListItemText"
 import useMediaQuery from "@material-ui/core/useMediaQuery"
-import { setLocation } from "./App"
+import { setLocation, setLocationCallback } from "./App"
 import { useHistory } from "react-router-dom"
 
 
@@ -30,10 +30,7 @@ export const HomePage = () => {
       </Typography>
         <div style={{ height: "20px" }}></div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-start", }}>    
-        <Button variant="outlined" color="primary" onClick={(e) => {
-          setLocation("/getting-started", history);
-          e.preventDefault();
-        }} style={{marginRight: "45px"}} href={process.env.PUBLIC_URL + "/getting-started"} >Get Started</Button>
+        <Button variant="outlined" color="primary" style={{marginRight: "45px"}} href={"#getting-started"} >Get Started</Button>
         <iframe src="https://ghbtns.com/github-btn.html?user=matt-42&repo=lithium&type=star&count=true&size=large" frameBorder="0" scrolling="0" width="170" height="30" title="GitHub"></iframe>
         <a href="https://twitter.com/share" className="twitter-share-button" style={{float: "left", marginLeft: "-37px", paddingTop: "10px"}} data-size="large">Tweet</a>
     </div>
@@ -63,7 +60,7 @@ export const HomePage = () => {
 `$ wget https://raw.githubusercontent.com/matt-42/lithium/master/cli/li
 $ chmod +x ./li`}</HLsh>
 <Typography>
-        Lithium can also run locally. <Link href="#"><u>Check the install guide for more info</u></Link>. 
+        Lithium can also run locally. <Link href="#getting-started"><u>Check the install guide for more info</u></Link>. 
 </Typography>
 
       </Paper>
@@ -109,10 +106,7 @@ int main() {
         </Typography>
 
         <p style={{textAlign:"right"}}>
-        <Button variant="outlined"  onClick={(e) => {
-          setLocation("/getting-started", history);
-          e.preventDefault();
-        }} color="primary" href="/getting-started">Read the docs</Button>
+        <Button variant="outlined" color="primary" href="#getting-started">Read the docs</Button>
         </p>
 
       </Paper>
