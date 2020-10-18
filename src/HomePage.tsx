@@ -62,7 +62,7 @@ $ chmod +x ./li`}</HLsh>
 
       </Paper>
 
-      <Paper style={{ flex: 1, padding: "20px", width: "700px",  }}>
+      <Paper style={{ flex: 1, padding: "20px", width: screen700 ? "700px" : "calc(100% - 20px)", }}>
 
       <div style={{ display: "flex", alignItems: "center" }}>
           <Icon>api</Icon>
