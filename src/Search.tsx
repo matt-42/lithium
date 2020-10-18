@@ -69,7 +69,7 @@ export const Search = () => {
       renderOption={(option: DocIndexEntry, state: AutocompleteRenderOptionState) => {
 
         console.log(state.inputValue);
-        let idx = option.text.indexOf(state.inputValue);
+        let idx = option.text.toLowerCase().indexOf(state.inputValue.toLowerCase());
         // Take 100 chars.
         let snippet = option.text.substring(Math.max(idx - 50, 0), Math.min(idx + 50, option.text.length));
         snippet = snippet.replace(state.inputValue, `<u><b>${state.inputValue}</b></u>`)
