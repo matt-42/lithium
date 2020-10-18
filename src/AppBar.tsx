@@ -18,6 +18,8 @@ import { Container, TextField } from '@material-ui/core';
 import GitHub from '@material-ui/icons/GitHub';
 import Link from '@material-ui/core/Link/Link';
 import { Search } from './Search';
+import { setLocationCallback } from './App';
+import { useHistory } from 'react-router-dom';
 
 const useStyles = makeStyles((theme: Theme) =>
   createStyles({
@@ -65,6 +67,7 @@ const useStyles = makeStyles((theme: Theme) =>
 );
 
 export default function PrimarySearchAppBar() {
+  const history = useHistory();
   const classes = useStyles();
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const [mobileMoreAnchorEl, setMobileMoreAnchorEl] = React.useState<null | HTMLElement>(null);
@@ -162,7 +165,7 @@ export default function PrimarySearchAppBar() {
             <img src="https://raw.githubusercontent.com/matt-42/lithium/master/images/lithium_logo_white.png" width="40" 
                   style={{ paddingRight: "15px" }} />
             <Typography color="inherit" className={classes.title} variant="h6" noWrap>
-              <Link className={classes.title}  underline="none" href="/">lithium</Link>
+              <Link className={classes.title}  underline="none" onClick={setLocationCallback("/", history)} href="/">lithium</Link>
           </Typography>
             <div className={classes.grow} />
             {/* <TextField>xxxxx</TextField> */}

@@ -53,6 +53,12 @@ export function setLocation(url : string, history : any) {
   else
     window.location.hash = hash;
 }
+export function setLocationCallback(url : string, history : any) {
+  return (e : any) => {
+    e.preventDefault();
+    setLocation(url, history);
+  }
+}
 
 function App() {
   return (
