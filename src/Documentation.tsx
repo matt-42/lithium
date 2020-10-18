@@ -18,7 +18,7 @@ const docUrls: { [s: string]: string } = {
 }
 
 function formatUrl(s: string) {
-  return s.replace(/[^a-zA-Z0-9]/g, "-").toLowerCase();
+  return s.toLowerCase().replace("c++", "cpp").replace(/[^a-zA-Z0-9]/g, "-");
 }
 
 const docRenderer = {
@@ -26,7 +26,7 @@ const docRenderer = {
     return `<pre><code class="hljs cpp c++">${hljs.highlight("c++", code).value}</code></pre>`;
   },
   heading(text: string, level: number) {
-    const escapedText = text.toLowerCase().replace(/[^\w]+/g, '-');
+    const escapedText = formatUrl(text);
     return `
     <a name="${escapedText}" class="anchor" href="#${escapedText}" style="top: -90px; display: block;
     position: relative;
