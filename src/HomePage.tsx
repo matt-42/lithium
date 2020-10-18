@@ -23,15 +23,16 @@ export const HomePage = () => {
           Build high performance C++ HTTP servers without being a C++ expert.
       </Typography>
         <div style={{ height: "20px" }}></div>
-        <Button variant="outlined" color="primary">Get Started</Button>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-start", }}>    
+        <Button variant="outlined" color="primary" style={{marginRight: "45px"}}>Get Started</Button>
+        <iframe src="https://ghbtns.com/github-btn.html?user=matt-42&repo=lithium&type=star&count=true&size=large" frameBorder="0" scrolling="0" width="170" height="30" title="GitHub"></iframe>
+        <a href="https://twitter.com/share" className="twitter-share-button" style={{float: "left", marginLeft: "-37px", paddingTop: "10px"}} data-size="large">Tweet</a>
+    </div>
+
       </div>
 
     </div>
 
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", }}>    
-      <iframe src="https://ghbtns.com/github-btn.html?user=matt-42&repo=lithium&type=star&count=true&size=large" frameBorder="0" scrolling="0" width="170" height="30" title="GitHub"></iframe>
-      <a href="https://twitter.com/share" className="twitter-share-button" style={{float: "left", paddingTop: "10px"}} data-size="large">Tweet</a>
-    </div>
 
 
     <div style={{ display: "flex", flexDirection: "column",  alignItems: "center", paddingTop: "100px" }}>
