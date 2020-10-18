@@ -14,9 +14,10 @@ import AccountCircle from '@material-ui/icons/AccountCircle';
 import MailIcon from '@material-ui/icons/Mail';
 import NotificationsIcon from '@material-ui/icons/Notifications';
 import MoreIcon from '@material-ui/icons/MoreVert';
-import { Container } from '@material-ui/core';
+import { Container, TextField } from '@material-ui/core';
 import GitHub from '@material-ui/icons/GitHub';
 import Link from '@material-ui/core/Link/Link';
+import { Search } from './Search';
 
 const useStyles = makeStyles((theme: Theme) =>
   createStyles({
@@ -32,33 +33,9 @@ const useStyles = makeStyles((theme: Theme) =>
       [theme.breakpoints.up('sm')]: {
         display: 'block',
       },
-      color: theme.palette.common.black,
       textDecoration: "none"
     },
-    search: {
-      position: 'relative',
-      borderRadius: theme.shape.borderRadius,
-      backgroundColor: fade(theme.palette.common.white, 0.15),
-      '&:hover': {
-        backgroundColor: fade(theme.palette.common.white, 0.25),
-      },
-      marginRight: theme.spacing(2),
-      marginLeft: 0,
-      width: '100%',
-      [theme.breakpoints.up('sm')]: {
-        marginLeft: theme.spacing(3),
-        width: 'auto',
-      },
-    },
-    searchIcon: {
-      padding: theme.spacing(0, 2),
-      height: '100%',
-      position: 'absolute',
-      pointerEvents: 'none',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
+
     inputRoot: {
       color: 'inherit',
     },
@@ -171,7 +148,7 @@ export default function PrimarySearchAppBar() {
 
   return (
     <div className={classes.grow}>
-      <AppBar position="static">
+      <AppBar position="fixed" color="default">
         <Container>
           <Toolbar>
             {/* <IconButton
@@ -183,23 +160,26 @@ export default function PrimarySearchAppBar() {
             <MenuIcon />
           </IconButton> */}
             <img src="https://raw.githubusercontent.com/matt-42/lithium/master/images/lithium_logo_white.png" width="40" 
-                  style={{ filter: "invert(100%)", paddingRight: "15px" }} />
+                  style={{ paddingRight: "15px" }} />
             <Typography color="inherit" className={classes.title} variant="h6" noWrap>
               <Link className={classes.title}  underline="none" href="/">lithium</Link>
           </Typography>
             <div className={classes.grow} />
-            <div className={classes.search}>
-              <div className={classes.searchIcon}>
+            {/* <TextField>xxxxx</TextField> */}
+            <div>
+              {/* <div className={classes.searchIcon}>
                 <SearchIcon />
-              </div>
-              <InputBase
+              </div> */}
+              <Search></Search>
+
+              {/* <InputBase
                 placeholder="Search…"
                 classes={{
                   root: classes.inputRoot,
                   input: classes.inputInput,
                 }}
                 inputProps={{ 'aria-label': 'search' }}
-              />
+              /> */}
             </div>
             <div className={classes.sectionDesktop}>
                 <IconButton href="https://github.com/matt-42/lithium" target="_blank" aria-label="Github" color="inherit">

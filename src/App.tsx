@@ -40,6 +40,15 @@ const darkTheme = createMuiTheme({
   }
 });
 
+export function setLocation(url : string, history : any) {
+  let { pathname, hash } = new URL("http://test.com" + url);
+
+  if (window.location.pathname != pathname)
+    history.push(url.toString());
+  else
+    window.location.hash = hash;
+}
+
 function App() {
   return (
     <Router basename={process.env.PUBLIC_URL}>
