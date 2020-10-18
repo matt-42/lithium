@@ -6,7 +6,7 @@
 // __documentation_starts_here__
 
 /*
-li::sql
+sql
 ================================
 
 ``li::sql`` is a set of high performance and easy to use C++ SQL drivers built on top of the C
@@ -38,7 +38,7 @@ raw C drivers of the databases. According to the [Techempower
 benchmark](http://tfb-status.techempower.com/), Lithium MySQL and PostgreSQL drivers are part of the
 fastest available.
 
-## Ease of use
+## Learning Curve
 
 While building a fast DB driver, we did not do any compromise on the ease of use of the library.
 The learning curve of this library is inferior to 5 minutes since it's API has only 5 functions
