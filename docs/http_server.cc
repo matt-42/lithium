@@ -1,5 +1,5 @@
 /*
-li::http_backend: Coroutine based, Asynchronous, Low Latency and High Throughput HTTP Server
+li::http_server: Coroutine based, Asynchronous, Low Latency and High Throughput HTTP Server
 =================================
 
 This library goal is to ease the development of HTTP APIs without
@@ -27,7 +27,7 @@ also server <-> database (except SQLite which does not use the network).
 Write an api:
 */
 // hello_lithium.cc
-#include "lithium_http_backend.hh"
+#include "lithium_http_server.hh"
 
 using namespace li;
 
@@ -89,7 +89,7 @@ else
 
 ## Error handling
 
-`li::http_backend` uses exceptions to report HTTP errors.
+`li::http_server` uses exceptions to report HTTP errors.
 
 */
 http_api api;
@@ -203,7 +203,7 @@ Note that when using it, ORM callbacks must take `http_request& request, http_re
 as additional arguments.
 
 Check the code for more info:
-https://github.com/matt-42/lithium/blob/master/libraries/http_backend/http_backend/sql_crud_api.hh
+https://github.com/matt-42/lithium/blob/master/libraries/http_server/http_server/sql_crud_api.hh
 
 
 ## Sessions
@@ -285,7 +285,7 @@ my_api.post("/auth_test") = [&] (http_request& request, http_response& response)
 /*
 
 Check the code for more info:
-https://github.com/matt-42/lithium/blob/master/libraries/http_backend/http_backend/http_authentication.hh
+https://github.com/matt-42/lithium/blob/master/libraries/http_server/http_server/http_authentication.hh
 
 
 ## Testing
@@ -305,5 +305,5 @@ assert(r.body == "expected response body");
 ## A complete blog API
 
 Checkout the code here:
-https://github.com/matt-42/lithium/blob/master/libraries/http_backend/examples/blog.cc
+https://github.com/matt-42/lithium/blob/master/libraries/http_server/examples/blog.cc
 */

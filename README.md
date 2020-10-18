@@ -35,7 +35,7 @@ A set of asynchronous and synchronous SQL drivers.
 
 A http_client built around the libcurl library.
 
-### [li::http_backend](https://github.com/matt-42/lithium/tree/master/libraries/http_backend)
+### [li::http_server](https://github.com/matt-42/lithium/tree/master/libraries/http_server)
 
 A coroutine based, asynchronous, low latency and high throughput HTTP Server library.
 

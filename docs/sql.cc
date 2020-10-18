@@ -1,6 +1,6 @@
 // Visit https://matt-42.github.io/lithium to better visualize this documentation.
 
-#include <lithium_http_backend.hh>
+#include <lithium_http_server.hh>
 #include <lithium_json.hh>
 
 // __documentation_starts_here__
@@ -232,7 +232,7 @@ int main() {
 
   ### ORM Callbacks additional arguments
 
-  Callbacks can also take additional arguments, it is used for example in the http_backend library
+  Callbacks can also take additional arguments, it is used for example in the http_server library
   to access the HTTP session.
 
   */
