@@ -9,11 +9,14 @@ import Paper from "@material-ui/core/Paper"
 import ListItem from "@material-ui/core/ListItem"
 import List from "@material-ui/core/List"
 import ListItemText from "@material-ui/core/ListItemText"
+import useMediaQuery from "@material-ui/core/useMediaQuery"
 
 
 export const HomePage = () => {
+  const screen700 = useMediaQuery('(min-width:700px)');
+
   return <Container>
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", paddingTop: "100px" }}>
+    <div style={{ display: "flex", alignItems: "center", flexDirection: screen700 ? "row":"column", justifyContent: "center", paddingTop: "100px" }}>
 
       <img src="https://raw.githubusercontent.com/matt-42/lithium/master/images/lithium_logo_white.png" width="300" style={{marginRight: "30px"}} />
 
@@ -36,7 +39,7 @@ export const HomePage = () => {
 
 
     <div style={{ display: "flex", flexDirection: "column",  alignItems: "center", paddingTop: "100px" }}>
-      <Paper style={{ flex: 1,marginBottom: "20px", padding: "20px", width: "700px",  }}>
+      <Paper style={{ flex: 1,marginBottom: "20px", padding: "20px", width: screen700 ? "700px" : "calc(100% - 20px)",  }}>
         <div style={{ display: "flex", alignItems: "center" }}>
           <Icon>get_app</Icon>
           <div style={{flexBasis: "10px"}}></div>
