@@ -1,12 +1,12 @@
 @import url('https://fonts.googleapis.com/css?family=Major+Mono+Display:regular,bold,italic&subset=latin,latin-ext');
 
 header.MuiAppBar-colorPrimary {
-  background-image: url("/brushed_white.jpg");
+  background-image: url("./images/brushed_white.jpg");
 }
 
 body {
   background-color: #1e1e1d;
-  background-image: url("/brushed.jpg");
+  background-image: url("./images/brushed.jpg");
 
   color: #ffffff;
 }
