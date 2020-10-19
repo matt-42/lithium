@@ -92,7 +92,8 @@ const docRendererParents = [] as (SectionNode | null)[];
 
 const docRenderer = {
   code(code: string, infostring: string, escaped: boolean) {
-    return `<pre><code class="hljs cpp c++">${hljs.highlight("c++", code).value}</code></pre>`;
+    if (infostring == "") infostring = "c++"
+    return `<pre><code class="hljs ${infostring}">${hljs.highlight(infostring, code).value}</code></pre>`;
   },
   heading(text: string, level: number) {
     let section = addToHierarchy({ text, depth: level }, docRendererHierarchy, docRendererParents);
