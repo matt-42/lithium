@@ -11,7 +11,7 @@ There is two ways to get started with lithium:
 The lithium cli allows you to build and run code without installing any dependencies and without writing any Makefile or CMakeFile.
 
 Install the cli somewhere in your $PATH:
-```bash
+```
 $ wget https://raw.githubusercontent.com/matt-42/lithium/master/cli/li 
 ```
 
@@ -51,7 +51,7 @@ To get `li_symbol_generator`, you need to compile and install lithium locally:
 
 
 You should be able to run `li_symbol_generator` without arguments and get its help message:
-```bash
+```
 $ li_symbol_generator
 =================== Lithium symbol generator ===================
 
