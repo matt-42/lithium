@@ -48,7 +48,7 @@ export const Search = () => {
         //     </InputAdornment>
         //   ),
         // }}
-        label="Search documentation"
+        label="Search"
         // InputLabelProps={{ style: { color: theme.palette.common.black } }}
         // style={{ color: theme.palette.common.black, borderColor: theme.palette.common.black }}
         variant="outlined"
