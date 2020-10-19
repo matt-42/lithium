@@ -57,7 +57,7 @@ api.get("/unauthorized") = [&](http_request& request, http_response& response) {
   throw http_error::unauthorized("You cannot access this route.");
 };
 /*
-## GET / POST / URL request parameters
+## GET, POST, and URL request parameters
 
 `request.get_parameters`, `request.post_parameters` and `request.url_parameters` allows to read request parameters.
 */
@@ -132,7 +132,8 @@ auto session = hashmap_http_session("session_cookie_name", s::name = "unknown");
 To store it in a database, use `sql_http_session`:
 */
 auto db = sqlite_database("session_database.sqlite");
-auto sql_session = sql_http_session(db, "user_sessions_table", "session_cookie_name", s::name = "unknown");
+auto sql_session = sql_http_session(db, "user_sessions_table",
+                                    "session_cookie_name", s::name = "unknown");
 /*
 
 Session can then be accessed in a handler using the `connect` method of the global session object.
