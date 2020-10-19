@@ -6,6 +6,7 @@ import Link from '@material-ui/core/Link/Link';
 import Menu from '@material-ui/core/Menu';
 import MenuItem from '@material-ui/core/MenuItem';
 import { createStyles, makeStyles, Theme } from '@material-ui/core/styles';
+import useTheme from '@material-ui/core/styles/useTheme';
 import Toolbar from '@material-ui/core/Toolbar';
 import Typography from '@material-ui/core/Typography';
 import AccountCircle from '@material-ui/icons/AccountCircle';
@@ -17,8 +18,10 @@ import React from 'react';
 import { useHistory } from 'react-router-dom';
 import { Search } from './Search';
 
-const useStyles = makeStyles((theme: Theme) =>
-  createStyles({
+const useStyles = makeStyles((theme: Theme) => {
+  console.log(theme.palette.type, theme.palette.text.primary);
+
+  return createStyles({
     grow: {
       flexGrow: 1,
     },
@@ -26,6 +29,7 @@ const useStyles = makeStyles((theme: Theme) =>
       marginRight: theme.spacing(2),
     },
     title: {
+      color: theme.palette.text.primary,
       display: 'none',
       fontFamily: "Major Mono Display",
       fontSize: "25px",
@@ -60,11 +64,14 @@ const useStyles = makeStyles((theme: Theme) =>
         display: 'none',
       },
     },
-  }),
+  })
+
+}
 );
 
+
 export default function PrimarySearchAppBar() {
-  const history = useHistory();
+  const theme = useTheme();
   const classes = useStyles();
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const [mobileMoreAnchorEl, setMobileMoreAnchorEl] = React.useState<null | HTMLElement>(null);
@@ -148,7 +155,7 @@ export default function PrimarySearchAppBar() {
 
   return (
     <div className={classes.grow}>
-      <AppBar position="fixed" color="default">
+      <AppBar position="fixed">
         <Container>
           <Toolbar>
             {/* <IconButton
@@ -161,9 +168,9 @@ export default function PrimarySearchAppBar() {
           </IconButton> */}
             <a href="#">
               <img src="https://raw.githubusercontent.com/matt-42/lithium/master/images/lithium_logo_white.png" width="40" 
-                  style={{ paddingRight: "15px" }} />
+                  style={{ paddingRight: "15px", filter: `invert(${theme.palette.type == "dark" ? "0" : '100'})` }} />
             </a>
-            <Typography color="inherit" className={classes.title} variant="h6" noWrap>
+            <Typography className={classes.title} variant="h6" noWrap>
               <Link className={classes.title}  underline="none" href="#">lithium</Link>
           </Typography>
             <div className={classes.grow} />
@@ -184,7 +191,7 @@ export default function PrimarySearchAppBar() {
               /> */}
             </div>
             <div className={classes.sectionDesktop}>
-                <IconButton href="https://github.com/matt-42/lithium" target="_blank" aria-label="Github" color="inherit">
+                <IconButton href="https://github.com/matt-42/lithium" target="_blank" aria-label="Github" >
                   <GitHub />
                 </IconButton>
             </div>

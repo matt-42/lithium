@@ -10,27 +10,34 @@ import ListItem from "@material-ui/core/ListItem"
 import List from "@material-ui/core/List"
 import ListItemText from "@material-ui/core/ListItemText"
 import useMediaQuery from "@material-ui/core/useMediaQuery"
-import { useHistory } from "react-router-dom"
 import { Footer } from "./Footer"
+import { useTheme } from "@material-ui/core/styles"
+import { Box } from "@material-ui/core"
 
 
 export const HomePage = () => {
-  const history = useHistory()
+  const theme = useTheme();
+  console.log(theme);
   const screen700 = useMediaQuery('(min-width:700px)');
 
   return <Container>
-    <div style={{ display: "flex", alignItems: "center", flexDirection: screen700 ? "row":"column", justifyContent: "center", paddingTop: "100px" }}>
+    <div style={{ display: "flex", alignItems: "center", 
+                  flexDirection: screen700 ? "row":"column",
+                  justifyContent: "center", paddingTop: "100px", 
+                  color: theme.palette.primary.main }}>
 
-      <img src="https://raw.githubusercontent.com/matt-42/lithium/master/images/lithium_logo_white.png" width="300" style={{marginRight: "30px"}} />
+      <img src="https://raw.githubusercontent.com/matt-42/lithium/master/images/lithium_logo_white.png" 
+          width="300"
+          style={{marginRight: "30px", filter: `invert(${theme.palette.type == "dark" ? "0" : '100'})` }} />
 
       <div >
-        <Typography variant="h1">lithium</Typography>
-        <Typography style={{ fontSize: "22px" }}>
+        <Typography variant="h1" color="textPrimary">lithium</Typography>
+        <Typography style={{ fontSize: "22px" }} color="textPrimary">
           Build high performance C++ HTTP servers without being a C++ expert.
       </Typography>
         <div style={{ height: "20px" }}></div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-start", }}>    
-        <Button variant="outlined" color="primary" style={{marginRight: "45px"}} href={"#getting-started"} >Get Started</Button>
+        <Button variant="outlined"  style={{marginRight: "45px"}} href={"#getting-started"} >Get Started</Button>
         <iframe src="https://ghbtns.com/github-btn.html?user=matt-42&repo=lithium&type=star&count=true&size=large" frameBorder="0" scrolling="0" width="170" height="30" title="GitHub"></iframe>
         <a href="https://twitter.com/share" className="twitter-share-button" style={{float: "left", marginLeft: "-37px", paddingTop: "10px"}} data-size="large">Tweet</a>
     </div>
@@ -41,7 +48,7 @@ export const HomePage = () => {
 
 
 
-    <div style={{ display: "flex", flexDirection: "column",  alignItems: "center", paddingTop: "100px" }}>
+    <div style={{ display: "flex", flexDirection: "column",  alignItems: "center", paddingTop: "100px", color: theme.palette.text.primary }}>
       <Paper style={{ flex: 1,marginBottom: "20px", padding: "20px", width: screen700 ? "700px" : "calc(100% - 20px)",  }}>
         <div style={{ display: "flex", alignItems: "center" }}>
           <Icon>get_app</Icon>
@@ -117,7 +124,7 @@ int main() {
        width: "70%" }}></div>
       <div style={{ height: "50px" }}></div>
 
-      <Typography variant="h4">Lithium's Sponsors</Typography>
+      <Typography variant="h4" style={{fontFamily: "Major Mono Display"}}>lithium's sponsors</Typography>
 
       <List>
         <ListItem button component="a" target="_blank" href="https://github.com/Burnett01" >
@@ -127,7 +134,6 @@ int main() {
   
       If you find this project helpful and want to support it, give a star to lithium or buy me a coffee!
       <Link  target="_blank"  href="https://github.com/sponsors/matt-42"><u>More info on my github sponsor page <Icon style={{color: "pink"}}>favorite_border</Icon></u></Link> 
-
 
     </div>
 

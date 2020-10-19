@@ -1,14 +1,14 @@
 @import url('https://fonts.googleapis.com/css?family=Major+Mono+Display:regular,bold,italic&subset=latin,latin-ext');
 
 header.MuiAppBar-colorPrimary {
-  background-image: url("./images/brushed_white.jpg");
+  background-image: url("./images/brushed.jpg");
 }
 
 body {
-  background-color: #1e1e1d;
+  /* background-color: #1e1e1d; */
   background-image: url("./images/brushed.jpg");
 
-  color: #ffffff;
+  /* color: #ffffff; */
 }
 
 
@@ -59,17 +59,17 @@ html {
   --scrollbarBG: #292929;
   --thumbBG: #909090;
 }
-body::-webkit-scrollbar, .docMenu::-webkit-scrollbar {
+body::-webkit-scrollbar, .docMenu::-webkit-scrollbar, code::-webkit-scrollbar {
   width: 15px;
 }
-body, .docMenu {
-  /* scrollbar-width: thin; */
+body, .docMenu, code {
+  scrollbar-width: thin;
   scrollbar-color: var(--thumbBG) var(--scrollbarBG);
 }
-body::-webkit-scrollbar-track , .docMenu::-webkit-scrollbar-track {
+body::-webkit-scrollbar-track , .docMenu::-webkit-scrollbar-track, code::-webkit-scrollbar-track {
   background: var(--scrollbarBG);
 }
-body::-webkit-scrollbar-thumb, .docMenu::-webkit-scrollbar-thumb {
+body::-webkit-scrollbar-thumb, .docMenu::-webkit-scrollbar-thumb, code::-webkit-scrollbar-thumb {
   background-color: var(--thumbBG) ;
   border-radius: 6px;
   border: 3px solid var(--scrollbarBG);

@@ -2,12 +2,12 @@ import { ListItem } from "@material-ui/core";
 import Container from "@material-ui/core/Container";
 import List from "@material-ui/core/List/List";
 import Paper from "@material-ui/core/Paper";
+import useTheme from "@material-ui/core/styles/useTheme";
 import Typography from "@material-ui/core/Typography/Typography";
 import hljs from 'highlight.js';
 import "highlight.js/styles/vs2015.css";
 import marked, { lexer } from "marked";
 import React, { useEffect, useState } from "react";
-import { useHistory } from "react-router-dom";
 import { Footer } from "./Footer";
 
 const docUrls: { [s: string]: string } = {
@@ -190,7 +190,8 @@ for (let sectionName of Object.keys(docUrls)) {
 
 export const Documentation = (props: { hash: string }) => {
 
-  const history = useHistory();
+  const theme = useTheme();
+  console.log(theme);
   const [content, setContent] = useState("")
   const [menu, setMenu] = useState<any>(null)
   const [currentSection, setCurrentSection] = useState("")
@@ -203,6 +204,7 @@ export const Documentation = (props: { hash: string }) => {
         <ListItem key={item.text} button
           component="a"
           href={sectionUrl(item)}
+          //style={{color: theme.palette.text.primary}}
           // ContainerProps={{ onClick: (e) => e.preventDefault() }}
           // onClick={(e: any) => {
           //   e.preventDefault()
@@ -210,7 +212,7 @@ export const Documentation = (props: { hash: string }) => {
           //   window.location.hash = sectionAnchor(item).substring(1);
           //   // setLocation(sectionUrl(item), history);
           // }}//"return false;"        
-          style={{ paddingLeft: `${10 * item.depth}px` }}>
+          style={{ paddingLeft: `${10 * item.depth}px`, color: theme.palette.text.primary }}>
           {
             !item.parent ? <span style={{ fontFamily: "Major Mono Display" }}>{item.text.toLowerCase()}</span>
               : <Typography>{item.text}</Typography>
@@ -248,7 +250,7 @@ export const Documentation = (props: { hash: string }) => {
   }, [props.hash]);
 
 
-  return <div>
+return <div>
     <Container style={{ paddingLeft: "240px", position: "relative", paddingTop: "100px" }}>
 
       <div className="docMenu" style={{ position: "fixed", width: "220px", top: "100px", marginLeft: "-240px", height: "100%", overflow: "scroll" }}>
