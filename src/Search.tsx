@@ -70,7 +70,7 @@ export const Search = () => {
         // Take 100 chars.
         let snippet = option.text.substring(Math.max(idx - 50, 0), Math.min(idx + 50, option.text.length));
         let highlight = (str : string) => {
-          return str.replace(new RegExp(`(${state.inputValue})`, 'gi'), `<u><b>$1</b></u>`);
+          return str.replace(new RegExp(`(${state.inputValue})`, 'gi'), `<span class="searchHighlight">$1</span>`);
         };
         return <div key={sectionPath(option.section) + option.text} style={{ display: "flex", flexDirection: "column", borderLeft: "1px solid #999999", paddingLeft: "10px" }}>
           {

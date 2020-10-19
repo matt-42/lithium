@@ -55,6 +55,11 @@ code.hljs {
   }
 }
 
+.searchHighlight {
+  font-weight: bold;
+  /* text-decoration: underline; */
+  color: #61ff79;
+}
 html {
   --scrollbarBG: #292929;
   --thumbBG: #909090;
