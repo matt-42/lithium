@@ -32,15 +32,16 @@ export const Search = () => {
 
   if (index)
     return <Autocomplete
+
       id="doc_search_bar"
       options={index}
       style={{ width: 600 }}
       openOnFocus={false}
       // onOpen={e => { console.log(e); e.preventDefault(); return false; } }
       renderInput={(params) => <TextField {...params}
-
-      onMouseDownCapture={(e) => e.stopPropagation()}
-      // InputProps={{
+        autoFocus
+        onMouseDownCapture={(e) => e.stopPropagation()}
+        // InputProps={{
         //   // style: { color: theme.palette.common.black, borderColor: theme.palette.common.black },
         //   startAdornment: (
         //     <InputAdornment position="start">
@@ -65,11 +66,11 @@ export const Search = () => {
       }}
       getOptionLabel={(option) => ""}
       renderOption={(option: DocIndexEntry, state: AutocompleteRenderOptionState) => {
-        
+
         let idx = option.text.toLowerCase().indexOf(state.inputValue.toLowerCase());
         // Take 100 chars.
         let snippet = option.text.substring(Math.max(idx - 50, 0), Math.min(idx + 50, option.text.length));
-        let highlight = (str : string) => {
+        let highlight = (str: string) => {
           return str.replace(new RegExp(`(${state.inputValue})`, 'gi'), `<span class="searchHighlight">$1</span>`);
         };
         return <div key={sectionPath(option.section) + option.text} style={{ display: "flex", flexDirection: "column", borderLeft: "1px solid #999999", paddingLeft: "10px" }}>
@@ -79,7 +80,7 @@ export const Search = () => {
             </div> : <></>
           }
           <div>
-            <Typography variant="h6"><div  dangerouslySetInnerHTML={{ __html: highlight(option.section.text)}} /></Typography>
+            <Typography variant="h6"><div dangerouslySetInnerHTML={{ __html: highlight(option.section.text) }} /></Typography>
           </div>
           <div>
             <div dangerouslySetInnerHTML={{ __html: highlight(snippet) }}></div>
