@@ -129,7 +129,7 @@ to `'unknown'`.
 */
 auto session = hashmap_http_session("session_cookie_name", s::name = "unknown");
 /*
-To store in in a database, use `sql_http_session`:
+To store it in a database, use `sql_http_session`:
 */
 auto db = sqlite_database("session_database.sqlite");
 auto sql_session = sql_http_session(db, "user_sessions_table", "session_cookie_name", s::name = "unknown");
@@ -161,7 +161,6 @@ to authenticate users. It requires to instantiate several object fisrt
   - a user ORM so we know the structure of user table
   - a session object so we can remember a logged user.
 */
-
 auto db = sqlite_database("blog_database.sqlite");
 auto users =
     li::sql_orm_schema(db, "auth_users")
