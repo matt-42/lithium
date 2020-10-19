@@ -170,25 +170,25 @@ auto users =
                 s::password = std::string());
 
 // Store user session in sql:
-auto sessions = sql_http_session(db, "user_sessions_table", "test_cookie", s::name = "unknown");
+auto sessions = sql_http_session(db, "user_sessions_table", 
+                                 "test_cookie", s::name = "unknown");
 
 // Authenticator 
-auto auth = li::http_authentication(// the sessions to store the user id of the logged user.
-                                    // It need to have a user_id field.
-                                    sessions,
-                                    users, // The user ORM
-                                    s::email, // The user field used as login.
-                                    s::password, // The user field used as password.
-                                    // Optional but really recommended: password hashing.
-                                    s::hash_password = [&] (auto login, auto password) { 
-                                      return your_secure_hash_function(login, password);
-                                      },
-                                    // Optional: generate secret key to salt your hash function.
-                                    s::update_secret_key = [&] (auto login, auto password) {
-
-                                      },
-                                    );
-
+auto auth = li::http_authentication(
+  // the sessions to store the user id of the logged user.
+  // It need to have a user_id field.
+  sessions,
+  users, // The user ORM
+  s::email, // The user field used as login.
+  s::password, // The user field used as password.
+  // Optional but really recommended: password hashing.
+  s::hash_password = [&] (auto login, auto password) { 
+    return your_secure_hash_function(login, password);
+  },
+  // Optional: generate secret key to salt your hash function.
+  s::update_secret_key = [&] (auto login, auto password) {
+  }
+);
 /*
 Once the authenticator build we can use it in the handlers.
 
