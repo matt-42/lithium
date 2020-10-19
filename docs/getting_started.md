@@ -11,7 +11,7 @@ There is two ways to get started with lithium:
 The lithium cli allows you to build and run code without installing any dependencies and without writing any Makefile or CMakeFile.
 
 Install the cli somewhere in your $PATH:
-```
+```text
 $ wget https://raw.githubusercontent.com/matt-42/lithium/master/cli/li 
 ```
 
