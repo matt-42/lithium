@@ -23,7 +23,7 @@ include_directories(${CMAKE_BINARY_DIR}/single_headers) # docs use single header
 function(add_sh_executable target_name)
   add_executable(${target_name} ${ARGN})
   target_link_libraries(${target_name} ${LIBS})
-  add_dependencies(${target_name} single_headers_release symbols_generation)
+  add_dependencies(${target_name} single_headers symbols_generation)
 endfunction(add_sh_executable)
 
 #set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -march=native -mtune=native -flto") 
