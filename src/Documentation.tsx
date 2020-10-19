@@ -111,6 +111,14 @@ const docRenderer = {
   },
   paragraph(src: string) {
     return `<p class="MuiTypography-root MuiTypography-body1">${src}</p>`
+  },
+  link(href: string | null, title: string | null, text: string): string {
+    return `<a href=${href} 
+              ${title ? `title='${title}'` : "" } 
+              class="MuiTypography-root MuiLink-root MuiLink-underline MuiTypography-colorPrimary">
+              ${text}
+           </a>`
+
   }
 };
 
