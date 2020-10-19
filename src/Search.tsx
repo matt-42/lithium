@@ -65,12 +65,13 @@ export const Search = () => {
       }}
       getOptionLabel={(option) => ""}
       renderOption={(option: DocIndexEntry, state: AutocompleteRenderOptionState) => {
-
-        // console.log(state);
+        
         let idx = option.text.toLowerCase().indexOf(state.inputValue.toLowerCase());
         // Take 100 chars.
         let snippet = option.text.substring(Math.max(idx - 50, 0), Math.min(idx + 50, option.text.length));
-        snippet = snippet.replace(state.inputValue, `<u><b>${state.inputValue}</b></u>`)
+        let highlight = (str : string) => {
+          return str.replace(new RegExp(`(${state.inputValue})`, 'gi'), `<u><b>$1</b></u>`);
+        };
         return <div key={sectionPath(option.section) + option.text} style={{ display: "flex", flexDirection: "column", borderLeft: "1px solid #999999", paddingLeft: "10px" }}>
           {
             option.section.parent ? <div>
@@ -78,10 +79,10 @@ export const Search = () => {
             </div> : <></>
           }
           <div>
-            <Typography variant="h6">{option.section.text}</Typography>
+            <Typography variant="h6"><div  dangerouslySetInnerHTML={{ __html: highlight(option.section.text)}} /></Typography>
           </div>
           <div>
-            <div dangerouslySetInnerHTML={{ __html: snippet }}></div>
+            <div dangerouslySetInnerHTML={{ __html: highlight(snippet) }}></div>
           </div>
         </div>
       }}

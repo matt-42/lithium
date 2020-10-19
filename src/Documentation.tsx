@@ -54,7 +54,7 @@ export const sectionPath = (item: SectionNode) => {
 }
 
 export type DocHierarchy = { [k: string]: SectionNode };
-export type DocIndexEntry = { text: string, section: SectionNode };
+export type DocIndexEntry = { text: string, section: SectionNode, depth: number };
 export type DocIndex = DocIndexEntry[];
 
 function addToHierarchy(item: any, hierarchy: DocHierarchy, parents: (SectionNode | null)[]) {
@@ -159,15 +159,19 @@ export async function indexDocumentation()
         addToHierarchy(item, hierarchy, parents);
 
         // index item
-        searchIndex.push({ text: item.text || "", section: parents[itempos] as SectionNode });
+        searchIndex.push({ text: item.text || "", section: parents[itempos] as SectionNode, depth: item.depth });
       }
       else {
         // index non headings nodes.
         if (parents.length)
-          searchIndex.push({ text: item.text || "", section: parents[parents.length - 1] as SectionNode });
+          searchIndex.push({ text: item.text || "", section: parents[parents.length - 1] as SectionNode, depth: 99 });
       }
     }
   }
+  searchIndex.sort((a, b) => {
+    if (a.depth < b.depth) return -1;
+    else return 1; 
+  })
   return [hierarchy, searchIndex];
 }
 
