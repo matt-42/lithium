@@ -13,12 +13,18 @@ http_server
 
 The goal of this library is to take advangage of C++17 new features
 to simplify the writing of high performance web server. It provides consise
-and simple construcs that allows non C++ experts to quickly implement simple HTTP
+and simple construcs that allows non C++ experts to quickly implement simple HTTP(s)
 servers.
 
+The design of this library is focused on **simplicity**:
+- Simple things should be simple to write for the end user.
+- Inheritance is rarely used
+- The end user should not have to instantiate complex templates
+- Function taking easily swipable parameters should use named parameters
+
 ### Dependencies
+  - Boost context and lexical_cast
   - OpenSSL
-  - Boost
 
 ### Hello World
 
@@ -45,11 +51,26 @@ Run it with the cli:
 ```bash
 $ li run ./hello_world.cc
 ```
-/*
+
+## Serving HTTP(s)
+
+```c++
+void http_serve(http_api api, int port, options...)
+```
+
+Available options are:
+- `s::non_blocking`: do not block until the server stoped. default: blocking.
+- `s::threads`: number of threads, default to `std::thread::hardware_concurrency()`.
+
+For HTTPS, you must provide:
+- `s::ssl_key`: path of the SSL key.
+- `s::ssl_certificate`: path of the SSL certificate.
+- `s::ssl_cifers`: OpenSSL cifers.
+
 
 ## Error handling
 
-`li::http_server` uses exceptions to report HTTP errors.
+`li::http_server` uses exceptions to report HTTP errors. 
 
 */
 http_api api;
@@ -57,7 +78,20 @@ api.get("/unauthorized") = [&](http_request& request, http_response& response) {
   throw http_error::unauthorized("You cannot access this route.");
 };
 /*
-## GET, POST, and URL request parameters
+
+Available errors are:
+- `http_error::bad_request`
+- `http_error::unauthorized`
+- `http_error::forbidden`
+- `http_error::not_found`
+- `http_error::internal_server_error`
+- `http_error::not_implemented`
+
+All the error buidlers above take any number of argument and use
+`std::ostringstream::operator<<` to convert them into one error string that is
+sent as the HTTP response body with the appropriate HTTP error code. 
+
+## GET POST and URL request parameters
 
 `request.get_parameters`, `request.post_parameters` and `request.url_parameters` allows to read request parameters.
 */
@@ -157,10 +191,14 @@ api.get("/sessions") = [&] (http_request& request, http_response& response) {
 ## User authentication
 
 On top of SQL sessions is built `http_authentication` that allows
-to authenticate users. It requires to instantiate several object fisrt
+to authenticate users. It requires to instantiate several object first:
+
   - a SQL database so we know where is the user table (including login and password), and where to store the sessions
   - a user ORM so we know the structure of user table
-  - a session object so we can remember a logged user.
+  - a session object so we can remember a logged user
+
+Here is an code snippet that implement user authentication in a sqlite database:
+
 */
 auto db = sqlite_database("blog_database.sqlite");
 auto users =
@@ -193,37 +231,57 @@ auto auth = li::http_authentication(
 Once the authenticator build we can use it in the handlers.
 
 3 methods are available:
-  - auth.current_user(request, response) -> std::optional<user_type>: 
-      Return the current user object as it is stored in the database. If no user is logged, 
-      return an empty std::optional.
-*/
-li::api<li::http_request, li::http_response> my_api;
 
-my_api.post("/auth_test") = [&] (http_request& request, http_response& response) {
-  // auth.login: 
-  //   Read the email/password field in the POST parameters
-  //   Check if this match with a user in DB.
-  //   Store the user_id in the session.
-  //   Return true if the login is successful, false otherwise.
-  if (!auth.login(request, response))
-      throw http_error::unauthorized("Bad login.");
+### current_user
 
-  // Access the current user.
-  auto u = auth.current_user(request, response);
-  // u is a std::optional.
-  if (!u) throw http_error::unauthorized("Please login.");
-  // Logout: destroy the session.
-  auth.logout(request, response);
-};
-/*
+```c++
+auth.current_user(request, response) -> std::optional<user_type>
+```
 
-Check the code for more info:
-https://github.com/matt-42/lithium/blob/master/libraries/http_server/http_server/http_authentication.hh
+Return the current user object as it is declared by the ORM. In the example above,
+we would get an object with 3 members: `id`, `email` and `password`.  
+
+If no user is logged, return an empty std::optional.
+
+### login
+
+```c++
+auth.login(request, response) -> bool
+```
+
+- Reads the login and password (field names that you have to pass to `http_authentication`) in the request POST parameters.
+- Check in the database if the login/password is valid.
+- If yes, fill the session `user_id` field with the id of the logged user in the database.
+- Return true if we could authenticate the user, false otherwise.
+
+### logout
+
+```c++
+auth.logout(request, response) -> void
+```
+
+- Destroy the session.
+- Logout the logged user if any.
+
+### signup
+
+```c++
+auth.signup(request, response) -> void
+```
+
+- Fetch the user fields (as defined by the ORM, email and login in the example above) in the request POST parameters.
+- Check if no user with the same login already exists.
+- If not, insert the new user in the db, call the update_secret_key and hash_password callback and return true.
+- Otherwise return false.  
 
 
 ## Testing
 
-Lithium provide a http client and a server non blocking mode so you can easily tests your server responses:
+Using `http_client` and the `s::non_blocking` flag of http_serve
+you can easily tests your server responses.
+[Read more about http_client here](/#http_client)
+
+Here is a quick example:
 
 */
 // Use the s::non_blocking parameters so the http_serve will run in a separate thread. 
@@ -233,12 +291,5 @@ http_serve(my_api, 12344, s::non_blocking);
 auto r = http_get("http://localhost:12344/hello_world", s::get_parameters = mmm(s::name = "John")));
 assert(r.status == 200);
 assert(r.body == "expected response body");
-/*
-
-## A complete blog API
-
-Checkout the code here:
-https://github.com/matt-42/lithium/blob/master/libraries/http_server/examples/blog.cc
-*/
 
 }

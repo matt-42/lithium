@@ -8420,7 +8420,7 @@ auto http_serve(api<http_request, http_response> api, int port, O... opts) {
 
   auto options = mmm(opts...);
 
-  int nthreads = get_or(options, s::nthreads, 4);
+  int nthreads = get_or(options, s::nthreads, std::thread::hardware_concurrency());
 
   auto handler = [api](http_async_impl::http_ctx& ctx) {
     http_request rq{ctx};
@@ -8432,6 +8432,10 @@ auto http_serve(api<http_request, http_response> api, int port, O... opts) {
       ctx.respond(e.what());
     } catch (const std::runtime_error& e) {
       std::cerr << "INTERNAL SERVER ERROR: " << e.what() << std::endl;
+      ctx.set_status(500);
+      ctx.respond("Internal server error.");
+    } catch (...) {
+      std::cerr << "INTERNAL SERVER ERROR: UNKNOWN EXCEPTION." << std::endl;
       ctx.set_status(500);
       ctx.respond("Internal server error.");
     }
