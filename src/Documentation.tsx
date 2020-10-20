@@ -139,7 +139,7 @@ function cppToMarkdown(code: string) {
   if (markerpos != -1)
     code = code.substring(markerpos + marker.length);
   code = code.replace(/\n[\s]*\/\*/g, '\n```\n');
-  code = code.replace(/\n[\s]*\*\//g, '\n```c++\n');
+  code = code.replace(/\n[\s]*\*\/[\s]*/g, '\n```c++\n');
   code = '```c++\n' + code + '```\n';
 
   code = code.replace(/```c\+\+[\n ]*```/, '');
