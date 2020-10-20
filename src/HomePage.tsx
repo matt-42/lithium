@@ -27,7 +27,7 @@ export const HomePage = () => {
                   color: theme.palette.primary.main }}>
 
       <img src="https://raw.githubusercontent.com/matt-42/lithium/master/images/lithium_logo_white.png" 
-          width="300"
+          width="200"
           style={{marginRight: "30px", filter: `invert(${theme.palette.type == "dark" ? "0" : '100'})` }} />
 
       <div >
