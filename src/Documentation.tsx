@@ -10,15 +10,23 @@ import marked, { lexer } from "marked";
 import React, { useEffect, useState } from "react";
 import { Footer } from "./Footer";
 
+let DOC_ROOT = "https://raw.githubusercontent.com/matt-42/lithium/master/docs/";
+
+if ( ! process.env.NODE_ENV || process.env.NODE_ENV === 'development')
+  DOC_ROOT = process.env.PUBLIC_URL + "/docs/";  // dev mode
+
 const docUrls: { [s: string]: string } = {
-  "getting-started": "https://raw.githubusercontent.com/matt-42/lithium/master/docs/getting_started.md",
-  "sql": "https://raw.githubusercontent.com/matt-42/lithium/master/docs/sql.cc",
-  "http-server": "https://raw.githubusercontent.com/matt-42/lithium/master/docs/http_server.cc",
-  "json": "https://raw.githubusercontent.com/matt-42/lithium/master/docs/json.cc"
+  "getting-started": "getting_started.md",
+  // "http-server": "https://raw.githubusercontent.com/matt-42/lithium/master/docs/http_server.cc",
+  "http-server": "http_server.cc",
+  // "sql": "https://raw.githubusercontent.com/matt-42/lithium/master/docs/sql.cc",
+  // "json": "https://raw.githubusercontent.com/matt-42/lithium/master/docs/json.cc"
 }
+for (let k of Object.keys(docUrls))
+  docUrls[k] = DOC_ROOT + docUrls[k];
 
 function formatUrl(s: string) {
-  return s.toLowerCase().replace("c++", "cpp").replace(/[^a-zA-Z0-9]/g, "-");
+  return s.toLowerCase().replace("c++", "cpp").replace(/[^a-zA-Z0-9]+/g, "-");
 }
 
 interface SectionNode {
@@ -135,6 +143,10 @@ function cppToMarkdown(code: string) {
   code = '```c++\n' + code + '```\n';
 
   code = code.replace(/```c\+\+[\n ]*```/, '');
+
+  code = code.replace(/```c\+\+[\s]*}[\s]*```/, '');
+
+  console.log(code);
   return code;
 }
 
@@ -258,7 +270,7 @@ export const Documentation = (props: { hash: string }) => {
 return <div>
     <Container style={{ paddingLeft: "240px", position: "relative", paddingTop: "100px" }}>
 
-      <div className="docMenu" style={{ position: "fixed", width: "220px", top: "100px", marginLeft: "-240px", height: "100%", overflow: "scroll" }}>
+      <div className="docMenu" style={{ position: "fixed", width: "220px", top: "100px", marginLeft: "-240px", height: "calc(100% - 100px)", overflow: "scroll" }}>
         {menu}
       </div>
       <Paper style={{ flexGrow: 1, textAlign: "left", padding: "20px", }}>
