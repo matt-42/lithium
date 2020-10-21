@@ -7,13 +7,44 @@ import { useHistory } from "react-router-dom";
 import InputAdornment from "@material-ui/core/InputAdornment/InputAdornment";
 import Icon from "@material-ui/core/Icon/Icon";
 import { DesktopWindows } from "@material-ui/icons";
+import { FilterOptionsState } from "@material-ui/lab/useAutocomplete";
+import _ from "lodash"
 
-const filterOptions = createFilterOptions({
-  matchFrom: 'any',
-  ignoreAccents: true,
-  ignoreCase: true,
-  stringify: (option: DocIndexEntry) => option.text,
-});
+// const filterOptions = createFilterOptions({
+//   matchFrom: 'any',
+//   ignoreAccents: true,
+//   ignoreCase: true,
+//   stringify: (option: DocIndexEntry) => option.text,
+// });
+
+function filterOptions(options: DocIndexEntry[], state: FilterOptionsState<DocIndexEntry>) : DocIndexEntry[] {
+
+  let queryWords = state.inputValue.split(" ").map(s => s.toLowerCase());
+  let selected : [DocIndexEntry, number][] = [];
+  // return options.filter(entry => {
+  //   for (let w of queryWords)
+  //   // if (entry.text.toLowerCase().includes(w) || sectionPath(entry.section).toLowerCase().includes(w))
+  //     if (entry.text.indexOf(w) != -1)
+  //       return true;
+  //   return false;
+  // });
+  for (let entry of options)
+  {
+    let score = 0;
+    for (let w of queryWords)
+    {
+      if (entry.text.toLowerCase().includes(w))
+        score++;
+      else if (entry.section.text.toLowerCase().includes(w))
+        score += 2;
+    }
+    if (score > 0) selected.push([entry, score]);
+  }
+  selected = _.uniqBy(selected, (s) => s[0].section);
+  selected = _.sortBy(selected, (s) => -s[1]);
+
+  return selected.map(s => s[0]).slice(0, 10);
+}
 
 export const Search = () => {
 
@@ -38,22 +69,22 @@ export const Search = () => {
       style={{ width: 600 }}
       openOnFocus={false}
       // onOpen={e => { console.log(e); e.preventDefault(); return false; } }
-      renderInput={(params) => <TextField {...params}
+      renderInput={(params) =>  <TextField {...params}
         autoFocus
         onMouseDownCapture={(e) => e.stopPropagation()}
-        // InputProps={{
-        //   // style: { color: theme.palette.common.black, borderColor: theme.palette.common.black },
-        //   startAdornment: (
-        //     <InputAdornment position="start">
-        //       <Icon>search</Icon>
-        //     </InputAdornment>
-        //   ),
-        // }}
+        InputProps={{
+          ...params.InputProps,
+          // style: { color: theme.palette.common.black, borderColor: theme.palette.common.black },
+          startAdornment:
+            <InputAdornment position="start">
+              <Icon>search</Icon>
+            </InputAdornment>
+          ,
+        }}
         label="Search"
         // InputLabelProps={{ style: { color: theme.palette.common.black } }}
         // style={{ color: theme.palette.common.black, borderColor: theme.palette.common.black }}
         variant="outlined"
-
       />}
       filterOptions={filterOptions}
       onChange={(e, option) => {
@@ -67,11 +98,28 @@ export const Search = () => {
       getOptionLabel={(option) => ""}
       renderOption={(option: DocIndexEntry, state: AutocompleteRenderOptionState) => {
 
-        let idx = option.text.toLowerCase().indexOf(state.inputValue.toLowerCase());
+        let queryWords = state.inputValue.split(" ");
+        let queryWordsRegexp = queryWords.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+
+        let indices = queryWords.map(w => option.text.toLowerCase().indexOf(w.toLowerCase())).filter(i => i != -1);
+        let [snipetStart, snippetEnd] = [indices[0] - 50,indices[0] + 50];
+        if (indices.length > 1)
+        {
+          indices.sort();
+          let [min, max] = [indices[0], indices[indices.length - 1]];
+          if (max - min < 100)
+            [snipetStart, snippetEnd] = [-50 + (max + min) / 2, 50 + (max + min) / 2];
+
+          // [snipetStart, snippetEnd] = [indices[0], indices[0] + 100]
+        } 
         // Take 100 chars.
-        let snippet = option.text.substring(Math.max(idx - 50, 0), Math.min(idx + 50, option.text.length));
+        let snippet = option.text.substring(Math.max(snipetStart, 0), Math.min(snippetEnd + 50, option.text.length));
         let highlight = (str: string) => {
-          return str.replace(new RegExp(`(${state.inputValue})`, 'gi'), `<span class="searchHighlight">$1</span>`);
+          // for (let w of queryWords)
+          // {
+          str = str.replace(new RegExp(`(${queryWordsRegexp})`, 'gi'), `<span class="searchHighlight">$1</span>`);
+          // }
+          return str;
         };
         return <div key={sectionPath(option.section) + option.text} style={{ display: "flex", flexDirection: "column", borderLeft: "1px solid #999999", paddingLeft: "10px" }}>
           {

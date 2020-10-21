@@ -19,6 +19,8 @@ const docUrls: { [s: string]: string } = {
   "getting-started": "getting_started.md",
   // "http-server": "https://raw.githubusercontent.com/matt-42/lithium/master/docs/http_server.cc",
   "http-server": "http_server.cc",
+  "http-client": "http_client.cc",
+  "json": "json.cc",
   // "sql": "https://raw.githubusercontent.com/matt-42/lithium/master/docs/sql.cc",
   // "json": "https://raw.githubusercontent.com/matt-42/lithium/master/docs/json.cc"
 }
@@ -142,11 +144,10 @@ function cppToMarkdown(code: string) {
   code = code.replace(/\n[\s]*\*\/[\s]*/g, '\n```c++\n');
   code = '```c++\n' + code + '```\n';
 
-  code = code.replace(/```c\+\+[\n ]*```/, '');
-
+  code = code.replace(/```c\+\+[\s\n]*```/, '');
   code = code.replace(/```c\+\+[\s]*}[\s]*```/, '');
+  code = code.replace(/```c\+\+[\s\n]*```/, '');
 
-  console.log(code);
   return code;
 }
 
