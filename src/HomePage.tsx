@@ -3,7 +3,7 @@ import Link from "@material-ui/core/Link"
 import Typography from "@material-ui/core/Typography"
 import Button from "@material-ui/core/Button"
 import Icon from "@material-ui/core/Icon"
-import React from "react"
+import React, { useEffect } from "react"
 import { HLcpp, HLsh, InlineCode } from "./HL"
 import Paper from "@material-ui/core/Paper"
 import ListItem from "@material-ui/core/ListItem"
@@ -17,8 +17,13 @@ import { Box } from "@material-ui/core"
 
 export const HomePage = () => {
   const theme = useTheme();
-  console.log(theme);
   const screen700 = useMediaQuery('(min-width:700px)');
+
+  useEffect(() => {
+    const script = document.createElement("script");
+    script.src = "https://platform.twitter.com/widgets.js";
+    document.getElementsByClassName("twitter-share-button")[0].appendChild(script);
+  }, []);
 
   return <Container>
     <div style={{ display: "flex", alignItems: "center", 
