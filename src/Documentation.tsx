@@ -76,10 +76,7 @@ function addToHierarchy(item: any, hierarchy: DocHierarchy, parents: (SectionNod
     while (parentpos > 0 && !parents[parentpos]) parentpos--;
 
     let parent = parents[parentpos] as SectionNode;
-    if (!parent) {
-      console.log(parents);
-      console.log(item);
-    }
+    
     // add item as child to parent.
     parent.children[item.text] = { text: item.text, depth: item.depth, children: {}, parent };
 
@@ -210,7 +207,6 @@ for (let sectionName of Object.keys(docUrls)) {
 export const Documentation = (props: { hash: string }) => {
 
   const theme = useTheme();
-  console.log(theme);
   const [content, setContent] = useState("")
   const [menu, setMenu] = useState<any>(null)
   const [currentSection, setCurrentSection] = useState("")
@@ -222,15 +218,7 @@ export const Documentation = (props: { hash: string }) => {
       {Object.values(hierarchy).map((item: SectionNode) => <>
         <ListItem key={item.text} button
           component="a"
-          href={sectionUrl(item)}
-          //style={{color: theme.palette.text.primary}}
-          // ContainerProps={{ onClick: (e) => e.preventDefault() }}
-          // onClick={(e: any) => {
-          //   e.preventDefault()
-          //   console.log(sectionAnchor(item).substring(1));
-          //   window.location.hash = sectionAnchor(item).substring(1);
-          //   // setLocation(sectionUrl(item), history);
-          // }}//"return false;"        
+          href={sectionUrl(item)}   
           style={{ paddingLeft: `${10 * item.depth}px`, color: theme.palette.text.primary }}>
           {
             !item.parent ? <span style={{ fontFamily: "Major Mono Display" }}>{item.text.toLowerCase()}</span>
@@ -255,15 +243,11 @@ export const Documentation = (props: { hash: string }) => {
       const mainSection = split[0].substring(1);
       if (mainSection == currentSection)
         return;
-      console.log("load ", mainSection);
       setCurrentSection(mainSection);
       if (!docsHtml[mainSection])
         setContent(mainSection + ": Section not found");
       else
         await docsHtml[mainSection].then(c => setContent(c));
-      let prevHash = window.location.hash;
-      window.location.hash = "";
-      window.location.hash = prevHash;
     })();
 
   }, [props.hash]);

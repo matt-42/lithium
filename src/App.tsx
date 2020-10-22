@@ -55,22 +55,25 @@ const darkTheme = createMuiTheme({
 //     // }
 //   }));
 
-function App() {
+function AppContent() {
+
   // const styles = useStyles();
   const [windowHash, setwindowHash] = useState(window.location.hash);
-
+  
   useEffect(() => {
     window.onhashchange = () => setwindowHash(window.location.hash);
   }, []);
+
+  return windowHash == "" ? <HomePage /> : <Documentation hash={windowHash}/>
+
+}
+function App() {
 
   return (
     <ThemeProvider theme={darkTheme}>
       {/* <div className={styles.body}> */}
         <PrimarySearchAppBar />
-        {
-          windowHash == "" ? <HomePage /> : <Documentation hash={windowHash} />
-        }
-
+        <AppContent/>    
       {/* </div> */}
     </ThemeProvider>
   );
