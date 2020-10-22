@@ -19,7 +19,7 @@ import _ from "lodash"
 
 function filterOptions(options: DocIndexEntry[], state: FilterOptionsState<DocIndexEntry>) : DocIndexEntry[] {
 
-  let queryWords = state.inputValue.split(" ").map(s => s.toLowerCase());
+  let queryWords = state.inputValue.split(" ").filter(s => s.length != 0).map(s => s.toLowerCase());
   let selected : [DocIndexEntry, number][] = [];
   // return options.filter(entry => {
   //   for (let w of queryWords)
@@ -98,22 +98,52 @@ export const Search = () => {
       getOptionLabel={(option) => ""}
       renderOption={(option: DocIndexEntry, state: AutocompleteRenderOptionState) => {
 
-        let queryWords = state.inputValue.split(" ");
+        let queryWords = state.inputValue.split(" ").filter(s => s.length != 0);
+        console.log(queryWords);
         let queryWordsRegexp = queryWords.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
 
         let indices = queryWords.map(w => option.text.toLowerCase().indexOf(w.toLowerCase())).filter(i => i != -1);
-        let [snipetStart, snippetEnd] = [indices[0] - 50,indices[0] + 50];
-        if (indices.length > 1)
-        {
-          indices.sort();
-          let [min, max] = [indices[0], indices[indices.length - 1]];
-          if (max - min < 100)
-            [snipetStart, snippetEnd] = [-50 + (max + min) / 2, 50 + (max + min) / 2];
+        let indicesGroups = indices.reduce<number[][]>((acc : number[][], cur : number, curIdx : number) => {
+          if (curIdx == 0) return acc;
+          if (cur - (_.last(acc) as number[])[0] < 100) {
+            console.log("concat");
+            _.last(acc)?.push(cur);
+            return acc;
+          }
+          else
+          return [...acc, [cur]];
+        }, [[indices[0]]]);
+      
+        console.log(indices.length, indicesGroups.length);
+        console.log(indices, indicesGroups);
+        let snippets : string[] = indicesGroups.map(g => {
+          let [min, max] = [g[0], g[g.length - 1]];
+          if (max - min > 100) throw new Error();
+          let [start, end] = [-50 + (max + min) / 2, 50 + (max + min) / 2];
+          [start, end] = [Math.max(start, 0), Math.min(end, option.text.length)];
+          let x = option.text.substring(0, start).lastIndexOf('\s')
+          start = x == -1 ? start : x; 
+          x = option.text.substring(end).indexOf('\s');
+          end = x == -1 ? end : end + x;
 
-          // [snipetStart, snippetEnd] = [indices[0], indices[0] + 100]
-        } 
-        // Take 100 chars.
-        let snippet = option.text.substring(Math.max(snipetStart, 0), Math.min(snippetEnd + 50, option.text.length));
+          // while (option.text[start] != ' ' && start > 0) start--;
+          while (option.text[end] != ' ' && end < option.text.length) end++;
+          return option.text.substring(start, end);
+        });
+
+        let snippet = snippets.join(" [...] <br/> ");
+        // let [snipetStart, snippetEnd] = [indices[0] - 50,indices[0] + 50];
+        // if (indices.length > 1)
+        // {
+        //   indices.sort();
+        //   let [min, max] = [indices[0], indices[indices.length - 1]];
+        //   if (max - min < 100)
+        //     [snipetStart, snippetEnd] = [-50 + (max + min) / 2, 50 + (max + min) / 2];
+
+        //   // [snipetStart, snippetEnd] = [indices[0], indices[0] + 100]
+        // } 
+        // // Take 100 chars.
+        // let snippet = option.text.substring(Math.max(snipetStart, 0), Math.min(snippetEnd, option.text.length));
         let highlight = (str: string) => {
           // for (let w of queryWords)
           // {

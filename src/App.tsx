@@ -37,8 +37,14 @@ const darkTheme = createMuiTheme({
     h3: {
       fontFamily: "Major Mono Display",
       fontSize: "20px"
-    }
+    },
+    h4: {
+      fontFamily: "Major Mono Display",
+      fontSize: "15px",
+      
+    },
   },
+
 
 });
 

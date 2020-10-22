@@ -177,7 +177,8 @@ export async function indexDocumentation()
       else {
         // index non headings nodes.
         if (parents.length)
-          searchIndex.push({ text: item.text || "", section: parents[parents.length - 1] as SectionNode, depth: 99 });
+          searchIndex[searchIndex.length - 1].text += " " + item.text;
+          // searchIndex.push({ text: item.text || "", section: parents[parents.length - 1] as SectionNode, depth: 99 });
       }
     }
   }
