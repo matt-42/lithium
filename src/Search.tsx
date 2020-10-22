@@ -1,5 +1,5 @@
 import { TextField, Typography, useTheme } from "@material-ui/core"
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useRef, useState } from "react"
 import { DocIndex, DocIndexEntry, documentationIndex, sectionAnchor, sectionPath, sectionUrl } from "./Documentation"
 import Autocomplete, { AutocompleteRenderOptionState, createFilterOptions } from '@material-ui/lab/Autocomplete';
 import { options } from "marked";
@@ -49,8 +49,22 @@ function filterOptions(options: DocIndexEntry[], state: FilterOptionsState<DocIn
 export const Search = () => {
 
   const history = useHistory();
-
   const [index, setIndex] = useState<DocIndex | null>(null)
+
+  useEffect(() => {
+    // if (!textInput.current) return;
+
+    console.log("listen!");
+    let l = (event : any) => {
+      console.log("press", event.key);
+      if (event.key == '/')
+        document.getElementById('doc_search_bar')?.focus();
+    };
+    
+    document.addEventListener('keyup', l, false);
+
+    return () => { document.removeEventListener('keyup', l); }  
+  }, []);
 
   useEffect(() => {
     documentationIndex.then(index => {
@@ -63,17 +77,16 @@ export const Search = () => {
 
   if (index)
     return <Autocomplete
-
       id="doc_search_bar"
       options={index}
       style={{ width: 600 }}
       openOnFocus={false}
       // onOpen={e => { console.log(e); e.preventDefault(); return false; } }
       renderInput={(params) =>  <TextField {...params}
-        autoFocus
-        onMouseDownCapture={(e) => e.stopPropagation()}
-        InputProps={{
-          ...params.InputProps,
+      autoFocus
+      onMouseDownCapture={(e) => e.stopPropagation()}
+      InputProps={{
+        ...params.InputProps,
           // style: { color: theme.palette.common.black, borderColor: theme.palette.common.black },
           startAdornment:
             <InputAdornment position="start">
@@ -81,16 +94,14 @@ export const Search = () => {
             </InputAdornment>
           ,
         }}
-        label="Search"
+        label="Search (Tap / to focus)"
         // InputLabelProps={{ style: { color: theme.palette.common.black } }}
         // style={{ color: theme.palette.common.black, borderColor: theme.palette.common.black }}
         variant="outlined"
       />}
       filterOptions={filterOptions}
       onChange={(e, option) => {
-        console.log("selected!");
-        console.log(option);
-
+        
         if (option) {
           window.location.hash = sectionAnchor(option.section);
         }
@@ -99,14 +110,13 @@ export const Search = () => {
       renderOption={(option: DocIndexEntry, state: AutocompleteRenderOptionState) => {
 
         let queryWords = state.inputValue.split(" ").filter(s => s.length != 0);
-        console.log(queryWords);
+
         let queryWordsRegexp = queryWords.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
 
         let indices = queryWords.map(w => option.text.toLowerCase().indexOf(w.toLowerCase())).filter(i => i != -1);
         let indicesGroups = indices.reduce<number[][]>((acc : number[][], cur : number, curIdx : number) => {
           if (curIdx == 0) return acc;
           if (cur - (_.last(acc) as number[])[0] < 100) {
-            console.log("concat");
             _.last(acc)?.push(cur);
             return acc;
           }
@@ -114,8 +124,6 @@ export const Search = () => {
           return [...acc, [cur]];
         }, [[indices[0]]]);
       
-        console.log(indices.length, indicesGroups.length);
-        console.log(indices, indicesGroups);
         let snippets : string[] = indicesGroups.map(g => {
           let [min, max] = [g[0], g[g.length - 1]];
           if (max - min > 100) throw new Error();
