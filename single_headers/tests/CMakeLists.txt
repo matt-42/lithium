@@ -4,7 +4,7 @@ project(li)
 
 find_package(MYSQL REQUIRED)
 find_package(PostgreSQL REQUIRED)
-find_package(Boost REQUIRED filesystem context)
+find_package(Boost REQUIRED context)
 find_package(SQLite3 REQUIRED)
 find_package(CURL REQUIRED)
 find_package(Threads REQUIRED)
@@ -34,7 +34,7 @@ endfunction(add_sh_executable)
 add_definitions(-Wno-ignored-attributes) # to skip postgresql warnings.
 
 add_sh_executable(json json.cc)
-add_sh_executable(http_backend http_backend.cc)
+add_sh_executable(http_server http_server.cc)
 add_sh_executable(http_client http_client.cc)
 add_sh_executable(mysql mysql.cc)
 add_sh_executable(pgsql pgsql.cc)

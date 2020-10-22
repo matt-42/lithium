@@ -10,7 +10,7 @@ set(CMAKE_VERBOSE_MAKEFILE ON)
 # On MacOS use -DCMAKE_PREFIX_PATH='/usr/local/opt/openssl/;/usr/local/opt/curl;/usr/local/opt/libpq
 # to have find_package look into brew installed locations first.
 find_package(MYSQL REQUIRED)
-find_package(Boost REQUIRED filesystem context)
+find_package(Boost REQUIRED context)
 find_package(SQLite3 REQUIRED)
 find_package(CURL REQUIRED)
 find_package(PostgreSQL REQUIRED)
@@ -59,7 +59,7 @@ link_build_include("metamap" "/libraries/metamap/metamap")
 link_build_include("json" "/libraries/json/json")
 link_build_include("sqlite" "/libraries/sqlite")
 link_build_include("callable_traits" "/libraries/callable_traits")
-link_build_include("http_backend" "/libraries/http_backend/http_backend")
+link_build_include("http_server" "/libraries/http_server/http_server")
 link_build_include("http_client" "/libraries/http_client/http_client")
 link_build_include("symbol" "/libraries/symbol/symbol")
 link_build_include("sql" "/libraries/sql/sql")                               
@@ -87,7 +87,7 @@ add_custom_target(
 # Automatic symbol generation
 add_custom_target(
     symbols_generation DEPENDS li_symbol_generator
-    COMMAND ${CMAKE_BINARY_DIR}/libraries/symbol/li_symbol_generator ${CMAKE_CURRENT_SOURCE_DIR}/libraries ${CMAKE_CURRENT_SOURCE_DIR}/single_headers)
+    COMMAND ${CMAKE_BINARY_DIR}/libraries/symbol/li_symbol_generator ${CMAKE_CURRENT_SOURCE_DIR}/libraries ${CMAKE_CURRENT_SOURCE_DIR}/single_headers ${CMAKE_CURRENT_SOURCE_DIR}/docs)
 
 
 # Automatic single header generation for release (without line directives)
@@ -112,11 +112,12 @@ function(li_add_executable target_name)
   # target_precompile_headers(${target_name}  REUSE_FROM precompiled_header_target)
 endfunction(li_add_executable)
 
+add_subdirectory(docs)
 add_subdirectory(libraries/metamap)
 add_subdirectory(libraries/callable_traits)
 add_subdirectory(libraries/json)
 add_subdirectory(libraries/symbol)
-add_subdirectory(libraries/http_backend)
+add_subdirectory(libraries/http_server)
 add_subdirectory(libraries/http_client)
 add_subdirectory(libraries/sql)
 add_subdirectory(single_headers/tests)

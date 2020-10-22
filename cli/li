@@ -1,0 +1,203 @@
+#! /bin/python3
+
+import argparse
+import sys, os, glob
+import signal, stat
+import subprocess
+import hashlib
+
+
+def hash_string(to_hash):
+  return hashlib.md5(to_hash.encode('utf-8')).hexdigest()
+
+def build_docker_image(no_cache=False):
+  dockerfile_string = """
+"""  
+  # li setup: build the docker image.
+  dockerfile = f"""
+FROM buildpack-deps:focal
+RUN apt-get update && apt-get install -yqq libboost-context-dev libboost-dev wget libmariadb-dev\
+            postgresql-server-dev-12 libpq-dev cmake
+RUN git clone https://github.com/matt-42/lithium.git /lithium
+RUN mkdir /lithium/build;
+RUN cd /lithium/build && cmake .. -DCMAKE_BUILD_TYPE=Release; make install -j4;"""
+
+  print(f"Building lithium docker image.")
+
+  no_cache_flag = "--no-cache" if no_cache else ""   
+  process = subprocess.run(f"docker build {no_cache_flag} -t lithium_docker_image -".split(" "), input=dockerfile.encode('utf-8'))
+
+def lithium_docker_image_exists():
+  return subprocess.run("docker image inspect lithium_docker_image".split(" "), stdout=open(os.devnull, 'wb')).returncode == 0
+  
+def build_docker_image_if_missing():
+  ret = subprocess.run("docker image inspect lithium_docker_image".split(" "), stdout=open(os.devnull, 'wb')).returncode
+  if not lithium_docker_image_exists():
+    build_docker_image();
+
+
+SERVER_PROCESS=None
+
+def sigint_handler(signum, frame):
+    print('Signal handler called with signal', signum)
+    if SERVER_PROCESS is not None:
+      print('FORWARD signal to process ', SERVER_PROCESS.pid)    
+      SERVER_PROCESS.terminate();
+    exit(1)
+
+
+def create_cmake_script_if_needed(source_files, output_dir):
+  
+  output_filepath = os.path.join(output_dir, "CMakeLists.txt")
+  hash = hash_string(" ".join(source_files))
+
+  # Test if we need to regenerate the CMakeLists.txt
+  if os.path.exists(output_filepath):
+    with open(output_filepath) as f:
+      previous_hash = f.readline().replace("# ", "")
+      if hash == previous_hash:
+        print("Skip CMakeLists.txt generation.")
+        return
+
+  script = """
+# {hash}
+cmake_minimum_required(VERSION 2.8)
+set(CMAKE_CXX_STANDARD 17)
+SET(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} /lithium/cmake)
+
+project(lithium_server)
+
+find_package(MYSQL REQUIRED)
+find_package(SQLite3 REQUIRED)
+find_package(CURL REQUIRED)
+find_package(Threads REQUIRED)
+find_package(PostgreSQL REQUIRED)
+find_package(OpenSSL REQUIRED)
+find_package(Boost REQUIRED context)
+
+include_directories(${SQLite3_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS} ${MYSQL_INCLUDE_DIR} ${OPENSSL_INCLUDE_DIR} ${PostgreSQL_INCLUDE_DIRS})
+
+set(LIBS ${SQLite3_LIBRARIES} ${CURL_LIBRARIES} 
+          ${MYSQL_LIBRARY} ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT}
+          ${PostgreSQL_LIBRARIES} ${OPENSSL_LIBRARIES})
+
+add_custom_target(
+    symbols_generation
+    COMMAND li_symbol_generator /source)
+
+function(li_add_executable target_name)
+  add_executable(${target_name} ${ARGN})
+  target_link_libraries(${target_name} ${LIBS})
+  add_dependencies(${target_name} symbols_generation)
+  # target_precompile_headers(${target_name}  REUSE_FROM precompiled_header_target)
+endfunction(li_add_executable)
+
+"""
+
+  source_files_str = "\n".join([f"/source/{path}" for path in source_files])
+  script += f"li_add_executable(lithium_server {source_files_str} )\n"
+  script += "target_link_libraries(lithium_server ${LIBS})\n"
+
+  with open(output_filepath, 'w') as f:
+    f.write(script)
+
+def compile_and_run(source_files, run_args, build_dir = None, debug = False):
+  # Get the common dir of all source files.
+  source_dir = os.path.commonpath([os.path.split(f)[0] for f in source_files])
+
+  # Compute source files path relative to source dir.
+  source_files = [ os.path.relpath(f, source_dir) for f in source_files ]
+
+  # Create the build dir if needed.
+  if build_dir is None:
+    build_dir = f"/tmp/lithium_build_{hash_string(source_dir)}"
+    if not os.path.exists(build_dir):
+      os.makedirs(build_dir)
+    print("Building in ", build_dir)
+
+  # Create cmake script.
+  create_cmake_script_if_needed(source_files, build_dir)
+  # Shell script to build & run.
+  compile_run_script = f"cd /build && cmake . && make && ./lithium_server {' '.join(run_args)}"
+  # Run the shell script in docker.
+  # --rm delete the container after running.
+  subprocess.run(f"docker run --rm -ti --network host -v {source_dir}:/source -v {build_dir}:/build lithium_docker_image /bin/bash -c".split(" ") + [compile_run_script])
+
+
+def is_cpp_file(f): 
+  return os.path.splitext(f)[1] in [".cc", ".cpp"]
+
+def gather_source_files(args):
+  source_files = []
+  run_args_pos = len(args)
+  # Gather sources files.
+  for idx, arg  in enumerate(args):
+    if os.path.isdir(arg):
+      source_files += [ f for f in glob.glob(f"{os.path.abspath(arg)}/**", recursive=True) if is_cpp_file(f) ]
+    elif os.path.isfile(arg) and is_cpp_file(arg):
+      source_files += [os.path.abspath(arg)]
+    else:
+      run_args_pos = idx
+      break
+
+  if len(source_files) == 0:
+    print("Could not find any existing C++ files.")
+    exit(1)
+  return source_files, args[run_args_pos:]
+
+
+def run_command(args):
+  source_files, run_args = gather_source_files(args.args)
+  build_docker_image_if_missing()
+  compile_and_run(source_files, run_args)
+def upgrade_command(args):
+  build_docker_image(no_cache=True)
+def help_command(args):
+  parser.print_help()  
+
+parser = argparse.ArgumentParser(
+  formatter_class=argparse.RawDescriptionHelpFormatter,
+  description="""Lithium Command Line Interface
+----------------------------------
+  
+  Important node: requires docker to run.
+
+  This tool allows to build an run lithium server
+  by simply providing C++ source file without having
+  to install lithium dependency on the machine.
+""")
+
+subparsers = parser.add_subparsers(help='Available commands')
+
+help_argparser = subparsers.add_parser('help', help="Display this message")
+help_argparser.set_defaults(func=help_command)
+
+run_argparser = subparsers.add_parser('run', help="Build and run a lithium server", description="""
+Compile and run a lithium server inside a docker container.
+Symbols generation will place a symbols.hh file in each directory
+containing C++ files. #include "symbols.hh" is then required in order to
+use lithium symbols (e.g s::symbol_name).
+""",
+epilog="""
+examples:
+  Run the server written in file main.cc and taking as first argument the listening port
+    $ li run ./main.cc 8080
+
+  Run the server written in all C++ files contained ./directory and taking as first argument the listening port
+    $ li run ./directory 8080
+
+  Run the server written in file main.cc and utils.cc and taking as no argument
+    $ li run ./main.cc ./utils.cc 8080
+""",
+formatter_class=argparse.RawDescriptionHelpFormatter)
+run_argparser.add_argument('args', nargs="+", type=str, help='Source dir or files to compile followed by the server args.')
+run_argparser.set_defaults(func=run_command)
+
+upgrade_argparser = subparsers.add_parser('upgrade', help="Upgrade the lithium docker image")
+upgrade_argparser.set_defaults(func=upgrade_command)
+
+args = parser.parse_args()
+if hasattr(args, "func"):
+  args.func(args)
+else:
+  help_command(args)

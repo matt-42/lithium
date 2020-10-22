@@ -9,7 +9,7 @@ from os.path import join
 WITH_LINE_DIRECTIVES = False
 
 LINUX_ONLY_HEADERS = ['sys/epoll.h']
-APPLE_ONLY_HEADERS = ['sys/event.h']
+APPLE_ONLY_HEADERS = ['sys/event.h', 'libkern/OSByteOrder.h', 'machine/endian.h']
 
 def include_directive(d):
     linux_only = False
@@ -159,11 +159,11 @@ if __name__ == "__main__":
         "lithium_symbol": ["li/symbol/symbol.hh"],
         "lithium_json": ["li/json/json.hh"],
         "lithium_http_client": ["li/http_client/http_client.hh"],
-        "lithium_http_backend": ["li/http_backend/http_backend.hh"],
+        "lithium_http_server": ["li/http_server/http_server.hh"],
         "lithium_mysql": ["li/sql/mysql.hh","li/sql/sql_orm.hh"],
         "lithium_sqlite": ["li/sql/sqlite.hh","li/sql/sql_orm.hh"],
         "lithium_pgsql": ["li/sql/pgsql.hh","li/sql/sql_orm.hh"],
-        "lithium": ["li/sql/sqlite.hh","li/http_client/http_client.hh","li/sql/sql_orm.hh", "li/sql/mysql.hh", "li/sql/pgsql.hh","li/http_backend/http_backend.hh"],
+        "lithium": ["li/sql/sqlite.hh","li/http_client/http_client.hh","li/sql/sql_orm.hh", "li/sql/mysql.hh", "li/sql/pgsql.hh","li/http_server/http_server.hh"],
              })
     for libname, files in data.items():
         if not WITH_LINE_DIRECTIVES:

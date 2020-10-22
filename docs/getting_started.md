@@ -11,19 +11,19 @@ There is two ways to get started with lithium:
 The lithium cli allows you to build and run code without installing any dependencies and without writing any Makefile or CMakeFile.
 
 Install the cli somewhere in your $PATH:
-```
-wget https://raw.githubusercontent.com/matt-42/lithium/master/cli/li 
+```text
+$ wget https://raw.githubusercontent.com/matt-42/lithium/master/cli/li 
 ```
 
 Once installed, you can compile and run servers in one command:
-```
+```bash
 $ li run [source files...] [program arguments]
 ```
 
 When run the first time, `li run` will take 1-2 minutes to build the lithium docker image.
 
 For more info about the cli:
-```
+```bash
 $ li -h
 $ li run -h
 ```
@@ -32,34 +32,28 @@ If this cli does not suit your workflow, please post a github issue.
 
 ## Install Lithium locally
 
-```sh
-git clone https://github.com/matt-42/lithium.git
-cd lithium;
+To install the Lithium headers and the `li_symbol_generator` tool:
 
-# Global install:
-mkdir build && cd build && && cmake .. && make -j4 install;
-
-# Local install (replace $HOME/local with your prefered location)
-mkdir build && cd build && && cmake .. -DCMAKE_INSTALL_PREFIX=$HOME/local && make -j4 install;
+```bash
+curl https://raw.githubusercontent.com/matt-42/lithium/master/install.sh | bash -s - INSTALL_PREFIX
 ```
+
+## Automatic symbols generation
 
 The Lithium paradigm relies on compile time symbols (in the `s::` namespace) to bring introspection
 into C++. If you use symbols, you can either declare them manually, or use `li_symbol_generator` to generate
 these definitions automatically.
 
-To get `li_symbol_generator`, you need to compile and install lithium locally:
-
-
 You should be able to run `li_symbol_generator` without arguments and get its help message:
-```sh
+```text
 $ li_symbol_generator
 =================== Lithium symbol generator ===================
 
-Usage: li_symbol_generator input_cpp_file1, ..., input_cpp_fileN
+Usage: ./build/libraries/symbol/li_symbol_generator input_cpp_file1, ..., input_cpp_fileN
    Output on stdout the definitions of all the symbols used in the input files.
 
-Usage: li_symbol_generator project_root
-   For each folder under project root write a symbols.hh file containing the
+Usage: ./build/libraries/symbol/li_symbol_generator dir1, dir2, ...
+   For all dirN folder and dirN subfolders write a symbols.hh file containing the
    declarations of all symbols used in C++ source and header of this same directory.
 ```
 
@@ -80,7 +74,7 @@ Now that you have setup symbol generation (or choose manual declaration), you ar
 Lithium is header only. You can  `#include` one of the lithium headers and start coding. Check
 https://github.com/matt-42/lithium/tree/master/single_headers for the full list of available headers.
 
-### CMake
+## CMake
 
 The recommended way (without using the cli) is to use cmake to compile project using lithium.
 Check the cmake+lithium project starter here:
@@ -88,17 +82,17 @@ https://github.com/matt-42/lithium/tree/master/cmake_project_template
 
 ## Note for projects linking multiple C++ files
 
-The `sql` libraries use a global variable to store the connections. If you encounter
+The `sql` libraries use a global variable to store the pool of connections. If you encounter
 multiple definitions at link time, you need to `#define LI_EXTERN_GLOBALS` before including the lithium
 header in all your files exept one.
 
 In one file:
-```
+```c++
 #include <lithium.hh> // or <lithium_XXXX.hh> 
 ```
 
 And in all the others:
-```
+```c++
 #define LI_EXTERN_GLOBALS
 #include <lithium.hh> // or <lithium_XXXX.hh> 
 ```

@@ -205,7 +205,7 @@ users.remove(*u);
 
 ### ORM Callbacks additional arguments
 
-Callbacks can also take additional arguments, it is used for example in the http_backend library to
+Callbacks can also take additional arguments, it is used for example in the http_server library to
 access the HTTP session.
 
 ```c++

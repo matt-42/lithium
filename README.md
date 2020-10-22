@@ -1,5 +1,5 @@
 
-<p align="center"><img src="https://github.com/matt-42/lithium/raw/master/lithium_logo.png" alt="Lithium Logo. Designed by Yvan Darmet" title="The Lithium C++ libraries - Logo designed by Yvan Darmet" width=400 /></p>
+<p align="center"><img src="https://github.com/matt-42/lithium/raw/master/images/lithium_logo.png" alt="Lithium Logo. Designed by Yvan Darmet" title="The Lithium C++ libraries - Logo designed by Yvan Darmet" width=400 /></p>
 
 [![Donate](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://www.paypal.me/matthieugarrigues)
 ![Travis](https://travis-ci.com/matt-42/lithium.svg?branch=master) ![platform](https://img.shields.io/badge/platform-Linux%20%7C%20MacOS-yellow) ![licence](https://img.shields.io/badge/licence-MIT-blue)
@@ -12,7 +12,11 @@ fastest web framework available. It is available on MacOS and Linux. Windows sup
 
 It is a set of independent header only C++ libraries, each one of them can be used
 independently. Each library solves one problem and can be used
-separately:
+separately.
+
+### [Installation / Getting Started](https://github.com/matt-42/lithium/tree/master/INSTALL.md)
+
+# Libraries
 
 ### [li::metamap](https://github.com/matt-42/lithium/tree/master/libraries/metamap)
 
@@ -31,7 +35,7 @@ A set of asynchronous and synchronous SQL drivers.
 
 A http_client built around the libcurl library.
 
-### [li::http_backend](https://github.com/matt-42/lithium/tree/master/libraries/http_backend)
+### [li::http_server](https://github.com/matt-42/lithium/tree/master/libraries/http_server)
 
 A coroutine based, asynchronous, low latency and high throughput HTTP Server library.
 
@@ -43,64 +47,12 @@ you can check the code if you want to know what is inside the s:: namespace.
 
 # Need some help ?
 
-Post a github issue if you need help with Lithium. And there are no dummy questions !
-
-# Getting Started (or setting up automatic symbol generation)
-
-The Lithium paradigm relies on compile time symbols (in the `s::` namespace) to bring introspection
-into C++. If you use symbols, you can either declare them manually, or use `li_symbol_generator` to generate
-these definitions automatically.
-
-To get `li_symbol_generator`, you need to compile and install lithium locally:
-
-```sh
-git clone https://github.com/matt-42/lithium.git
-cd lithium;
-mkdir build; cd build;
-# Global install:
-cmake ..; make -j4 install;
-# Local install (replace $HOME/local with your prefered location)
-cmake .. -DCMAKE_INSTALL_PREFIX=$HOME/local; make -j4 install;
-```
-
-You should be able to run `li_symbol_generator` without arguments and get its help message:
-```sh
-$ li_symbol_generator
-=================== Lithium symbol generator ===================
-
-Usage: li_symbol_generator input_cpp_file1, ..., input_cpp_fileN
-   Output on stdout the definitions of all the symbols used in the input files.
-
-Usage: li_symbol_generator project_root
-   For each folder under project root write a symbols.hh file containing the
-   declarations of all symbols used in C++ source and header of this same directory.
-```
-
-If you use cmake, here is a custom target that will run the generator before each compilation.
-```cmake
-# the symbol generation target
-add_custom_target(
-    symbols_generation
-    COMMAND li_symbol_generator ${CMAKE_CURRENT_SOURCE_DIR})
-
-# Your executables
-add_executable(your_executable your_main.cc)
-# Link the symbol generation to your cmake target:
-add_dependencies(your_executable symbols_generation)
-```
-
-Now that you have setup symbol generation (or choose manual declaration), you are done because 
-Lithium is header only. You can `#include` lithium headers and start coding. 
-
-# Installation
-
-https://github.com/matt-42/lithium/tree/master/INSTALL.md
-
+Please post a github issue if you need help with Lithium. Even the dumiest question are welcome.
 
 # Supported compilers:
     - Linux: G++ 9.2, Clang++ 9.0
     - MacOS: Apple clang version 12.0.0 
-    - Windows: Not supported
+    - Windows: Not supported. Waiting for a bugfix in the MSVC C++ compiler.
 
 # Support the project
 

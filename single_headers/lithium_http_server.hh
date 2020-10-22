@@ -62,8 +62,8 @@
 #endif // _MSC_VER
 
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_http_server_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_http_server_HH
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_HTTP_SERVER_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_HTTP_SERVER_HH
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_JSON_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_JSON_JSON_HH
@@ -2986,11 +2986,11 @@ struct sql_orm_schema : public MD {
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_ORM_HH
 
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_API_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_API_HH
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_API_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_API_HH
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_DYNAMIC_ROUTING_TABLE_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_DYNAMIC_ROUTING_TABLE_HH
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_DYNAMIC_ROUTING_TABLE_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_DYNAMIC_ROUTING_TABLE_HH
 
 
 namespace li {
@@ -3121,10 +3121,10 @@ template <typename V> struct dynamic_routing_table {
 
 } // namespace li
 
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_DYNAMIC_ROUTING_TABLE_HH
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_DYNAMIC_ROUTING_TABLE_HH
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_ERROR_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_ERROR_HH
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_ERROR_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_ERROR_HH
 
 
 namespace li {
@@ -3173,10 +3173,10 @@ private:
 
 } // namespace li
 
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_ERROR_HH
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_ERROR_HH
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_SYMBOLS_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_SYMBOLS_HH
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_SYMBOLS_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_SYMBOLS_HH
 
 #ifndef LI_SYMBOL_blocking
 #define LI_SYMBOL_blocking
@@ -3294,7 +3294,7 @@ private:
 #endif
 
 
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_SYMBOLS_HH
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_SYMBOLS_HH
 
 
 namespace li {
@@ -3402,15 +3402,15 @@ template <typename Req, typename Resp> struct api {
 
 } // namespace li
 
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_API_HH
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_API_HH
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_HTTP_SERVE_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_HTTP_SERVE_HH
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_HTTP_SERVE_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_HTTP_SERVE_HH
 
 
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_OUTPUT_BUFFER_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_OUTPUT_BUFFER_HH
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_OUTPUT_BUFFER_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_OUTPUT_BUFFER_HH
 
 
 
@@ -3527,10 +3527,10 @@ struct output_buffer {
 
 } // namespace li
 
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_OUTPUT_BUFFER_HH
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_OUTPUT_BUFFER_HH
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_INPUT_BUFFER_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_INPUT_BUFFER_HH
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_INPUT_BUFFER_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_INPUT_BUFFER_HH
 
 
 
@@ -3669,10 +3669,10 @@ struct input_buffer {
 
 } // namespace li
 
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_INPUT_BUFFER_HH
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_INPUT_BUFFER_HH
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_TCP_SERVER_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_TCP_SERVER_HH
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_TCP_SERVER_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_TCP_SERVER_HH
 
 
 
@@ -3682,8 +3682,8 @@ struct input_buffer {
 
 
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_SSL_CONTEXT_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_SSL_CONTEXT_HH
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_SSL_CONTEXT_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_SSL_CONTEXT_HH
 
 
 namespace li {
@@ -3744,7 +3744,7 @@ struct ssl_context {
 
 } // namespace li
 
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_SSL_CONTEXT_HH
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_SSL_CONTEXT_HH
 
 
 namespace li {
@@ -4241,10 +4241,10 @@ void start_tcp_server(int port, int socktype, int nthreads, H conn_handler,
 
 } // namespace li
 
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_TCP_SERVER_HH
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_TCP_SERVER_HH
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_URL_UNESCAPE_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_URL_UNESCAPE_HH
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_URL_UNESCAPE_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_URL_UNESCAPE_HH
 
 
 namespace li {
@@ -4270,7 +4270,7 @@ inline std::string_view url_unescape(std::string_view str) {
 }
 } // namespace li
 
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_URL_UNESCAPE_HH
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_URL_UNESCAPE_HH
 
 
 namespace li {
@@ -4280,15 +4280,7 @@ namespace http_async_impl {
 static char* date_buf = nullptr;
 static int date_buf_size = 0;
 
-static std::unordered_map<std::string_view, std::string_view> content_types = {
-  {"html", "text/html"},
-  {"css", "text/css"},
-  {"js", "application/javascript"},
-  {"jpg", "image/jpeg"},
-  {"png", "image/png"}
-};
-
-static thread_local std::unordered_map<std::string, std::pair<std::string_view, std::string_view>> static_files;
+static thread_local std::unordered_map<std::string, std::string_view> static_files;
 
 struct http_ctx {
 
@@ -4514,36 +4506,17 @@ struct http_ctx {
 
   void send_static_file(const char* path) {
     auto it = static_files.find(path);
-    if (static_files.end() == it or !it->second.first.size()) {
+    if (static_files.end() == it or !it->second.size()) {
       int fd = open(path, O_RDONLY);
       if (fd == -1)
         throw http_error::not_found("File not found.");
-
       int file_size = lseek(fd, (size_t)0, SEEK_END);
       auto content =
           std::string_view((char*)mmap(0, file_size, PROT_READ, MAP_SHARED, fd, 0), file_size);
-      close(fd);
-
-      size_t ext_pos = std::string_view(path).rfind('.');
-      std::string_view content_type("");
-      if (ext_pos != std::string::npos)
-      {
-        auto type_itr = content_types.find(std::string_view(path).substr(ext_pos + 1).data());
-        if (type_itr != content_types.end())
-        {
-          content_type = type_itr->second;
-          set_header("Content-Type", content_type);
-        }
-      }
-      static_files.insert({path, {content, content_type}});
+      static_files.insert({path, content});
       respond(content);
-    } else {
-      if (it->second.second.size())
-      {
-        set_header("Content-Type", it->second.second);
-      }
-      respond(it->second.first);
-    }
+    } else
+      respond(it->second);
   }
 
   // private:
@@ -4888,13 +4861,13 @@ template <typename F> auto make_http_processor(F handler) {
 } // namespace http_async_impl
 } // namespace li
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_REQUEST_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_REQUEST_HH
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_REQUEST_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_REQUEST_HH
 
 
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_URL_DECODE_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_URL_DECODE_HH
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_URL_DECODE_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_URL_DECODE_HH
 
 #if defined(_MSC_VER)
 #endif
@@ -5104,7 +5077,7 @@ template <typename O> void url_decode(std::string_view str, O& obj) {
 
 } // namespace li
 
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_URL_DECODE_HH
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_URL_DECODE_HH
 
 
 
@@ -5336,10 +5309,10 @@ template <typename O> auto http_request::post_parameters(O& res) const {
 
 } // namespace li
 
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_REQUEST_HH
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_REQUEST_HH
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_RESPONSE_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_RESPONSE_HH
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_RESPONSE_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_RESPONSE_HH
 
 
 //#include <stdlib.h>
@@ -5395,7 +5368,7 @@ struct http_response {
 
 } // namespace li
 
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_RESPONSE_HH
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_RESPONSE_HH
 
 
 namespace li {
@@ -5405,7 +5378,7 @@ auto http_serve(api<http_request, http_response> api, int port, O... opts) {
 
   auto options = mmm(opts...);
 
-  int nthreads = get_or(options, s::nthreads, 4);
+  int nthreads = get_or(options, s::nthreads, std::thread::hardware_concurrency());
 
   auto handler = [api](http_async_impl::http_ctx& ctx) {
     http_request rq{ctx};
@@ -5417,6 +5390,10 @@ auto http_serve(api<http_request, http_response> api, int port, O... opts) {
       ctx.respond(e.what());
     } catch (const std::runtime_error& e) {
       std::cerr << "INTERNAL SERVER ERROR: " << e.what() << std::endl;
+      ctx.set_status(500);
+      ctx.respond("Internal server error.");
+    } catch (...) {
+      std::cerr << "INTERNAL SERVER ERROR: UNKNOWN EXCEPTION." << std::endl;
       ctx.set_status(500);
       ctx.respond("Internal server error.");
     }
@@ -5475,18 +5452,18 @@ auto http_serve(api<http_request, http_response> api, int port, O... opts) {
 }
 } // namespace li
 
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_HTTP_SERVE_HH
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_HTTP_SERVE_HH
 
 
 namespace li {
 using http_api = api<http_request, http_response>;
 }
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_HASHMAP_HTTP_SESSION_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_HASHMAP_HTTP_SESSION_HH
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_HASHMAP_HTTP_SESSION_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_HASHMAP_HTTP_SESSION_HH
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_RANDOM_COOKIE_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_RANDOM_COOKIE_HH
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_RANDOM_COOKIE_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_RANDOM_COOKIE_HH
 
 
 namespace li {
@@ -5515,7 +5492,7 @@ inline std::string random_cookie(http_request& request, http_response& response,
 
 } // namespace li
 
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_RANDOM_COOKIE_HH
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_RANDOM_COOKIE_HH
 
 
 namespace li {
@@ -5572,14 +5549,14 @@ template <typename... F> struct hashmap_http_session {
 
 } // namespace li
 
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_HASHMAP_HTTP_SESSION_HH
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_HASHMAP_HTTP_SESSION_HH
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_HTTP_AUTHENTICATION_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_HTTP_AUTHENTICATION_HH
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_HTTP_AUTHENTICATION_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_HTTP_AUTHENTICATION_HH
 
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_SQL_HTTP_SESSION_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_SQL_HTTP_SESSION_HH
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_SQL_HTTP_SESSION_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_SQL_HTTP_SESSION_HH
 
 
 namespace li {
@@ -5657,7 +5634,7 @@ template <typename DB, typename... F> struct sql_http_session {
 
 } // namespace li
 
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_SQL_HTTP_SESSION_HH
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_SQL_HTTP_SESSION_HH
 
 
 namespace li {
@@ -5763,11 +5740,11 @@ template <typename... A> http_api http_authentication_api(http_authentication<A.
 
 } // namespace li
 
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_HTTP_AUTHENTICATION_HH
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_HTTP_AUTHENTICATION_HH
 
 //#include <li/http_server/mhd.hh>
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_SERVE_DIRECTORY_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_SERVE_DIRECTORY_HH
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_SERVE_DIRECTORY_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_SERVE_DIRECTORY_HH
 
 
 namespace li {
@@ -5822,10 +5799,10 @@ inline auto serve_directory(std::string root) {
 
 } // namespace li
 
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_SERVE_DIRECTORY_HH
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_SERVE_DIRECTORY_HH
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_SQL_CRUD_API_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_SQL_CRUD_API_HH
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_SQL_CRUD_API_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_SQL_CRUD_API_HH
 
 
 namespace li {
@@ -5866,10 +5843,10 @@ auto sql_crud_api(sql_orm_schema<A, B, C>& orm_schema) {
 
 } // namespace li
 
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_SQL_CRUD_API_HH
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_SQL_CRUD_API_HH
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_GROWING_OUTPUT_BUFFER_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_GROWING_OUTPUT_BUFFER_HH
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_GROWING_OUTPUT_BUFFER_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_GROWING_OUTPUT_BUFFER_HH
 
 
 namespace li {
@@ -5907,12 +5884,12 @@ struct growing_output_buffer {
 
 }
 
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_GROWING_OUTPUT_BUFFER_HH
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_GROWING_OUTPUT_BUFFER_HH
 
 
 #if __linux__
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_HTTP_BENCHMARK_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_HTTP_BENCHMARK_HH
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_HTTP_BENCHMARK_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_HTTP_BENCHMARK_HH
 
 
 namespace ctx = boost::context;
@@ -6123,12 +6100,12 @@ inline float http_benchmark(const std::vector<int>& sockets, int NTHREADS, int d
 
 } // namespace li
 
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_HTTP_BENCHMARK_HH
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_HTTP_BENCHMARK_HH
 
 #endif
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_LRU_CACHE_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_LRU_CACHE_HH
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_LRU_CACHE_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_LRU_CACHE_HH
 
 
 template <typename K, typename V>
@@ -6171,8 +6148,8 @@ struct lru_cache {
   std::unordered_map<K, V> entries_;
 };
 
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_LRU_CACHE_HH
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_LRU_CACHE_HH
 
 
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_http_server_http_server_HH
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_HTTP_SERVER_HH
 

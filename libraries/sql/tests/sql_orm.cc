@@ -3,7 +3,7 @@
 #include <lithium_pgsql.hh>
 #include <lithium_sqlite.hh>
 
-#include "../../http_backend/tests/test.hh"
+#include "../../http_server/tests/test.hh"
 
 #include "symbols.hh"
 
