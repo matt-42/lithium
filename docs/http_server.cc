@@ -7,6 +7,11 @@ int main() {
 http_server
 =================================
 
+## Header
+
+```c++
+#include <lithium_http_server.hh>
+```
 ## Introduction
 
 ### Motivations
@@ -52,7 +57,7 @@ Run it with the cli:
 $ li run ./hello_world.cc
 ```
 
-## Serving HTTP(s)
+## Serving HTTP / HTTPS
 
 ```c++
 void http_serve(http_api api, int port, options...)

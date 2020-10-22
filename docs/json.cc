@@ -1,10 +1,24 @@
+#include <lithium_json.hh>
+int main ()
+{
+  using namespace li;
+  std::string json_str;
 // __documentation_starts_here__
 /*
 json
 ============================
 
+## Header
+
+```c++
+#include <lithium_json.hh>
+```
+
+## Introduction
+
 ``li::json`` is a C++17 JSON serializer/deserializer designed for
-ease of use and performances.
+ease of use and performances. It can decode and encode Lithium metamaps (thanks to metamap
+static introspection), standard C++ containers and any custom types (with some user provided hints)
 
 It handle a subset of other JSON serialization libraries: **Only cases
 where the structure of the object is known at compile time are covered**.
@@ -15,49 +29,100 @@ It these specific cases, metajson is faster and produce smaller binaries.
   - Header only
   - UTF-8 support
   - Exception free
-  - Small codebase: 1200 LOC
+  - Small codebase: 1000 LOC
   - Portable: No architecture specific code.
 
 **Limitations:**
-  - li::json only handles JSON objects with a **static structure known at compile time**.
-  - li::json properly handle decoding and encoding UTF-8 but not the others UTF-{32|16} {big|little} endian encodings.
-  - No explicit errors for ill-formatted json messsages.
+  - It only handles JSON objects with a **static structure known at compile time**.
+  - It properly handle decoding and encoding UTF-8 but not the others UTF-{32|16} {big|little} endian encodings.
+  - No explicit errors for ill-formatted json messsages yet.
 
-**Performances:** Up to **9x** faster than nlohmann/json and **2x**
-  faster than rapidjson*. I did not find usecases where li::json was
-  not the fastest. If you find some, please report.
+**Performances:** Up to **9x** faster than nlohmann/json [2] and **2x**
+  faster than rapidjson [1]. I did not find usecases where it was
+  not the fastest. If you find some, please report an issue.
 
 **Binary code size:** Up to **8x** smaller than nlohmann/json and **2x** smaller than rapidjson*.
 
-[1] https://github.com/miloyip/rapidjson
+- [1] https://github.com/miloyip/rapidjson
+- [2] https://github.com/nlohmann/json
 
-[2] https://github.com/nlohmann/json
-
-[3] https://github.com/AlDanial/cloc
-
-\* Theses numbers are not given by an comprehensive benchmark. They just give a rough idea
+Theses numbers are not given by an comprehensive benchmark. They just give a rough idea
 of metajson performances and does not take into account the fact that other libraries provides
 more features.
 
-## Overview
+## Encoding
 
-Note: This example use the single header version.
+```c++
+void json_encode(const O& object);
+```
+
+`json_encode` works out of the box for a set of types:
+- standard C++ scalars: strings, integers, bool: encoded as json values
+- lithium metamaps: encoded as json object
+- `std::vector`: encoded as a json array
+- `std::tuple`: encoded as a json array
+- `std::variant`: encoded as {"idx": variant_index,"value": serialized_value}
+- `std::optional`: when the optional is null, does not encode anything, if an object member is std::optional, skip it if is null.  
+- `std::map`: encoded as json object
+- `std::unordered_map`: encoded as json object
+
+### Pointers deferencing
+
+When `json_decode` meet an object pointer, it deferences it and serialize the pointer object.
+
+### Encoding custom object types
+
+Since there is no way for Lithium to know the members names your object, you need to describe the member or
+accessor names whenever you serialize:
+- a custom object
+- a vector of custom objects 
+- a map of custom objects
+
+#### json_object
+
+`json_object` takes the list of member or accessor names that you want to serialize.
+
+*/
+struct { 
+  int age; 
+  std::string name() { return "Bob"; } 
+} gm;
+
+json_str = json_object(s::age, s::name).encode(gm);
+
+/*
+
+#### `json_vector` for accessed with `array[int_index]`
+
+`json_vector` takes the list of member or accessor names that you want to serialize from the vector elements.
 
 */
 
-LI_SYMBOL(name)
-LI_SYMBOL(age)
-LI_SYMBOL(entry)
-LI_SYMBOL(id)
+struct A { int age; std::string name; };
+std::vector<A> array{ {12, "John"},  {2, "Alice"},  {32, "Bob"} };
+json_str = json_vector(s::age, s::name).encode(array);
 
-int main ()
-{
-  using li::json_encode;
-  using li::json_decode;
-  using li::json_object;
-  using li::json_vector;
-  using li::json_key;
-  using li::mmm;
+/*
+#### `json_map` for maps accessed with `map[string_key]`
+
+*/
+std::unordered_map<std::string, int> test;
+
+/*
+Some examples:
+
+### Metamaps
+
+*/
+  auto map = mmm(s::age = 12, s::name = std::string("John"));
+  json_str = json_encode(map);
+/*
+### Metamaps
+
+*/
+  auto map = mmm(s::age = 12, s::name = std::string("John"));
+  json_str = json_encode(map);
+/*
 
   std::string json_str;
 
@@ -99,9 +164,6 @@ int main ()
   li::json_encode(std::variant<int,std::string>{"abc"});
   // {"idx":1,"value":"abc"}
   
-  // Arrays of structs
-  std::vector<A> array{ {12, "John"},  {2, "Alice"},  {32, "Bob"} };
-  json_str = json_vector(s::age, s::name).encode(array);
   
   std::cout << json_str << std::endl;
   // [{"age":12,"name":"John"},{"age":2,"name":"Alice"},{"age":32,"name":"Bob"}]

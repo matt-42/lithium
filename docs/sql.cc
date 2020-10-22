@@ -9,6 +9,13 @@
 SQL
 ================================
 
+## Header
+
+```c++
+#include <lithium_json.hh>
+```
+
+## Introduction
 ``li::sql`` is a set of high performance and easy to use C++ SQL drivers built on top of the C
 drivers provided by the databases. It allows you to target MySQL, PostgreSQL and SQLite under the
 same C++ API which is significantly smaller and easier to learn than the C APIs provided by the
@@ -24,25 +31,19 @@ It features:
 All the three connectors are following the same API so you can use the same way
 a SQLite, MySQL or PostgreSQL database.
 
-## Dependency
+### Dependency
   MariaDB mysqlClient
 
-## Installation
-
-https://github.com/matt-42/lithium/tree/master/INSTALL.md
-
-## Runtime Performances
+### Runtime Performances
 
 All ``li::sql`` abstractions are unwrapped at compile time so it adds almost zero overhead over the
 raw C drivers of the databases. According to the [Techempower
 benchmark](http://tfb-status.techempower.com/), Lithium MySQL and PostgreSQL drivers are part of the
 fastest available.
 
-## Learning Curve
+### Overview
 
-While building a fast DB driver, we did not do any compromise on the ease of use of the library.
-The learning curve of this library is inferior to 5 minutes since it's API has only 5 functions
-(excluding the ORM):
+The API contains only 7 operators (excluding the ORM):
   - `database::connect` to get a connection
   - `connection::operator()` to execute queries
   - `connection::prepare` to build prepared statements
