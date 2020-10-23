@@ -17,14 +17,21 @@ json
 ## Introduction
 
 ``li::json`` is a C++17 JSON serializer/deserializer designed for
-ease of use and performances. It can decode and encode Lithium metamaps (thanks to metamap
-static introspection), standard C++ containers and any custom types (with some user provided hints)
+ease of use and performances. It's main advantage over other libraries is that it
+feeds directly plain C++ object with the json string. No intermediate data structure 
+is allocated. Other JSON libraries usually encode/decode JSON from/to dynamic data
+structure like dictionary or hash map to store data.
 
-It handle a subset of other JSON serialization libraries: **Only cases
+
+It can decode and encode standard C++ containers, Lithium metamaps, and any custom 
+types (you need to provide some type info for this, more on this bellow).
+
+The drawback of this "no intermediate dynamic data structure" optimization, is that it handles a
+subset of other JSON serialization libraries: **Only cases
 where the structure of the object is known at compile time are covered**.
-It these specific cases, metajson is faster and produce smaller binaries.
+In these specific cases, metajson is faster and produce smaller binaries.
 
-**Features:**
+### Features
   - Non intrusive
   - Header only
   - UTF-8 support
@@ -32,14 +39,16 @@ It these specific cases, metajson is faster and produce smaller binaries.
   - Small codebase: 1000 LOC
   - Portable: No architecture specific code.
 
-**Limitations:**
+### Limitation
   - It only handles JSON objects with a **static structure known at compile time**.
   - It properly handle decoding and encoding UTF-8 but not the others UTF-{32|16} {big|little} endian encodings.
   - No explicit errors for ill-formatted json messsages yet.
 
-**Performances:** Up to **9x** faster than nlohmann/json [2] and **2x**
-  faster than rapidjson [1]. I did not find usecases where it was
-  not the fastest. If you find some, please report an issue.
+### Performances
+
+**Runtime:** Up to **9x** faster than nlohmann/json [2] and **2x**
+faster than rapidjson [1]. I did not find usecases where it was
+not the fastest. If you find some, please report an issue.
 
 **Binary code size:** Up to **8x** smaller than nlohmann/json and **2x** smaller than rapidjson*.
 
@@ -50,13 +59,35 @@ Theses numbers are not given by an comprehensive benchmark. They just give a rou
 of metajson performances and does not take into account the fact that other libraries provides
 more features.
 
+### Dependencies
+
+None
+
 ## Encoding
 
+There is two ways to decode json objects: one for supported types (check the list below) and one for custom 
+types where you have to provide some information about the object you want to encode (more about this below):
 ```c++
-void json_encode(const O& object);
+// Supported types
+std::string json_encode(input_object);
+
+// Custom types
+std::string __your_type_info__.decode(input_object);
 ```
 
-`json_encode` works out of the box for a set of types:
+## Decoding
+
+```c++
+// Supported types
+void json_decode(json_string, output_object); 
+
+// Custom types
+void __your_type_info__.decode(json_string, output_object);
+```
+
+## Supported types
+
+`json_encode` and `json_decode` works out of the box for a set of types:
 - standard C++ scalars: strings, integers, bool: encoded as json values
 - lithium metamaps: encoded as json object
 - `std::vector`: encoded as a json array
@@ -66,17 +97,11 @@ void json_encode(const O& object);
 - `std::map`: encoded as json object
 - `std::unordered_map`: encoded as json object
 
-### Pointers deferencing
+## Providing json type info for custom types
 
-When `json_decode` meet an object pointer, it deferences it and serialize the pointer object.
-
-### Encoding custom object types
-
-Since there is no way for Lithium to know the members names your object, you need to describe the member or
-accessor names whenever you serialize:
-- a custom object
-- a vector of custom objects 
-- a map of custom objects
+Since there is no way for Lithium to know the members names your objects, you need to provide the list of member or
+accessor names (type infos) that you want to encode or decode.
+The following sections describe the fonctions that you can use to build type infos:
 
 #### json_object
 
@@ -86,107 +111,79 @@ accessor names whenever you serialize:
 struct { 
   int age; 
   std::string name() { return "Bob"; } 
-} gm;
+} gm{42};
 
 json_str = json_object(s::age, s::name).encode(gm);
+// {"age":42,"name":"Bob"}
 
 /*
 
-#### `json_vector` for accessed with `array[int_index]`
+#### json_vector
 
-`json_vector` takes the list of member or accessor names that you want to serialize from the vector elements.
+Use `json_vector` to encode vectors storing a custom object type. 
+Like `json_object` it takes the member of accessor names to serialize:
 
 */
 
 struct A { int age; std::string name; };
 std::vector<A> array{ {12, "John"},  {2, "Alice"},  {32, "Bob"} };
 json_str = json_vector(s::age, s::name).encode(array);
+// [{"age":12,"name":"John"},{"age":2,"name":"Alice"},{"age":32,"name":"Bob"}]
 
 /*
-#### `json_map` for maps accessed with `map[string_key]`
+#### json_map
+
+Behave like `json_vector` but for maps. Note that only maps with string as key type are serialiable.
 
 */
-std::unordered_map<std::string, int> test;
+
+std::unordered_map<std::string, A> test{ 
+   {"a", {12, "John"}}, 
+   {"b",  {2, "Alice"}}};
+
+json_str = json_map(s::age, s::name).encode(array);
+//  {"a" : {"age":12,"name":"John"}, "b" : {"age":2,"name":"Alice"}}
 
 /*
-Some examples:
 
-### Metamaps
+#### json_tuple
+
+Take as argument the types of the tuple elements. If one of those types contain custom
+types, use `json_[object|vector|map|tuple]`:
+
+/*/
+
+auto t = std::make_tuple("Alice", A{11, "Bob"});
+json_str = json_tuple(std::string(), json_object(s::name, s::age)).encode(t);
+// ["Alice",{"age":11,"name":"Bob"}]";
+
+/*
+
+#### Nested custom types
+
+If a member of an object is also a custom type, you can nest several definitions:
+*/
+json_vector(s::id, s::info = json_object(s::name, s::age));
+/*
+#### Custom JSON keys
+
+By default, JSON keys are mapped to object member/accessor names. You can overide this behavior
+by providing a custom json key:
+*/
+json_object(s::test1, s::test2(li::json_key("name")))
+// member test2 will be encoded as "name".
+
+/*
+
+
+### Pointers deferencing
+
+When `json_decode` meet an object pointer, it deferences it and serialize the pointer object.
 
 */
-  auto map = mmm(s::age = 12, s::name = std::string("John"));
-  json_str = json_encode(map);
-/*
-### Metamaps
 
+
+
+/*
 */
-  auto map = mmm(s::age = 12, s::name = std::string("John"));
-  json_str = json_encode(map);
-/*
-
-  std::string json_str;
-
-  // C-structs
-  struct A { int age; std::string name; };
-  A obj{12, "John"};
-
-  json_str = json_object(s::age, s::name).encode(obj);
-  json_object(s::age, s::name).decode(json_str, obj);
-
-  std::cout << json_str << std::endl;
-  // {"age":12,"name":"John"}
-
-  // C++ vectors
-  std::vector<int> v = {1,2,3,4};
-  json_str = json_encode(v);
-  json_decode(json_str, v);
-
-  std::cout << json_str << std::endl;
-  // [1,2,3,4]
-
-  // Serialize getters as well as members.
-  struct { int age; std::string name() { return "Bob"; } } gm;
-  json_str = json_object(s::age, s::name).encode(gm);
-  // {"age":12,"name":"Bob"}
-  
-  // std::tuple
-  json_str = json_encode(std::make_tuple(1, "Bob", 3.4));
-  std::cout << json_str << std::endl;
-  // [1, "Bob", 3.4]
-
-  // std::optional
-  std::optional<std::string> my_optional_str;
-  json_encode(my_optional_str); // empty string.
-  my_optional_str = "lol";
-  json_encode(my_optional_str); // "lol"
-
-  // std::variant
-  li::json_encode(std::variant<int,std::string>{"abc"});
-  // {"idx":1,"value":"abc"}
-  
-  
-  std::cout << json_str << std::endl;
-  // [{"age":12,"name":"John"},{"age":2,"name":"Alice"},{"age":32,"name":"Bob"}]
- 
-  // Nested structs
-  struct B { int id; A entry; };
-  B obj2{ 1, { 12, "John"}};
-  json_str = json_object(s::id = int(), s::entry = json_object(s::age, s::name)).encode(obj2);
-
-  std::cout << json_str << std::endl;
-  // {"id":1,"entry":{"age":12,"name":"John"}}
-
-  // Metamap
-  auto map = mmm(s::age = 12, s::name = std::string("John"));
-  json_str = json_encode(map);
-  
-  std::cout << json_str << std::endl;
-  // {"age":12,"name":"John"}
-  
-  json_decode(json_str, map);
-
-
-  std::cout << json_object(s::age, s::name(json_key("last_name"))).encode(obj) << std::endl;
-  // {"age":12,"last_name":"John"}
-
 }
