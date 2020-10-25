@@ -12,17 +12,18 @@ import { Footer } from "./Footer";
 
 let DOC_ROOT = "https://raw.githubusercontent.com/matt-42/lithium/master/docs/";
 
-if ( ! process.env.NODE_ENV || process.env.NODE_ENV === 'development')
+if (!process.env.NODE_ENV || process.env.NODE_ENV === 'development')
   DOC_ROOT = process.env.PUBLIC_URL + "/docs/";  // dev mode
 
 const docUrls: { [s: string]: string } = {
+  "introduction": "introduction.md",
   "getting-started": "getting_started.md",
-  // "http-server": "https://raw.githubusercontent.com/matt-42/lithium/master/docs/http_server.cc",
   "http-server": "http_server.cc",
   "http-client": "http_client.cc",
   "json": "json.cc",
-  // "sql": "https://raw.githubusercontent.com/matt-42/lithium/master/docs/sql.cc",
-  // "json": "https://raw.githubusercontent.com/matt-42/lithium/master/docs/json.cc"
+  "sql": "sql.cc",
+  "metamap": "metamap.cc",
+  "symbol": "symbol.cc"
 }
 for (let k of Object.keys(docUrls))
   docUrls[k] = DOC_ROOT + docUrls[k];
@@ -76,7 +77,7 @@ function addToHierarchy(item: any, hierarchy: DocHierarchy, parents: (SectionNod
     while (parentpos > 0 && !parents[parentpos]) parentpos--;
 
     let parent = parents[parentpos] as SectionNode;
-    
+
     // add item as child to parent.
     parent.children[item.text] = { text: item.text, depth: item.depth, children: {}, parent };
 
@@ -122,7 +123,7 @@ const docRenderer = {
   },
   link(href: string | null, title: string | null, text: string): string {
     return `<a href=${href} 
-              ${title ? `title='${title}'` : "" } 
+              ${title ? `title='${title}'` : ""} 
               class="MuiTypography-root MuiLink-root MuiLink-underline MuiTypography-colorPrimary">
               ${text}
            </a>`
@@ -175,13 +176,13 @@ export async function indexDocumentation()
         // index non headings nodes.
         if (parents.length)
           searchIndex[searchIndex.length - 1].text += " " + item.text;
-          // searchIndex.push({ text: item.text || "", section: parents[parents.length - 1] as SectionNode, depth: 99 });
+        // searchIndex.push({ text: item.text || "", section: parents[parents.length - 1] as SectionNode, depth: 99 });
       }
     }
   }
   searchIndex.sort((a, b) => {
     if (a.depth < b.depth) return -1;
-    else return 1; 
+    else return 1;
   })
   return [hierarchy, searchIndex];
 }
@@ -198,42 +199,62 @@ async function generateDocumentation(doc_url: string) {
   return marked(doc_url.split('.').pop() == "md" ? code : cppToMarkdown(code));
 }
 
-const docsHtml : { [sectionName : string] : Promise<string>} = {};
+const docsHtml: { [sectionName: string]: Promise<string> } = {};
 
 for (let sectionName of Object.keys(docUrls)) {
   docsHtml[sectionName] = generateDocumentation(docUrls[sectionName]);
 }
 
+const DocumentationMenuRec = (props: { section: SectionNode, hidden?: boolean }) => {
+  const hidden = props.hidden === undefined ? false : props.hidden;
+  const section = props.section;
+  const [open, setOpen] = useState(false);
+  const theme = useTheme();
+
+  if (!section) return <></>;
+
+  const children = <List disablePadding>{
+    Object.values(section.children).map((item) => <DocumentationMenuRec section={item} hidden={!open} /> )}
+    </List>
+
+  if (section.depth == 1)// && section.text.toLowerCase() != "introduction")
+      return <>
+        <ListItem key={section.text} button
+          onClick={() => setOpen(!open)}
+          style={{ paddingLeft: `${10 * section.depth}px`, color: theme.palette.text.primary }}>
+            <span style={{ fontFamily: "Major Mono Display" }}>{section.text.toLowerCase()}</span>
+        </ListItem>
+        {children}
+      </>
+    else
+      return <>
+        <ListItem key={section.text} button
+          component="a"
+          href={sectionUrl(section)}
+          style={{ display: hidden ? "none" : "block", paddingLeft: `${10 * section.depth}px`, color: theme.palette.text.primary }}>
+            <Typography>{section.text}</Typography>
+        </ListItem>
+        {children}
+      </>
+
+}
+
+const DocumentationMenu = (props: { hierarchy: DocHierarchy }) => {
+  if (!props.hierarchy) return <></>;
+  return <List disablePadding>
+    {Object.values(props.hierarchy).map((item: SectionNode) => <DocumentationMenuRec section={item}/>)}
+    </List>
+}
+
 export const Documentation = (props: { hash: string }) => {
 
-  const theme = useTheme();
   const [content, setContent] = useState("")
-  const [menu, setMenu] = useState<any>(null)
+  const [hierarchy, setHierarchy] = useState<any>(null)
   const [currentSection, setCurrentSection] = useState("")
-  function makeMenu(hierarchy: DocHierarchy) {
-
-    if (!hierarchy) return <></>;
-
-    return <List disablePadding>
-      {Object.values(hierarchy).map((item: SectionNode) => <>
-        <ListItem key={item.text} button
-          component="a"
-          href={sectionUrl(item)}   
-          style={{ paddingLeft: `${10 * item.depth}px`, color: theme.palette.text.primary }}>
-          {
-            !item.parent ? <span style={{ fontFamily: "Major Mono Display" }}>{item.text.toLowerCase()}</span>
-              : <Typography>{item.text}</Typography>
-          }
-        </ListItem>
-        {makeMenu(item.children)}
-      </>)}
-    </List>
-  }
 
   useEffect(() => {
     (async () => {
-      let menu = makeMenu((await documentationIndex)[0]);
-      setMenu(menu);
+      setHierarchy((await documentationIndex)[0]);
     })();
   }, []);
 
@@ -248,7 +269,7 @@ export const Documentation = (props: { hash: string }) => {
         setContent(mainSection + ": Section not found");
       else
         await docsHtml[mainSection].then(c => setContent(c));
-      
+
       // Refresh hash to scroll to the right section.
       window.location.hash = "";
       window.location.hash = props.hash;
@@ -258,17 +279,17 @@ export const Documentation = (props: { hash: string }) => {
   }, [props.hash]);
 
 
-return <div>
+  return <div>
     <Container style={{ paddingLeft: "240px", position: "relative", paddingTop: "100px" }}>
 
       <div className="docMenu" style={{ position: "fixed", width: "220px", top: "100px", marginLeft: "-240px", height: "calc(100% - 100px)", overflow: "scroll" }}>
-        {menu}
+        <DocumentationMenu hierarchy={hierarchy} />
       </div>
       <Paper style={{ flexGrow: 1, textAlign: "left", padding: "20px", }}>
         <div dangerouslySetInnerHTML={{ __html: content }}>
         </div>
       </Paper>
-      <Footer/>
+      <Footer />
     </Container>
 
   </div>

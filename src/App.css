@@ -58,7 +58,8 @@ code.hljs {
 .searchHighlight {
   font-weight: bold;
   /* text-decoration: underline; */
-  color: #61ff79;
+  /* color: #61ff79; */
+  color: #57A64A;
 }
 html {
   --scrollbarBG: #292929;

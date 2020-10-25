@@ -18,11 +18,12 @@ const darkTheme = createMuiTheme({
     secondary: {
       main: '#f5f5f5',
       dark: '#414141'
-    }
+    },
     // background: {
     //   paper: "rgba(255,255,255,0.5)",      
     //   default: "rgba(255,255,255,0.5)"
     // }
+    background: { paper: "#151515" },
   },
 
   typography: {
