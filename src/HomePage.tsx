@@ -13,8 +13,7 @@ import useMediaQuery from "@material-ui/core/useMediaQuery"
 import { Footer } from "./Footer"
 import { useTheme } from "@material-ui/core/styles"
 import { Box } from "@material-ui/core"
-
-
+  
 export const HomePage = () => {
   const theme = useTheme();
   const screen700 = useMediaQuery('(min-width:700px)');
@@ -43,6 +42,7 @@ export const HomePage = () => {
         <div style={{ height: "20px" }}></div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-start", }}>    
         <Button variant="outlined"  style={{marginRight: "45px"}} href={"#getting-started"} >Get Started</Button>
+
         <iframe src="https://ghbtns.com/github-btn.html?user=matt-42&repo=lithium&type=star&count=true&size=large" frameBorder="0" scrolling="0" width="170" height="30" title="GitHub"></iframe>
         <a href="https://twitter.com/share" className="twitter-share-button" style={{float: "left", marginLeft: "-37px", paddingTop: "10px"}} data-size="large">Tweet</a>
     </div>

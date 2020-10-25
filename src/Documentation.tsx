@@ -248,6 +248,11 @@ export const Documentation = (props: { hash: string }) => {
         setContent(mainSection + ": Section not found");
       else
         await docsHtml[mainSection].then(c => setContent(c));
+      
+      // Refresh hash to scroll to the right section.
+      window.location.hash = "";
+      window.location.hash = props.hash;
+
     })();
 
   }, [props.hash]);

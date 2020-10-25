@@ -83,7 +83,6 @@ export const Search = () => {
       openOnFocus={false}
       // onOpen={e => { console.log(e); e.preventDefault(); return false; } }
       renderInput={(params) =>  <TextField {...params}
-      autoFocus
       onMouseDownCapture={(e) => e.stopPropagation()}
       InputProps={{
         ...params.InputProps,
