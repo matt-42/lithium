@@ -33,7 +33,7 @@ drivers provided by the databases. It allows you to target MySQL, PostgreSQL and
 same C++ API which is significantly smaller and easier to learn than the C APIs provided by the
 databases.
 
-### Features:
+### Features
   - MySQL sync & async requests
   - A PostgreSQL sync & async requests
   - A SQLite sync requests
@@ -108,7 +108,9 @@ sqlite_database sqlite_db = li::sqlite_database(
 /*
 ## Connect
 
-`connection database::connect()`
+```c++
+database::connect() -> connection
+```
 
 Requested a database connection. One connection of the internally
 managed connection pool is returned, otherwise a new connection is created. 
@@ -217,7 +219,8 @@ auto [name, age] = connection("select name, age from users where id = 42;").read
 
 ```c++
 result::read_optional<T>() -> std::optional<T>
-result::read_optional<T1, T...>() -> std::optional<std::tuple<T1, T...>>```
+result::read_optional<T1, T...>() -> std::optional<std::tuple<T1, T...>>
+```
 
 */
 auto optional =
@@ -231,7 +234,8 @@ if (optional) {
 ### Map
 
 ```c++
-result::map(F fun) -> void``` 
+result::map(F fun) -> void
+``` 
 
 Maps a function \fun to each row of a result set. 
 Template functions (or lambda with auto arguments) are not allowed.
@@ -248,15 +252,16 @@ connection("select name, age from users;").map([](std::string name, int age) {
 
 ### Writting results to Metamaps
 
-*/
-using row_t = metamap_t<s::name_t, int, s::age_t, std::string>;
+All the read methods above can also take metamaps as argument:
 
-connection("select name, age from users;").map([](const row_t& row) {
-  std::cout << row.name << ":" << row.age << std::endl;
-});
+*/
+connection("select name, age from users;").map(
+  [](const metamap_t<s::name_t, int, s::age_t, std::string>& row) {
+    std::cout << row.name << ":" << row.age << std::endl;
+  }
+);
 
 /*
-All the read methods above
 
 ## Object Relational Mapping
 
@@ -265,86 +270,86 @@ insertion/update/removal requests. It does not generate `JOIN` requets so automa
 object foreign key is not possible.
 
 
-  */
-  // Let's declare our orm.
-  auto schema =
-      sql_orm_schema(pgsql_db, "users_orm_test" /* the table name in the SQL db*/)
+*/
+// Let's declare our orm.
+auto schema =
+    sql_orm_schema(pgsql_db, "users_orm_test" /* the table name in the SQL db*/)
 
-          // The fields of our user object:
+        // The fields of our user object:
 
-          .fields(s::id(s::auto_increment, s::primary_key) = int(),
-                  s::age(s::read_only) = int(), // Read only a not included in the update requests.
-                  s::name = std::string(), s::login = std::string())
+        .fields(s::id(s::auto_increment, s::primary_key) = int(),
+                s::age(s::read_only) = int(), // Read only a not included in the update requests.
+                s::name = std::string(), s::login = std::string())
 
-          // Callbacks can optionally be set to add logic.
-          // They take as argument the user object being processed.
+        // Callbacks can optionally be set to add logic.
+        // They take as argument the user object being processed.
 
-          .callbacks(
-              // the validate callback is called before insert and update.
-              s::validate =
-                  [](auto p) {
-                    if (p.age < 0)
-                      throw std::runtime_error("invalid age");
-                  },
-              // the (before|after)(insert|remove|update) are self explanatory.
-              s::before_insert =
-                  [](auto p) { std::cout << "going to insert " << json_encode(p) << std::endl; },
-              s::after_insert =
-                  [](auto p) { std::cout << "inserted " << json_encode(p) << std::endl; },
-              s::after_remove =
-                  [](auto p) { std::cout << "removed " << json_encode(p) << std::endl; });
+        .callbacks(
+            // the validate callback is called before insert and update.
+            s::validate =
+                [](auto p) {
+                  if (p.age < 0)
+                    throw std::runtime_error("invalid age");
+                },
+            // the (before|after)(insert|remove|update) are self explanatory.
+            s::before_insert =
+                [](auto p) { std::cout << "going to insert " << json_encode(p) << std::endl; },
+            s::after_insert =
+                [](auto p) { std::cout << "inserted " << json_encode(p) << std::endl; },
+            s::after_remove =
+                [](auto p) { std::cout << "removed " << json_encode(p) << std::endl; });
 
-  // Connect the orm to a database.
-  auto users = schema.connect(); // db can be built with li::sqlite_database or li::mysql_database
+// Connect the orm to a database.
+auto users = schema.connect(); // db can be built with li::sqlite_database or li::mysql_database
 
-  // Drop the table.
-  users.drop_table_if_exists();
+// Drop the table.
+users.drop_table_if_exists();
 
-  // Create it.
-  users.create_table_if_not_exists();
+// Create it.
+users.create_table_if_not_exists();
 
-  // Count users.
-  count = users.count();
+// Count users.
+count = users.count();
 
-  // Find one user.
-  // it returns a std::optional object.
-  auto u42 = users.find_one(s::id = 42);
-  if (u42)
-    std::cout << u42->name << std::endl;
-  else
-    std::cout << "user not found" << std::endl;
-  // Note: you can use any combination of user field:
-  auto john = users.find_one(s::name = "John", s::age = 42); // look for name == John and age == 42;
+// Find one user.
+// it returns a std::optional object.
+auto u42 = users.find_one(s::id = 42);
+if (u42)
+  std::cout << u42->name << std::endl;
+else
+  std::cout << "user not found" << std::endl;
+// Note: you can use any combination of user field:
+auto john = users.find_one(s::name = "John", s::age = 42); // look for name == John and age == 42;
 
-  // Insert a new user.
-  // Returns the id of the new object.
-  long long int new_john_id = users.insert(s::name = "John", s::age = 42, s::login = "john_d");
+// Insert a new user.
+// Returns the id of the new object.
+long long int new_john_id = users.insert(s::name = "John", s::age = 42, s::login = "john_d");
 
-  // Update.
-  auto to_update = users.find_one(s::id = new_john_id);
-  to_update->age = 43;
-  users.update(*to_update);
+// Update.
+auto to_update = users.find_one(s::id = new_john_id);
+to_update->age = 43;
+users.update(*to_update);
 
-  // Remove.
-  users.remove(*to_update);
-  /*
+// Remove.
+users.remove(*to_update);
+/*
 
-  ### ORM Callbacks additional arguments
+### ORM Callbacks additional arguments
 
-  Callbacks can also take additional arguments, it is used for example in the http_server library
-  to access the HTTP session.
+Callbacks can also take additional arguments, it is used for example in the http_server library
+to access the HTTP session.
 
-  */
-  auto users2 =
-      sql_orm_schema(pgsql_db, "user_table")
-          .fields(s::id(s::auto_increment, s::primary_key) = int(),
-                  s::age(s::read_only) = int(), // Read only a not included in the update requests.
-                  s::name = std::string(), s::login = std::string())
-          .callbacks(s::before_insert = [](auto& user, li::http_request& request) {});
+*/
+auto users2 =
+    sql_orm_schema(pgsql_db, "user_table")
+        .fields(s::id(s::auto_increment, s::primary_key) = int(),
+                s::age(s::read_only) = int(), // Read only a not included in the update requests.
+                s::name = std::string(), s::login = std::string())
+        .callbacks(s::before_insert = [](auto& user, li::http_request& request) {});
 
-  // Additional arguments are passed to the ORM methods:
-  li::http_api api;
-  api.post("/orm_test") = [&](li::http_request& request, li::http_response& response) {
-    users2.connect().insert(s::name = "john", s::age = 42, s::login = "doe", request);
-  };
+// Additional arguments are passed to the ORM methods:
+li::http_api api;
+api.post("/orm_test") = [&](li::http_request& request, li::http_response& response) {
+  users2.connect().insert(s::name = "john", s::age = 42, s::login = "doe", request);
+};
 }

@@ -40,9 +40,17 @@ curl https://raw.githubusercontent.com/matt-42/lithium/master/install.sh | bash 
 
 ## Automatic symbols generation
 
+Note: Automatic symbols generation is included in the command line interface.
+
 The Lithium paradigm relies on compile time symbols (in the `s::` namespace) to bring introspection
-into C++. If you use symbols, you can either declare them manually, or use `li_symbol_generator` to generate
-these definitions automatically.
+into C++. If you use symbols, you can either declare them manually...
+```c++
+#ifndef LI_SYMBOL_my_symbol
+#define LI_SYMBOL_my_symbol
+  LI_SYMBOL(my_symbol)
+#endif
+```
+... or use `li_symbol_generator` to generate these definitions automatically.
 
 You should be able to run `li_symbol_generator` without arguments and get its help message:
 ```text
