@@ -2,6 +2,7 @@
 
 #include <li/symbol/ast.hh>
 #include <li/symbol/symbol.hh>
+#include <li/callable_traits/typelist.hh>
 
 namespace li {
 
@@ -43,5 +44,26 @@ template <typename... T> constexpr inline decltype(auto) make_metamap_reference(
 template <typename... Ks> constexpr decltype(auto) metamap_clone(const metamap<Ks...>& map) {
   return mmm((typename Ks::_iod_symbol_type() = map[typename Ks::_iod_symbol_type()])...);
 }
+
+namespace internal {
+  
+  template <typename... V>
+  auto make_metamap_type(typelist<V...> variables) {
+    return mmm(V(typename V::left_t{}, typename V::right_t{})...);
+  };
+
+  template <typename T1, typename T2, typename... V, typename... T>
+  auto make_metamap_type(typelist<V...> variables, T1, T2, T... args) {
+    return make_metamap_type(typelist<V..., assign_exp<T1, T2>>{},
+              args...);
+  };
+}
+
+// Helper to make a metamap type:
+//  metamap_t<s::name_t, string, s::age_t, int>
+//  instead of decltype(mmm(s::name = string(), s::age = int()));
+template <typename... T>
+using metamap_t = decltype(internal::make_metamap_type(typelist<>{}, T{}...));
+
 
 } // namespace li

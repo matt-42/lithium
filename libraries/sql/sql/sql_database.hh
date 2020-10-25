@@ -32,8 +32,8 @@ struct active_yield {
   inline void defer_fiber_resume(int fiber_id) {}
   inline void reassign_fd_to_this_fiber(int fd) {}
 
-  inline void epoll_add(int, int) {}
-  inline void epoll_mod(int, int) {}
+  inline void epoll_add(int fd, int flags) {}
+  inline void epoll_mod(int fd, int flags) {}
   inline void yield() {}
 };
 
