@@ -2,15 +2,17 @@
 
 ## Motivations
 
-Pre-2010 C++ was a pretty low-level language and zero-runtime-cost abstraction where only possible
+Pre-2010 C++ was a pretty low-level language and zero-runtime-cost abstractions where only possible
 using complex template meta-programming tricks. The C++ standard commitee addressed thoses issues by
 publishing new C++ standard, making C++ programs much more simpler and fun to write.
-This recent language evolutions has created inside the language a C++ subset that is easy to grasp 
+These recent language evolutions has created inside the language a C++ subset that is easy to grasp 
 for begginers and less error prone than C++ itself: using RAII insead of manual memory management, using
 constexpr instead of template metaprogramming, etc... 
 
+
 Could this subset of C++ lead to a web framework that is as easy to grasp than
 javascript alternatives while keeping the performances of C++ ?
+
 
 The goal of `Lithium` is to prove that this is feasible.
 
