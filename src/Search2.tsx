@@ -1,8 +1,9 @@
 import { TextField, Typography, useTheme } from "@material-ui/core";
 import Icon from "@material-ui/core/Icon/Icon";
 import InputAdornment from "@material-ui/core/InputAdornment/InputAdornment";
+import useMediaQuery from "@material-ui/core/useMediaQuery/useMediaQuery";
 import _ from "lodash";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { DocIndex, DocIndexEntry, documentationIndex, sectionAnchor, sectionPath } from "./Documentation";
 import brushed_bg from "./images/brushed.jpg";
 import brushed_bg_white from "./images/brushed_white.jpg";
@@ -35,8 +36,9 @@ function filterOptions(options: DocIndexEntry[], query: string): DocIndexEntry[]
   return selected.map(s => s[0]).slice(0, 20);
 }
 
-export const SearchResult = (props: { option: DocIndexEntry, query: string, selected: boolean }) => {
+export const SearchResult = (props: { option: DocIndexEntry, query: string, selected: boolean, onSelect: () => void }) => {
 
+  const screen700 = useMediaQuery('(min-width:700px)');
   let theme = useTheme();
   let { query, option, selected } = props;
 
@@ -91,8 +93,10 @@ export const SearchResult = (props: { option: DocIndexEntry, query: string, sele
     return str;
   };
   return <div
+    onClick={props.onSelect}
     key={sectionPath(option.section) + option.text}
     style={{
+      cursor: "pointer",
       display: "flex",
       flexDirection: "column",
       borderLeft: "1px solid #999999",
@@ -100,7 +104,7 @@ export const SearchResult = (props: { option: DocIndexEntry, query: string, sele
       paddingLeft: "10px",
       textAlign: "left",
       marginTop: "10px",
-      width: "700px"
+      width: screen700 ? "700px" : "calc(100% - 20px)"
     }}>
     {
       option.section.parent ? <div>
@@ -117,6 +121,8 @@ export const SearchResult = (props: { option: DocIndexEntry, query: string, sele
 }
 
 export const Search2 = () => {
+  const screen700 = useMediaQuery('(min-width:700px)');
+
   const theme = useTheme();
   const [index, setIndex] = useState<DocIndex | null>(null)
   const [query, setQuery] = useState("");
@@ -133,6 +139,15 @@ export const Search2 = () => {
     return () => { document.removeEventListener('keyup', l); }
   }, []);
 
+  const gotoResult = useCallback(
+    (resultIdx: number) => {
+      let selection = results[resultIdx];
+      if (selection)
+        window.location.hash = sectionAnchor(selection.section);
+      setQuery("");
+    },
+    []);
+
   // Focus on / or . key press.
   useEffect(() => {
     let l = (event: any) => {
@@ -141,10 +156,7 @@ export const Search2 = () => {
       if ('ArrowDown' === event.key)
         setSelectedResultIndex(selectedResultIndex + 1);
       if ('Enter' === event.key) {
-        let selection = results[selectedResultIndex];
-        if (selection)
-          window.location.hash = sectionAnchor(selection.section);
-        setQuery("");
+        gotoResult(selectedResultIndex);
       }
       if ('Escape' === event.key) {
         setQuery("");
@@ -177,7 +189,7 @@ export const Search2 = () => {
     // variant="filled"
     InputProps={{
       style: {
-        width: query.length ? "600px" : "200px",
+        width: query.length ? (screen700 ? "600px" : "100%") : "200px",
         transitionProperty: "left top position width height",
         transitionDuration: "0.2s",
       },
@@ -215,8 +227,13 @@ export const Search2 = () => {
   return <div
     style={searchStyle}>
     {searchInput}
-    <div style={{display: query.length ? "block" : "none", overflowY: "auto", height: "calc(100% - 150px)", marginTop: "10px"}}>
-    {results.map((r, idx) => <SearchResult key={idx} option={r} query={query} selected={idx == selectedResultIndex} />)}
+    <div style={{ display: query.length ? "block" : "none", overflowY: "auto", height: "calc(100% - 150px)", marginTop: "10px" }}>
+      {results.map((r, idx) => <SearchResult
+        key={idx}
+        option={r}
+        query={query}
+        selected={idx == selectedResultIndex}
+        onSelect={() => gotoResult(idx)} />)}
     </div>
   </div>
 }
