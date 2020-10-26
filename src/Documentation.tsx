@@ -308,7 +308,7 @@ export const Documentation = (props: { hash: string }) => {
       paddingTop: "100px",
       backgroundImage: `url("${dark ? brushed_bg : brushed_bg_white}")`,
     };
-    docStyle = { ...docStyle }
+    docStyle = { ...docStyle, width:"100%"}
 
     mobileOpenMenuButton = <Fab color="primary" aria-label="show_menu"
       // hidden={mobileMenuOpen}

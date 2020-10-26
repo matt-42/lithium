@@ -12,6 +12,9 @@ body {
 }
 
 
+pre {
+  white-space: pre-wrap;
+}
 /* code.hljs {
   background-image: url("./images/brushed.jpg");
 } */
