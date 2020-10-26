@@ -32,7 +32,7 @@ function filterOptions(options: DocIndexEntry[], query: string): DocIndexEntry[]
   selected = _.uniqBy(selected, (s) => s[0].section);
   selected = _.sortBy(selected, (s) => -s[1]);
 
-  return selected.map(s => s[0]).slice(0, 10);
+  return selected.map(s => s[0]).slice(0, 20);
 }
 
 export const SearchResult = (props: { option: DocIndexEntry, query: string, selected: boolean }) => {
@@ -177,7 +177,7 @@ export const Search2 = () => {
     // variant="filled"
     InputProps={{
       style: {
-        width: query.length ? "500px" : "200px",
+        width: query.length ? "600px" : "200px",
         transitionProperty: "left top position width height",
         transitionDuration: "0.2s",
       },
@@ -201,10 +201,11 @@ export const Search2 = () => {
     alignItems: "center",
     transitionProperty: "left top position width height",
     transitionDuration: "0.2s",
-    paddingTop: "50px",
     top: "0px",
     left: "0px",
     width: "100%",
+    height: "100%",
+    zIndex: 2000,
     justifyContent: "center",
     backgroundImage: `url("${dark ? brushed_bg : brushed_bg_white}")`,
     backgroundColor: dark ? "black" : "white",
@@ -214,6 +215,8 @@ export const Search2 = () => {
   return <div
     style={searchStyle}>
     {searchInput}
+    <div style={{display: query.length ? "block" : "none", overflowY: "auto", height: "calc(100% - 150px)", marginTop: "10px"}}>
     {results.map((r, idx) => <SearchResult key={idx} option={r} query={query} selected={idx == selectedResultIndex} />)}
+    </div>
   </div>
 }
