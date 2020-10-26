@@ -213,7 +213,7 @@ for (let sectionName of Object.keys(docUrls)) {
 const DocumentationMenuRec = (props: { section: SectionNode, hidden?: boolean, onLinkClick: () => void }) => {
   const hidden = props.hidden === undefined ? false : props.hidden;
   const section = props.section;
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(window.location.hash.startsWith(sectionAnchor(section)));
   const theme = useTheme();
 
   if (!section) return <></>;
