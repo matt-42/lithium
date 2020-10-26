@@ -34,7 +34,7 @@ int main()
   std::cout << res.status << std::endl;
   std::cout << res.body << std::endl;
 
-  // http_post, http_put, http_delete are also avalable.
+  // http_post, http_put, http_delete are also available.
 
   // GET and POST Parameters.
   auto res = http_post("http://my_api.com/update_test", 

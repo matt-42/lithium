@@ -25,7 +25,7 @@ The design of this library is focused on **simplicity**:
 - Simple things should be simple to write for the end user.
 - Inheritance is rarely used
 - The end user should not have to instantiate complex templates
-- Function taking easily swipable parameters should use named parameters
+- Function taking many parameters should use named parameters
 
 ### Dependencies
   - Boost context and lexical_cast
@@ -92,7 +92,7 @@ Available errors are:
 - `http_error::internal_server_error`
 - `http_error::not_implemented`
 
-All the error buidlers above take any number of argument and use
+All the error builders above take any number of argument and use
 `std::ostringstream::operator<<` to convert them into one error string that is
 sent as the HTTP response body with the appropriate HTTP error code. 
 

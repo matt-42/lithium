@@ -101,7 +101,7 @@ void __your_type_info__.decode(json_string, output_object);
 
 Since there is no way for Lithium to know the members names your objects, you need to provide the list of member or
 accessor names (type infos) that you want to encode or decode.
-The following sections describe the fonctions that you can use to build type infos:
+The following sections describe the functions that you can use to build type infos:
 
 #### json_object
 
@@ -133,7 +133,7 @@ json_str = json_vector(s::age, s::name).encode(array);
 /*
 #### json_map
 
-Behave like `json_vector` but for maps. Note that only maps with string as key type are serialiable.
+Behave like `json_vector` but for maps. Note that only maps with string as key type are serializable.
 
 */
 
@@ -178,7 +178,7 @@ json_object(s::test1, s::test2(li::json_key("name")))
 
 ### Pointers deferencing
 
-When `json_decode` meet an object pointer, it deferences it and serialize the pointer object.
+When `json_decode` meet an object pointer, it dereferences it and serialize the pointer object.
 
 */
 

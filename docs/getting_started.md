@@ -2,7 +2,7 @@
 
 There is two ways to get started with lithium:
   - Using the command line interface, which build and run programs inside docker containers.
-  - By instaling lithium locally
+  - By installing lithium locally
 
 ## Using the command line interface
 
@@ -92,7 +92,7 @@ https://github.com/matt-42/lithium/tree/master/cmake_project_template
 
 The `sql` libraries use a global variable to store the pool of connections. If you encounter
 multiple definitions at link time, you need to `#define LI_EXTERN_GLOBALS` before including the lithium
-header in all your files exept one.
+header in all your files except one.
 
 In one file:
 ```c++

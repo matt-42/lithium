@@ -215,7 +215,7 @@ auto [name, age] = connection("select name, age from users where id = 42;").read
 /*
 ### Optional read
 
-`read_optional` behave excatly like `read` except that:
+`read_optional` behave exactly like `read` except that:
 - It does not throw an exception when the result set is empty or totally consumed.
 - It wraps the result in `std::optional` 
 
@@ -268,7 +268,7 @@ connection("select name, age from users;").map(
 ## Object Relational Mapping
 
 On top of the raw query API, an ORM allows to automatically generate 
-insertion/update/removal requests. It does not generate `JOIN` requets so automatically fetching 
+insertion/update/removal requests. It does not generate `JOIN` requests so automatically fetching 
 object foreign key is not possible.
 
 
