@@ -102,7 +102,7 @@ int main() {
   http_serve(my_api, 8080);
 }
 `}
-        </HLcpp>, history
+        </HLcpp>
 
         <Typography>
         And run it:
