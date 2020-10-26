@@ -175,8 +175,8 @@ export default function PrimarySearchAppBar(props : { switchDarkMode: () => void
           >
             <MenuIcon />
           </IconButton> */}
-            <a href="/">
-              <img hidden={!screen450} alt="Lithium logo" src="https://raw.githubusercontent.com/matt-42/lithium/master/images/lithium_logo_white.png" width="40" 
+            <a hidden={!screen450} href="/">
+              <img alt="Lithium logo" src="https://raw.githubusercontent.com/matt-42/lithium/master/images/lithium_logo_white.png" width="40" 
                   style={{ paddingRight: "15px", filter: `invert(${theme.palette.type === "dark" ? "0" : '100'})` }} />
             </a>
             <Typography className={classes.title} variant="h6" noWrap>
