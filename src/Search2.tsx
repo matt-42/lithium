@@ -147,7 +147,7 @@ export const Search2 = () => {
       setQuery("");
       document.getElementById('doc_search_bar')?.blur();
     },
-    []);
+    [results]);
 
   // Focus on / or . key press.
   useEffect(() => {
