@@ -317,7 +317,7 @@ export const Documentation = (props: { hash: string }) => {
         zIndex: 3000,
         position: 'fixed',
         bottom: theme.spacing(2),
-        right: theme.spacing(2),
+        left: theme.spacing(2),
       }}>
       <Icon>{mobileMenuOpen ? "close" : "view_headline"}</Icon>
     </Fab>
