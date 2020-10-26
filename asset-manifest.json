@@ -1,14 +1,14 @@
 {
   "files": {
     "main.css": "/lithium/static/css/main.750479e9.chunk.css",
-    "main.js": "/lithium/static/js/main.5179af35.chunk.js",
-    "main.js.map": "/lithium/static/js/main.5179af35.chunk.js.map",
+    "main.js": "/lithium/static/js/main.bfc1f97a.chunk.js",
+    "main.js.map": "/lithium/static/js/main.bfc1f97a.chunk.js.map",
     "runtime-main.js": "/lithium/static/js/runtime-main.8894366d.js",
     "runtime-main.js.map": "/lithium/static/js/runtime-main.8894366d.js.map",
     "static/js/2.1f06b67b.chunk.js": "/lithium/static/js/2.1f06b67b.chunk.js",
     "static/js/2.1f06b67b.chunk.js.map": "/lithium/static/js/2.1f06b67b.chunk.js.map",
     "index.html": "/lithium/index.html",
-    "precache-manifest.91cc88edf7dbf837351926a227fa15b6.js": "/lithium/precache-manifest.91cc88edf7dbf837351926a227fa15b6.js",
+    "precache-manifest.ff84c86c6204a49812ff26ff0861c4bb.js": "/lithium/precache-manifest.ff84c86c6204a49812ff26ff0861c4bb.js",
     "service-worker.js": "/lithium/service-worker.js",
     "static/css/main.750479e9.chunk.css.map": "/lithium/static/css/main.750479e9.chunk.css.map",
     "static/js/2.1f06b67b.chunk.js.LICENSE.txt": "/lithium/static/js/2.1f06b67b.chunk.js.LICENSE.txt",
@@ -19,6 +19,6 @@
     "static/js/runtime-main.8894366d.js",
     "static/js/2.1f06b67b.chunk.js",
     "static/css/main.750479e9.chunk.css",
-    "static/js/main.5179af35.chunk.js"
+    "static/js/main.bfc1f97a.chunk.js"
   ]
 }
