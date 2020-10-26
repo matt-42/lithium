@@ -145,6 +145,7 @@ export const Search2 = () => {
       if (selection)
         window.location.hash = sectionAnchor(selection.section);
       setQuery("");
+      document.getElementById('doc_search_bar')?.blur();
     },
     []);
 
@@ -160,6 +161,7 @@ export const Search2 = () => {
       }
       if ('Escape' === event.key) {
         setQuery("");
+        document.getElementById('doc_search_bar')?.blur();
       }
     };
     document.addEventListener('keyup', l, false);
@@ -182,12 +184,12 @@ export const Search2 = () => {
   }, [query]);
 
   let searchInput = <TextField
-    id="doc_search_bar"
     label={query.length ? "" : "Search (Tap / or . to focus)"}
     variant="outlined"
     size={query.length ? "medium" : "small"}
     // variant="filled"
     InputProps={{
+      id:"doc_search_bar",
       style: {
         width: query.length ? (screen700 ? "600px" : "100%") : "200px",
         transitionProperty: "left top position width height",

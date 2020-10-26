@@ -1,14 +1,20 @@
 import { ListItem } from "@material-ui/core";
 import Container from "@material-ui/core/Container";
+import Fab from "@material-ui/core/Fab/Fab";
+import Icon from "@material-ui/core/Icon/Icon";
 import List from "@material-ui/core/List/List";
 import Paper from "@material-ui/core/Paper";
 import useTheme from "@material-ui/core/styles/useTheme";
+import { CSSProperties } from "@material-ui/core/styles/withStyles";
 import Typography from "@material-ui/core/Typography/Typography";
+import useMediaQuery from "@material-ui/core/useMediaQuery/useMediaQuery";
 import hljs from 'highlight.js';
 // import "highlight.js/styles/vs2015.css";
 import marked, { lexer } from "marked";
 import React, { useEffect, useState } from "react";
 import { Footer } from "./Footer";
+import brushed_bg from "./images/brushed.jpg";
+import brushed_bg_white from "./images/brushed_white.jpg";
 
 let DOC_ROOT = "https://raw.githubusercontent.com/matt-42/lithium/master/docs/";
 
@@ -204,7 +210,7 @@ for (let sectionName of Object.keys(docUrls)) {
   docsHtml[sectionName] = generateDocumentation(docUrls[sectionName]);
 }
 
-const DocumentationMenuRec = (props: { section: SectionNode, hidden?: boolean }) => {
+const DocumentationMenuRec = (props: { section: SectionNode, hidden?: boolean, onLinkClick: () => void }) => {
   const hidden = props.hidden === undefined ? false : props.hidden;
   const section = props.section;
   const [open, setOpen] = useState(false);
@@ -213,7 +219,8 @@ const DocumentationMenuRec = (props: { section: SectionNode, hidden?: boolean })
   if (!section) return <></>;
 
   const children = <List disablePadding>{
-    Object.values(section.children).map((item) => <DocumentationMenuRec key={item.text} section={item} hidden={!open} />)}
+    Object.values(section.children).map((item) => <DocumentationMenuRec onLinkClick={props.onLinkClick}
+      key={item.text} section={item} hidden={!open} />)}
   </List>
 
   if (section.depth === 1)// && section.text.toLowerCase() !== "introduction")
@@ -230,6 +237,7 @@ const DocumentationMenuRec = (props: { section: SectionNode, hidden?: boolean })
       <ListItem key={section.text} button
         component="a"
         href={sectionUrl(section)}
+        onClick={props.onLinkClick}
         style={{ display: hidden ? "none" : "block", paddingLeft: `${10 * section.depth}px`, color: theme.palette.text.primary }}>
         <Typography>{section.text}</Typography>
       </ListItem>
@@ -238,18 +246,26 @@ const DocumentationMenuRec = (props: { section: SectionNode, hidden?: boolean })
 
 }
 
-const DocumentationMenu = (props: { hierarchy: DocHierarchy }) => {
+const DocumentationMenu = (props: { hierarchy: DocHierarchy, onLinkClick: () => void }) => {
   if (!props.hierarchy) return <></>;
   return <List disablePadding>
-    {Object.values(props.hierarchy).map((item: SectionNode) => <DocumentationMenuRec key={item.text} section={item} />)}
+    {Object.values(props.hierarchy).map((item: SectionNode) =>
+      <DocumentationMenuRec
+        key={item.text}
+        section={item}
+        onLinkClick={props.onLinkClick} />)}
   </List>
 }
 
 export const Documentation = (props: { hash: string }) => {
 
-  const [content, setContent] = useState("")
-  const [hierarchy, setHierarchy] = useState<any>(null)
-  const [currentSection, setCurrentSection] = useState("")
+  const theme = useTheme();
+  const screen700 = useMediaQuery('(min-width:700px)');
+
+  const [content, setContent] = useState("");
+  const [hierarchy, setHierarchy] = useState<any>(null);
+  const [currentSection, setCurrentSection] = useState("");
+  const [mobileMenuOpen, setmobileMenuOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -277,14 +293,44 @@ export const Documentation = (props: { hash: string }) => {
 
   }, [props.hash, currentSection]);
 
+  let dark = theme.palette.type === 'dark';
+
+  let menuStyle: CSSProperties = { position: "fixed", width: "220px", top: "100px", marginLeft: "-240px", height: "calc(100% - 100px)", overflowY: "auto" };
+  let docStyle: CSSProperties = { flexGrow: 1, textAlign: "left", padding: "20px" };
+  let mobileOpenMenuButton = <></>
+  if (!screen700) {
+
+    menuStyle = {
+      ...menuStyle,
+      display: mobileMenuOpen ? "block" : "none",
+      marginLeft: "0px", width: "100%",
+      top: "0px", 
+      paddingTop: "100px",
+      backgroundImage: `url("${dark ? brushed_bg : brushed_bg_white}")`,
+    };
+    docStyle = { ...docStyle }
+
+    mobileOpenMenuButton = <Fab color="primary" aria-label="show_menu"
+      // hidden={mobileMenuOpen}
+      onClick={() => { setmobileMenuOpen(!mobileMenuOpen); }}
+      style={{
+        zIndex: 3000,
+        position: 'fixed',
+        bottom: theme.spacing(2),
+        right: theme.spacing(2),
+      }}>
+      <Icon>{mobileMenuOpen ? "close" : "view_headline"}</Icon>
+    </Fab>
+
+  }
 
   return <div>
-    <Container style={{ paddingLeft: "240px", position: "relative", paddingTop: "100px" }}>
-
-      <div className="docMenu" style={{ position: "fixed", width: "220px", top: "100px", marginLeft: "-240px", height: "calc(100% - 100px)", overflowY: "auto" }}>
-        <DocumentationMenu hierarchy={hierarchy} />
+    <Container style={{ paddingLeft: screen700 ? "240px" : "0px", position: "relative", paddingTop: "100px" }}>
+      {mobileOpenMenuButton}
+      <div className="docMenu" style={menuStyle} >
+        <DocumentationMenu hierarchy={hierarchy} onLinkClick={() => setmobileMenuOpen(false)} />
       </div>
-      <Paper style={{ flexGrow: 1, textAlign: "left", padding: "20px", }}>
+      <Paper style={docStyle}>
         <div dangerouslySetInnerHTML={{ __html: content }}>
         </div>
       </Paper>
