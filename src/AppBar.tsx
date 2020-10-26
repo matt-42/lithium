@@ -19,6 +19,7 @@ import { Search2 } from './Search2';
 import brushed_bg from "./images/brushed.jpg"
 import brushed_bg_white from "./images/brushed_white.jpg"
 import Icon from '@material-ui/core/Icon/Icon';
+import useMediaQuery from '@material-ui/core/useMediaQuery/useMediaQuery';
 
 const useStyles = makeStyles((theme: Theme) => {
 
@@ -77,6 +78,8 @@ const useStyles = makeStyles((theme: Theme) => {
 
 
 export default function PrimarySearchAppBar(props : { switchDarkMode: () => void }) {
+
+  const screen450 = useMediaQuery('(min-width:450px)');
   const theme = useTheme();
   const classes = useStyles();
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
@@ -173,7 +176,7 @@ export default function PrimarySearchAppBar(props : { switchDarkMode: () => void
             <MenuIcon />
           </IconButton> */}
             <a href="/">
-              <img alt="Lithium logo" src="https://raw.githubusercontent.com/matt-42/lithium/master/images/lithium_logo_white.png" width="40" 
+              <img hidden={!screen450} alt="Lithium logo" src="https://raw.githubusercontent.com/matt-42/lithium/master/images/lithium_logo_white.png" width="40" 
                   style={{ paddingRight: "15px", filter: `invert(${theme.palette.type === "dark" ? "0" : '100'})` }} />
             </a>
             <Typography className={classes.title} variant="h6" noWrap>

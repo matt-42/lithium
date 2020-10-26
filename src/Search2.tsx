@@ -184,7 +184,7 @@ export const Search2 = () => {
   }, [query]);
 
   let searchInput = <TextField
-    label={query.length ? "" : "Search (Tap / or . to focus)"}
+    label={query.length ? "" : (screen700 ? "Search (Tap / or . to focus)" : "")}
     variant="outlined"
     size={query.length ? "medium" : "small"}
     // variant="filled"
