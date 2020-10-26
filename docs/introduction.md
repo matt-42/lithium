@@ -20,3 +20,12 @@ The goal of `Lithium` is to prove that this is feasible.
   - Linux: G++ 9.2, Clang++ 9.0
   - MacOS: Apple clang version 12.0.0 
   - Windows: Not supported. Waiting for a bugfix in the MSVC C++ compiler.
+
+
+## Issues / Feature requests
+
+You are welcome to ask questions or to ask for feature requests by posting a [github issue](https://github.com/matt-42/lithium/issues).
+
+## Support the project
+
+If you find this project helpful and want to support it, give a github star to lithium or [buy me a coffee](https://github.com/sponsors/matt-42)
