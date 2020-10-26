@@ -40,10 +40,12 @@ databases.
   - An ORM-like class that allow to send requests without typing raw SQL code.
   - Thread-safe connection pooling for MySQL and PostgreSQL.
 
-### Dependency
+### Dependencies
+  - boost::lexical_cast
   - MariaDB mysqlClient. Note: MariaDB mysqlclient can target MySQL (non-mariadb) server.
   - PostgreSQL libpq
   - SQLite3
+
 
 ### Runtime Performances
 
