@@ -15,13 +15,19 @@ import MailIcon from '@material-ui/icons/Mail';
 import MoreIcon from '@material-ui/icons/MoreVert';
 import NotificationsIcon from '@material-ui/icons/Notifications';
 import React from 'react';
-import { useHistory } from 'react-router-dom';
 import { Search } from './Search';
+import brushed_bg from "./images/brushed.jpg"
+import brushed_bg_white from "./images/brushed_white.jpg"
+import Icon from '@material-ui/core/Icon/Icon';
 
 const useStyles = makeStyles((theme: Theme) => {
-  console.log(theme.palette.type, theme.palette.text.primary);
 
+  let dark = theme.palette.type === 'dark';
   return createStyles({
+    appbar: {
+      backgroundImage: `url("${  dark ? brushed_bg : brushed_bg_white }")`,
+      backgroundColor: dark ? "black" : "white"
+    },
     grow: {
       flexGrow: 1,
     },
@@ -70,7 +76,7 @@ const useStyles = makeStyles((theme: Theme) => {
 );
 
 
-export default function PrimarySearchAppBar() {
+export default function PrimarySearchAppBar(props : { switchDarkMode: () => void }) {
   const theme = useTheme();
   const classes = useStyles();
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
@@ -155,7 +161,7 @@ export default function PrimarySearchAppBar() {
 
   return (
     <div className={classes.grow}>
-      <AppBar position="fixed">
+      <AppBar position="fixed" className={classes.appbar}>
         <Container>
           <Toolbar>
             {/* <IconButton
@@ -166,9 +172,9 @@ export default function PrimarySearchAppBar() {
           >
             <MenuIcon />
           </IconButton> */}
-            <a href="#">
-              <img src="https://raw.githubusercontent.com/matt-42/lithium/master/images/lithium_logo_white.png" width="40" 
-                  style={{ paddingRight: "15px", filter: `invert(${theme.palette.type == "dark" ? "0" : '100'})` }} />
+            <a href="/">
+              <img alt="Lithium logo" src="https://raw.githubusercontent.com/matt-42/lithium/master/images/lithium_logo_white.png" width="40" 
+                  style={{ paddingRight: "15px", filter: `invert(${theme.palette.type === "dark" ? "0" : '100'})` }} />
             </a>
             <Typography className={classes.title} variant="h6" noWrap>
               <Link className={classes.title}  underline="none" href="#">lithium</Link>
@@ -191,8 +197,11 @@ export default function PrimarySearchAppBar() {
               /> */}
             </div>
             <div className={classes.sectionDesktop}>
-                <IconButton href="https://github.com/matt-42/lithium" target="_blank" aria-label="Github" >
+              <IconButton href="https://github.com/matt-42/lithium" target="_blank" aria-label="Github" >
                   <GitHub />
+                </IconButton>
+                <IconButton onClick={props.switchDarkMode}>
+                  <Icon>invert_colors</Icon>
                 </IconButton>
             </div>
             <div className={classes.sectionMobile}>

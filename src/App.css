@@ -1,20 +1,20 @@
 @import url('https://fonts.googleapis.com/css?family=Major+Mono+Display:regular,bold,italic&subset=latin,latin-ext');
 
-header.MuiAppBar-colorPrimary {
-  background-image: url("./images/brushed.jpg");
-}
+/* header.MuiAppBar-colorPrimary { */
+  /* background-image: url("./images/brushed.jpg"); */
+/* } */
 
 body {
   /* background-color: #1e1e1d; */
-  background-image: url("./images/brushed.jpg");
+  /* background-image: url("./images/brushed.jpg"); */
 
   /* color: #ffffff; */
 }
 
 
-code.hljs {
+/* code.hljs {
   background-image: url("./images/brushed.jpg");
-}
+} */
 
 .App {
   text-align: center;
@@ -61,7 +61,7 @@ code.hljs {
   /* color: #61ff79; */
   color: #57A64A;
 }
-html {
+/* html {
   --scrollbarBG: #292929;
   --thumbBG: #909090;
 }
@@ -79,4 +79,4 @@ body::-webkit-scrollbar-thumb, .docMenu::-webkit-scrollbar-thumb, code::-webkit-
   background-color: var(--thumbBG) ;
   border-radius: 6px;
   border: 3px solid var(--scrollbarBG);
-}
+} */

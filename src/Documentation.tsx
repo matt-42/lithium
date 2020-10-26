@@ -5,7 +5,7 @@ import Paper from "@material-ui/core/Paper";
 import useTheme from "@material-ui/core/styles/useTheme";
 import Typography from "@material-ui/core/Typography/Typography";
 import hljs from 'highlight.js';
-import "highlight.js/styles/vs2015.css";
+// import "highlight.js/styles/vs2015.css";
 import marked, { lexer } from "marked";
 import React, { useEffect, useState } from "react";
 import { Footer } from "./Footer";
@@ -100,13 +100,12 @@ const docRendererParents = [] as (SectionNode | null)[];
 
 const docRenderer = {
   code(code: string, infostring: string, escaped: boolean) {
-    if (infostring == "") infostring = "c++"
+    if (infostring === "") infostring = "c++"
     return `<pre><code class="hljs ${infostring}">${hljs.highlight(infostring, code).value}</code></pre>`;
   },
   heading(text: string, level: number) {
     let section = addToHierarchy({ text, depth: level }, docRendererHierarchy, docRendererParents);
 
-    const escapedText = formatUrl(text);
     return `
     <a name="${sectionAnchor(section).substring(1)}" class="anchor" href="${sectionAnchor(section)}" style="top: -90px; display: block;
     position: relative;
@@ -136,7 +135,7 @@ function cppToMarkdown(code: string) {
   // replace c++ comment with markdown c++ code
   let marker = "__documentation_starts_here__";
   let markerpos = code.indexOf(marker)
-  if (markerpos != -1)
+  if (markerpos !== -1)
     code = code.substring(markerpos + marker.length);
   code = code.replace(/\n[\s]*\/\*/g, '\n```\n');
   code = code.replace(/\n[\s]*\*\/[\s]*/g, '\n```c++\n');
@@ -160,7 +159,7 @@ export async function indexDocumentation()
   for (let url of Object.values(docUrls)) {
     let content: string = await fetch(url).then(r => r.text());
 
-    let items: any[] = lexer(url.split('.').pop() == "md" ? content : cppToMarkdown(content));
+    let items: any[] = lexer(url.split('.').pop() === "md" ? content : cppToMarkdown(content));
 
     let parents: (SectionNode | null)[] = [];
     for (let item of items) {
@@ -196,7 +195,7 @@ async function generateDocumentation(doc_url: string) {
   let code: string = await fetch(doc_url).then(r => r.text());
   // Remove doc preambule.
 
-  return marked(doc_url.split('.').pop() == "md" ? code : cppToMarkdown(code));
+  return marked(doc_url.split('.').pop() === "md" ? code : cppToMarkdown(code));
 }
 
 const docsHtml: { [sectionName: string]: Promise<string> } = {};
@@ -214,36 +213,36 @@ const DocumentationMenuRec = (props: { section: SectionNode, hidden?: boolean })
   if (!section) return <></>;
 
   const children = <List disablePadding>{
-    Object.values(section.children).map((item) => <DocumentationMenuRec section={item} hidden={!open} /> )}
-    </List>
+    Object.values(section.children).map((item) => <DocumentationMenuRec key={item.text} section={item} hidden={!open} />)}
+  </List>
 
-  if (section.depth == 1)// && section.text.toLowerCase() != "introduction")
-      return <>
-        <ListItem key={section.text} button
-          onClick={() => setOpen(!open)}
-          style={{ paddingLeft: `${10 * section.depth}px`, color: theme.palette.text.primary }}>
-            <span style={{ fontFamily: "Major Mono Display" }}>{section.text.toLowerCase()}</span>
-        </ListItem>
-        {children}
-      </>
-    else
-      return <>
-        <ListItem key={section.text} button
-          component="a"
-          href={sectionUrl(section)}
-          style={{ display: hidden ? "none" : "block", paddingLeft: `${10 * section.depth}px`, color: theme.palette.text.primary }}>
-            <Typography>{section.text}</Typography>
-        </ListItem>
-        {children}
-      </>
+  if (section.depth === 1)// && section.text.toLowerCase() !== "introduction")
+    return <>
+      <ListItem key={section.text} button
+        onClick={() => setOpen(!open)}
+        style={{ paddingLeft: `${10 * section.depth}px`, color: theme.palette.text.primary }}>
+        <span style={{ fontFamily: "Major Mono Display" }}>{section.text.toLowerCase()}</span>
+      </ListItem>
+      {children}
+    </>
+  else
+    return <>
+      <ListItem key={section.text} button
+        component="a"
+        href={sectionUrl(section)}
+        style={{ display: hidden ? "none" : "block", paddingLeft: `${10 * section.depth}px`, color: theme.palette.text.primary }}>
+        <Typography>{section.text}</Typography>
+      </ListItem>
+      {children}
+    </>
 
 }
 
 const DocumentationMenu = (props: { hierarchy: DocHierarchy }) => {
   if (!props.hierarchy) return <></>;
   return <List disablePadding>
-    {Object.values(props.hierarchy).map((item: SectionNode) => <DocumentationMenuRec section={item}/>)}
-    </List>
+    {Object.values(props.hierarchy).map((item: SectionNode) => <DocumentationMenuRec key={item.text} section={item} />)}
+  </List>
 }
 
 export const Documentation = (props: { hash: string }) => {
@@ -262,7 +261,7 @@ export const Documentation = (props: { hash: string }) => {
     (async () => {
       const split = props.hash.split("/");
       const mainSection = split[0].substring(1);
-      if (mainSection == currentSection)
+      if (mainSection === currentSection)
         return;
       setCurrentSection(mainSection);
       if (!docsHtml[mainSection])
@@ -276,13 +275,13 @@ export const Documentation = (props: { hash: string }) => {
 
     })();
 
-  }, [props.hash]);
+  }, [props.hash, currentSection]);
 
 
   return <div>
     <Container style={{ paddingLeft: "240px", position: "relative", paddingTop: "100px" }}>
 
-      <div className="docMenu" style={{ position: "fixed", width: "220px", top: "100px", marginLeft: "-240px", height: "calc(100% - 100px)", overflow: "scroll" }}>
+      <div className="docMenu" style={{ position: "fixed", width: "220px", top: "100px", marginLeft: "-240px", height: "calc(100% - 100px)", overflowY: "auto" }}>
         <DocumentationMenu hierarchy={hierarchy} />
       </div>
       <Paper style={{ flexGrow: 1, textAlign: "left", padding: "20px", }}>

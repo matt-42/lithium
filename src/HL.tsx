@@ -1,5 +1,5 @@
 import hljs from 'highlight.js'
-import "highlight.js/styles/vs2015.css"
+// import "highlight.js/styles/vs2015.css"
 import React, { PropsWithChildren } from 'react';
 import { useRef, useEffect } from 'react';
 
@@ -16,7 +16,7 @@ export const HL = (props: PropsWithChildren<{language : string}>) => {
   useEffect(() => {
     if (!el.current) return;
     hljs.highlightBlock(el.current);
-  }, [el.current !== null]);
+  }, [el]);
 
   return <pre><code ref={el} className={props.language}>{props.children}</code></pre>
 }
@@ -29,7 +29,7 @@ export const HLsh = (props: PropsWithChildren<{}>) => {
   useEffect(() => {
     if (!el.current) return;
     hljs.highlightBlock(el.current);
-  }, [el.current !== null]);
+  }, [el]);
 
   return <pre><code ref={el} className="shell">{props.children}</code></pre>
 }
@@ -42,7 +42,7 @@ export const HLcpp = (props: PropsWithChildren<{}>) => {
   useEffect(() => {
     if (!el.current) return;
     hljs.highlightBlock(el.current);
-  }, [el.current !== null]);
+  }, [el]);
 
   return <pre><code ref={el} className="c++">{props.children}</code></pre>
 }

@@ -12,7 +12,6 @@ import ListItemText from "@material-ui/core/ListItemText"
 import useMediaQuery from "@material-ui/core/useMediaQuery"
 import { Footer } from "./Footer"
 import { useTheme } from "@material-ui/core/styles"
-import { Box } from "@material-ui/core"
   
 export const HomePage = () => {
   const theme = useTheme();
@@ -27,16 +26,15 @@ export const HomePage = () => {
   return <Container>
     <div style={{ display: "flex", alignItems: "center", 
                   flexDirection: screen700 ? "row":"column",
-                  justifyContent: "center", paddingTop: "100px", 
-                  color: theme.palette.primary.main }}>
+                  justifyContent: "center", paddingTop: "100px" }}>
 
       <img src="https://raw.githubusercontent.com/matt-42/lithium/master/images/lithium_logo_white.png" 
-          width="200"
-          style={{marginRight: "30px", filter: `invert(${theme.palette.type == "dark" ? "0" : '100'})` }} />
+          width="200" alt="Lithium. Build high performance C++ HTTP servers without being a C++ expert."
+          style={{marginRight: "30px", filter: `invert(${theme.palette.type === "dark" ? "0" : '100'})` }} />
 
       <div >
-        <Typography variant="h1" color="textPrimary">lithium</Typography>
-        <Typography style={{ fontSize: "22px" }} color="textPrimary">
+        <Typography variant="h1">lithium</Typography>
+        <Typography style={{ fontSize: "22px" }} >
           Build high performance C++ HTTP servers without being a C++ expert.
       </Typography>
         <div style={{ height: "20px" }}></div>
@@ -53,7 +51,7 @@ export const HomePage = () => {
 
 
 
-    <div style={{ display: "flex", flexDirection: "column",  alignItems: "center", paddingTop: "100px", color: theme.palette.text.primary }}>
+    <div style={{ display: "flex", flexDirection: "column",  alignItems: "center", paddingTop: "100px"}}>
       <Paper style={{ flex: 1,marginBottom: "20px", padding: "20px", width: screen700 ? "700px" : "calc(100% - 20px)",  }}>
         <div style={{ display: "flex", alignItems: "center" }}>
           <Icon>get_app</Icon>
@@ -118,7 +116,7 @@ int main() {
         </Typography>
 
         <p style={{textAlign:"right"}}>
-        <Button variant="outlined" color="primary" href="#getting-started">Read the docs</Button>
+        <Button variant="outlined" href="#getting-started">Read the docs</Button>
         </p>
 
       </Paper>
@@ -129,7 +127,7 @@ int main() {
        width: "70%" }}></div>
       <div style={{ height: "50px" }}></div>
 
-      <Typography variant="h4" style={{fontFamily: "Major Mono Display"}}>lithium's sponsors</Typography>
+      <Typography variant="h2" style={{fontFamily: "Major Mono Display"}}>lithium's sponsors</Typography>
 
       <List>
         <ListItem button component="a" target="_blank" href="https://github.com/Burnett01" >
@@ -137,9 +135,9 @@ int main() {
         </ListItem>
       </List>
   
-      If you find this project helpful and want to support it, give a star to lithium or buy me a coffee!
-      <Link  target="_blank"  href="https://github.com/sponsors/matt-42"><u>More info on my github sponsor page <Icon style={{color: "pink"}}>favorite_border</Icon></u></Link> 
+      <Typography>If you find this project helpful and want to support it, give a star to lithium or buy me a coffee!</Typography>
 
+      <Link  target="_blank"  href="https://github.com/sponsors/matt-42"><u>More info on my github sponsor page <Icon style={{color: "pink"}}>favorite_border</Icon></u></Link> 
     </div>
 
     <Footer/>

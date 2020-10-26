@@ -1,14 +1,11 @@
-import { TextField, Typography, useTheme } from "@material-ui/core"
-import React, { useEffect, useRef, useState } from "react"
-import { DocIndex, DocIndexEntry, documentationIndex, sectionAnchor, sectionPath, sectionUrl } from "./Documentation"
-import Autocomplete, { AutocompleteRenderOptionState, createFilterOptions } from '@material-ui/lab/Autocomplete';
-import { options } from "marked";
-import { useHistory } from "react-router-dom";
-import InputAdornment from "@material-ui/core/InputAdornment/InputAdornment";
+import { TextField, Typography } from "@material-ui/core";
 import Icon from "@material-ui/core/Icon/Icon";
-import { DesktopWindows } from "@material-ui/icons";
+import InputAdornment from "@material-ui/core/InputAdornment/InputAdornment";
+import Autocomplete, { AutocompleteRenderOptionState } from '@material-ui/lab/Autocomplete';
 import { FilterOptionsState } from "@material-ui/lab/useAutocomplete";
-import _ from "lodash"
+import _ from "lodash";
+import React, { useEffect, useState } from "react";
+import { DocIndex, DocIndexEntry, documentationIndex, sectionAnchor, sectionPath } from "./Documentation";
 
 // const filterOptions = createFilterOptions({
 //   matchFrom: 'any',
@@ -19,12 +16,12 @@ import _ from "lodash"
 
 function filterOptions(options: DocIndexEntry[], state: FilterOptionsState<DocIndexEntry>) : DocIndexEntry[] {
 
-  let queryWords = state.inputValue.split(" ").filter(s => s.length != 0).map(s => s.toLowerCase());
+  let queryWords = state.inputValue.split(" ").filter(s => s.length !== 0).map(s => s.toLowerCase());
   let selected : [DocIndexEntry, number][] = [];
   // return options.filter(entry => {
   //   for (let w of queryWords)
   //   // if (entry.text.toLowerCase().includes(w) || sectionPath(entry.section).toLowerCase().includes(w))
-  //     if (entry.text.indexOf(w) != -1)
+  //     if (entry.text.indexOf(w) !== -1)
   //       return true;
   //   return false;
   // });
@@ -48,16 +45,11 @@ function filterOptions(options: DocIndexEntry[], state: FilterOptionsState<DocIn
 
 export const Search = () => {
 
-  const history = useHistory();
   const [index, setIndex] = useState<DocIndex | null>(null)
 
   useEffect(() => {
-    // if (!textInput.current) return;
-
-    console.log("listen!");
     let l = (event : any) => {
-      console.log("press", event.key);
-      if (event.key == '/')
+      if (['/', '.'].includes(event.key))
         document.getElementById('doc_search_bar')?.focus();
     };
     
@@ -68,12 +60,9 @@ export const Search = () => {
 
   useEffect(() => {
     documentationIndex.then(index => {
-      console.log(index[1]);
       setIndex(index[1]);
     });
   }, []);
-
-  const theme = useTheme();
 
   if (index)
     return <Autocomplete
@@ -93,7 +82,7 @@ export const Search = () => {
             </InputAdornment>
           ,
         }}
-        label="Search (Tap / to focus)"
+        label="Search (Tap / or . to focus)"
         // InputLabelProps={{ style: { color: theme.palette.common.black } }}
         // style={{ color: theme.palette.common.black, borderColor: theme.palette.common.black }}
         variant="outlined"
@@ -108,13 +97,13 @@ export const Search = () => {
       getOptionLabel={(option) => ""}
       renderOption={(option: DocIndexEntry, state: AutocompleteRenderOptionState) => {
 
-        let queryWords = state.inputValue.split(" ").filter(s => s.length != 0);
+        let queryWords = state.inputValue.split(" ").filter(s => s.length !== 0);
 
         let queryWordsRegexp = queryWords.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
 
-        let indices = queryWords.map(w => option.text.toLowerCase().indexOf(w.toLowerCase())).filter(i => i != -1);
+        let indices = queryWords.map(w => option.text.toLowerCase().indexOf(w.toLowerCase())).filter(i => i !== -1);
         let indicesGroups = indices.reduce<number[][]>((acc : number[][], cur : number, curIdx : number) => {
-          if (curIdx == 0) return acc;
+          if (curIdx === 0) return acc;
           if (cur - (_.last(acc) as number[])[0] < 100) {
             _.last(acc)?.push(cur);
             return acc;
@@ -129,12 +118,12 @@ export const Search = () => {
           let [start, end] = [-50 + (max + min) / 2, 50 + (max + min) / 2];
           [start, end] = [Math.max(start, 0), Math.min(end, option.text.length)];
           let x = option.text.substring(0, start).lastIndexOf('\s')
-          start = x == -1 ? start : x; 
+          start = x === -1 ? start : x; 
           x = option.text.substring(end).indexOf('\s');
-          end = x == -1 ? end : end + x;
+          end = x === -1 ? end : end + x;
 
-          // while (option.text[start] != ' ' && start > 0) start--;
-          while (option.text[end] != ' ' && end < option.text.length) end++;
+          // while (option.text[start] !== ' ' && start > 0) start--;
+          while (option.text[end] !== ' ' && end < option.text.length) end++;
           return option.text.substring(start, end);
         });
 
