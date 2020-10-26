@@ -89,7 +89,7 @@ void __your_type_info__.decode(json_string, output_object);
 ## Supported types
 
 `json_encode` and `json_decode` works out of the box for a set of types:
-- standard C++ scalars: strings, integers, bool: encoded as json values
+- standard C++ scalars: strings, integers, bool encoded as json values
 - lithium metamaps: encoded as json object
 - `std::vector`: encoded as a json array
 - `std::tuple`: encoded as a json array
