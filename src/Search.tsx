@@ -68,7 +68,7 @@ export const Search = () => {
     return <Autocomplete
       id="doc_search_bar"
       options={index}
-      style={{ width: 600 }}
+      style={{ width: 500 }}
       openOnFocus={false}
       // onOpen={e => { console.log(e); e.preventDefault(); return false; } }
       renderInput={(params) =>  <TextField {...params}
@@ -86,6 +86,8 @@ export const Search = () => {
         // InputLabelProps={{ style: { color: theme.palette.common.black } }}
         // style={{ color: theme.palette.common.black, borderColor: theme.palette.common.black }}
         variant="outlined"
+        size="small"
+        // variant="filled"
       />}
       filterOptions={filterOptions}
       onChange={(e, option) => {
@@ -147,7 +149,7 @@ export const Search = () => {
           // }
           return str;
         };
-        return <div key={sectionPath(option.section) + option.text} style={{ display: "flex", flexDirection: "column", borderLeft: "1px solid #999999", paddingLeft: "10px" }}>
+        return <div key={sectionPath(option.section) + option.text} style={{ display: "flex", flexDirection: "column", borderLeft: "1px solid #999999", paddingLeft: "10px", width: "600px" }}>
           {
             option.section.parent ? <div>
               <Typography variant="caption">{sectionPath(option.section)}</Typography>

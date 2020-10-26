@@ -67,6 +67,9 @@ const lightTheme = createMuiTheme({
   },
 
   typography: {
+    body1: {
+      color: "#151515",
+    },
     h1: {
       fontFamily: "Major Mono Display",
       fontSize: "50px"
@@ -145,7 +148,7 @@ function App() {
     if (storage === "true") return setDarkMode(true);
     else if (storage === null) return setDarkMode(cssPreference);
     else setDarkMode(false);
-  }, [cssPreference, setDarkMode]);
+  }, [cssPreference]);
 
   const theme = React.useMemo(() => darkMode ? darkTheme : lightTheme, [darkMode]);
 
