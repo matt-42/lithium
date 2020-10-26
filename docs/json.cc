@@ -65,8 +65,9 @@ None
 
 ## Encoding
 
-There is two ways to decode json objects: one for supported types (check the list below) and one for custom 
-types where you have to provide some information about the object you want to encode (more about this below):
+There is two ways to decode json objects: one for [supported types](#json/supported-types) and one for [custom 
+types](#json/providing-json-type-info-for-custom-types) where you have to provide some information about the 
+object you want to encode:
 ```c++
 // Supported types
 std::string json_encode(input_object);
