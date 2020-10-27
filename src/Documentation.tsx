@@ -210,20 +210,27 @@ for (let sectionName of Object.keys(docUrls)) {
   docsHtml[sectionName] = generateDocumentation(docUrls[sectionName]);
 }
 
-const DocumentationMenuRec = (props: { section: SectionNode, hidden?: boolean, onLinkClick: () => void }) => {
+const DocumentationMenuRec = (props: { currentSection: string, section: SectionNode, hidden?: boolean, onLinkClick: () => void }) => {
   const hidden = props.hidden === undefined ? false : props.hidden;
   const section = props.section;
-  const [open, setOpen] = useState(window.location.hash.startsWith(sectionAnchor(section)));
+  const [open, setOpen] = useState(props.currentSection.startsWith(sectionAnchor(section)));
   const theme = useTheme();
+  useEffect(() => {
+    if (!open && props.currentSection.startsWith(sectionAnchor(section)))
+      setOpen(true);
+  }, [props.currentSection, section])
+
 
   if (!section) return <></>;
 
   const children = <List disablePadding>{
-    Object.values(section.children).map((item) => <DocumentationMenuRec onLinkClick={props.onLinkClick}
-      key={item.text} section={item} hidden={!open} />)}
+    Object.values(section.children).map((item) => <DocumentationMenuRec 
+      currentSection={props.currentSection} 
+      onLinkClick={props.onLinkClick}
+      key={item.text} section={item} hidden={hidden || !open} />)}
   </List>
 
-  if (section.depth === 1)// && section.text.toLowerCase() !== "introduction")
+  if (section.depth === 1)
     return <>
       <ListItem key={section.text} button
         onClick={() => setOpen(!open)}
@@ -236,6 +243,7 @@ const DocumentationMenuRec = (props: { section: SectionNode, hidden?: boolean, o
     return <>
       <ListItem key={section.text} button
         component="a"
+        selected={props.currentSection === sectionAnchor(section)}
         href={sectionUrl(section)}
         onClick={props.onLinkClick}
         style={{ display: hidden ? "none" : "block", paddingLeft: `${10 * section.depth}px`, color: theme.palette.text.primary }}>
@@ -246,11 +254,12 @@ const DocumentationMenuRec = (props: { section: SectionNode, hidden?: boolean, o
 
 }
 
-const DocumentationMenu = (props: { hierarchy: DocHierarchy, onLinkClick: () => void }) => {
+const DocumentationMenu = (props: { currentSection: string, hierarchy: DocHierarchy, onLinkClick: () => void }) => {
   if (!props.hierarchy) return <></>;
   return <List disablePadding>
     {Object.values(props.hierarchy).map((item: SectionNode) =>
       <DocumentationMenuRec
+        currentSection={props.currentSection} 
         key={item.text}
         section={item}
         onLinkClick={props.onLinkClick} />)}
@@ -285,10 +294,14 @@ export const Documentation = (props: { hash: string }) => {
       else
         await docsHtml[mainSection].then(c => setContent(c));
 
-      // Refresh hash to scroll to the right section.
-      window.location.hash = "";
-      window.location.hash = props.hash;
-
+      // Scroll into the right section.
+      let collection = document.getElementsByClassName("anchor");
+      for (let i = 0; i < collection.length; i++)
+      {
+        let el = collection.item(i) as HTMLLinkElement;
+        if (el && el.href === props.hash)
+          el.scrollIntoView();
+      }
     })();
 
   }, [props.hash, currentSection]);
@@ -328,7 +341,7 @@ export const Documentation = (props: { hash: string }) => {
     <Container style={{ paddingLeft: screen700 ? "240px" : "0px", position: "relative", paddingTop: "100px" }}>
       {mobileOpenMenuButton}
       <div className="docMenu" style={menuStyle} >
-        <DocumentationMenu hierarchy={hierarchy} onLinkClick={() => setmobileMenuOpen(false)} />
+        <DocumentationMenu currentSection={props.hash} hierarchy={hierarchy} onLinkClick={() => setmobileMenuOpen(false)} />
       </div>
       <Paper style={docStyle}>
         <div dangerouslySetInnerHTML={{ __html: content }}>
