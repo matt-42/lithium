@@ -284,7 +284,7 @@ auth.signup(request, response) -> void
 
 Using `http_client` and the `s::non_blocking` flag of http_serve
 you can easily tests your server responses.
-[Read more about http_client here](/#http_client)
+[Read more about http_client here](#http_client)
 
 Here is a quick example:
 
