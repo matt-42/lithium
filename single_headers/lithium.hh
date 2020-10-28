@@ -7390,9 +7390,10 @@ static int date_buf_size = 0;
 
 static thread_local std::unordered_map<std::string, std::string_view> static_files;
 
-struct http_ctx {
+template <typename FIBER>
+struct generic_http_ctx {
 
-  http_ctx(input_buffer& _rb, async_fiber_context& _fiber) : rb(_rb), fiber(_fiber) {
+  generic_http_ctx(input_buffer& _rb, FIBER& _fiber) : rb(_rb), fiber(_fiber) {
     get_parameters_map.reserve(10);
     response_headers.reserve(20);
 
@@ -7405,8 +7406,8 @@ struct http_ctx {
         50 * 1024, [&](const char* d, int s) { output_stream << std::string_view(d, s); });
   }
 
-  http_ctx& operator=(const http_ctx&) = delete;
-  http_ctx(const http_ctx&) = delete;
+  generic_http_ctx& operator=(const generic_http_ctx&) = delete;
+  generic_http_ctx(const generic_http_ctx&) = delete;
 
   std::string_view header(const char* key) {
     if (!header_map.size())
@@ -7640,9 +7641,13 @@ struct http_ctx {
     while (start < (line_end - 1) and *start == split_char)
       start++;
 
-    const char* end = start + 1;
-    while (end < (line_end - 1) and *end != split_char)
-      end++;
+    const char* end = (const char*)memchr(start + 1, split_char, line_end - start - 2);
+    if (!end) end = line_end - 1;
+
+    // Was:
+    // const char* end = start + 1;
+    // while (end < (line_end - 1) and *end != split_char)
+    //   end++;
     cur = end + 1;
     if (*end == split_char)
       return std::string_view(start, cur - start - 1);
@@ -7886,7 +7891,7 @@ struct http_ctx {
   std::string_view body_start;
   const char* body_end_ = nullptr;
   std::vector<const char*> header_lines;
-  async_fiber_context& fiber;
+  FIBER& fiber;
 
   output_buffer headers_stream;
   bool response_written_ = false;
@@ -7894,14 +7899,15 @@ struct http_ctx {
   output_buffer output_stream;
   output_buffer json_stream;
 };
+using http_ctx = generic_http_ctx<async_fiber_context>;
 
 template <typename F> auto make_http_processor(F handler) {
-  return [handler](async_fiber_context& fiber) {
+  return [handler](auto& fiber) {
     try {
       input_buffer rb;
       bool socket_is_valid = true;
 
-      http_ctx ctx = http_ctx(rb, fiber);
+      auto ctx = generic_http_ctx(rb, fiber);
       ctx.socket_fd = fiber.socket_fd;
       
       while (true) {
@@ -7924,16 +7930,25 @@ template <typename F> auto make_http_processor(F handler) {
             return;
 
         const char* cur = rb.data() + header_end;
+        const char* rbend = rb.data() + rb.end - 3;
         while (!complete_header) {
           // Look for end of header and save header lines.
-          while ((cur - rb.data()) < rb.end - 3) {
-           if (cur[0] == '\r' and cur[1] == '\n') {
-              ctx.add_header_line(cur + 2);
-              cur += 2;
+          // while ((cur - rb.data()) < rb.end - 3) {
+          while (cur < rbend) {
+           cur = (const char*) memchr(cur, '\r', rbend - cur);
+           if (!cur) {
+             cur = rbend;
+             break;
+           }
+           if (//cur[0] == '\r' and // already checked by memchr. 
+               cur[1] == '\n') {
+              cur += 2;// skip \r\n
+              ctx.add_header_line(cur);
+              // If we read \r\n twice the header is complete.
               if (cur[0] == '\r' and cur[1] == '\n')
               {
                 complete_header = true;
-                cur += 2;
+                cur += 2; // skip \r\n
                 header_end = cur - rb.data();
                 break;
               }
@@ -8488,7 +8503,7 @@ auto http_serve(api<http_request, http_response> api, int port, O... opts) {
 
   int nthreads = get_or(options, s::nthreads, std::thread::hardware_concurrency());
 
-  auto handler = [api](http_async_impl::http_ctx& ctx) {
+  auto handler = [api](auto& ctx) {
     http_request rq{ctx};
     http_response resp(ctx);
     try {
