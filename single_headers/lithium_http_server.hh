@@ -5493,10 +5493,6 @@ auto http_serve(api<http_request, http_response> api, int port, O... opts) {
       std::cerr << "INTERNAL SERVER ERROR: " << e.what() << std::endl;
       ctx.set_status(500);
       ctx.respond("Internal server error.");
-    } catch (...) {
-      std::cerr << "INTERNAL SERVER ERROR: UNKNOWN EXCEPTION." << std::endl;
-      ctx.set_status(500);
-      ctx.respond("Internal server error.");
     }
     ctx.respond_if_needed();
   };
