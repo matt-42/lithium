@@ -266,8 +266,8 @@ export const Search2 = () => {
     height: "100%",
     zIndex: 2000,
     justifyContent: "center",
-    backgroundImage: `url("${dark ? brushed_bg : brushed_bg_white}")`,
-    backgroundColor: dark ? "black" : "white",
+    // backgroundImage: `url("${dark ? brushed_bg : brushed_bg_white}")`,
+    backgroundColor: dark ? "#202020" : "#e8e8e8",
     color: theme.typography.body1.color
   };
 
