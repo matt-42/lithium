@@ -42,18 +42,6 @@ function filterOptions(options: DocIndexEntry[], query: string): DocIndexEntry[]
   return selected.map(s => s[0]).slice(0, 20);
 }
 
-
-const useStyles = makeStyles((theme: Theme) => {
-
-  return createStyles({
-    searchResult: {
-      "&:hover": { backgroundColor:  theme.palette.background.paper },
-      borderLeft: "3px solid #999999",
-    }
-  });
-});
-
-
 function scrollIntoViewIfNeeded(target : HTMLElement) { 
   if (target.getBoundingClientRect().bottom > window.innerHeight) {
       target.scrollIntoView(false);
@@ -65,8 +53,8 @@ function scrollIntoViewIfNeeded(target : HTMLElement) {
 }
 export const SearchResult = (props: { option: DocIndexEntry, query: string, selected: boolean, onSelect: () => void }) => {
 
-  const styles = useStyles();
   const divRef = useRef<HTMLDivElement>(null);
+  const [hovered, setHovered] = useState(false);
   useEffect(() => {
     if (props.selected && divRef.current)
       scrollIntoViewIfNeeded(divRef.current)
@@ -78,13 +66,12 @@ export const SearchResult = (props: { option: DocIndexEntry, query: string, sele
   let { query, option, selected } = props;
   
   let queryWords = query.split(" ").filter(s => s.length !== 0);
-  
-  let queryWordsRegexp = queryWords.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
-  
+
   let snippets: string[] = [];
   for (let content of option.contents) {
     
     const countNewLines = (str : string) => (str.match(/\n/g) || '').length + 1;
+ 
 
     let indices = queryWords.map(w => content.text.toLowerCase().indexOf(w.toLowerCase())).filter(i => i !== -1);
     if (content.type === "text") {
@@ -145,38 +132,20 @@ export const SearchResult = (props: { option: DocIndexEntry, query: string, sele
 
     }
   }
+  let highlightedTitle = option.section.text;
 
-  let snippet = snippets.join("");
-  // let [snipetStart, snippetEnd] = [indices[0] - 50,indices[0] + 50];
-  // if (indices.length > 1)
-  // {
-  //   indices.sort();
-  //   let [min, max] = [indices[0], indices[indices.length - 1]];
-  //   if (max - min < 100)
-  //     [snipetStart, snippetEnd] = [-50 + (max + min) / 2, 50 + (max + min) / 2];
-
-  //   // [snipetStart, snippetEnd] = [indices[0], indices[0] + 100]
-  // } 
-  // // Take 100 chars.
-  // let snippet = option.text.substring(Math.max(snipetStart, 0), Math.min(snippetEnd, option.text.length));
-  let highlight = (str: string) => {
-    // for (let w of queryWords)
-    // {
-    str = str.replace(new RegExp(`(${queryWordsRegexp})`, 'gi'), `<span class="searchHighlight">$1</span>`);
-    // }
-    return str;
-  };
   return <div
     ref={divRef}
     onClick={props.onSelect}
-    className={styles.searchResult}
+    onMouseEnter={() => setHovered(true)}
+    onMouseLeave={() => setHovered(false)}
     key={sectionPath(option.section) + option.contents[0]?.text || ""}
     style={{
       cursor: "pointer",
       display: "flex",
       flexDirection: "column",
-      borderLeft: (selected ? "3px" : "1px") +  " solid #999999",
-      backgroundColor: selected ? theme.palette.background.paper : "auto",
+      borderLeft: (selected || hovered ? "3px" : "1px") +  " solid #999999",
+      backgroundColor: selected || hovered ? theme.palette.background.paper : "unset",
       paddingLeft: "10px",
       textAlign: "left",
       marginTop: "10px",
@@ -188,10 +157,10 @@ export const SearchResult = (props: { option: DocIndexEntry, query: string, sele
       </div> : <></>
     }
     <div>
-      <Typography variant="h6"><div dangerouslySetInnerHTML={{ __html: highlight(option.section.text) }} /></Typography>
+      <Typography variant="h6"><div dangerouslySetInnerHTML={{ __html: highlightedTitle }} /></Typography>
     </div>
     <div>
-      <div dangerouslySetInnerHTML={{ __html: highlight(snippet) }}></div>
+      <div dangerouslySetInnerHTML={{ __html: snippets.join("") }}></div>
     </div>
   </div>
 }
