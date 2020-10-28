@@ -6079,9 +6079,9 @@ struct pgsql_database_impl {
     }
     // std::cout << "CONNECTED " << std::endl;
     #if __linux__
-      fiber.epoll_add(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
+      fiber.epoll_mod(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
     #elif __APPLE__
-      fiber.epoll_add(pgsql_fd, EVFILT_READ | EVFILT_WRITE);
+      fiber.epoll_mod(pgsql_fd, EVFILT_READ | EVFILT_WRITE);
     #endif
     if (status != PGRES_POLLING_OK) {
       std::cerr << "Warning: cannot connect to the postgresql server " << host_ << ": "
