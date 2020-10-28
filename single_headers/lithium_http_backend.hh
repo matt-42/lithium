@@ -190,6 +190,17 @@ public:
   inline int bad() const { return bad_; }
   inline int good() const { return !bad_ && !eof(); }
 
+  template <typename O, typename F> void copy_until(O& output, F until) {
+    const char* start = cur;
+    const char* end = cur;
+    const char* buffer_end = buffer.data() + buffer.size();
+    while (until(*end) && end < buffer_end)
+      end++;
+
+    output.append(std::string_view(start, end - start));
+    cur = end;
+  }
+
   template <typename T> void operator>>(T& value) {
     eat_spaces();
     if constexpr (std::is_floating_point<T>::value) {
@@ -985,15 +996,21 @@ auto forward_tuple_as_metamap(std::tuple<S...> keys, const std::tuple<V...>& val
 namespace li {
 
 template <typename O> inline decltype(auto) wrap_json_output_stream(O&& s) {
-  return mmm(s::append = [&s](char c) { s << c; });
+  return mmm(s::append = [&s](auto c) { s << c; });
 }
 
 inline decltype(auto) wrap_json_output_stream(std::ostringstream& s) {
-  return mmm(s::append = [&s](char c) { s << c; });
+  return mmm(s::append = [&s](auto c) { s << c; });
 }
 
 inline decltype(auto) wrap_json_output_stream(std::string& s) {
-  return mmm(s::append = [&s](char c) { s.append(1, c); });
+  return mmm(s::append = [&s](auto c) {
+    using C = std::remove_reference_t<decltype(c)>;
+    if constexpr(std::is_same_v<C, char> || std::is_same_v<C, unsigned char> || std::is_same_v<C, int>)
+      s.append(1, c); 
+    else
+      s.append(c);
+  });
 }
 
 inline decltype(auto) wrap_json_input_stream(std::istringstream& s) { return s; }
@@ -1027,7 +1044,7 @@ enum json_encodings { UTF32BE, UTF32LE, UTF16BE, UTF16LE, UTF8 };
 
 // Detection of encoding depending on the pattern of the
 // first fourth characters.
-auto detect_encoding(char a, char b, char c, char d) {
+inline auto detect_encoding(char a, char b, char c, char d) {
   // 00 00 00 xx  UTF-32BE
   // xx 00 00 00  UTF-32LE
   // 00 xx 00 xx  UTF-16BE
@@ -1220,6 +1237,9 @@ template <typename S, typename T> auto utf8_to_json(S&& s, T&& o) {
 
   while (!s.eof()) {
     // 7-bits codepoint
+    if constexpr(std::is_same_v<std::remove_reference_t<S>, decode_stringstream>)
+      s.copy_until(o, [] (char c) { return c > '"' && c <= '~' && c != '\\'; });
+
     while (s.good() and s.peek() <= 0x7F and s.peek() != EOF) {
       switch (s.peek()) {
       case '"':
@@ -4424,9 +4444,13 @@ struct http_ctx {
     while (start < (line_end - 1) and *start == split_char)
       start++;
 
-    const char* end = start + 1;
-    while (end < (line_end - 1) and *end != split_char)
-      end++;
+    const char* end = (const char*)memchr(start + 1, split_char, line_end - start - 2);
+    if (!end) end = line_end - 1;
+
+    // Was:
+    // const char* end = start + 1;
+    // while (end < (line_end - 1) and *end != split_char)
+    //   end++;
     cur = end + 1;
     if (*end == split_char)
       return std::string_view(start, cur - start - 1);
@@ -4708,12 +4732,21 @@ template <typename F> auto make_http_processor(F handler) {
             return;
 
         const char* cur = rb.data() + header_end;
+        const char* rbend = rb.data() + rb.end - 3;
         while (!complete_header) {
           // Look for end of header and save header lines.
-          while ((cur - rb.data()) < rb.end - 3) {
-           if (cur[0] == '\r' and cur[1] == '\n') {
-              ctx.add_header_line(cur + 2);
-              cur += 2;
+          // while ((cur - rb.data()) < rb.end - 3) {
+          while (cur < rbend) {
+           cur = (const char*) memchr(cur, '\r', rbend - cur);
+           if (!cur) {
+             cur = rbend;
+             break;
+           }
+           if (cur[0] == '\r' and // already checked by memchr. 
+               cur[1] == '\n') {
+              cur += 2;// skip \r\n
+              ctx.add_header_line(cur);
+              // If we read \r\n twice the header is complete.
               if (cur[0] == '\r' and cur[1] == '\n')
               {
                 complete_header = true;

@@ -281,9 +281,13 @@ struct http_ctx {
     while (start < (line_end - 1) and *start == split_char)
       start++;
 
-    const char* end = start + 1;
-    while (end < (line_end - 1) and *end != split_char)
-      end++;
+    const char* end = (const char*)memchr(start + 1, split_char, line_end - start - 2);
+    if (!end) end = line_end - 1;
+
+    // Was:
+    // const char* end = start + 1;
+    // while (end < (line_end - 1) and *end != split_char)
+    //   end++;
     cur = end + 1;
     if (*end == split_char)
       return std::string_view(start, cur - start - 1);
@@ -565,12 +569,21 @@ template <typename F> auto make_http_processor(F handler) {
             return;
 
         const char* cur = rb.data() + header_end;
+        const char* rbend = rb.data() + rb.end - 3;
         while (!complete_header) {
           // Look for end of header and save header lines.
-          while ((cur - rb.data()) < rb.end - 3) {
-           if (cur[0] == '\r' and cur[1] == '\n') {
-              ctx.add_header_line(cur + 2);
-              cur += 2;
+          // while ((cur - rb.data()) < rb.end - 3) {
+          while (cur < rbend) {
+           cur = (const char*) memchr(cur, '\r', rbend - cur);
+           if (!cur) {
+             cur = rbend;
+             break;
+           }
+           if (cur[0] == '\r' and // already checked by memchr. 
+               cur[1] == '\n') {
+              cur += 2;// skip \r\n
+              ctx.add_header_line(cur);
+              // If we read \r\n twice the header is complete.
               if (cur[0] == '\r' and cur[1] == '\n')
               {
                 complete_header = true;
