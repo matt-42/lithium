@@ -8227,7 +8227,7 @@ template <typename F> auto make_http_processor(F handler) {
              cur = rbend;
              break;
            }
-           if (cur[0] == '\r' and // already checked by memchr. 
+           if (//cur[0] == '\r' and // already checked by memchr. 
                cur[1] == '\n') {
               cur += 2;// skip \r\n
               ctx.add_header_line(cur);
