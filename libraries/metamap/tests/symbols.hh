@@ -5,9 +5,19 @@
     LI_SYMBOL(a)
 #endif
 
+#ifndef LI_SYMBOL_age
+#define LI_SYMBOL_age
+    LI_SYMBOL(age)
+#endif
+
 #ifndef LI_SYMBOL_b
 #define LI_SYMBOL_b
     LI_SYMBOL(b)
+#endif
+
+#ifndef LI_SYMBOL_name
+#define LI_SYMBOL_name
+    LI_SYMBOL(name)
 #endif
 
 #ifndef LI_SYMBOL_test1

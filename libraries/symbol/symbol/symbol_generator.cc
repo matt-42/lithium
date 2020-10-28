@@ -123,10 +123,12 @@ std::vector<std::string> find_symbols_in_files(std::vector<std::string> input_fi
         std::string s = what[1];
 
         bool is_type = s.size() >= 2 and s[s.size() - 2] == '_' and s[s.size() - 1] == 't';
+        if (is_type)
+          s.resize(s.size() - 2);
 
-        if (!std::isalnum(m[0]) and !is_in_string(what.position()) and !is_type and
+        if (!std::isalnum(m[0]) and !is_in_string(what.position()) and
             keywords.find(s) == keywords.end())
-          symbols.insert(what[1]);
+          symbols.insert(s);
         start = what[0].second;
       }
     }

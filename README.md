@@ -1,49 +1,11 @@
 
-<p align="center"><img src="https://github.com/matt-42/lithium/raw/master/images/lithium_logo.png" alt="Lithium Logo. Designed by Yvan Darmet" title="The Lithium C++ libraries - Logo designed by Yvan Darmet" width=400 /></p>
+<p align="center"><img src="https://github.com/matt-42/lithium/raw/master/images/lithium_logo.png" alt="Lithium Logo. Designed by Yvan Darmet" title="The Lithium C++ libraries - Logo designed by Yvan Darmet" width=200 /></p>
 
 [![Donate](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://www.paypal.me/matthieugarrigues)
 ![Travis](https://travis-ci.com/matt-42/lithium.svg?branch=master) ![platform](https://img.shields.io/badge/platform-Linux%20%7C%20MacOS-yellow) ![licence](https://img.shields.io/badge/licence-MIT-blue)
 
-Lithium's goal is to ease the development of C++ high performance HTTP
-APIs. As much effort is put into simplifying it's use as in optimizing its performances.
-According to the [TechEmpower
-benchmark](https://tfb-status.techempower.com), it is one of the
-fastest web framework available. It is available on MacOS and Linux. Windows support is comming soon.
 
-It is a set of independent header only C++ libraries, each one of them can be used
-independently. Each library solves one problem and can be used
-separately.
-
-### [Installation / Getting Started](https://github.com/matt-42/lithium/tree/master/INSTALL.md)
-
-# Libraries
-
-### [li::metamap](https://github.com/matt-42/lithium/tree/master/libraries/metamap)
-
-A zero-cost compile time key/value map.
-
-### [li::json](https://github.com/matt-42/lithium/tree/master/libraries/json)
-
-A JSON serializer/deserializer designed for
-ease of use and performances.
-
-### [li::sql](https://github.com/matt-42/lithium/tree/master/libraries/sql)
-
-A set of asynchronous and synchronous SQL drivers.
-
-### [li::http_client](https://github.com/matt-42/lithium/tree/master/libraries/http_client)
-
-A http_client built around the libcurl library.
-
-### [li::http_server](https://github.com/matt-42/lithium/tree/master/libraries/http_server)
-
-A coroutine based, asynchronous, low latency and high throughput HTTP Server library.
-
-### [li::symbol](https://github.com/matt-42/lithium/tree/master/libraries/symbol)
-
-The root of the lithium project. Used by all other libraries.
-You probably will not use this library directly but
-you can check the code if you want to know what is inside the s:: namespace.
+Documentation: [https://matt-42.github.io/lithium](https://matt-42.github.io/lithium)
 
 # Need some help ?
 

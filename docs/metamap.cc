@@ -1,8 +1,10 @@
-li::metamap
-===============================
+// __documentation_starts_here__
+
+/*
+# metamap
 
 
-# Introduction 
+## Introduction 
 
 In dynamic languages, instanciating an object is simple, for example in javascript:
 
@@ -17,84 +19,57 @@ for(var key in person){
 }
 ```
 
-In C++ it is harder, you need to declare the structure of your object before instantiating it,
-and you simply can't iterate over the members of an object.
-
-This library aims at providing a new C++ paradigm that enables you to reach Javascript simplicity 
-without loosing the performances of C++:
-```c++
-// First declare the static map keys.
-// To autmatically generate symbol definitions, check https://github.com/matt-42/lithium/tree/master/libraries/symbol 
-#ifndef LI_SYMBOL_name // Guards to avoid redefinitions.
-#define LI_SYMBOL_name
-  LI_SYMBOL(name) // Declare s::name
-#endif
-#ifndef LI_SYMBOL_age
-#define LI_SYMBOL_age
-  LI_SYMBOL(age) // Declare s::age
-#endif
-
-// Declare an object
-auto person = mmm(s::name = "John", s::age = 42); // mmm means Make MetaMap
-
-// Iterate on the members.
-map(person, [] (auto key, auto value) { std::cout << symbol_string(key) << value << std::endl; });
-
-// You can also use it as a plain C++ object:
-person.name = "Aurelia";
-person.age = 52;
-
-// Check https://github.com/matt-42/lithium/tree/master/libraries/symbol#lisymbol for more info about symbols.
-
-```
-
-Everything is static, no hashmap or other dynamic structure is built by li::metamap. You can
-view it as compile-time introspection.
-As a comparison, this code is equivalent in terms of runtime to the less generic:
-```c++
-struct { const char* name, int age } person{"John", 42};
-std::cout << "name" << person.name << std::endl;
-std::cout << "age" << person.age << std::endl;
-```
-
-On top of this, li::metamap provides some algorithms that where only possible
-on dynamic structures before:
-
-
-- `li::cat`: Concatenation of two maps. Values of m1 are given the priority in case of dupplicate keys.
+In C or C++ it is harder, you need to declare the structure of your object before instantiating it,
+and you simply can't iterate over the members of an object:
 
 ```c++
-auto m3 = li::cat(m1, m2);
+struct Person {
+  std::string name;
+  int age;
+};
+
+Person person{"John", 42};
+
+std::cout << "name: " << person.name << std::endl;
+std::cout << "age: " << person.age << std::endl;
 ```
 
-- `li::intersection`: Build the map containing keys present in m1 and m2, taking values from m1.
+To solves the declaration problem `metamap` provides a way to declare and instance plain 
+C++ objects in just one C++ statement:
 
-```c++
-auto m4 = li::intersection(m1, m2);
-```
+*/
+auto person = mmm(s::name = "John", s::age = 42);
+// Note: mmm is a shortcut for make_metamap.
+assert(person.name == "John");
+assert(person.age == 42);
+/*
+[More info on `s::xxxx` symbols](#getting-started/automatic-symbols-generation).
 
-- `li::substract`: Build the map containing keys present in m1 but not in m2, taking values from m1.
+And it solves the member iteration problem by providing a way to map a function of each object members:
+*/
+map(person, [] (auto key, auto value) { 
+  std::cout << symbol_string(key) << " : " << value << std::endl; 
+});
+/*
+`map` is unrolled at compile time so its has no runtime cost.
 
-```c++
-auto m5 = li::substract(m1, m2);
-```
+## Algorithms
 
-# Applications
+On top of this, `metamap` provides some algorithms:
 
-Most of the other libraries of the Lithium project are using this paradigm to build
-zero-cost abstraction without the need of complex meta-programing. I invite you to check them out
-to see how metamap can be used in concrete applications.
+- `cat`: Concatenation of two metamaps. Values of m1 are given the priority in case of dupplicate keys.
 
+*/
+auto m3 = cat(m1, m2);
+/*
 
-# Installation
+- `intersection`: Build the map containing keys present in m1 and m2, taking values from m1.
 
-https://github.com/matt-42/lithium/tree/master/INSTALL.md
+*/
+auto m4 = intersection(m1, m2);
+/*
 
-# Authors
+- `substract`: Build the map containing keys present in m1 but not in m2, taking values from m1.
 
-Matthieu Garrigues https://github.com/matt-42
-
-# Support the project
-
-If you find this project helpful, please consider donating:
-https://www.paypal.me/matthieugarrigues
+*/
+auto m5 = substract(m1, m2);

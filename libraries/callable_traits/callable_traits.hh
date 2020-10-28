@@ -1,8 +1,8 @@
 #pragma once
 
-namespace li {
+#include <li/callable_traits/typelist.hh>
 
-template <typename... T> struct typelist {};
+namespace li {
 
 namespace internal {
 template <typename T> struct has_parenthesis_operator {
