@@ -127,7 +127,7 @@ int main() {
        width: "70%" }}></div>
       <div style={{ height: "50px" }}></div>
 
-      <Typography variant="h2" style={{fontFamily: "Major Mono Display"}}>lithium's sponsors</Typography>
+      <Typography variant="h2" component="h3" style={{fontFamily: "Major Mono Display"}}>lithium's sponsors</Typography>
 
       <List>
         <ListItem button component="a" target="_blank" href="https://github.com/Burnett01" >
@@ -139,8 +139,9 @@ int main() {
 
       <Link  target="_blank"  href="https://github.com/sponsors/matt-42"><u>More info on my github sponsor page <Icon style={{color: "pink"}}>favorite_border</Icon></u></Link> 
 
-      <Typography variant="h2" style={{fontFamily: "Major Mono Display"}}>Thanks</Typography>
-      Big thanks to Yvan Darmet for the logo and for the design tips.
+      <br/>
+      <Typography variant="h2" component="h3" style={{fontFamily: "Major Mono Display"}}>thanks</Typography>
+      <Typography>Big thanks to Yvan Darmet for the logo and the design tips.</Typography>
     </div>
 
     <Footer/>
