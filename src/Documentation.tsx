@@ -71,7 +71,7 @@ export const sectionPath = (item: SectionNode) => {
 }
 
 export type DocHierarchy = { [k: string]: SectionNode };
-export type DocIndexEntry = { text: string, section: SectionNode, depth: number };
+export type DocIndexEntry = { contents: {text: string, type:"code"|"text"}[], section: SectionNode, depth: number };
 export type DocIndex = DocIndexEntry[];
 
 function addToHierarchy(item: any, hierarchy: DocHierarchy, parents: (SectionNode | null)[]) {
@@ -175,12 +175,15 @@ export async function indexDocumentation()
         addToHierarchy(item, hierarchy, parents);
 
         // index item
-        searchIndex.push({ text: item.text || "", section: parents[itempos] as SectionNode, depth: item.depth });
+        searchIndex.push({ contents: [], section: parents[itempos] as SectionNode, depth: item.depth });
       }
       else {
         // index non headings nodes.
         if (parents.length)
-          searchIndex[searchIndex.length - 1].text += " " + item.text;
+        {
+          const type = item.type === "code" ? "code" : "text";
+          searchIndex[searchIndex.length - 1].contents.push({text: item.text || "", type});
+        }
         // searchIndex.push({ text: item.text || "", section: parents[parents.length - 1] as SectionNode, depth: 99 });
       }
     }
@@ -286,21 +289,34 @@ export const Documentation = (props: { hash: string }) => {
     (async () => {
       const split = props.hash.split("/");
       const mainSection = split[0].substring(1);
-      if (mainSection === currentSection)
-        return;
-      setCurrentSection(mainSection);
-      if (!docsHtml[mainSection])
+      if (mainSection !== currentSection)
+      {
+        setCurrentSection(mainSection);
+        if (!docsHtml[mainSection])
         setContent(mainSection + ": Section not found");
-      else
+        else
         await docsHtml[mainSection].then(c => setContent(c));
+      }
 
       // Scroll into the right section.
-      let collection = document.getElementsByClassName("anchor");
-      for (let i = 0; i < collection.length; i++)
+      let found = false;
+      while (!found)
       {
-        let el = collection.item(i) as HTMLLinkElement;
-        if (el && el.href === props.hash)
-          el.scrollIntoView();
+
+        let collection = document.getElementsByClassName("anchor");
+        for (let i = 0; i < collection.length; i++)
+        {
+          let el = collection.item(i) as HTMLLinkElement;
+          if (el && el.href.endsWith(props.hash))
+          {
+            found = true;
+            el.scrollIntoView();
+            break;
+          }
+          
+        }
+        if (!found) // sometime we need to wait because the doc is not mounted yet.
+          await new Promise(resolve => setTimeout(resolve, 100));
       }
     })();
 

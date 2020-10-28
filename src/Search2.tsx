@@ -1,12 +1,15 @@
-import { TextField, Typography, useTheme } from "@material-ui/core";
+import { createStyles, makeStyles, TextField, Theme, Typography, useTheme } from "@material-ui/core";
 import Icon from "@material-ui/core/Icon/Icon";
 import InputAdornment from "@material-ui/core/InputAdornment/InputAdornment";
 import useMediaQuery from "@material-ui/core/useMediaQuery/useMediaQuery";
 import _ from "lodash";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { DocIndex, DocIndexEntry, documentationIndex, sectionAnchor, sectionPath } from "./Documentation";
 import brushed_bg from "./images/brushed.jpg";
 import brushed_bg_white from "./images/brushed_white.jpg";
+import hljs from 'highlight.js';
+import marked from "marked";
+
 
 
 function filterOptions(options: DocIndexEntry[], query: string): DocIndexEntry[] {
@@ -23,10 +26,13 @@ function filterOptions(options: DocIndexEntry[], query: string): DocIndexEntry[]
   for (let entry of options) {
     let score = 0;
     for (let w of queryWords) {
-      if (entry.text.toLowerCase().includes(w))
-        score++;
-      else if (entry.section.text.toLowerCase().includes(w))
-        score += 2;
+      for (let content of entry.contents) {
+        if (content.text?.toLowerCase().includes(w))
+          score++;
+      }
+
+      if (entry.section.text.toLowerCase().includes(w))
+        score += 10;
     }
     if (score > 0) selected.push([entry, score]);
   }
@@ -36,43 +42,111 @@ function filterOptions(options: DocIndexEntry[], query: string): DocIndexEntry[]
   return selected.map(s => s[0]).slice(0, 20);
 }
 
+
+const useStyles = makeStyles((theme: Theme) => {
+
+  return createStyles({
+    searchResult: {
+      "&:hover": { backgroundColor:  theme.palette.background.paper },
+      borderLeft: "3px solid #999999",
+    }
+  });
+});
+
+
+function scrollIntoViewIfNeeded(target : HTMLElement) { 
+  if (target.getBoundingClientRect().bottom > window.innerHeight) {
+      target.scrollIntoView(false);
+  }
+
+  if (target.getBoundingClientRect().top < 0) {
+      target.scrollIntoView();
+  } 
+}
 export const SearchResult = (props: { option: DocIndexEntry, query: string, selected: boolean, onSelect: () => void }) => {
+
+  const styles = useStyles();
+  const divRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (props.selected && divRef.current)
+      scrollIntoViewIfNeeded(divRef.current)
+      // divRef.current?.scrollIntoView();
+  },[props.selected, divRef])
 
   const screen700 = useMediaQuery('(min-width:700px)');
   let theme = useTheme();
   let { query, option, selected } = props;
-
+  
   let queryWords = query.split(" ").filter(s => s.length !== 0);
-
+  
   let queryWordsRegexp = queryWords.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  
+  let snippets: string[] = [];
+  for (let content of option.contents) {
+    
+    const countNewLines = (str : string) => (str.match(/\n/g) || '').length + 1;
 
-  let indices = queryWords.map(w => option.text.toLowerCase().indexOf(w.toLowerCase())).filter(i => i !== -1);
-  let indicesGroups = indices.reduce<number[][]>((acc: number[][], cur: number, curIdx: number) => {
-    if (curIdx === 0) return acc;
-    if (cur - (_.last(acc) as number[])[0] < 100) {
-      _.last(acc)?.push(cur);
-      return acc;
+    let indices = queryWords.map(w => content.text.toLowerCase().indexOf(w.toLowerCase())).filter(i => i !== -1);
+    if (content.type === "text") {
+      let indicesGroups = indices.reduce<number[][]>((acc: number[][], cur: number, curIdx: number) => {
+        if (curIdx === 0) return acc;
+        if (countNewLines(content.text.substring((_.last(acc) as number[])[0], cur)) < 1) {
+          _.last(acc)?.push(cur);
+          return acc;
+        }
+        return [...acc, [cur]];
+      }, [[indices[0]]]);
+      //   if (curIdx === 0) return acc;
+      //   if (cur - (_.last(acc) as number[])[0] < 100) {
+      //     _.last(acc)?.push(cur);
+      //     return acc;
+      //   }
+      //   else
+      //     return [...acc, [cur]];
+      // }, [[indices[0]]]);
+
+      snippets.push(...indicesGroups.map(g => {
+        let [min, max] = [g[0], g[g.length - 1]];
+        if (max - min > 100) throw new Error();
+        let [start, end] = [-50 + (max + min) / 2, 50 + (max + min) / 2];
+        [start, end] = [Math.max(start, 0), Math.min(end, content.text.length)];
+        let x = content.text.substring(0, start).lastIndexOf('\s')
+        start = x === -1 ? start : x;
+        x = content.text.substring(end).indexOf('\s');
+        end = x === -1 ? end : end + x;
+
+        while (content.text[start] !== '\n' && start > 0) start--;
+        while (content.text[end] !== '\n' && end < content.text.length) end++;
+        return marked(content.text.substring(start, end));
+      }));
     }
-    else
-      return [...acc, [cur]];
-  }, [[indices[0]]]);
+    else if (content.type === "code") {
 
-  let snippets: string[] = indicesGroups.map(g => {
-    let [min, max] = [g[0], g[g.length - 1]];
-    if (max - min > 100) throw new Error();
-    let [start, end] = [-50 + (max + min) / 2, 50 + (max + min) / 2];
-    [start, end] = [Math.max(start, 0), Math.min(end, option.text.length)];
-    let x = option.text.substring(0, start).lastIndexOf('\s')
-    start = x === -1 ? start : x;
-    x = option.text.substring(end).indexOf('\s');
-    end = x === -1 ? end : end + x;
+      let indicesGroups = indices.reduce<number[][]>((acc: number[][], cur: number, curIdx: number) => {
+        if (curIdx === 0) return acc;
+        if (countNewLines(content.text.substring((_.last(acc) as number[])[0], cur)) < 2) {
+          _.last(acc)?.push(cur);
+          return acc;
+        }
+        return [...acc, [cur]];
+      }, [[indices[0]]]);
 
-    // while (option.text[start] !== ' ' && start > 0) start--;
-    while (option.text[end] !== ' ' && end < option.text.length) end++;
-    return option.text.substring(start, end);
-  });
+      snippets.push(...indicesGroups.map(g => {
+        let [min, max] = [g[0], g[g.length - 1]];
 
-  let snippet = snippets.join(" [...] <br/> ");
+        while (content.text[min] !== '\n' && min > 0) min--;
+        while (content.text[max] !== '\n' && max < content.text.length) max++;
+
+        let md = content.text.substring(min, max);
+        const infostring = "c++";
+        return `<pre><code class="hljs ${infostring}">${hljs.highlight(infostring, md).value}</code></pre>`;
+
+      }));
+
+    }
+  }
+
+  let snippet = snippets.join("");
   // let [snipetStart, snippetEnd] = [indices[0] - 50,indices[0] + 50];
   // if (indices.length > 1)
   // {
@@ -93,21 +167,23 @@ export const SearchResult = (props: { option: DocIndexEntry, query: string, sele
     return str;
   };
   return <div
+    ref={divRef}
     onClick={props.onSelect}
-    key={sectionPath(option.section) + option.text}
+    className={styles.searchResult}
+    key={sectionPath(option.section) + option.contents[0]?.text || ""}
     style={{
       cursor: "pointer",
       display: "flex",
       flexDirection: "column",
-      borderLeft: "1px solid #999999",
-      backgroundColor: selected ? theme.palette.background.paper : "unset",
+      borderLeft: (selected ? "3px" : "1px") +  " solid #999999",
+      backgroundColor: selected ? theme.palette.background.paper : "auto",
       paddingLeft: "10px",
       textAlign: "left",
       marginTop: "10px",
       width: screen700 ? "700px" : "calc(100% - 20px)"
     }}>
     {
-      option.section.parent ? <div>
+      true ? <div>
         <Typography variant="caption">{sectionPath(option.section)}</Typography>
       </div> : <></>
     }
@@ -153,9 +229,9 @@ export const Search2 = () => {
   useEffect(() => {
     let l = (event: any) => {
       if ('ArrowUp' === event.key)
-        setSelectedResultIndex(selectedResultIndex - 1);
+        setSelectedResultIndex(Math.max(selectedResultIndex - 1, 0));
       if ('ArrowDown' === event.key)
-        setSelectedResultIndex(selectedResultIndex + 1);
+        setSelectedResultIndex(Math.min(results.length - 1, selectedResultIndex + 1));
       if ('Enter' === event.key) {
         gotoResult(selectedResultIndex);
       }
@@ -189,7 +265,7 @@ export const Search2 = () => {
     size={query.length ? "medium" : "small"}
     // variant="filled"
     InputProps={{
-      id:"doc_search_bar",
+      id: "doc_search_bar",
       style: {
         width: query.length ? (screen700 ? "600px" : "100%") : "200px",
         transitionProperty: "left top position width height",
