@@ -2,8 +2,9 @@
 #include <cstring>
 
 #include <li/http_server/http_server.hh>
-#include <li/http_server/http_benchmark.hh>
-
+#include <li/http_server/timer.hh>
+#include <li/json/encoder.hh>
+#include "symbols.hh"
 
 //  other file descriptors events.
 struct benchmark_fiber {
@@ -50,16 +51,22 @@ struct benchmark_fiber {
   int socket_fd;
 };
 
+using namespace li;
 int main() {
 
+  auto json_stream = output_buffer(
+      50 * 1024, [&](const char* d, int s) { });
 
-  auto handler = [] (auto& ctx) {};
+  auto handler = [&] (auto& ctx) {
+    json_encode(json_stream, mmm(s::message = "hello world."));
+    json_stream.reset();
+  };
   auto http = li::http_async_impl::make_http_processor(handler);
 
   int N = 3500000;
   benchmark_fiber input{N, "GET /cookies HTTP/1.1\r\nHost: 127.0.0.1:8090\r\nConnection: keep-alive\r\nCache-Control: max-age=0\r\nAccept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\nUser-Agent: Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.17 (KHTML, like Gecko) Chrome/24.0.1312.56 Safari/537.17\r\nAccept-Encoding: gzip,deflate,sdch\r\nAccept-Language: en-US,en;q=0.8\r\nAccept-Charset: ISO-8859-1,utf-8;q=0.7,*;q=0.3\r\nCookie: name=wookie\r\n\r\n"};
 
-  li::http_benchmark_impl::timer t;
+  li::timer t;
   t.start();
   http(input);
   t.end();
