@@ -138,6 +138,9 @@ int main() {
       <Typography>If you find this project helpful and want to support it, give a star to lithium or buy me a coffee!</Typography>
 
       <Link  target="_blank"  href="https://github.com/sponsors/matt-42"><u>More info on my github sponsor page <Icon style={{color: "pink"}}>favorite_border</Icon></u></Link> 
+
+      <Typography variant="h2" style={{fontFamily: "Major Mono Display"}}>Thanks</Typography>
+      Big thanks to Yvan Darmet for the logo and for the design tips.
     </div>
 
     <Footer/>

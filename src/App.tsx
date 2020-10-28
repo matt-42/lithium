@@ -13,11 +13,11 @@ const darkTheme = createMuiTheme({
   palette: {
     type: 'dark',
     primary: {
-      main: '#f5f5f5',
+      main: '#e8e8e8',
       dark: '#414141'
     },
     secondary: {
-      main: '#f5f5f5',
+      main: '#e8e8e8',
       dark: '#414141'
     },
     background: {
@@ -30,27 +30,27 @@ const darkTheme = createMuiTheme({
   typography: {
     
     body1: {
-      color: "#f5f5f5",
+      color: "#e8e8e8",
     },
     h1: {
       fontFamily: "Major Mono Display",
       fontSize: "50px",
-      color: "#f5f5f5"
+      color: "#e8e8e8"
     },
     h2: {
       fontFamily: "Major Mono Display",
       fontSize: "30px",
-      color: "#f5f5f5"
+      color: "#e8e8e8",
     },
     h3: {
       fontFamily: "Major Mono Display",
       fontSize: "20px",
-      color: "#f5f5f5"
+      color: "#e8e8e8"
     },
     h4: {
       fontFamily: "Major Mono Display",
       fontSize: "15px",
-      color: "#f5f5f5"
+      color: "#e8e8e8"
     },
   },
 
@@ -95,7 +95,6 @@ const lightTheme = createMuiTheme({
     },
   },
 
-
 });
 
 const useStyles = makeStyles((theme: Theme) => {
@@ -104,8 +103,9 @@ const useStyles = makeStyles((theme: Theme) => {
 
   return createStyles({
     body: {
-      backgroundImage: `url("${  dark ? brushed_bg : brushed_bg_white }")`,
-      backgroundColor: dark ? "black" : "white"
+
+      // backgroundImage: `url("${  dark ? brushed_bg : brushed_bg_white }")`,
+      backgroundColor: dark ? "#202020" : "#e8e8e8"
 
     }
   });

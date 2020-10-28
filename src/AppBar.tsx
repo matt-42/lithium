@@ -19,8 +19,8 @@ const useStyles = makeStyles((theme: Theme) => {
   let dark = theme.palette.type === 'dark';
   return createStyles({
     appbar: {
-      backgroundImage: `url("${  dark ? brushed_bg : brushed_bg_white }")`,
-      backgroundColor: dark ? "black" : "white"
+      // backgroundImage: `url("${  dark ? brushed_bg : brushed_bg_white }")`,
+      backgroundColor: dark ? "#151515" : "#e8e8e8"
     },
     grow: {
       flexGrow: 1,

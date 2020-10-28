@@ -19,10 +19,11 @@ pre {
   background-image: url("./images/brushed.jpg");
 } */
 
-searchResult:hover {
-  background-color: #dddddd;
+h2::after { content: "\A___";
+  /* border-bottom:1px solid #fff; */
+  white-space: pre;
 }
-
+/* h2::before { content: "#"; } */
 .App {
   text-align: center;
 }
