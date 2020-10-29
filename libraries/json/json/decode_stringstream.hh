@@ -122,6 +122,17 @@ public:
   inline int bad() const { return bad_; }
   inline int good() const { return !bad_ && !eof(); }
 
+  template <typename O, typename F> void copy_until(O& output, F until) {
+    const char* start = cur;
+    const char* end = cur;
+    const char* buffer_end = buffer.data() + buffer.size();
+    while (until(*end) && end < buffer_end)
+      end++;
+
+    output.append(std::string_view(start, end - start));
+    cur = end;
+  }
+
   template <typename T> void operator>>(T& value) {
     eat_spaces();
     if constexpr (std::is_floating_point<T>::value) {

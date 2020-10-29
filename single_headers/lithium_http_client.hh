@@ -462,6 +462,17 @@ public:
   inline int bad() const { return bad_; }
   inline int good() const { return !bad_ && !eof(); }
 
+  template <typename O, typename F> void copy_until(O& output, F until) {
+    const char* start = cur;
+    const char* end = cur;
+    const char* buffer_end = buffer.data() + buffer.size();
+    while (until(*end) && end < buffer_end)
+      end++;
+
+    output.append(std::string_view(start, end - start));
+    cur = end;
+  }
+
   template <typename T> void operator>>(T& value) {
     eat_spaces();
     if constexpr (std::is_floating_point<T>::value) {
@@ -703,7 +714,54 @@ constexpr inline decltype(auto) cat(const metamap<T...>& a, const metamap<U...>&
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_CALLABLE_TRAITS_TYPELIST_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_CALLABLE_TRAITS_TYPELIST_HH
 
-#include "tuple_utils.hh"
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS_HH
+
+
+namespace li {
+
+template <typename... E, typename F> constexpr void apply_each(F&& f, E&&... e) {
+  (void)std::initializer_list<int>{((void)f(std::forward<E>(e)), 0)...};
+}
+
+template <typename... E, typename F, typename R>
+constexpr auto tuple_map_reduce_impl(F&& f, R&& reduce, E&&... e) {
+  return reduce(f(std::forward<E>(e))...);
+}
+
+template <typename T, typename F> constexpr void tuple_map(T&& t, F&& f) {
+  return std::apply([&](auto&&... e) { apply_each(f, std::forward<decltype(e)>(e)...); },
+                    std::forward<T>(t));
+}
+
+template <typename T, typename F> constexpr auto tuple_reduce(T&& t, F&& f) {
+  return std::apply(std::forward<F>(f), std::forward<T>(t));
+}
+
+template <typename T, typename F, typename R>
+decltype(auto) tuple_map_reduce(T&& m, F map, R reduce) {
+  auto fun = [&](auto... e) { return tuple_map_reduce_impl(map, reduce, e...); };
+  return std::apply(fun, m);
+}
+
+template <typename F> constexpr inline std::tuple<> tuple_filter_impl() { return std::make_tuple(); }
+
+template <typename F, typename... M, typename M1> constexpr auto tuple_filter_impl(M1 m1, M... m) {
+  if constexpr (std::is_same<M1, F>::value)
+    return tuple_filter_impl<F>(m...);
+  else
+    return std::tuple_cat(std::make_tuple(m1), tuple_filter_impl<F>(m...));
+}
+
+template <typename F, typename... M> constexpr auto tuple_filter(const std::tuple<M...>& m) {
+
+  auto fun = [](auto... e) { return tuple_filter_impl<F>(e...); };
+  return std::apply(fun, m);
+}
+
+} // namespace li
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS_HH
+
 
 namespace li {
 
@@ -846,54 +904,6 @@ static struct {
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_MAP_REDUCE_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_MAP_REDUCE_HH
-
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS_HH
-
-
-namespace li {
-
-template <typename... E, typename F> constexpr void apply_each(F&& f, E&&... e) {
-  (void)std::initializer_list<int>{((void)f(std::forward<E>(e)), 0)...};
-}
-
-template <typename... E, typename F, typename R>
-constexpr auto tuple_map_reduce_impl(F&& f, R&& reduce, E&&... e) {
-  return reduce(f(std::forward<E>(e))...);
-}
-
-template <typename T, typename F> constexpr void tuple_map(T&& t, F&& f) {
-  return std::apply([&](auto&&... e) { apply_each(f, std::forward<decltype(e)>(e)...); },
-                    std::forward<T>(t));
-}
-
-template <typename T, typename F> constexpr auto tuple_reduce(T&& t, F&& f) {
-  return std::apply(std::forward<F>(f), std::forward<T>(t));
-}
-
-template <typename T, typename F, typename R>
-decltype(auto) tuple_map_reduce(T&& m, F map, R reduce) {
-  auto fun = [&](auto... e) { return tuple_map_reduce_impl(map, reduce, e...); };
-  return std::apply(fun, m);
-}
-
-template <typename F> constexpr inline std::tuple<> tuple_filter_impl() { return std::make_tuple(); }
-
-template <typename F, typename... M, typename M1> constexpr auto tuple_filter_impl(M1 m1, M... m) {
-  if constexpr (std::is_same<M1, F>::value)
-    return tuple_filter_impl<F>(m...);
-  else
-    return std::tuple_cat(std::make_tuple(m1), tuple_filter_impl<F>(m...));
-}
-
-template <typename F, typename... M> constexpr auto tuple_filter(const std::tuple<M...>& m) {
-
-  auto fun = [](auto... e) { return tuple_filter_impl<F>(e...); };
-  return std::apply(fun, m);
-}
-
-} // namespace li
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS_HH
 
 
 namespace li {
@@ -1075,15 +1085,21 @@ constexpr auto forward_tuple_as_metamap(std::tuple<S...> keys, const std::tuple<
 namespace li {
 
 template <typename O> inline decltype(auto) wrap_json_output_stream(O&& s) {
-  return mmm(s::append = [&s](char c) { s << c; });
+  return mmm(s::append = [&s](auto c) { s << c; });
 }
 
 inline decltype(auto) wrap_json_output_stream(std::ostringstream& s) {
-  return mmm(s::append = [&s](char c) { s << c; });
+  return mmm(s::append = [&s](auto c) { s << c; });
 }
 
 inline decltype(auto) wrap_json_output_stream(std::string& s) {
-  return mmm(s::append = [&s](char c) { s.append(1, c); });
+  return mmm(s::append = [&s](auto c) {
+    using C = std::remove_reference_t<decltype(c)>;
+    if constexpr(std::is_same_v<C, char> || std::is_same_v<C, unsigned char> || std::is_same_v<C, int>)
+      s.append(1, c); 
+    else
+      s.append(c);
+  });
 }
 
 inline decltype(auto) wrap_json_input_stream(std::istringstream& s) { return s; }
@@ -1310,6 +1326,9 @@ template <typename S, typename T> auto utf8_to_json(S&& s, T&& o) {
 
   while (!s.eof()) {
     // 7-bits codepoint
+    if constexpr(std::is_same_v<std::remove_reference_t<S>, decode_stringstream>)
+      s.copy_until(o, [] (char c) { return c > '"' && c <= '~' && c != '\\'; });
+
     while (s.good() and s.peek() <= 0x7F and s.peek() != EOF) {
       switch (s.peek()) {
       case '"':

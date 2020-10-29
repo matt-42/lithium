@@ -38,3 +38,5 @@ add_test(serve_directory serve_directory)
 
 li_add_executable(https https.cc)
 add_test(https https)
+
+li_add_executable(benchmark_http benchmark_http.cc)

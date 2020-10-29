@@ -28,11 +28,14 @@ $ li -h
 $ li run -h
 ```
 
-If this cli does not suit your workflow, please post a github issue.
+If this cli does not suit your workflow, please [post a github issue](https://github.com/matt-42/lithium/issues).
 
 ## Install Lithium locally
 
-To install the Lithium headers and the `li_symbol_generator` tool:
+While the cli has its own advantages, it runs programs inside a docker container. If this 
+is a problem for you, you can still install Lithium locally.
+
+The following will install the Lithium headers and the `li_symbol_generator` tool:
 
 ```bash
 curl https://raw.githubusercontent.com/matt-42/lithium/master/install.sh | bash -s - INSTALL_PREFIX

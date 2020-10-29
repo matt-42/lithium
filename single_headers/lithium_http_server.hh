@@ -194,6 +194,17 @@ public:
   inline int bad() const { return bad_; }
   inline int good() const { return !bad_ && !eof(); }
 
+  template <typename O, typename F> void copy_until(O& output, F until) {
+    const char* start = cur;
+    const char* end = cur;
+    const char* buffer_end = buffer.data() + buffer.size();
+    while (until(*end) && end < buffer_end)
+      end++;
+
+    output.append(std::string_view(start, end - start));
+    cur = end;
+  }
+
   template <typename T> void operator>>(T& value) {
     eat_spaces();
     if constexpr (std::is_floating_point<T>::value) {
@@ -682,7 +693,54 @@ template <typename V> auto symbol_string(V v, typename V::_iod_symbol_type* = 0)
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_CALLABLE_TRAITS_TYPELIST_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_CALLABLE_TRAITS_TYPELIST_HH
 
-#include "tuple_utils.hh"
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS_HH
+
+
+namespace li {
+
+template <typename... E, typename F> constexpr void apply_each(F&& f, E&&... e) {
+  (void)std::initializer_list<int>{((void)f(std::forward<E>(e)), 0)...};
+}
+
+template <typename... E, typename F, typename R>
+constexpr auto tuple_map_reduce_impl(F&& f, R&& reduce, E&&... e) {
+  return reduce(f(std::forward<E>(e))...);
+}
+
+template <typename T, typename F> constexpr void tuple_map(T&& t, F&& f) {
+  return std::apply([&](auto&&... e) { apply_each(f, std::forward<decltype(e)>(e)...); },
+                    std::forward<T>(t));
+}
+
+template <typename T, typename F> constexpr auto tuple_reduce(T&& t, F&& f) {
+  return std::apply(std::forward<F>(f), std::forward<T>(t));
+}
+
+template <typename T, typename F, typename R>
+decltype(auto) tuple_map_reduce(T&& m, F map, R reduce) {
+  auto fun = [&](auto... e) { return tuple_map_reduce_impl(map, reduce, e...); };
+  return std::apply(fun, m);
+}
+
+template <typename F> constexpr inline std::tuple<> tuple_filter_impl() { return std::make_tuple(); }
+
+template <typename F, typename... M, typename M1> constexpr auto tuple_filter_impl(M1 m1, M... m) {
+  if constexpr (std::is_same<M1, F>::value)
+    return tuple_filter_impl<F>(m...);
+  else
+    return std::tuple_cat(std::make_tuple(m1), tuple_filter_impl<F>(m...));
+}
+
+template <typename F, typename... M> constexpr auto tuple_filter(const std::tuple<M...>& m) {
+
+  auto fun = [](auto... e) { return tuple_filter_impl<F>(e...); };
+  return std::apply(fun, m);
+}
+
+} // namespace li
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS_HH
+
 
 namespace li {
 
@@ -825,54 +883,6 @@ static struct {
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_MAP_REDUCE_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_MAP_REDUCE_HH
-
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS_HH
-
-
-namespace li {
-
-template <typename... E, typename F> constexpr void apply_each(F&& f, E&&... e) {
-  (void)std::initializer_list<int>{((void)f(std::forward<E>(e)), 0)...};
-}
-
-template <typename... E, typename F, typename R>
-constexpr auto tuple_map_reduce_impl(F&& f, R&& reduce, E&&... e) {
-  return reduce(f(std::forward<E>(e))...);
-}
-
-template <typename T, typename F> constexpr void tuple_map(T&& t, F&& f) {
-  return std::apply([&](auto&&... e) { apply_each(f, std::forward<decltype(e)>(e)...); },
-                    std::forward<T>(t));
-}
-
-template <typename T, typename F> constexpr auto tuple_reduce(T&& t, F&& f) {
-  return std::apply(std::forward<F>(f), std::forward<T>(t));
-}
-
-template <typename T, typename F, typename R>
-decltype(auto) tuple_map_reduce(T&& m, F map, R reduce) {
-  auto fun = [&](auto... e) { return tuple_map_reduce_impl(map, reduce, e...); };
-  return std::apply(fun, m);
-}
-
-template <typename F> constexpr inline std::tuple<> tuple_filter_impl() { return std::make_tuple(); }
-
-template <typename F, typename... M, typename M1> constexpr auto tuple_filter_impl(M1 m1, M... m) {
-  if constexpr (std::is_same<M1, F>::value)
-    return tuple_filter_impl<F>(m...);
-  else
-    return std::tuple_cat(std::make_tuple(m1), tuple_filter_impl<F>(m...));
-}
-
-template <typename F, typename... M> constexpr auto tuple_filter(const std::tuple<M...>& m) {
-
-  auto fun = [](auto... e) { return tuple_filter_impl<F>(e...); };
-  return std::apply(fun, m);
-}
-
-} // namespace li
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS_HH
 
 
 namespace li {
@@ -1054,15 +1064,21 @@ constexpr auto forward_tuple_as_metamap(std::tuple<S...> keys, const std::tuple<
 namespace li {
 
 template <typename O> inline decltype(auto) wrap_json_output_stream(O&& s) {
-  return mmm(s::append = [&s](char c) { s << c; });
+  return mmm(s::append = [&s](auto c) { s << c; });
 }
 
 inline decltype(auto) wrap_json_output_stream(std::ostringstream& s) {
-  return mmm(s::append = [&s](char c) { s << c; });
+  return mmm(s::append = [&s](auto c) { s << c; });
 }
 
 inline decltype(auto) wrap_json_output_stream(std::string& s) {
-  return mmm(s::append = [&s](char c) { s.append(1, c); });
+  return mmm(s::append = [&s](auto c) {
+    using C = std::remove_reference_t<decltype(c)>;
+    if constexpr(std::is_same_v<C, char> || std::is_same_v<C, unsigned char> || std::is_same_v<C, int>)
+      s.append(1, c); 
+    else
+      s.append(c);
+  });
 }
 
 inline decltype(auto) wrap_json_input_stream(std::istringstream& s) { return s; }
@@ -1289,6 +1305,9 @@ template <typename S, typename T> auto utf8_to_json(S&& s, T&& o) {
 
   while (!s.eof()) {
     // 7-bits codepoint
+    if constexpr(std::is_same_v<std::remove_reference_t<S>, decode_stringstream>)
+      s.copy_until(o, [] (char c) { return c > '"' && c <= '~' && c != '\\'; });
+
     while (s.good() and s.peek() <= 0x7F and s.peek() != EOF) {
       switch (s.peek()) {
       case '"':
@@ -4357,9 +4376,10 @@ static std::unordered_map<std::string_view, std::string_view> content_types = {
 
 static thread_local std::unordered_map<std::string, std::pair<std::string_view, std::string_view>> static_files;
 
-struct http_ctx {
+template <typename FIBER>
+struct generic_http_ctx {
 
-  http_ctx(input_buffer& _rb, async_fiber_context& _fiber) : rb(_rb), fiber(_fiber) {
+  generic_http_ctx(input_buffer& _rb, FIBER& _fiber) : rb(_rb), fiber(_fiber) {
     get_parameters_map.reserve(10);
     response_headers.reserve(20);
 
@@ -4372,8 +4392,8 @@ struct http_ctx {
         50 * 1024, [&](const char* d, int s) { output_stream << std::string_view(d, s); });
   }
 
-  http_ctx& operator=(const http_ctx&) = delete;
-  http_ctx(const http_ctx&) = delete;
+  generic_http_ctx& operator=(const generic_http_ctx&) = delete;
+  generic_http_ctx(const generic_http_ctx&) = delete;
 
   std::string_view header(const char* key) {
     if (!header_map.size())
@@ -4626,9 +4646,13 @@ struct http_ctx {
     while (start < (line_end - 1) and *start == split_char)
       start++;
 
-    const char* end = start + 1;
-    while (end < (line_end - 1) and *end != split_char)
-      end++;
+    const char* end = (const char*)memchr(start + 1, split_char, line_end - start - 2);
+    if (!end) end = line_end - 1;
+
+    // Was:
+    // const char* end = start + 1;
+    // while (end < (line_end - 1) and *end != split_char)
+    //   end++;
     cur = end + 1;
     if (*end == split_char)
       return std::string_view(start, cur - start - 1);
@@ -4872,7 +4896,7 @@ struct http_ctx {
   std::string_view body_start;
   const char* body_end_ = nullptr;
   std::vector<const char*> header_lines;
-  async_fiber_context& fiber;
+  FIBER& fiber;
 
   output_buffer headers_stream;
   bool response_written_ = false;
@@ -4880,14 +4904,15 @@ struct http_ctx {
   output_buffer output_stream;
   output_buffer json_stream;
 };
+using http_ctx = generic_http_ctx<async_fiber_context>;
 
 template <typename F> auto make_http_processor(F handler) {
-  return [handler](async_fiber_context& fiber) {
+  return [handler](auto& fiber) {
     try {
       input_buffer rb;
       bool socket_is_valid = true;
 
-      http_ctx ctx = http_ctx(rb, fiber);
+      auto ctx = generic_http_ctx(rb, fiber);
       ctx.socket_fd = fiber.socket_fd;
       
       while (true) {
@@ -4910,16 +4935,25 @@ template <typename F> auto make_http_processor(F handler) {
             return;
 
         const char* cur = rb.data() + header_end;
+        const char* rbend = rb.data() + rb.end - 3;
         while (!complete_header) {
           // Look for end of header and save header lines.
-          while ((cur - rb.data()) < rb.end - 3) {
-           if (cur[0] == '\r' and cur[1] == '\n') {
-              ctx.add_header_line(cur + 2);
-              cur += 2;
+          // while ((cur - rb.data()) < rb.end - 3) {
+          while (cur < rbend) {
+           cur = (const char*) memchr(cur, '\r', rbend - cur);
+           if (!cur) {
+             cur = rbend;
+             break;
+           }
+           if (//cur[0] == '\r' and // already checked by memchr. 
+               cur[1] == '\n') {
+              cur += 2;// skip \r\n
+              ctx.add_header_line(cur);
+              // If we read \r\n twice the header is complete.
               if (cur[0] == '\r' and cur[1] == '\n')
               {
                 complete_header = true;
-                cur += 2;
+                cur += 2; // skip \r\n
                 header_end = cur - rb.data();
                 break;
               }
@@ -5474,7 +5508,7 @@ auto http_serve(api<http_request, http_response> api, int port, O... opts) {
 
   int nthreads = get_or(options, s::nthreads, std::thread::hardware_concurrency());
 
-  auto handler = [api](http_async_impl::http_ctx& ctx) {
+  auto handler = [api](auto& ctx) {
     http_request rq{ctx};
     http_response resp(ctx);
     try {
@@ -5484,10 +5518,6 @@ auto http_serve(api<http_request, http_response> api, int port, O... opts) {
       ctx.respond(e.what());
     } catch (const std::runtime_error& e) {
       std::cerr << "INTERNAL SERVER ERROR: " << e.what() << std::endl;
-      ctx.set_status(500);
-      ctx.respond("Internal server error.");
-    } catch (...) {
-      std::cerr << "INTERNAL SERVER ERROR: UNKNOWN EXCEPTION." << std::endl;
       ctx.set_status(500);
       ctx.respond("Internal server error.");
     }
@@ -5986,11 +6016,12 @@ struct growing_output_buffer {
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_HTTP_BENCHMARK_HH
 
 
-namespace ctx = boost::context;
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_TIMER_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_TIMER_HH
 
-namespace li {
 
-namespace http_benchmark_impl {
+namespace li
+{
 
 class timer {
 public:
@@ -6012,6 +6043,16 @@ public:
 private:
   std::chrono::time_point<std::chrono::high_resolution_clock> start_, end_;
 };
+
+}
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_TIMER_HH
+
+namespace ctx = boost::context;
+
+namespace li {
+
+namespace http_benchmark_impl {
 
 inline void error(std::string msg) {
   perror(msg.c_str());
@@ -6149,7 +6190,7 @@ inline float http_benchmark(const std::vector<int>& sockets, int NTHREADS, int d
 
     // Even loop.
     epoll_event events[MAXEVENTS];
-    http_benchmark_impl::timer global_timer;
+    timer global_timer;
     global_timer.start();
     global_timer.end();
     while (global_timer.ms() < duration_in_ms) {

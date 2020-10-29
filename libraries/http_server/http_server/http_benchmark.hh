@@ -2,36 +2,15 @@
 
 #include <atomic>
 #include <boost/context/continuation.hpp>
-#include <chrono>
 #include <iostream>
 #include <thread>
 
+#include <li/http_server/timer.hh>
 namespace ctx = boost::context;
 
 namespace li {
 
 namespace http_benchmark_impl {
-
-class timer {
-public:
-  inline void start() { start_ = std::chrono::high_resolution_clock::now(); }
-  inline void end() { end_ = std::chrono::high_resolution_clock::now(); }
-
-  inline unsigned long us() const {
-    return std::chrono::duration_cast<std::chrono::microseconds>(end_ - start_).count();
-  }
-
-  inline unsigned long ms() const {
-    return std::chrono::duration_cast<std::chrono::milliseconds>(end_ - start_).count();
-  }
-
-  inline unsigned long ns() const {
-    return std::chrono::duration_cast<std::chrono::nanoseconds>(end_ - start_).count();
-  }
-
-private:
-  std::chrono::time_point<std::chrono::high_resolution_clock> start_, end_;
-};
 
 inline void error(std::string msg) {
   perror(msg.c_str());
@@ -169,7 +148,7 @@ inline float http_benchmark(const std::vector<int>& sockets, int NTHREADS, int d
 
     // Even loop.
     epoll_event events[MAXEVENTS];
-    http_benchmark_impl::timer global_timer;
+    timer global_timer;
     global_timer.start();
     global_timer.end();
     while (global_timer.ms() < duration_in_ms) {
