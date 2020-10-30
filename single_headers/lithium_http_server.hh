@@ -5213,7 +5213,7 @@ struct http_request {
 
   http_async_impl::http_ctx& http_ctx;
   async_fiber_context& fiber;
-  std::string url_spec;
+  std::string_view url_spec;
 };
 
 struct url_parser_info_node {
