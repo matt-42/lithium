@@ -90,20 +90,3 @@ https://github.com/matt-42/lithium/tree/master/single_headers for the full list 
 The recommended way (without using the cli) is to use cmake to compile project using lithium.
 Check the cmake+lithium project starter here:
 https://github.com/matt-42/lithium/tree/master/cmake_project_template
-
-## Note for projects linking multiple C++ files
-
-The `sql` libraries use a global variable to store the pool of connections. If you encounter
-multiple definitions at link time, you need to `#define LI_EXTERN_GLOBALS` before including the lithium
-header in all your files except one.
-
-In one file:
-```c++
-#include <lithium.hh> // or <lithium_XXXX.hh> 
-```
-
-And in all the others:
-```c++
-#define LI_EXTERN_GLOBALS
-#include <lithium.hh> // or <lithium_XXXX.hh> 
-```
