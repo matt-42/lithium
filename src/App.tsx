@@ -123,6 +123,8 @@ function AppContent() {
     window.onhashchange = () => {
       setwindowHash(window.location.hash);
       gtag('event', 'page_view', {
+        page_title: window.location.hash,
+        page_location: window.location.pathname + window.location.search + window.location.hash,
         page_path: window.location.pathname + window.location.search + window.location.hash,
         send_to: 'G-KPG7NGCZH9'
       });
