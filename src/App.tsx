@@ -111,12 +111,22 @@ const useStyles = makeStyles((theme: Theme) => {
   });
 });
 
+declare global {
+  var gtag : any;
+};
+
 function AppContent() {
 
   const [windowHash, setwindowHash] = useState(window.location.hash);
 
   useEffect(() => {
-    window.onhashchange = () => setwindowHash(window.location.hash);
+    window.onhashchange = () => {
+      setwindowHash(window.location.hash);
+      gtag('event', 'page_view', {
+        page_path: window.location.pathname + window.location.search + window.location.hash,
+        send_to: 'G-KPG7NGCZH9'
+      });
+    }
   }, []);
 
   return windowHash === "" ? <HomePage /> : <Documentation hash={windowHash} />
