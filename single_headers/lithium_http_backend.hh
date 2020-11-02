@@ -621,6 +621,7 @@ class symbol : public assignable<S>,
     template <typename T> static constexpr auto has_member(long) { return std::false_type{}; }     \
                                                                                                    \
     static inline auto symbol_string() { return #NAME; }                                           \
+    static inline auto json_key_string() { return "\"" #NAME "\":"; }                              \
   };                                                                                               \
   static constexpr NAME##_t NAME;                                                                  \
   }
@@ -1955,11 +1956,12 @@ inline void json_encode(C& ss, O obj, const json_object_<E>& schema) {
       ss << ',';
     }
     first = false;
+
     if constexpr (has_key(e, s::json_key)) {
       json_encode_value(ss, e.json_key);
+      ss << ':';
     } else
-      json_encode_value(ss, symbol_string(e.name));
-    ss << ':';
+      ss << e.name.json_key_string();
 
     if constexpr (has_key(e, s::type)) {
       if constexpr (decltype(json_is_vector(e.type)){} or decltype(json_is_object(e.type)){}) {
