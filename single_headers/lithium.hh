@@ -4975,11 +4975,7 @@ namespace li {
 // This is used to store the thread local async connection pool.
 // void* is used instead of concrete types to handle different I parameter.
 
-//#ifdef LI_EXTERN_GLOBALS
 thread_local std::unordered_map<void*, void*> sql_thread_local_data [[gnu::weak]];
-// #else
-// thread_local std::unordered_map<void*, void*> sql_thread_local_data __attribute;
-// #endif
 
 template <typename I> struct sql_database_thread_local_data {
 
@@ -9216,27 +9212,34 @@ inline float http_benchmark(const std::vector<int>& sockets, int NTHREADS, int d
                // events[i].data.fd.
           fibers[events[i].data.fd] = fibers[events[i].data.fd].resume();
       }
-
       global_timer.end();
     }
   };
 
   std::atomic<int> nmessages = 0;
+  int pipeline_size = 50;
 
   auto bench_tcp = [&](int thread_id) {
     return [=, &nmessages]() {
       client_fn(
           [&](int fd, auto read, auto write) { // flood the server.
+            std::string pipelined;
+            for (int i = 0; i < pipeline_size; i++)
+              pipelined += req;
             while (true) {
               char buf_read[10000];
-              write(req.data(), req.size());
+              write(pipelined.data(), pipelined.size());
               int rd = read(buf_read, sizeof(buf_read));
-              nmessages++;
+              if (rd == 0) break;
+              nmessages+=pipeline_size;
             }
           },
           thread_id * NCONNECTION_PER_THREAD, (thread_id+1) * NCONNECTION_PER_THREAD);
     };
   };
+
+  timer global_timer;
+  global_timer.start();
 
   int nthreads = NTHREADS;
   std::vector<std::thread> ths;
@@ -9244,7 +9247,9 @@ inline float http_benchmark(const std::vector<int>& sockets, int NTHREADS, int d
     ths.push_back(std::thread(bench_tcp(i)));
   for (auto& t : ths)
     t.join();
-  return (1000. * nmessages / duration_in_ms);
+
+  global_timer.end();
+  return (1000. * nmessages / global_timer.ms());
 }
 
 } // namespace li
