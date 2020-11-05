@@ -4446,13 +4446,15 @@ struct http_ctx {
     while (start < (line_end - 1) and *start == split_char)
       start++;
 
+#if 0
     const char* end = (const char*)memchr(start + 1, split_char, line_end - start - 2);
     if (!end) end = line_end - 1;
+#else    
+    const char* end = start + 1;
+    while (end < (line_end - 1) and *end != split_char)
+      end++;
+#endif
 
-    // Was:
-    // const char* end = start + 1;
-    // while (end < (line_end - 1) and *end != split_char)
-    //   end++;
     cur = end + 1;
     if (*end == split_char)
       return std::string_view(start, cur - start - 1);
@@ -4737,15 +4739,20 @@ template <typename F> auto make_http_processor(F handler) {
         const char* rbend = rb.data() + rb.end - 3;
         while (!complete_header) {
           // Look for end of header and save header lines.
-          // while ((cur - rb.data()) < rb.end - 3) {
+
+#if 0
+          // Memchr optimization. Does not seem to help but I can't find why.
           while (cur < rbend) {
            cur = (const char*) memchr(cur, '\r', rbend - cur);
            if (!cur) {
              cur = rbend;
              break;
            }
-           if (//cur[0] == '\r' and // already checked by memchr. 
-               cur[1] == '\n') {
+           if (cur[1] == '\n') { // \n already checked by memchr. 
+#else          
+          while ((cur - rb.data()) < rb.end - 3) {
+           if (cur[0] == '\r' and cur[1] == '\n') {
+#endif
               cur += 2;// skip \r\n
               ctx.add_header_line(cur);
               // If we read \r\n twice the header is complete.
