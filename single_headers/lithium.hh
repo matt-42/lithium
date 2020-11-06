@@ -770,6 +770,7 @@ class symbol : public assignable<S>,
     template <typename T> static constexpr auto has_member(long) { return std::false_type{}; }     \
                                                                                                    \
     static inline auto symbol_string() { return #NAME; }                                           \
+    static inline auto json_key_string() { return "\"" #NAME "\":"; }                              \
   };                                                                                               \
   static constexpr NAME##_t NAME;                                                                  \
   }
@@ -3088,9 +3089,9 @@ inline std::enable_if_t<!std::is_pointer<O>::value, void> json_encode(C& ss, O o
     first = false;
     if constexpr (has_key(e, s::json_key)) {
       json_encode_value(ss, e.json_key);
+      ss << ':';
     } else
-      json_encode_value(ss, symbol_string(e.name));
-    ss << ':';
+      ss << e.name.json_key_string();
 
     if constexpr (has_key(e, s::type)) {
       if constexpr (decltype(json_is_vector(e.type)){} or decltype(json_is_object(e.type)){}) {
@@ -4975,11 +4976,7 @@ namespace li {
 // This is used to store the thread local async connection pool.
 // void* is used instead of concrete types to handle different I parameter.
 
-//#ifdef LI_EXTERN_GLOBALS
 thread_local std::unordered_map<void*, void*> sql_thread_local_data [[gnu::weak]];
-// #else
-// thread_local std::unordered_map<void*, void*> sql_thread_local_data __attribute;
-// #endif
 
 template <typename I> struct sql_database_thread_local_data {
 
@@ -7687,13 +7684,14 @@ struct generic_http_ctx {
     while (start < (line_end - 1) and *start == split_char)
       start++;
 
+#if 0
     const char* end = (const char*)memchr(start + 1, split_char, line_end - start - 2);
     if (!end) end = line_end - 1;
-
-    // Was:
-    // const char* end = start + 1;
-    // while (end < (line_end - 1) and *end != split_char)
-    //   end++;
+#else    
+    const char* end = start + 1;
+    while (end < (line_end - 1) and *end != split_char)
+      end++;
+#endif
     cur = end + 1;
     if (*end == split_char)
       return std::string_view(start, cur - start - 1);
@@ -7979,15 +7977,19 @@ template <typename F> auto make_http_processor(F handler) {
         const char* rbend = rb.data() + rb.end - 3;
         while (!complete_header) {
           // Look for end of header and save header lines.
-          // while ((cur - rb.data()) < rb.end - 3) {
+#if 0
+          // Memchr optimization. Does not seem to help but I can't find why.
           while (cur < rbend) {
            cur = (const char*) memchr(cur, '\r', rbend - cur);
            if (!cur) {
              cur = rbend;
              break;
            }
-           if (//cur[0] == '\r' and // already checked by memchr. 
-               cur[1] == '\n') {
+           if (cur[1] == '\n') { // \n already checked by memchr. 
+#else          
+          while ((cur - rb.data()) < rb.end - 3) {
+           if (cur[0] == '\r' and cur[1] == '\n') {
+#endif
               cur += 2;// skip \r\n
               ctx.add_header_line(cur);
               // If we read \r\n twice the header is complete.
@@ -9243,27 +9245,34 @@ inline float http_benchmark(const std::vector<int>& sockets, int NTHREADS, int d
                // events[i].data.fd.
           fibers[events[i].data.fd] = fibers[events[i].data.fd].resume();
       }
-
       global_timer.end();
     }
   };
 
   std::atomic<int> nmessages = 0;
+  int pipeline_size = 50;
 
   auto bench_tcp = [&](int thread_id) {
     return [=, &nmessages]() {
       client_fn(
           [&](int fd, auto read, auto write) { // flood the server.
+            std::string pipelined;
+            for (int i = 0; i < pipeline_size; i++)
+              pipelined += req;
             while (true) {
               char buf_read[10000];
-              write(req.data(), req.size());
+              write(pipelined.data(), pipelined.size());
               int rd = read(buf_read, sizeof(buf_read));
-              nmessages++;
+              if (rd == 0) break;
+              nmessages+=pipeline_size;
             }
           },
           thread_id * NCONNECTION_PER_THREAD, (thread_id+1) * NCONNECTION_PER_THREAD);
     };
   };
+
+  timer global_timer;
+  global_timer.start();
 
   int nthreads = NTHREADS;
   std::vector<std::thread> ths;
@@ -9271,7 +9280,9 @@ inline float http_benchmark(const std::vector<int>& sockets, int NTHREADS, int d
     ths.push_back(std::thread(bench_tcp(i)));
   for (auto& t : ths)
     t.join();
-  return (1000. * nmessages / duration_in_ms);
+
+  global_timer.end();
+  return (1000. * nmessages / global_timer.ms());
 }
 
 } // namespace li

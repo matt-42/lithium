@@ -22,3 +22,4 @@ li_add_executable(readme tests/readme.cc)
 li_add_executable(number_parser tests/number_parser.cc)
 add_test(number_parser number_parser)
 
+li_add_executable(encode_benchmark tests/encode_benchmark.cc)

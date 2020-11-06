@@ -570,6 +570,7 @@ class symbol : public assignable<S>,
     template <typename T> static constexpr auto has_member(long) { return std::false_type{}; }     \
                                                                                                    \
     static inline auto symbol_string() { return #NAME; }                                           \
+    static inline auto json_key_string() { return "\"" #NAME "\":"; }                              \
   };                                                                                               \
   static constexpr NAME##_t NAME;                                                                  \
   }
@@ -1948,11 +1949,7 @@ namespace li {
 // This is used to store the thread local async connection pool.
 // void* is used instead of concrete types to handle different I parameter.
 
-//#ifdef LI_EXTERN_GLOBALS
 thread_local std::unordered_map<void*, void*> sql_thread_local_data [[gnu::weak]];
-// #else
-// thread_local std::unordered_map<void*, void*> sql_thread_local_data __attribute;
-// #endif
 
 template <typename I> struct sql_database_thread_local_data {
 

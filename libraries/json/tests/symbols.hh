@@ -45,6 +45,11 @@
     LI_SYMBOL(maxDataPoints)
 #endif
 
+#ifndef LI_SYMBOL_message
+#define LI_SYMBOL_message
+    LI_SYMBOL(message)
+#endif
+
 #ifndef LI_SYMBOL_name
 #define LI_SYMBOL_name
     LI_SYMBOL(name)

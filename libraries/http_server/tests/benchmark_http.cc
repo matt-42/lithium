@@ -58,7 +58,8 @@ int main() {
       50 * 1024, [&](const char* d, int s) { });
 
   auto handler = [&] (auto& ctx) {
-    json_encode(json_stream, mmm(s::message = "hello world."));
+    // json_encode(json_stream, mmm(s::message = "hello world."));
+    json_encode(json_stream, mmm(s::message = 42));
     json_stream.reset();
   };
   auto http = li::http_async_impl::make_http_processor(handler);
