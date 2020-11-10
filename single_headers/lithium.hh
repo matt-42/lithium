@@ -3159,12 +3159,12 @@ template <typename C, typename M> decltype(auto) json_decode(C& input, M& obj) {
 template <typename C, typename M> decltype(auto) json_encode(C& output, const M& obj) {
   impl::to_json_schema(obj).encode(output, obj);
 }
-template <typename C, typename F> decltype(auto) json_encode_generator(C& output, int N, const F generator) {
+template <typename C, typename F> decltype(auto) json_encode_generator(C& output, int N, F generator) {
   auto elt = impl::to_json_schema(decltype(generator()){});
   json_vector_<decltype(elt)>(elt).encode(output, mmm(s::size = N, s::generate = generator));
   // json_vector(impl::to_json_schema(obj)).encode(output, obj);
 }
-template <typename F> decltype(auto) json_encode_generator(int N, const F generator) {
+template <typename F> decltype(auto) json_encode_generator(int N, F generator) {
   auto elt = impl::to_json_schema(decltype(generator()){});
   return json_vector_<decltype(elt)>(elt).encode(mmm(s::size = N, s::generate = generator));
 }
@@ -7873,8 +7873,16 @@ struct http_ctx {
     output_stream << "Content-Length: " << s.size() << "\r\n\r\n" << s; // Add body
   }
 
-  template <typename O> void respond_json_array(int N, const F callback) {
-  
+  template <typename F> void respond_json_generator(int N, F callback) {
+    response_written_ = true;
+    json_stream.reset();
+    json_encode_generator(json_stream, N, callback);
+
+    format_top_headers(output_stream);
+    headers_stream.flush(); // flushes to output_stream.
+    output_stream << "Content-Length: " << json_stream.to_string_view().size() << "\r\n\r\n";
+    json_stream.flush(); // flushes to output_stream.
+    
   }
 
   template <typename O> void respond_json(const O& obj) {
@@ -8801,9 +8809,9 @@ struct http_response {
     http_ctx.respond_json(std::forward<O>(obj));
   }
   template <typename F>
-  inline void write_json_array(int N, F generator) {     
+  inline void write_json_generator(int N, F generator) {     
     http_ctx.set_header("Content-Type", "application/json");
-    http_ctx.respond_json_array(N, std::forward<F>(generator));
+    http_ctx.respond_json_generator(N, std::forward<F>(generator));
   }
 
   template <typename A, typename B, typename... O>

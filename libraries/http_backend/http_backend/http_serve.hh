@@ -190,7 +190,7 @@ struct http_ctx {
     output_stream << "Content-Length: " << s.size() << "\r\n\r\n" << s; // Add body
   }
 
-  template <typename O> void respond_json_generator(int N, const F callback) {
+  template <typename F> void respond_json_generator(int N, F callback) {
     response_written_ = true;
     json_stream.reset();
     json_encode_generator(json_stream, N, callback);

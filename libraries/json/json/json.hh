@@ -100,12 +100,12 @@ template <typename C, typename M> decltype(auto) json_decode(C& input, M& obj) {
 template <typename C, typename M> decltype(auto) json_encode(C& output, const M& obj) {
   impl::to_json_schema(obj).encode(output, obj);
 }
-template <typename C, typename F> decltype(auto) json_encode_generator(C& output, int N, const F generator) {
+template <typename C, typename F> decltype(auto) json_encode_generator(C& output, int N, F generator) {
   auto elt = impl::to_json_schema(decltype(generator()){});
   json_vector_<decltype(elt)>(elt).encode(output, mmm(s::size = N, s::generate = generator));
   // json_vector(impl::to_json_schema(obj)).encode(output, obj);
 }
-template <typename F> decltype(auto) json_encode_generator(int N, const F generator) {
+template <typename F> decltype(auto) json_encode_generator(int N, F generator) {
   auto elt = impl::to_json_schema(decltype(generator()){});
   return json_vector_<decltype(elt)>(elt).encode(mmm(s::size = N, s::generate = generator));
 }
