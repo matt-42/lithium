@@ -7507,12 +7507,14 @@ struct generic_http_ctx {
   }
 
   inline void format_top_headers(output_buffer& output_stream) {
-    output_stream << "HTTP/1.1 " << status_ << "\r\n";
-    output_stream << "Date: " << std::string_view(date_buf, date_buf_size) << "\r\n";
-    #ifndef LITHIUM_SERVER_NAME
-      output_stream << "Connection: keep-alive\r\nServer: Lithium\r\n";
+    output_stream << "HTTP/1.1 " << status_;
+    output_stream << "\r\nDate: " << std::string_view(date_buf, date_buf_size);
+    #ifdef LITHIUM_SERVER_NAME
+      #define LITHIUM_SERVER_HEADER "\r\nConnection: keep-alive\r\nServer: " #LITHIUM_SERVER_NAME "\r\n"
+      output_stream << LITHIUM_SERVER_HEADER;
+      #undef LITHIUM_SERVER_HEADER 
     #else
-      output_stream << "Connection: keep-alive\r\nServer: " #LITHIUM_SERVER_NAME "\r\n";
+      output_stream << "\r\nConnection: keep-alive\r\nServer: Lithium\r\n";
     #endif
   }
 
