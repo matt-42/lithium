@@ -133,7 +133,11 @@ struct http_ctx {
   inline void format_top_headers(output_buffer& output_stream) {
     output_stream << "HTTP/1.1 " << status_ << "\r\n";
     output_stream << "Date: " << std::string_view(date_buf, date_buf_size) << "\r\n";
-    output_stream << "Connection: keep-alive\r\nServer: Lithium\r\n";
+    #ifndef LITHIUM_SERVER_NAME
+      output_stream << "Connection: keep-alive\r\nServer: Lithium\r\n";
+    #else
+      output_stream << "Connection: keep-alive\r\nServer: " #LITHIUM_SERVER_NAME "\r\n";
+    #endif
   }
 
   void prepare_request() {
