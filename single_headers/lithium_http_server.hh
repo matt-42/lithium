@@ -4473,9 +4473,11 @@ struct generic_http_ctx {
     output_stream << "HTTP/1.1 " << status_;
     output_stream << "\r\nDate: " << std::string_view(date_buf, date_buf_size);
     #ifdef LITHIUM_SERVER_NAME
-      #define LITHIUM_SERVER_HEADER "\r\nConnection: keep-alive\r\nServer: " #LITHIUM_SERVER_NAME "\r\n"
-      output_stream << LITHIUM_SERVER_HEADER;
-      #undef LITHIUM_SERVER_HEADER 
+      #define MACRO_TO_STR2(L) #L
+      #define MACRO_TO_STR(L) MACRO_TO_STR2(L)
+      output_stream << "\r\nConnection: keep-alive\r\nServer: " MACRO_TO_STR(LITHIUM_SERVER_NAME) "\r\n";
+      #undef MACRO_TO_STR
+      #undef MACRO_TO_STR2
     #else
       output_stream << "\r\nConnection: keep-alive\r\nServer: Lithium\r\n";
     #endif
