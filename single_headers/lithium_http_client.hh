@@ -1000,6 +1000,11 @@ auto forward_tuple_as_metamap(std::tuple<S...> keys, const std::tuple<V...>& val
     LI_SYMBOL(append)
 #endif
 
+#ifndef LI_SYMBOL_generate
+#define LI_SYMBOL_generate
+    LI_SYMBOL(generate)
+#endif
+
 #ifndef LI_SYMBOL_json_key
 #define LI_SYMBOL_json_key
     LI_SYMBOL(json_key)
@@ -1008,6 +1013,11 @@ auto forward_tuple_as_metamap(std::tuple<S...> keys, const std::tuple<V...>& val
 #ifndef LI_SYMBOL_name
 #define LI_SYMBOL_name
     LI_SYMBOL(name)
+#endif
+
+#ifndef LI_SYMBOL_size
+#define LI_SYMBOL_size
+    LI_SYMBOL(size)
 #endif
 
 #ifndef LI_SYMBOL_type
@@ -1919,6 +1929,20 @@ inline void json_encode(C& ss, const std::vector<T>& array, const json_vector_<E
   ss << ']';
 }
 
+template <typename E, typename C, typename G>
+inline void json_encode(C& ss, const G& generator, const json_vector_<E>& schema) {
+  ss << '[';
+  for (int i = 0; i < generator.size; i++) {
+    if constexpr (decltype(json_is_vector(E{})){} or decltype(json_is_object(E{})){}) {
+      json_encode(ss, generator.generate(), schema.schema);
+    } else
+      json_encode_value(ss, generator.generate());
+
+    if (i != generator.size - 1)
+      ss << ',';
+  }
+  ss << ']';
+}
 template <typename V, typename C, typename M>
 inline void json_encode(C& ss, const M& map, const json_map_<V>& schema) {
   ss << '{';
@@ -2100,6 +2124,15 @@ template <typename C, typename M> decltype(auto) json_decode(C& input, M& obj) {
 
 template <typename C, typename M> decltype(auto) json_encode(C& output, const M& obj) {
   impl::to_json_schema(obj).encode(output, obj);
+}
+template <typename C, typename F> decltype(auto) json_encode_generator(C& output, int N, const F generator) {
+  auto elt = impl::to_json_schema(decltype(generator()){});
+  json_vector_<decltype(elt)>(elt).encode(output, mmm(s::size = N, s::generate = generator));
+  // json_vector(impl::to_json_schema(obj)).encode(output, obj);
+}
+template <typename F> decltype(auto) json_encode_generator(int N, const F generator) {
+  auto elt = impl::to_json_schema(decltype(generator()){});
+  return json_vector_<decltype(elt)>(elt).encode(mmm(s::size = N, s::generate = generator));
 }
 
 template <typename M> auto json_encode(const M& obj) {

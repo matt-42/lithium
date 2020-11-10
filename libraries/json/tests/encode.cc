@@ -137,4 +137,10 @@ int main() {
     assert(test2["test2"] == 4);
   }
 
+  {
+    // Generators.
+    int i = 0;
+    auto g = [&i] { return i++; };
+    assert(json_encode_generator(3, g) == "[0,1,2]");
+  }
 }
