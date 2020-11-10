@@ -201,6 +201,19 @@ struct generic_http_ctx {
     json_stream.flush(); // flushes to output_stream.
   }
 
+  template <typename F> void respond_json_generator(int N, F callback) {
+    response_written_ = true;
+    json_stream.reset();
+    json_encode_generator(json_stream, N, callback);
+
+    format_top_headers(output_stream);
+    headers_stream.flush(); // flushes to output_stream.
+    output_stream << "Content-Length: " << json_stream.to_string_view().size() << "\r\n\r\n";
+    json_stream.flush(); // flushes to output_stream.
+    
+  }
+
+
   void respond_if_needed() {
     if (!response_written_) {
       response_written_ = true;

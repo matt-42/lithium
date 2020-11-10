@@ -105,6 +105,15 @@ template <typename M> auto json_encode(const M& obj) {
   return impl::to_json_schema(obj).encode(obj);
 }
 
+template <typename C, typename F> decltype(auto) json_encode_generator(C& output, int N, F generator) {
+  auto elt = impl::to_json_schema(decltype(generator()){});
+  json_vector_<decltype(elt)>(elt).encode(output, mmm(s::size = int(N), s::generate = generator));
+}
+template <typename F> decltype(auto) json_encode_generator(int N, F generator) {
+  auto elt = impl::to_json_schema(decltype(generator()){});
+  return json_vector_<decltype(elt)>(elt).encode(mmm(s::size = N, s::generate = generator));
+}
+
 template <typename A, typename B, typename... C>
 auto json_encode(const assign_exp<A, B>& exp, C... c) {
   auto obj = mmm(exp, c...);

@@ -49,7 +49,7 @@ namespace internal {
   
   template <typename... V>
   auto make_metamap_type(typelist<V...> variables) {
-    return mmm(V(typename V::left_t{}, typename V::right_t{})...);
+    return mmm(V(*(typename V::left_t*)0, *(typename V::right_t*)0)...);
   };
 
   template <typename T1, typename T2, typename... V, typename... T>
@@ -63,7 +63,7 @@ namespace internal {
 //  metamap_t<s::name_t, string, s::age_t, int>
 //  instead of decltype(mmm(s::name = string(), s::age = int()));
 template <typename... T>
-using metamap_t = decltype(internal::make_metamap_type(typelist<>{}, T{}...));
+using metamap_t = decltype(internal::make_metamap_type(typelist<>{}, std::declval<T>()...));
 
 
 } // namespace li

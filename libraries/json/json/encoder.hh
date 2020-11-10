@@ -67,6 +67,7 @@ inline void json_encode_value(C& ss, const std::variant<T...>& t) {
   ss << '}';
 }
 
+
 template <typename T, typename C, typename E>
 inline void json_encode(C& ss, const T& value, const E& schema) {
   json_encode_value(ss, value);
@@ -86,6 +87,25 @@ inline void json_encode(C& ss, const std::vector<T>& array, const json_vector_<E
   }
   ss << ']';
 }
+
+template <typename E, typename C, typename G>
+inline void json_encode(C& ss, 
+                        const metamap<typename s::size_t::variable_t<int>, 
+                                      typename s::generate_t::variable_t<G>>& generator, 
+                        const json_vector_<E>& schema) {
+  ss << '[';
+  for (int i = 0; i < generator.size; i++) {
+    if constexpr (decltype(json_is_vector(E{})){} or decltype(json_is_object(E{})){}) {
+      json_encode(ss, generator.generate(), schema.schema);
+    } else
+      json_encode_value(ss, generator.generate());
+
+    if (i != generator.size - 1)
+      ss << ',';
+  }
+  ss << ']';
+}
+
 
 template <typename V, typename C, typename M>
 inline void json_encode(C& ss, const M& map, const json_map_<V>& schema) {

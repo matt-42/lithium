@@ -882,7 +882,7 @@ namespace internal {
   
   template <typename... V>
   auto make_metamap_type(typelist<V...> variables) {
-    return mmm(V(typename V::left_t{}, typename V::right_t{})...);
+    return mmm(V(*(typename V::left_t*)0, *(typename V::right_t*)0)...);
   };
 
   template <typename T1, typename T2, typename... V, typename... T>
@@ -896,7 +896,7 @@ namespace internal {
 //  metamap_t<s::name_t, string, s::age_t, int>
 //  instead of decltype(mmm(s::name = string(), s::age = int()));
 template <typename... T>
-using metamap_t = decltype(internal::make_metamap_type(typelist<>{}, T{}...));
+using metamap_t = decltype(internal::make_metamap_type(typelist<>{}, std::declval<T>()...));
 
 
 } // namespace li
@@ -2095,6 +2095,11 @@ static int json_ok = json_no_error();
     LI_SYMBOL(append)
 #endif
 
+#ifndef LI_SYMBOL_generate
+#define LI_SYMBOL_generate
+    LI_SYMBOL(generate)
+#endif
+
 #ifndef LI_SYMBOL_json_key
 #define LI_SYMBOL_json_key
     LI_SYMBOL(json_key)
@@ -2103,6 +2108,11 @@ static int json_ok = json_no_error();
 #ifndef LI_SYMBOL_name
 #define LI_SYMBOL_name
     LI_SYMBOL(name)
+#endif
+
+#ifndef LI_SYMBOL_size
+#define LI_SYMBOL_size
+    LI_SYMBOL(size)
 #endif
 
 #ifndef LI_SYMBOL_type
@@ -3005,6 +3015,7 @@ inline void json_encode_value(C& ss, const std::variant<T...>& t) {
   ss << '}';
 }
 
+
 template <typename T, typename C, typename E>
 inline void json_encode(C& ss, const T& value, const E& schema) {
   json_encode_value(ss, value);
@@ -3024,6 +3035,25 @@ inline void json_encode(C& ss, const std::vector<T>& array, const json_vector_<E
   }
   ss << ']';
 }
+
+template <typename E, typename C, typename G>
+inline void json_encode(C& ss, 
+                        const metamap<typename s::size_t::variable_t<int>, 
+                                      typename s::generate_t::variable_t<G>>& generator, 
+                        const json_vector_<E>& schema) {
+  ss << '[';
+  for (int i = 0; i < generator.size; i++) {
+    if constexpr (decltype(json_is_vector(E{})){} or decltype(json_is_object(E{})){}) {
+      json_encode(ss, generator.generate(), schema.schema);
+    } else
+      json_encode_value(ss, generator.generate());
+
+    if (i != generator.size - 1)
+      ss << ',';
+  }
+  ss << ']';
+}
+
 
 template <typename V, typename C, typename M>
 inline void json_encode(C& ss, const M& map, const json_map_<V>& schema) {
@@ -3227,6 +3257,15 @@ template <typename C, typename M> decltype(auto) json_encode(C& output, const M&
 
 template <typename M> auto json_encode(const M& obj) {
   return impl::to_json_schema(obj).encode(obj);
+}
+
+template <typename C, typename F> decltype(auto) json_encode_generator(C& output, int N, F generator) {
+  auto elt = impl::to_json_schema(decltype(generator()){});
+  json_vector_<decltype(elt)>(elt).encode(output, mmm(s::size = int(N), s::generate = generator));
+}
+template <typename F> decltype(auto) json_encode_generator(int N, F generator) {
+  auto elt = impl::to_json_schema(decltype(generator()){});
+  return json_vector_<decltype(elt)>(elt).encode(mmm(s::size = N, s::generate = generator));
 }
 
 template <typename A, typename B, typename... C>
@@ -7577,6 +7616,19 @@ struct generic_http_ctx {
     json_stream.flush(); // flushes to output_stream.
   }
 
+  template <typename F> void respond_json_generator(int N, F callback) {
+    response_written_ = true;
+    json_stream.reset();
+    json_encode_generator(json_stream, N, callback);
+
+    format_top_headers(output_stream);
+    headers_stream.flush(); // flushes to output_stream.
+    output_stream << "Content-Length: " << json_stream.to_string_view().size() << "\r\n\r\n";
+    json_stream.flush(); // flushes to output_stream.
+    
+  }
+
+
   void respond_if_needed() {
     if (!response_written_) {
       response_written_ = true;
@@ -8488,9 +8540,16 @@ struct http_response {
     http_ctx.set_header("Content-Type", "application/json");
     http_ctx.respond_json(std::forward<O>(obj));
   }
+
   template <typename A, typename B, typename... O>
   void write_json(assign_exp<A, B>&& w1, O&&... ws) {
     write_json(mmm(std::forward<assign_exp<A, B>>(w1), std::forward<O>(ws)...));
+  }
+
+  template <typename F>
+  inline void write_json_generator(int N, F generator) {     
+    http_ctx.set_header("Content-Type", "application/json");
+    http_ctx.respond_json_generator(N, std::forward<F>(generator));
   }
 
   inline void write() { http_ctx.respond(body); }
