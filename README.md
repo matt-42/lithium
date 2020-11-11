@@ -16,6 +16,10 @@ Please post a github issue if you need help with Lithium. Even the dumiest quest
     - MacOS: Apple clang version 12.0.0 
     - Windows: Not supported. Waiting for a bugfix in the MSVC C++ compiler.
 
+# Benchmarks
+
+Lithium HTTP server and SQL drivers are benchmarked by [TechEmpower](https://tfb-status.techempower.com/).
+
 # Support the project
 
 If you find this project helpful, give a star to lithium or buy me a coffee!

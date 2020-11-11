@@ -146,4 +146,11 @@ int main() {
     assert(json_encode(&to_encode) == input);
          
   }
+
+  {
+    // Generators.
+    int i = 0;
+    auto g = [&i] { return i++; };
+    assert(json_encode_generator(3, g) == "[0,1,2]");
+  }
 }

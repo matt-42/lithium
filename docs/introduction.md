@@ -21,6 +21,10 @@ The goal of `Lithium` is to prove that this is feasible.
   - MacOS: Apple clang version 12.0.0 
   - Windows: Not supported. Waiting for a bugfix in the MSVC C++ compiler.
 
+## Benchmarks
+
+Lithium HTTP server and SQL drivers are benchmarked againts 200+ other framesworks at [TechEmpower](https://tfb-status.techempower.com/).
+As of November 2020, it is ranked first.
 
 ## Issues / Feature requests
 

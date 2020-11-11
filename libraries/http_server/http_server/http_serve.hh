@@ -140,9 +140,17 @@ struct generic_http_ctx {
   }
 
   inline void format_top_headers(output_buffer& output_stream) {
-    output_stream << "HTTP/1.1 " << status_ << "\r\n";
-    output_stream << "Date: " << std::string_view(date_buf, date_buf_size) << "\r\n";
-    output_stream << "Connection: keep-alive\r\nServer: Lithium\r\n";
+    output_stream << "HTTP/1.1 " << status_;
+    output_stream << "\r\nDate: " << std::string_view(date_buf, date_buf_size);
+    #ifdef LITHIUM_SERVER_NAME
+      #define MACRO_TO_STR2(L) #L
+      #define MACRO_TO_STR(L) MACRO_TO_STR2(L)
+      output_stream << "\r\nConnection: keep-alive\r\nServer: " MACRO_TO_STR(LITHIUM_SERVER_NAME) "\r\n";
+      #undef MACRO_TO_STR
+      #undef MACRO_TO_STR2
+    #else
+      output_stream << "\r\nConnection: keep-alive\r\nServer: Lithium\r\n";
+    #endif
   }
 
   void prepare_request() {
@@ -201,6 +209,19 @@ struct generic_http_ctx {
     output_stream << "Content-Length: " << json_stream.to_string_view().size() << "\r\n\r\n";
     json_stream.flush(); // flushes to output_stream.
   }
+
+  template <typename F> void respond_json_generator(int N, F callback) {
+    response_written_ = true;
+    json_stream.reset();
+    json_encode_generator(json_stream, N, callback);
+
+    format_top_headers(output_stream);
+    headers_stream.flush(); // flushes to output_stream.
+    output_stream << "Content-Length: " << json_stream.to_string_view().size() << "\r\n\r\n";
+    json_stream.flush(); // flushes to output_stream.
+    
+  }
+
 
   void respond_if_needed() {
     if (!response_written_) {
@@ -605,9 +626,9 @@ template <typename F> auto make_http_processor(F handler) {
 #if 0
           // Memchr optimization. Does not seem to help but I can't find why.
           while (cur < rbend) {
-           cur = (const char*) memchr(cur, '\r', rbend - cur);
+           cur = (const char*) memchr(cur, '\r', 1 + rbend - cur);
            if (!cur) {
-             cur = rbend;
+             cur = rbend + 1;
              break;
            }
            if (cur[1] == '\n') { // \n already checked by memchr. 

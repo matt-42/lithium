@@ -89,7 +89,7 @@ template <typename B> void escape_html_entities(B& buffer, const std::string& da
 }
 
 #define PGSQL
-//#define BENCH_MYSQL
+#define BENCH_MYSQL
 
 #ifdef BENCH_MYSQL
 auto sql_db =
