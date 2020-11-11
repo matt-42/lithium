@@ -212,7 +212,7 @@ auto make_api() {
       // raw_c("START TRANSACTION");
       // auto stm = c.backend_connection().prepare("SELECT randomNumber from World where id=$1");
       for (int i = 0; i < N; i++)
-        numbers[i] = c.find_one(s::id = 1 + rand() % 99).value();
+        numbers[i] = c.find_one(s::id = 1 + rand() % 9990).value();
       // numbers[i] = stm(1 + rand() % 99).read<std::remove_reference_t<decltype(numbers[i])>>();
     // {
     //   numbers[i].id = 1 + rand() % 99;
@@ -222,6 +222,15 @@ auto make_api() {
     }
 
     response.write_json(numbers);
+  };
+  my_api.get("/querie2") = [&](http_request& request, http_response& response) {
+    set_max_sql_connections_per_thread(queries_nconn);
+    std::string N_str = request.get_parameters(s::N = std::optional<std::string>()).N.value_or("1");
+    int N = atoi(N_str.c_str());
+
+    N = std::max(1, std::min(N, 500));
+    auto c = random_numbers.connect(request.fiber);
+    response.write_json_generator(N, [&] { return *c.find_one(s::id = 1 + rand() % 9990); });
   };
 
 
@@ -251,10 +260,18 @@ auto make_api() {
 
     std::vector<int> ids(N);
     for (int i = 0; i < N; i++)
-      ids[i] = 1 + rand() % 10000;
+      ids[i] = rand() % 9999;
     response.write_json(world_cache.get_array(ids));
 
     // response.write_json(numbers);
+  };
+  my_api.get("/cached-world2") = [&](http_request& request, http_response& response) {
+    std::string N_str = request.get_parameters(s::N = std::optional<std::string>()).N.value_or("1");
+    int N = atoi(N_str.c_str());
+    
+    N = std::max(1, std::min(N, 500));
+    
+    response.write_json_generator(N, [] { return world_cache.buffer[rand() % 9999]; });
   };
 
   my_api.get("/updates") = [&](http_request& request, http_response& response) {

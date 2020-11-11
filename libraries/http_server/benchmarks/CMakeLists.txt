@@ -4,7 +4,7 @@ SET(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH}
 
 enable_testing()
 
-#add_definitions(-DLITHIUM_SERVER_NAME=l)
+add_definitions(-DLITHIUM_SERVER_NAME=l)
 
 li_add_executable(bench bench.cc)
 target_link_libraries(bench ${LIBS})

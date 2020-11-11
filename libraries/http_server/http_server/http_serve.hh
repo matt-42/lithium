@@ -20,6 +20,7 @@
 #include <li/http_server/symbols.hh>
 #include <li/http_server/tcp_server.hh>
 #include <li/http_server/url_unescape.hh>
+#include <li/http_server/http_top_header_builder.hh>
 
 namespace li {
 
@@ -29,6 +30,8 @@ static char* date_buf = nullptr;
 static int date_buf_size = 0;
 
 static thread_local std::unordered_map<std::string, std::string_view> static_files;
+
+http_top_header_builder http_top_header [[gnu::weak]];
 
 template <typename FIBER>
 struct generic_http_ctx {
@@ -131,17 +134,21 @@ struct generic_http_ctx {
   }
 
   inline void format_top_headers(output_buffer& output_stream) {
-    output_stream << "HTTP/1.1 " << status_;
-    output_stream << "\r\nDate: " << std::string_view(date_buf, date_buf_size);
-    #ifdef LITHIUM_SERVER_NAME
-      #define MACRO_TO_STR2(L) #L
-      #define MACRO_TO_STR(L) MACRO_TO_STR2(L)
-      output_stream << "\r\nConnection: keep-alive\r\nServer: " MACRO_TO_STR(LITHIUM_SERVER_NAME) "\r\n";
-      #undef MACRO_TO_STR
-      #undef MACRO_TO_STR2
-    #else
-      output_stream << "\r\nConnection: keep-alive\r\nServer: Lithium\r\n";
-    #endif
+    if (status_code_ == 200)
+      output_stream << http_top_header.top_header_200();
+    else
+      output_stream << "HTTP/1.1 " << status_ << http_top_header.top_header();
+    // output_stream << "HTTP/1.1 " << status_;
+    // output_stream << "\r\nDate: " << std::string_view(date_buf, date_buf_size);
+    // #ifdef LITHIUM_SERVER_NAME
+    //   #define MACRO_TO_STR2(L) #L
+    //   #define MACRO_TO_STR(L) MACRO_TO_STR2(L)
+    //   output_stream << "\r\nConnection: keep-alive\r\nServer: " MACRO_TO_STR(LITHIUM_SERVER_NAME) "\r\n";
+    //   #undef MACRO_TO_STR
+    //   #undef MACRO_TO_STR2
+    // #else
+    //   output_stream << "\r\nConnection: keep-alive\r\nServer: Lithium\r\n";
+    // #endif
   }
 
   void prepare_request() {
@@ -234,6 +241,7 @@ struct generic_http_ctx {
 
   void set_status(int status) {
 
+    status_code_ = status;
     switch (status) {
     case 200:
       status_ = "200 OK";
@@ -532,6 +540,7 @@ struct generic_http_ctx {
   int socket_fd;
   input_buffer& rb;
 
+  int status_code_ = 200;
   const char* status_ = "200 OK";
   std::string_view method_;
   std::string_view url_;
@@ -655,6 +664,7 @@ template <typename F> auto make_http_processor(F handler) {
 
 namespace li {
 
+
 template <typename... O>
 auto http_serve(api<http_request, http_response> api, int port, O... opts) {
 
@@ -679,20 +689,8 @@ auto http_serve(api<http_request, http_response> api, int port, O... opts) {
   };
 
   auto date_thread = std::make_shared<std::thread>([&]() {
-    char a1[100];
-    char a2[100];
-    memset(a1, 0, sizeof(a1));
-    memset(a2, 0, sizeof(a2));
-    char* date_buf_tmp1 = a1;
-    char* date_buf_tmp2 = a2;
     while (!quit_signal_catched) {
-      time_t t = time(NULL);
-      struct tm tm;
-      gmtime_r(&t, &tm);
-      int size = strftime(date_buf_tmp1, sizeof(a1), "%a, %d %b %Y %T GMT", &tm);
-      http_async_impl::date_buf = date_buf_tmp1;
-      http_async_impl::date_buf_size = size;
-      std::swap(date_buf_tmp1, date_buf_tmp2);
+      li::http_async_impl::http_top_header.tick();
       usleep(1e6);
     }
   });
