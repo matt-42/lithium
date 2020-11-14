@@ -8652,7 +8652,7 @@ struct http_response {
     http_ctx.respond(a1); 
   }
 
-  inline void write_file(const std::string path) {
+  inline void write_static_file(const std::string path) {
     http_ctx.send_static_file(path.c_str());
   }
 
@@ -9063,7 +9063,7 @@ inline auto serve_file(const std::string& root, std::string_view path, http_resp
     }
   }
 
-  response.write_file(base_path + std::string(path));
+  response.write_static_file(base_path + std::string(path));
 };
 
 inline auto serve_directory(std::string root) {

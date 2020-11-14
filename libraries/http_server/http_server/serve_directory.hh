@@ -40,7 +40,7 @@ inline auto serve_file(const std::string& root, std::string_view path, http_resp
     }
   }
 
-  response.write_file(base_path + std::string(path));
+  response.write_static_file(base_path + std::string(path));
 };
 
 inline auto serve_directory(std::string root) {

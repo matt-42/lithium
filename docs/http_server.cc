@@ -279,7 +279,26 @@ auth.signup(request, response) -> void
 - If not, insert the new user in the db, call the update_secret_key and hash_password callback and return true.
 - Otherwise return false.  
 
+## Serving static files
 
+`serve_directory` serves static files directory:
+*/
+http_api my_static_file_server_api;
+my_static_file_server_api.add_subapi("/root", serve_directory("/path/to/the/directory/to/serve"));
+http_serve(my_api, 12352, s::non_blocking);
+
+/*
+You can also send static files directly from a handler with:
+*/
+my_static_file_server_api.get("/get_file") = [&] (http_request& request, http_response& response) {
+  response.write_static_file("path/to/the/file");
+}
+/*
+
+Note that `response.write_static_file` and `serve_directory` automatically set the Content-Type header to the mime type.
+All mime types of this list are supported: http://svn.apache.org/repos/asf/httpd/httpd/trunk/docs/conf/mime.types
+
+.
 ## Testing
 
 Using `http_client` and the `s::non_blocking` flag of http_serve
