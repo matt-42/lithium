@@ -5,9 +5,9 @@
     LI_SYMBOL(append)
 #endif
 
-#ifndef LI_SYMBOL_generate
-#define LI_SYMBOL_generate
-    LI_SYMBOL(generate)
+#ifndef LI_SYMBOL_generator
+#define LI_SYMBOL_generator
+    LI_SYMBOL(generator)
 #endif
 
 #ifndef LI_SYMBOL_json_key

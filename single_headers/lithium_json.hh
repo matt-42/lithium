@@ -1007,9 +1007,9 @@ constexpr auto forward_tuple_as_metamap(std::tuple<S...> keys, const std::tuple<
     LI_SYMBOL(append)
 #endif
 
-#ifndef LI_SYMBOL_generate
-#define LI_SYMBOL_generate
-    LI_SYMBOL(generate)
+#ifndef LI_SYMBOL_generator
+#define LI_SYMBOL_generator
+    LI_SYMBOL(generator)
 #endif
 
 #ifndef LI_SYMBOL_json_key
@@ -1951,12 +1951,12 @@ inline void json_encode(C& ss, const std::vector<T>& array, const json_vector_<E
 template <typename E, typename C, typename G>
 inline void json_encode(C& ss, 
                         const metamap<typename s::size_t::variable_t<int>, 
-                                      typename s::generate_t::variable_t<G>>& generator, 
+                                      typename s::generator_t::variable_t<G>>& generator, 
                         const json_vector_<E>& schema) {
   ss << '[';
   for (int i = 0; i < generator.size; i++) {
     if constexpr (decltype(json_is_vector(E{})){} or decltype(json_is_object(E{})){}) {
-      json_encode(ss, generator.generate(), schema.schema);
+      json_encode(ss, generator.generator(), schema.schema);
     } else
       json_encode_value(ss, generator.generate());
 
@@ -2074,6 +2074,8 @@ inline void json_encode(C& ss, const O* obj, const S& schema)
 
 namespace li {
 
+template <typename T> struct is_json_vector;
+
 template <typename T> struct json_object_base {
 
 public:
@@ -2085,6 +2087,11 @@ public:
 
   template <typename C, typename... M> void encode(C& output, const metamap<M...>& obj) const {
     return impl::json_encode(output, obj, *downcast());
+  }
+
+  template <typename C, typename G> void encode_generator(C& output, int size, G& generator) const {
+    static_assert(is_json_vector<T>::value, "encode_generator is only supported on json vector");
+      return impl::json_encode(output, mmm(s::size = size, s::generator = generator), *downcast());
   }
 
   template <typename O> std::string encode(O obj) const {
@@ -2128,10 +2135,13 @@ template <typename V> struct json_value_ : public json_object_base<json_value_<V
 template <typename V> auto json_value(V&& v) { return json_value_<V>{}; }
 
 template <typename T> struct json_vector_ : public json_object_base<json_vector_<T>> {
+  enum { is_json_vector = true };
   json_vector_() = default;
   json_vector_(const T& s) : schema(s) {}
   T schema;
 };
+template <typename T> struct is_json_vector : std::false_type {};
+template <typename T> struct is_json_vector<json_vector_<T>> : std::true_type {};
 
 template <typename... S> auto json_vector(S&&... s) {
   auto obj = json_object(std::forward<S>(s)...);
@@ -2173,11 +2183,11 @@ template <typename M> auto json_encode(const M& obj) {
 
 template <typename C, typename F> decltype(auto) json_encode_generator(C& output, int N, F generator) {
   auto elt = impl::to_json_schema(decltype(generator()){});
-  json_vector_<decltype(elt)>(elt).encode(output, mmm(s::size = int(N), s::generate = generator));
+  json_vector_<decltype(elt)>(elt).encode_generator(output, N, generator);
 }
 template <typename F> decltype(auto) json_encode_generator(int N, F generator) {
   auto elt = impl::to_json_schema(decltype(generator()){});
-  return json_vector_<decltype(elt)>(elt).encode(mmm(s::size = N, s::generate = generator));
+  return json_vector_<decltype(elt)>(elt).encode_generator(N, generator);
 }
 
 template <typename A, typename B, typename... C>

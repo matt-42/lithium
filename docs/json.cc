@@ -76,6 +76,16 @@ std::string json_encode(input_object);
 std::string __your_type_info__.decode(input_object);
 ```
 
+If elements of a json array can be computed on the fly, you can save a vector allocation by using the
+`json_encode_generator` and `_json_vector_type_info_.encode_generator` function:
+
+*/
+// Encode json array from element computed on the fly.
+int i = 0;
+auto g = [&i] { return i++; };
+assert(json_encode_generator(3, g) == "[0,1,2]");
+/*
+
 ## Decoding
 
 ```c++
