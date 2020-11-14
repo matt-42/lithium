@@ -11,7 +11,6 @@
 #include <sys/uio.h>
 #include <unistd.h>
 #include <unordered_map>
-#include <memory>
 
 #include <boost/lexical_cast.hpp>
 
