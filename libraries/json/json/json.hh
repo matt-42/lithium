@@ -23,11 +23,6 @@ public:
     return impl::json_encode(output, obj, *downcast());
   }
 
-  template <typename C, typename G> void encode_generator(C& output, int size, G& generator) const {
-    static_assert(is_json_vector<T>::value, "encode_generator is only supported on json vector");
-      return impl::json_encode(output, mmm(s::size = size, s::generator = generator), *downcast());
-  }
-
   template <typename O> std::string encode(O obj) const {
     std::ostringstream ss;
     impl::json_encode(ss, std::forward<O>(obj), *downcast());
@@ -39,6 +34,16 @@ public:
     impl::json_encode(ss, obj, *downcast());
     return ss.str();
   }
+
+  template <typename C, typename G> void encode_generator(C& output, int size, G& generator) const {
+    static_assert(is_json_vector<T>::value, "encode_generator is only supported on json vector");
+      return this->encode(output, mmm(s::size = size, s::generator = generator));
+  }
+  template <typename G> std::string encode_generator(int size, G& generator) const {
+    static_assert(is_json_vector<T>::value, "encode_generator is only supported on json vector");
+      return this->encode(mmm(s::size = size, s::generator = generator));
+  }
+
 
   template <typename C, typename O> json_error decode(C& input, O& obj) const {
     return impl::json_decode(input, obj, *downcast());

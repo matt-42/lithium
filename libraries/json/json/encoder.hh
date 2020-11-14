@@ -98,7 +98,7 @@ inline void json_encode(C& ss,
     if constexpr (decltype(json_is_vector(E{})){} or decltype(json_is_object(E{})){}) {
       json_encode(ss, generator.generator(), schema.schema);
     } else
-      json_encode_value(ss, generator.generate());
+      json_encode_value(ss, generator.generator());
 
     if (i != generator.size - 1)
       ss << ',';
