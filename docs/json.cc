@@ -71,10 +71,15 @@ object you want to encode:
 ```c++
 // Supported types
 std::string json_encode(input_object);
+void json_encode(output_stream, input_object);
 
 // Custom types
-std::string __your_type_info__.decode(input_object);
+std::string __your_type_info__.encode(input_object);
+void __your_type_info__.encode(output_stream, input_object);
 ```
+
+When `output_stream` is passed as first paramenter, the json encode will use output_stream.operator<< to 
+encode the json object otherwise `std::ostringstream` is used.
 
 If elements of a json array can be computed on the fly, you can save a vector allocation by using the
 `json_encode_generator` and `_json_vector_type_info_.encode_generator` function:
