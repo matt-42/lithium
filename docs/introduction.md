@@ -16,6 +16,12 @@ javascript alternatives while keeping the performances of C++ ?
 
 The goal of `Lithium` is to prove that this is feasible.
 
+The design of the libraries is focused on **simplicity**:
+  - Simple things should be simple to write for the end user.
+  - Inheritance is rarely used
+  - The end user should not have to instantiate complex templates
+  - Function taking many parameters should use named parameters
+
 ## Supported compilers
   - Linux: G++ 9.2, Clang++ 9.0
   - MacOS: Apple clang version 12.0.0 

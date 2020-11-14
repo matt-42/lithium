@@ -14,18 +14,9 @@ http_server
 ```
 ## Introduction
 
-### Motivations
-
-The goal of this library is to take advangage of C++17 new features
-to simplify the writing of high performance web server. It provides consise
-and simple construcs that allows non C++ experts to quickly implement simple HTTP(s)
-servers.
-
-The design of this library is focused on **simplicity**:
-- Simple things should be simple to write for the end user.
-- Inheritance is rarely used
-- The end user should not have to instantiate complex templates
-- Function taking many parameters should use named parameters
+The goal of this library is to simplify the writing of C++ high performance web server. 
+It provides consise and simple abstractions that allows non C++ experts to quickly 
+implement simple HTTP(s) servers.
 
 ### Dependencies
   - Boost context and lexical_cast
