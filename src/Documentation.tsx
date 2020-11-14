@@ -1,13 +1,13 @@
 import { ListItem } from "@material-ui/core";
 import Container from "@material-ui/core/Container";
-import Fab from "@material-ui/core/Fab/Fab";
-import Icon from "@material-ui/core/Icon/Icon";
-import List from "@material-ui/core/List/List";
+import Fab from "@material-ui/core/Fab";
+import Icon from "@material-ui/core/Icon";
+import List from "@material-ui/core/List";
 import Paper from "@material-ui/core/Paper";
 import useTheme from "@material-ui/core/styles/useTheme";
 import { CSSProperties } from "@material-ui/core/styles/withStyles";
-import Typography from "@material-ui/core/Typography/Typography";
-import useMediaQuery from "@material-ui/core/useMediaQuery/useMediaQuery";
+import Typography from "@material-ui/core/Typography";
+import useMediaQuery from "@material-ui/core/useMediaQuery";
 import hljs from 'highlight.js';
 // import "highlight.js/styles/vs2015.css";
 import marked, { lexer } from "marked";
