@@ -72,16 +72,23 @@ add_definitions(-Wno-ignored-attributes) # to skip postgresql warnings.
 
 # Generate content type definition header file
 add_custom_target(
-    content_types
-    COMMAND echo \"\#pragma once\" > content_types.hh
-    COMMAND echo \"\#include <unordered_map>\" >> content_types.hh
-    COMMAND echo \"\#include <string_view>\" >> content_types.hh
-    COMMAND echo \"namespace li {\" >> content_types.hh
-    COMMAND echo \"static std::unordered_map<std::string_view, std::string_view> content_types = {\" >> content_types.hh
+    content_types ALL
+    DEPENDS "${CMAKE_BINARY_DIR}/include/li/http_server/content_types.hh"
+)
+
+add_custom_command(
+    OUTPUT "${CMAKE_BINARY_DIR}/include/li/http_server/content_types.hh"
+    COMMAND touch ${CMAKE_BINARY_DIR}/include/li/http_server/content_types.hh
+    COMMAND echo \"// This file is generated do not edit it.\" >> ${CMAKE_BINARY_DIR}/include/li/http_server/content_types.hh
+    COMMAND echo \"\#pragma once\" >> ${CMAKE_BINARY_DIR}/include/li/http_server/content_types.hh
+    COMMAND echo \"\#include <unordered_map>\" >> ${CMAKE_BINARY_DIR}/include/li/http_server/content_types.hh
+    COMMAND echo \"\#include <string_view>\" >> ${CMAKE_BINARY_DIR}/include/li/http_server/content_types.hh
+    COMMAND echo \"namespace li {\" >> ${CMAKE_BINARY_DIR}/include/li/http_server/content_types.hh
+    COMMAND echo \"static std::unordered_map<std::string_view, std::string_view> content_types = {\" >> ${CMAKE_BINARY_DIR}/include/li/http_server/content_types.hh
     COMMAND wget -qO- http://svn.apache.org/repos/asf/httpd/httpd/trunk/docs/conf/mime.types
       | egrep -v ^\#
-      | awk '{for(i=2\; i<=NF\; i++) {print \"{\\\"\"$$i"\\\",\\\""$$1\"\\\"},\"}}' | sort >> content_types.hh
-    COMMAND echo \"}\;\" >> content_types.hh
+      | awk '{for(i=2\; i<=NF\; i++) {print \"{\\\"\"$$i"\\\",\\\""$$1\"\\\"},\"}}' | sort >> ${CMAKE_BINARY_DIR}/include/li/http_server/content_types.hh
+    COMMAND echo \"}\;}\" >> ${CMAKE_BINARY_DIR}/include/li/http_server/content_types.hh
 )
 
 # Automatic symbol generation

@@ -23,6 +23,8 @@
 #include <li/http_server/url_unescape.hh>
 #include <li/http_server/http_top_header_builder.hh>
 
+#include <li/http_server/content_types.hh>
+
 namespace li {
 
 namespace http_async_impl {
@@ -30,13 +32,7 @@ namespace http_async_impl {
 static char* date_buf = nullptr;
 static int date_buf_size = 0;
 
-static std::unordered_map<std::string_view, std::string_view> content_types = {
-  {"html", "text/html"},
-  {"css", "text/css"},
-  {"js", "application/javascript"},
-  {"jpg", "image/jpeg"},
-  {"png", "image/png"}
-};
+using ::li::content_types; // static std::unordered_map<std::string_view, std::string_view> content_types
 
 static thread_local std::unordered_map<std::string, std::pair<std::string_view, std::string_view>> static_files;
 
