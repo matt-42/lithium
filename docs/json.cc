@@ -79,13 +79,13 @@ void __your_type_info__.encode(output_stream, input_object);
 ```
 
 When `output_stream` is passed as first paramenter, the json encode will use output_stream.operator<< to 
-encode the json object otherwise `std::ostringstream` is used.
+encode the json object otherwise an instance of `std::ostringstream` is used.
 
-If elements of a json array can be computed on the fly, you can save a vector allocation by using the
+When elements of a json array can be computed on the fly, you can save a vector allocation by using the
 `json_encode_generator` and `_json_vector_type_info_.encode_generator` function:
 
 */
-// Encode json array from element computed on the fly.
+// Encode json array from element without allocating a vector.
 int i = 0;
 auto g = [&i] { return i++; };
 assert(json_encode_generator(3, g) == "[0,1,2]");

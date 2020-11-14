@@ -281,11 +281,10 @@ auth.signup(request, response) -> void
 
 ## Serving static files
 
-`serve_directory` serves static files directory:
+`serve_directory` serves a directory containing static files:
 */
 http_api my_static_file_server_api;
 my_static_file_server_api.add_subapi("/root", serve_directory("/path/to/the/directory/to/serve"));
-http_serve(my_api, 12352, s::non_blocking);
 
 /*
 You can also send static files directly from a handler with:
