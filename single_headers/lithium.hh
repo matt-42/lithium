@@ -7195,7 +7195,7 @@ struct async_reactor {
     while (!quit_signal_catched) {
 
 #if __linux__
-      int n_events = epoll_wait(epoll_fd, events, MAXEVENTS, 1);
+      int n_events = epoll_wait(epoll_fd, events, MAXEVENTS, 1000);
 #elif __APPLE__
       int n_events = kevent(epoll_fd, NULL, 0, events, MAXEVENTS, &timeout);
 #endif

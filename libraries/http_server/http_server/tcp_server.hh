@@ -288,9 +288,9 @@ struct async_reactor {
     epoll_ctl(this->epoll_fd, SIGTERM, EV_ADD, EVFILT_SIGNAL);
     struct kevent events[MAXEVENTS];
 
-    struct timespec timeout;
-    memset(&timeout, 0, sizeof(timeout));
-    timeout.tv_nsec = 10000;
+    // struct timespec timeout;
+    // memset(&timeout, 0, sizeof(timeout));
+    // timeout.tv_nsec = 10000;
 #endif
 
 
@@ -298,9 +298,11 @@ struct async_reactor {
     while (!quit_signal_catched) {
 
 #if __linux__
-      int n_events = epoll_wait(epoll_fd, events, MAXEVENTS, 1);
+      // Wakeup at least every seconds to check if any quit signal has been catched.
+      int n_events = epoll_wait(epoll_fd, events, MAXEVENTS, 1000);
 #elif __APPLE__
-      int n_events = kevent(epoll_fd, NULL, 0, events, MAXEVENTS, &timeout);
+      // kevent is already listening to quit signals.
+      int n_events = kevent(epoll_fd, NULL, 0, events, MAXEVENTS, NULL);// &timeout);
 #endif
 
       if (quit_signal_catched)
