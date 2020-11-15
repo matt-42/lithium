@@ -7473,13 +7473,13 @@ struct async_reactor {
     this->epoll_fd = epoll_create1(0);
     epoll_ctl(epoll_fd, listen_fd, EPOLL_CTL_ADD, EPOLLIN | EPOLLET);
 
-    const int MAXEVENTS = 64;
+    const int MAXEVENTS = 128;
     epoll_event events[MAXEVENTS];
 
     // Main loop.
     while (!quit_signal_catched) {
 
-      int n_events = epoll_wait(epoll_fd, events, MAXEVENTS, 1);
+      int n_events = epoll_wait(epoll_fd, events, MAXEVENTS, 1000);
       if (quit_signal_catched)
         break;
 
