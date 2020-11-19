@@ -70,6 +70,32 @@ include_directories(${CMAKE_BINARY_DIR}/include) # just to enable vscode intelli
 #set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -march=native -mtune=native -flto") 
 add_definitions(-Wno-ignored-attributes) # to skip postgresql warnings.
 
+# Generate content type definition header file
+set(GENERATED_CONTENT_TYPES
+"${CMAKE_SOURCE_DIR}\
+/libraries/http_server/http_server\
+/content_types.hh")
+
+add_custom_target(
+    content_types ALL
+    DEPENDS ${GENERATED_CONTENT_TYPES}
+)
+
+add_custom_command(
+    OUTPUT ${GENERATED_CONTENT_TYPES}
+    COMMAND touch ${GENERATED_CONTENT_TYPES}
+    COMMAND echo \"// This file is generated do not edit it.\" >> ${GENERATED_CONTENT_TYPES}
+    COMMAND echo \"\#pragma once\" >> ${GENERATED_CONTENT_TYPES}
+    COMMAND echo \"\#include <unordered_map>\" >> ${GENERATED_CONTENT_TYPES}
+    COMMAND echo \"\#include <string_view>\" >> ${GENERATED_CONTENT_TYPES}
+    COMMAND echo \"namespace li {\" >> ${GENERATED_CONTENT_TYPES}
+    COMMAND echo \"static std::unordered_map<std::string_view, std::string_view> content_types = {\" >> ${GENERATED_CONTENT_TYPES}
+    COMMAND wget -qO- http://svn.apache.org/repos/asf/httpd/httpd/trunk/docs/conf/mime.types
+      | egrep -v ^\#
+      | awk '{for(i=2\; i<=NF\; i++) {print \"{\\\"\"$$i"\\\",\\\""$$1\"\\\"},\"}}' | sort >> ${GENERATED_CONTENT_TYPES}
+    COMMAND echo \"}\;}\" >> ${GENERATED_CONTENT_TYPES}
+)
+
 # Automatic symbol generation
 add_custom_target(
     symbols_generation DEPENDS li_symbol_generator
