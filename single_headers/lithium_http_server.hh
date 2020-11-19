@@ -4148,9 +4148,9 @@ struct async_reactor {
     epoll_ctl(this->epoll_fd, SIGTERM, EV_ADD, EVFILT_SIGNAL);
     struct kevent events[MAXEVENTS];
 
-    struct timespec timeout;
-    memset(&timeout, 0, sizeof(timeout));
-    timeout.tv_nsec = 10000;
+    // struct timespec timeout;
+    // memset(&timeout, 0, sizeof(timeout));
+    // timeout.tv_nsec = 10000;
 #endif
 
 
@@ -4158,9 +4158,11 @@ struct async_reactor {
     while (!quit_signal_catched) {
 
 #if __linux__
+      // Wakeup at least every seconds to check if any quit signal has been catched.
       int n_events = epoll_wait(epoll_fd, events, MAXEVENTS, 1000);
 #elif __APPLE__
-      int n_events = kevent(epoll_fd, NULL, 0, events, MAXEVENTS, &timeout);
+      // kevent is already listening to quit signals.
+      int n_events = kevent(epoll_fd, NULL, 0, events, MAXEVENTS, NULL);// &timeout);
 #endif
 
       if (quit_signal_catched)
@@ -4440,16 +4442,15 @@ struct http_top_header_builder {
     gmtime_r(&t, &tm);
 
     top_header_size = strftime(tmp1, sizeof(tmp1), 
-      "\r\nConnection: keep-alive\r\n"
 #ifdef LITHIUM_SERVER_NAME
   #define MACRO_TO_STR2(L) #L
   #define MACRO_TO_STR(L) MACRO_TO_STR2(L)
-  "Server: " MACRO_TO_STR(LITHIUM_SERVER_NAME) "\r\n"
+  "\r\nServer: " MACRO_TO_STR(LITHIUM_SERVER_NAME) "\r\n"
 
   #undef MACRO_TO_STR
   #undef MACRO_TO_STR2
 #else
-  "Server: Lithium\r\n"
+  "\r\nServer: Lithium\r\n"
 #endif
       "Date: %a, %d %b %Y %T GMT\r\n", &tm);
     std::swap(tmp1, tmp2);
@@ -4468,7 +4469,6 @@ struct http_top_header_builder {
 #endif
 
       // LITHIUM_SERVER_NAME_HEADER
-      "Connection: keep-alive\r\n"
       "Date: %a, %d %b %Y %T GMT\r\n", &tm);
 
     std::swap(tmp1_200, tmp2_200);
