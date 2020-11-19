@@ -136,11 +136,11 @@ struct http_ctx {
     #ifdef LITHIUM_SERVER_NAME
       #define MACRO_TO_STR2(L) #L
       #define MACRO_TO_STR(L) MACRO_TO_STR2(L)
-      output_stream << "\r\nConnection: keep-alive\r\nServer: " MACRO_TO_STR(LITHIUM_SERVER_NAME) "\r\n";
+      output_stream << "\r\nServer: " MACRO_TO_STR(LITHIUM_SERVER_NAME) "\r\n";
       #undef MACRO_TO_STR
       #undef MACRO_TO_STR2
     #else
-      output_stream << "\r\nConnection: keep-alive\r\nServer: Lithium\r\n";
+      output_stream << "\r\nServer: Lithium\r\n";
     #endif
   }
 
