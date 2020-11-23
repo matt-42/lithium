@@ -7,13 +7,13 @@
 namespace li {
 
 namespace impl {
-int is_regular_file(const std::string& path) {
+inline int is_regular_file(const std::string& path) {
   struct stat path_stat;
   if (-1 == stat(path.c_str(), &path_stat))
     return false;
   return S_ISREG(path_stat.st_mode);
 }
-bool starts_with(const char *pre, const char *str)
+inline bool starts_with(const char *pre, const char *str)
 {
     size_t lenpre = strlen(pre),
            lenstr = strlen(str);
