@@ -109,6 +109,10 @@ api.post("/url_params/{{name}}") = [&](http_request& request, http_response& res
   response.write("hello " + params.name);
 };
 /*
+
+`"/url_params/{{name}}"` will accept any name that does not include a slash such as `/url_params/john`.
+To accept a parameter that includes one or more slashes such as /url_params/john/doe, use `"/url_params/{{name...}}"`.
+
 ## Optional request parameters
 
 You can also take optional parameters:
