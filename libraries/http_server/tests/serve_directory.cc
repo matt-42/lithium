@@ -3,7 +3,7 @@
 #include <filesystem>
 #include <fstream>
 #include <lithium_http_server.hh>
-
+#include <memory>
 
 using namespace li;
 
@@ -11,8 +11,12 @@ int main() {
 
   namespace fs = std::filesystem;
 
-  fs::path root = std::tmpnam(nullptr);
+  CHECK_THROW("cannot serve a non existing dir", serve_directory("/xxx"));
+
+  char root_tmp[] = "/tmp/webroot_XXXXXX";
+  fs::path root(::mkdtemp(root_tmp));
   fs::create_directories(root / "subdir");
+  std::unique_ptr<char, void (*)(char*)> tmp_remover(root_tmp, [](char* tfp){ fs::remove_all(tfp); });
 
   {
     std::cout << (root / "subdir" / "hello.txt").string() << std::endl;
@@ -23,12 +27,17 @@ int main() {
   http_api my_api;
 
   my_api.add_subapi("/test", serve_directory(root.string()));
-  http_serve(my_api, 12352, s::non_blocking);
-  //http_serve(my_api, 12352);
+  http_serve(my_api, 12347, s::non_blocking);
+  //http_serve(my_api, 12347);
 
-  CHECK_EQUAL("serve_file not found", http_get("http://localhost:12352/test/subdir/xxx").status,
+  CHECK_EQUAL("serve_file not found", http_get("http://localhost:12347/test/subdir/..").status, 404);
+
+  CHECK_EQUAL("serve_file not found", http_get("http://localhost:12347/test/subdir").status, 404);
+  CHECK_EQUAL("serve_file not found", http_get("http://localhost:12347/test/subdir/xxx").status,
               404);
-  CHECK_EQUAL("serve_file", http_get("http://localhost:12352/test/subdir/hello.txt").body,
+  CHECK_EQUAL("serve_file", http_get("http://localhost:12347/test/subdir/hello.txt").body,
+              "hello world.");
+  CHECK_EQUAL("serve_file with ..", http_get("http://localhost:12347/test/subdir/../subdir/hello.txt").body,
               "hello world.");
 
   fs::remove_all(root);
