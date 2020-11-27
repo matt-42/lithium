@@ -1,9 +1,10 @@
-#include <cstdio>
-#include "test.hh"
 #include <filesystem>
 #include <fstream>
-#include <lithium_http_server.hh>
 #include <memory>
+
+#include <lithium_http_server.hh>
+
+#include "test.hh"
 
 using namespace li;
 
@@ -30,15 +31,12 @@ int main() {
   http_serve(my_api, 12347, s::non_blocking);
   //http_serve(my_api, 12347);
 
-  CHECK_EQUAL("serve_file not found", http_get("http://localhost:12347/test/subdir/..").status, 404);
-
   CHECK_EQUAL("serve_file not found", http_get("http://localhost:12347/test/subdir").status, 404);
+  CHECK_EQUAL("serve_file not found", http_get("http://localhost:12347/test/subdir/..").status, 404);
   CHECK_EQUAL("serve_file not found", http_get("http://localhost:12347/test/subdir/xxx").status,
               404);
   CHECK_EQUAL("serve_file", http_get("http://localhost:12347/test/subdir/hello.txt").body,
               "hello world.");
   CHECK_EQUAL("serve_file with ..", http_get("http://localhost:12347/test/subdir/../subdir/hello.txt").body,
               "hello world.");
-
-  fs::remove_all(root);
 }
