@@ -10,14 +10,14 @@
 namespace li {
 
 namespace impl {
-  inline int is_regular_file(const std::string& path) {
+  inline bool is_regular_file(const std::string& path) {
     struct stat path_stat;
     if (-1 == stat(path.c_str(), &path_stat))
       return false;
     return S_ISREG(path_stat.st_mode);
   }
 
-  inline int is_directory(const std::string& path) {
+  inline bool is_directory(const std::string& path) {
     struct stat path_stat;
     if (-1 == stat(path.c_str(), &path_stat))
       return false;
@@ -47,13 +47,12 @@ inline auto serve_file(const std::string& root, std::string_view path, http_resp
   }
   
   // Check if file exists by real file path.
-  std::unique_ptr<char, decltype(&::free)>
-    realpath_out(realpath(full_path.c_str(), nullptr), ::free); // as realpath() uses malloc(3) to allocate buffer.
-  if (nullptr == realpath_out.get())
+  char realpath_out[PATH_MAX]{0};
+  if (nullptr == realpath(full_path.c_str(), realpath_out))
     throw http_error::not_found("file not found.");
 
   // Check that path is within the root directory.
-  if (!impl::starts_with(root.c_str(), realpath_out.get()))
+  if (!impl::starts_with(root.c_str(), realpath_out))
     throw http_error::not_found("Access denied.");
 
   response.write_static_file(full_path);
@@ -61,19 +60,18 @@ inline auto serve_file(const std::string& root, std::string_view path, http_resp
 
 inline auto serve_directory(const std::string& root) {
   // extract root realpath. 
-  std::unique_ptr<char, decltype(&::free)>
-    realpath_out(realpath(root.c_str(), nullptr), ::free); // as realpath() uses malloc(3) to allocate buffer.
-  if (nullptr == realpath_out.get())
+  char realpath_out[PATH_MAX]{0};
+  if (nullptr == realpath(root.c_str(), realpath_out))
     throw std::runtime_error(std::string("serve_directory error: Directory ") + root + " does not exists.");
 
   // Check if it is a directory.
-  if (!impl::is_directory(realpath_out.get()))
+  if (!impl::is_directory(realpath_out))
   {
     throw std::runtime_error(std::string("serve_directory error: ") + root + " is not a directory.");
   }
 
   // Ensure the root ends with a /
-  std::string real_root(realpath_out.get());
+  std::string real_root(realpath_out);
   if (real_root.back() != '/')
   {
     real_root.push_back('/');
