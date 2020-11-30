@@ -68,17 +68,37 @@ export function useOnUrlChange(f: (path: string) => void) {
 
 export const preventDefault = { onClick: (e: any) => e.preventDefault() };
 
+export const hrefPrefix = (() => {
+  console.log(process.env.PUBLIC_URL);
+  let p = process.env.PUBLIC_URL;
+  p = p.replace(/\/$/, "");
+  return p;
+})();
+
+export function makeHrefUrl(path : string|null) {
+  let p = path || "";
+  if (p.startsWith("/"))
+    return hrefPrefix + p;
+  else
+    return hrefPrefix + "/" + p;
+}
+export function isSameUrl(url1 : string, url2 : string) {
+  return url1.replace(/\/$/, "") === url2.replace(/\/$/, "");
+}
+
 export const NavigationLink = (props: LinkProps) => {
   // const nav = useNavigateTo();
-  return <Link {...props} onClick={(e: any) => { props.onClick?.(e); e.preventDefault(); window.navigateTo(props.href || ""); }}>
+  const url = makeHrefUrl(props.href || "");
+  return <Link {...props} href={url} onClick={(e: any) => { props.onClick?.(e); e.preventDefault(); window.navigateTo(url); }}>
     {props.children}
   </Link>
 };
 
 export const NavigationButton = (props: ButtonProps) => {
+  const url = makeHrefUrl(props.href || "");
   // const nav = useNavigateTo();
 
-  return <Button {...props} onClick={(e) => { props.onClick?.(e); e.preventDefault(); window.navigateTo(props.href || ""); }}>
+  return <Button {...props} href={url} onClick={(e) => { props.onClick?.(e); e.preventDefault(); window.navigateTo(url); }}>
     {props.children}
   </Button>
 };

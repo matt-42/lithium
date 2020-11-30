@@ -12,7 +12,7 @@ import GitHub from '@material-ui/icons/GitHub';
 import React from 'react';
 import brushed_bg from "./images/brushed.jpg";
 import brushed_bg_white from "./images/brushed_white.jpg";
-import { NavigationLink } from './Navigation';
+import { makeHrefUrl, NavigationLink } from './Navigation';
 import { Search2 } from './Search2';
 
 const useStyles = makeStyles((theme: Theme) => {
@@ -82,7 +82,7 @@ export default function PrimarySearchAppBar(props : { switchDarkMode: () => void
       <AppBar position="fixed" className={classes.appbar}>
         <Container>
           <Toolbar>
-            <NavigationLink hidden={!screen450} href={process.env.PUBLIC_URL}>
+            <NavigationLink hidden={!screen450} href={"/"}>
               <img alt="Lithium logo" src="https://raw.githubusercontent.com/matt-42/lithium/master/images/lithium_logo_white.png" width="40" 
                   style={{ paddingRight: "15px", filter: `invert(${theme.palette.type === "dark" ? "0" : '100'})` }} />
             </NavigationLink>

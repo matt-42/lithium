@@ -7,7 +7,7 @@ import { Documentation } from './Documentation';
 import { HomePage } from './HomePage';
 import brushed_bg from "./images/brushed.jpg";
 import brushed_bg_white from "./images/brushed_white.jpg";
-import {Navigation, useNavigation} from './Navigation'
+import {isSameUrl, makeHrefUrl, Navigation, useNavigation} from './Navigation'
 
 const darkTheme = createMuiTheme({
   palette: {
@@ -132,7 +132,7 @@ function AppContent() {
   }, []);
 
   const navigation = useNavigation();
-  return ["", "/"].includes(navigation.path) ? <HomePage /> : <Documentation />
+  return isSameUrl(navigation.path, makeHrefUrl("/")) ? <HomePage /> : <Documentation />
 
 }
 function Body(props: { switchDarkMode: () => void }) {

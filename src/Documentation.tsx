@@ -15,7 +15,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Footer } from "./Footer";
 import brushed_bg from "./images/brushed.jpg";
 import brushed_bg_white from "./images/brushed_white.jpg";
-import { NavigationLink, useNavigation, useOnUrlChange } from "./Navigation";
+import { hrefPrefix, makeHrefUrl, NavigationLink, useNavigation, useOnUrlChange } from "./Navigation";
 
 let DOC_ROOT = "https://raw.githubusercontent.com/matt-42/lithium/master/docs/";
 
@@ -57,7 +57,7 @@ export const sectionAnchor = (item: SectionNode) => {
 }
 
 export const sectionUrl = (item: SectionNode) => {
-  return "/" + sectionAnchor(item);
+  return makeHrefUrl(sectionAnchor(item));
 }
 
 export const sectionPath = (item: SectionNode) => {
@@ -128,7 +128,7 @@ const docRenderer = {
     return `<p class="MuiTypography-root MuiTypography-body1">${src}</p>`
   },
   link(href: string | null, title: string | null, text: string): string {
-    return `<a onclick='window.navigateTo("${href}"); return false;' href=${href} 
+    return `<a onclick='window.navigateTo("${href}"); return false;' href=${makeHrefUrl(href)} 
               ${title ? `title='${title}'` : ""} 
               class="MuiTypography-root MuiLink-root MuiLink-underline MuiTypography-colorPrimary">
               ${text}
@@ -287,6 +287,7 @@ export const Documentation = () => {
   }, []);
 
   let setPage = useCallback(async (path: string) => {
+    path = path.replace(hrefPrefix, "");
     const mainSection = path.split("/")[1];
       const setContent = (c : string) => {
         if (docContentDiv?.current) docContentDiv.current.innerHTML = c;
