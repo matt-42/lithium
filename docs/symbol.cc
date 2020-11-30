@@ -54,6 +54,6 @@ assert(!li::has_member(obj, s::my_symbol2))
 ## Automatic symbol generation
 
 Manually defining symbols is a bit cumbersome, so we implemented a tool that can generate them automatically.
-Check [here](#getting-started/automatic-symbols-generation) for more info.
+Check [here](/getting-started/automatic-symbols-generation) for more info.
 
 */

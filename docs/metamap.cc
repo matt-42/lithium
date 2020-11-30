@@ -43,7 +43,7 @@ auto person = mmm(s::name = "John", s::age = 42);
 assert(person.name == "John");
 assert(person.age == 42);
 /*
-[More info on `s::xxxx` symbols](#getting-started/automatic-symbols-generation).
+[More info on `s::xxxx` symbols](/getting-started/automatic-symbols-generation).
 
 And it solves the member iteration problem by providing a way to map a function of each object members:
 */
