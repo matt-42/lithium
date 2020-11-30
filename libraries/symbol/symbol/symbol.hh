@@ -3,10 +3,6 @@
 #include <li/symbol/ast.hh>
 #include <utility>
 
-
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SYMBOL_SYMBOL_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_SYMBOL_SYMBOL_HH
-
 namespace li {
 
 template <typename S>
@@ -118,5 +114,3 @@ template <typename V> auto symbol_string(V v, typename V::_iod_symbol_type* = 0)
   return V::_iod_symbol_type::symbol_string();
 }
 } // namespace li
-
-#endif  //LITHIUM_SINGLE_HEADER_GUARD_LI_SYMBOL_SYMBOL_HH
