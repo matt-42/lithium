@@ -3,6 +3,9 @@
 #include <utility>
 #include <vector>
 
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SYMBOL_AST_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_SYMBOL_AST_HH
+
 namespace li {
 
 template <typename E> struct Exp {};
@@ -126,3 +129,5 @@ iod_query_declare_binary_op(||, or);
 #undef iod_query_declare_binary_op
 
 } // namespace li
+
+#endif  //LITHIUM_SINGLE_HEADER_GUARD_LI_SYMBOL_AST_HH
