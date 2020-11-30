@@ -7,7 +7,7 @@ import { Documentation } from './Documentation';
 import { HomePage } from './HomePage';
 import brushed_bg from "./images/brushed.jpg";
 import brushed_bg_white from "./images/brushed_white.jpg";
-
+import {Navigation, useNavigation} from './Navigation'
 
 const darkTheme = createMuiTheme({
   palette: {
@@ -21,14 +21,14 @@ const darkTheme = createMuiTheme({
       dark: '#414141'
     },
     background: {
-      paper: "#151515",      
+      paper: "#151515",
       default: "#000000"
     }
     // background: { paper: "#151515" },
   },
 
   typography: {
-    
+
     body1: {
       color: "#e8e8e8",
     },
@@ -67,7 +67,7 @@ const lightTheme = createMuiTheme({
       main: "#555555"
     },
     background: {
-      paper: "#f5f5f5",      
+      paper: "#f5f5f5",
       default: "#f5f5f5"
     }
   },
@@ -112,7 +112,7 @@ const useStyles = makeStyles((theme: Theme) => {
 });
 
 declare global {
-  var gtag : any;
+  var gtag: any;
 };
 
 function AppContent() {
@@ -131,14 +131,15 @@ function AppContent() {
     }
   }, []);
 
-  return windowHash === "" ? <HomePage /> : <Documentation hash={windowHash} />
+  const navigation = useNavigation();
+  return ["", "/"].includes(navigation.path) ? <HomePage /> : <Documentation />
 
 }
-function Body(props : { switchDarkMode: () => void }) {
+function Body(props: { switchDarkMode: () => void }) {
   let styles = useStyles();
 
   let theme = useTheme();
-  
+
   useEffect(() => {
     let codeTheme = theme.palette.type === "light" ? "//cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.2/styles/default.min.css" :
       "//cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.2/styles/vs2015.min.css";
@@ -148,7 +149,7 @@ function Body(props : { switchDarkMode: () => void }) {
 
   return (
     <div className={styles.body}>
-      <PrimarySearchAppBar switchDarkMode={props.switchDarkMode}  />
+      <PrimarySearchAppBar switchDarkMode={props.switchDarkMode} />
       <AppContent />
     </div>
   );
@@ -173,14 +174,16 @@ function App() {
   const switchDarkMode = useCallback(() => {
     // setDarkMode(!darkMode); material ui theme switch does not work, need to reload the page.
     window.localStorage.setItem("darkMode", `${!darkMode}`);
-    window.location.reload(); 
+    window.location.reload();
 
   }, [darkMode, setDarkMode]);
 
   return (
-    <ThemeProvider theme={theme}>
-      <Body switchDarkMode={switchDarkMode} />
-    </ThemeProvider>
+    <Navigation>
+      <ThemeProvider theme={theme}>
+        <Body switchDarkMode={switchDarkMode} />
+      </ThemeProvider>
+    </Navigation>
   );
 }
 

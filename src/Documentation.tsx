@@ -11,10 +11,11 @@ import useMediaQuery from "@material-ui/core/useMediaQuery";
 import hljs from 'highlight.js';
 // import "highlight.js/styles/vs2015.css";
 import marked, { lexer } from "marked";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Footer } from "./Footer";
 import brushed_bg from "./images/brushed.jpg";
 import brushed_bg_white from "./images/brushed_white.jpg";
+import { NavigationLink, useNavigation, useOnUrlChange } from "./Navigation";
 
 let DOC_ROOT = "https://raw.githubusercontent.com/matt-42/lithium/master/docs/";
 
@@ -52,11 +53,11 @@ export const sectionAnchor = (item: SectionNode) => {
     path.unshift(it.text);
     it = it.parent;
   }
-  return "#" + path.map(formatUrl).join("/");
+  return path.map(formatUrl).join("/");
 }
 
 export const sectionUrl = (item: SectionNode) => {
-  return process.env.PUBLIC_URL + "/" + sectionAnchor(item);
+  return "/" + sectionAnchor(item);
 }
 
 export const sectionPath = (item: SectionNode) => {
@@ -71,7 +72,7 @@ export const sectionPath = (item: SectionNode) => {
 }
 
 export type DocHierarchy = { [k: string]: SectionNode };
-export type DocIndexEntry = { contents: {text: string, type:"code"|"text"}[], section: SectionNode, depth: number };
+export type DocIndexEntry = { contents: { text: string, type: "code" | "text" }[], section: SectionNode, depth: number };
 export type DocIndex = DocIndexEntry[];
 
 function addToHierarchy(item: any, hierarchy: DocHierarchy, parents: (SectionNode | null)[]) {
@@ -127,7 +128,7 @@ const docRenderer = {
     return `<p class="MuiTypography-root MuiTypography-body1">${src}</p>`
   },
   link(href: string | null, title: string | null, text: string): string {
-    return `<a href=${href} 
+    return `<a onclick='window.navigateTo("${href}"); return false;' href=${href} 
               ${title ? `title='${title}'` : ""} 
               class="MuiTypography-root MuiLink-root MuiLink-underline MuiTypography-colorPrimary">
               ${text}
@@ -179,10 +180,9 @@ export async function indexDocumentation()
       }
       else {
         // index non headings nodes.
-        if (parents.length)
-        {
+        if (parents.length) {
           const type = item.type === "code" ? "code" : "text";
-          searchIndex[searchIndex.length - 1].contents.push({text: item.text || "", type});
+          searchIndex[searchIndex.length - 1].contents.push({ text: item.text || "", type });
         }
         // searchIndex.push({ text: item.text || "", section: parents[parents.length - 1] as SectionNode, depth: 99 });
       }
@@ -213,22 +213,23 @@ for (let sectionName of Object.keys(docUrls)) {
   docsHtml[sectionName] = generateDocumentation(docUrls[sectionName]);
 }
 
-const DocumentationMenuRec = (props: { currentSection: string, section: SectionNode, hidden?: boolean, onLinkClick: () => void }) => {
+const DocumentationMenuRec = (props: { section: SectionNode, hidden?: boolean, onLinkClick: () => void }) => {
+  const nav = useNavigation();
+  const currentSection = nav.path;
   const hidden = props.hidden === undefined ? false : props.hidden;
   const section = props.section;
-  const [open, setOpen] = useState(props.currentSection.startsWith(sectionAnchor(section)));
+  const [open, setOpen] = useState(currentSection.startsWith(sectionAnchor(section)));
   const theme = useTheme();
   useEffect(() => {
-    if (!open && props.currentSection.startsWith(sectionAnchor(section)))
+    if (!open && currentSection.startsWith(sectionAnchor(section)))
       setOpen(true);
-  }, [props.currentSection, section])
+  }, [open, currentSection, section])
 
 
   if (!section) return <></>;
 
   const children = <List disablePadding>{
-    Object.values(section.children).map((item) => <DocumentationMenuRec 
-      currentSection={props.currentSection} 
+    Object.values(section.children).map((item) => <DocumentationMenuRec
       onLinkClick={props.onLinkClick}
       key={item.text} section={item} hidden={hidden || !open} />)}
   </List>
@@ -245,38 +246,38 @@ const DocumentationMenuRec = (props: { currentSection: string, section: SectionN
   else
     return <>
       <ListItem key={section.text} button
-        component="a"
-        selected={props.currentSection === sectionAnchor(section)}
-        href={sectionUrl(section)}
-        onClick={props.onLinkClick}
+      component="a"
+      href={sectionUrl(section)}
+      onClick={(e : any) => { props.onLinkClick(); nav.navigateTo(sectionUrl(section)); e.preventDefault(); }}
+      selected={currentSection === sectionAnchor(section)}        
         style={{ display: hidden ? "none" : "block", paddingLeft: `${10 * section.depth}px`, color: theme.palette.text.primary }}>
-        <Typography>{section.text}</Typography>
+          <Typography>{section.text}</Typography>
       </ListItem>
       {children}
     </>
 
 }
 
-const DocumentationMenu = (props: { currentSection: string, hierarchy: DocHierarchy, onLinkClick: () => void }) => {
+const DocumentationMenu = (props: { hierarchy: DocHierarchy, onLinkClick: () => void }) => {
   if (!props.hierarchy) return <></>;
   return <List disablePadding>
     {Object.values(props.hierarchy).map((item: SectionNode) =>
       <DocumentationMenuRec
-        currentSection={props.currentSection} 
         key={item.text}
         section={item}
         onLinkClick={props.onLinkClick} />)}
   </List>
 }
 
-export const Documentation = (props: { hash: string }) => {
+export const Documentation = () => {
 
+  // const navigation = useNavigation();
   const theme = useTheme();
   const screen700 = useMediaQuery('(min-width:700px)');
 
-  const [content, setContent] = useState("");
+  const docContentDiv = useRef<HTMLDivElement>(null);
   const [hierarchy, setHierarchy] = useState<any>(null);
-  const [currentSection, setCurrentSection] = useState("");
+  // const [currentSection, setCurrentSection] = useState("");
   const [mobileMenuOpen, setmobileMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -285,42 +286,37 @@ export const Documentation = (props: { hash: string }) => {
     })();
   }, []);
 
-  useEffect(() => {
-    (async () => {
-      const split = props.hash.split("/");
-      const mainSection = split[0].substring(1);
-      if (mainSection !== currentSection)
-      {
-        setCurrentSection(mainSection);
-        if (!docsHtml[mainSection])
+  let setPage = useCallback(async (path: string) => {
+    const mainSection = path.split("/")[1];
+      const setContent = (c : string) => {
+        if (docContentDiv?.current) docContentDiv.current.innerHTML = c;
+      };
+      if (!docsHtml[mainSection])
         setContent(mainSection + ": Section not found");
-        else
+      else
         await docsHtml[mainSection].then(c => setContent(c));
-      }
 
-      // Scroll into the right section.
-      let found = false;
-      while (!found)
-      {
+    // Scroll into the right section.
+    let found = false;
+    while (!found) {
 
-        let collection = document.getElementsByClassName("anchor");
-        for (let i = 0; i < collection.length; i++)
-        {
-          let el = collection.item(i) as HTMLLinkElement;
-          if (el && el.href.endsWith(props.hash))
-          {
-            found = true;
-            el.scrollIntoView();
-            break;
-          }
-          
+      let collection = document.getElementsByClassName("anchor");
+      for (let i = 0; i < collection.length; i++) {
+        let el = collection.item(i) as HTMLLinkElement;
+        if (el && el.href.endsWith(path)) {
+          found = true;
+          el.scrollIntoView();
+          break;
         }
-        if (!found) // sometime we need to wait because the doc is not mounted yet.
-          await new Promise(resolve => setTimeout(resolve, 100));
-      }
-    })();
 
-  }, [props.hash, currentSection]);
+      }
+      if (!found) // sometime we need to wait because the doc is not mounted yet.
+        await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
+  }, [docContentDiv]); 
+
+  useOnUrlChange(setPage);
 
   let dark = theme.palette.type === 'dark';
 
@@ -333,11 +329,11 @@ export const Documentation = (props: { hash: string }) => {
       ...menuStyle,
       display: mobileMenuOpen ? "block" : "none",
       marginLeft: "0px", width: "100%",
-      top: "0px", 
+      top: "0px",
       paddingTop: "100px",
       backgroundImage: `url("${dark ? brushed_bg : brushed_bg_white}")`,
     };
-    docStyle = { ...docStyle, width:"100%"}
+    docStyle = { ...docStyle, width: "100%" }
 
     mobileOpenMenuButton = <Fab color="primary" aria-label="show_menu"
       // hidden={mobileMenuOpen}
@@ -357,11 +353,10 @@ export const Documentation = (props: { hash: string }) => {
     <Container style={{ paddingLeft: screen700 ? "240px" : "0px", position: "relative", paddingTop: "100px" }}>
       {mobileOpenMenuButton}
       <div className="docMenu" style={menuStyle} >
-        <DocumentationMenu currentSection={props.hash} hierarchy={hierarchy} onLinkClick={() => setmobileMenuOpen(false)} />
+        <DocumentationMenu hierarchy={hierarchy} onLinkClick={() => setmobileMenuOpen(false)} />
       </div>
       <Paper style={docStyle}>
-        <div dangerouslySetInnerHTML={{ __html: content }}>
-        </div>
+        <div ref={docContentDiv}></div>
       </Paper>
       <Footer />
     </Container>

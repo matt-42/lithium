@@ -1,14 +1,13 @@
-import { createStyles, makeStyles, TextField, Theme, Typography, useTheme } from "@material-ui/core";
+import { TextField, Typography, useTheme } from "@material-ui/core";
 import Icon from "@material-ui/core/Icon/Icon";
 import InputAdornment from "@material-ui/core/InputAdornment/InputAdornment";
 import useMediaQuery from "@material-ui/core/useMediaQuery/useMediaQuery";
-import _ from "lodash";
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { DocIndex, DocIndexEntry, documentationIndex, sectionAnchor, sectionPath } from "./Documentation";
-import brushed_bg from "./images/brushed.jpg";
-import brushed_bg_white from "./images/brushed_white.jpg";
 import hljs from 'highlight.js';
+import _ from "lodash";
 import marked from "marked";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { DocIndex, DocIndexEntry, documentationIndex, sectionPath, sectionUrl } from "./Documentation";
+import { useNavigateTo } from "./Navigation";
 
 
 
@@ -184,15 +183,16 @@ export const Search2 = () => {
     return () => { document.removeEventListener('keyup', l); }
   }, []);
 
+  const nav = useNavigateTo();
   const gotoResult = useCallback(
     (resultIdx: number) => {
       let selection = results[resultIdx];
       if (selection)
-        window.location.hash = sectionAnchor(selection.section);
+        nav.navigateTo(sectionUrl(selection.section))
       setQuery("");
       document.getElementById('doc_search_bar')?.blur();
     },
-    [results]);
+    [nav, results]);
 
   // Focus on / or . key press.
   useEffect(() => {
@@ -211,7 +211,7 @@ export const Search2 = () => {
     };
     document.addEventListener('keyup', l, false);
     return () => { document.removeEventListener('keyup', l); }
-  }, [selectedResultIndex, results]);
+  }, [selectedResultIndex, results, gotoResult]);
 
   // Set index at mount.
   useEffect(() => {
@@ -226,7 +226,7 @@ export const Search2 = () => {
       setResults(filterOptions(index, query));
       setSelectedResultIndex(0);
     }
-  }, [query]);
+  }, [index, query]);
 
   let searchInput = <TextField
     label={query.length ? "" : (screen700 ? "Search (Tap / or . to focus)" : "")}
@@ -279,7 +279,7 @@ export const Search2 = () => {
         key={idx}
         option={r}
         query={query}
-        selected={idx == selectedResultIndex}
+        selected={idx === selectedResultIndex}
         onSelect={() => gotoResult(idx)} />)}
     </div>
   </div>

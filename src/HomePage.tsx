@@ -12,7 +12,8 @@ import ListItemText from "@material-ui/core/ListItemText"
 import useMediaQuery from "@material-ui/core/useMediaQuery"
 import { Footer } from "./Footer"
 import { useTheme } from "@material-ui/core/styles"
-  
+import {NavigationButton, NavigationLink, preventDefault} from "./Navigation";
+
 export const HomePage = () => {
   const theme = useTheme();
   const screen700 = useMediaQuery('(min-width:700px)');
@@ -39,7 +40,7 @@ export const HomePage = () => {
       </Typography>
         <div style={{ height: "20px" }}></div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-start", }}>    
-        <Button variant="outlined"  style={{marginRight: "45px"}} href={"#getting-started"} >Get Started</Button>
+        <NavigationButton variant="outlined"  style={{marginRight: "45px"}} href={"/getting-started"} {...preventDefault} >Get Started</NavigationButton>
 
         <iframe src="https://ghbtns.com/github-btn.html?user=matt-42&repo=lithium&type=star&count=true&size=large" frameBorder="0" scrolling="0" width="170" height="30" title="GitHub"></iframe>
         <a href="https://twitter.com/share" className="twitter-share-button" style={{float: "left", marginLeft: "-37px", paddingTop: "10px"}} data-size="large">Tweet</a>
@@ -70,7 +71,7 @@ export const HomePage = () => {
 `$ wget https://raw.githubusercontent.com/matt-42/lithium/master/cli/li
 $ chmod +x ./li`}</HLsh>
 <Typography>
-        You can also instal Lithium locally. <Link href="#getting-started"><u>Check the install guide for more info</u></Link>. 
+        You can also instal Lithium locally. <NavigationLink href="/getting-started"><u>Check the install guide for more info</u></NavigationLink>. 
 </Typography>
 
       </Paper>
@@ -116,7 +117,7 @@ int main() {
         </Typography>
 
         <p style={{textAlign:"right"}}>
-        <Button variant="outlined" href="#getting-started">Read the docs</Button>
+        <NavigationButton variant="outlined" href="/getting-started">Read the docs</NavigationButton>
         </p>
 
       </Paper>
