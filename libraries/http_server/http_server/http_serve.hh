@@ -296,6 +296,7 @@ struct generic_http_ctx {
       int file_size = lseek(fd, (size_t)0, SEEK_END);
       auto content =
           std::string_view((char*)mmap(0, file_size, PROT_READ, MAP_SHARED, fd, 0), file_size);
+      if (!content.data()) throw http_error::not_found("File not found.");
       close(fd);
 
       size_t ext_pos = std::string_view(path).rfind('.');
