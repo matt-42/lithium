@@ -65,8 +65,8 @@ None
 
 ## Encoding
 
-There is two ways to decode json objects: one for [supported types](#json/supported-types) and one for [custom 
-types](#json/providing-json-type-info-for-custom-types) where you have to provide some information about the 
+There is two ways to decode json objects: one for [supported types](/json/supported-types) and one for [custom 
+types](/json/providing-json-type-info-for-custom-types) where you have to provide some information about the 
 object you want to encode:
 ```c++
 // Supported types
