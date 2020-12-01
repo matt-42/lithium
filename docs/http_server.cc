@@ -297,7 +297,7 @@ All mime types of this list are supported: http://svn.apache.org/repos/asf/httpd
 
 Using `http_client` and the `s::non_blocking` flag of http_serve
 you can easily tests your server responses.
-[Read more about http_client here](#http-client)
+[Read more about http_client here](/http-client)
 
 Here is a quick example:
 
