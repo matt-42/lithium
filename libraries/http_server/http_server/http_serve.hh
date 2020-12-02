@@ -256,8 +256,17 @@ struct generic_http_ctx {
     case 204:
       status_ = "204 No Content";
       break;
+    case 302:
+      status_ = "302 Object moved";
+      break;
+    case 303:
+      status_ = "303 Moved Permanently";
+      break;
     case 304:
       status_ = "304 Not Modified";
+      break;
+    case 307:
+      status_ = "307 Temporary redirect";
       break;
     case 400:
       status_ = "400 Bad Request";
@@ -266,13 +275,19 @@ struct generic_http_ctx {
       status_ = "401 Unauthorized";
       break;
     case 402:
-      status_ = "402 Not Found";
+      status_ = "402 Payment Required";
       break;
     case 403:
       status_ = "403 Forbidden";
       break;
     case 404:
       status_ = "404 Not Found";
+      break;
+    case 405:
+      status_ = "405 HTTP verb used to access this page is not allowed (method not allowed)";
+      break;
+    case 406:
+      status_ = "406 Client browser does not accept the MIME type of the requested page";
       break;
     case 409:
       status_ = "409 Conflict";
