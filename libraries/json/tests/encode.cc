@@ -1,6 +1,6 @@
 #include "symbols.hh"
 #include <cassert>
-#include <lithium.hh>
+#include <lithium_json.hh>
 #include <string_view>
 
 using namespace li;
@@ -111,6 +111,7 @@ int main() {
   {
     // Simple values.
     assert(json_encode(12) == "12");
+    std::cout << json_encode("12") << std::endl;
     assert(json_encode("12") == "\"12\"");
     assert(json_encode(std::optional<int>{}) == "");
     assert(json_encode(std::optional<int>{12}) == "12");
@@ -137,4 +138,19 @@ int main() {
     assert(test2["test2"] == 4);
   }
 
+  {
+    // Pointers.
+    std::string input = R"json([1,2,3,4])json";
+    auto to_encode = std::vector<int>{1, 2, 3, 4};
+    std::cout << json_encode(&to_encode) << std::endl;
+    assert(json_encode(&to_encode) == input);
+         
+  }
+
+  {
+    // Generators.
+    int i = 0;
+    auto g = [&i] { return i++; };
+    assert(json_encode_generator(3, g) == "[0,1,2]");
+  }
 }

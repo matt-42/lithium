@@ -13,6 +13,7 @@
 #include <unordered_map>
 
 #include <li/callable_traits/callable_traits.hh>
+#include <li/callable_traits/tuple_utils.hh>
 #include <li/metamap/metamap.hh>
 #include <li/sql/sql_common.hh>
 #include <li/sql/sql_result.hh>
@@ -24,15 +25,10 @@ namespace li {
 
 struct sqlite_tag {};
 
-template <typename T> struct tuple_remove_references_and_const;
-template <typename... T> struct tuple_remove_references_and_const<std::tuple<T...>> {
-  typedef std::tuple<std::remove_const_t<std::remove_reference_t<T>>...> type;
-};
-
 template <typename T>
 using tuple_remove_references_and_const_t = typename tuple_remove_references_and_const<T>::type;
 
-void free_sqlite3_statement(void* s) { sqlite3_finalize((sqlite3_stmt*)s); }
+inline void free_sqlite3_statement(void* s) { sqlite3_finalize((sqlite3_stmt*)s); }
 
 struct sqlite_statement_result {
   sqlite3* db_;
@@ -93,37 +89,37 @@ struct sqlite_statement_result {
     return true;
   }
 
-  long long int last_insert_id() { return sqlite3_last_insert_rowid(db_); }
+  inline long long int last_insert_id() { return sqlite3_last_insert_rowid(db_); }
 
-  void read_column(int pos, int& v, int sqltype) {
+  inline void read_column(int pos, int& v, int sqltype) {
     if (sqltype != SQLITE_INTEGER)
       throw std::runtime_error(
           "Type mismatch between request result data type and destination type (integer).");
     v = sqlite3_column_int(stmt_, pos);
   }
 
-  void read_column(int pos, float& v, int sqltype) {
+  inline void read_column(int pos, float& v, int sqltype) {
     if (sqltype != SQLITE_FLOAT)
       throw std::runtime_error(
           "Type mismatch between request result data type and destination type (float).");
     v = float(sqlite3_column_double(stmt_, pos));
   }
 
-  void read_column(int pos, double& v, int sqltype) {
+  inline void read_column(int pos, double& v, int sqltype) {
     if (sqltype != SQLITE_FLOAT)
       throw std::runtime_error(
           "Type mismatch between request result data type and destination type (double).");
     v = sqlite3_column_double(stmt_, pos);
   }
 
-  void read_column(int pos, int64_t& v, int sqltype) {
+  inline void read_column(int pos, int64_t& v, int sqltype) {
     if (sqltype != SQLITE_INTEGER)
       throw std::runtime_error(
           "Type mismatch between request result data type and destination type (int64).");
     v = sqlite3_column_int64(stmt_, pos);
   }
 
-  void read_column(int pos, std::string& v, int sqltype) {
+  inline void read_column(int pos, std::string& v, int sqltype) {
     if (sqltype != SQLITE_TEXT && sqltype != SQLITE_BLOB)
       throw std::runtime_error(
           "Type mismatch between request result data type and destination type (std::string).");
@@ -147,9 +143,9 @@ struct sqlite_statement {
   sqlite3_stmt* stmt_;
   stmt_sptr stmt_sptr_;
 
-  sqlite_statement() {}
+  inline sqlite_statement() {}
 
-  sqlite_statement(sqlite3* db, sqlite3_stmt* s)
+  inline sqlite_statement(sqlite3* db, sqlite3_stmt* s)
       : db_(db), stmt_(s), stmt_sptr_(stmt_sptr(s, free_sqlite3_statement)) {}
 
   // Bind arguments to the request unknowns (marked with ?)
@@ -173,33 +169,33 @@ struct sqlite_statement {
         sqlite_statement_result{this->db_, this->stmt_, last_step_ret}};
   }
 
-  int bind(sqlite3_stmt* stmt, int pos, double d) const {
+  inline int bind(sqlite3_stmt* stmt, int pos, double d) const {
     return sqlite3_bind_double(stmt, pos, d);
   }
 
-  int bind(sqlite3_stmt* stmt, int pos, int d) const { return sqlite3_bind_int(stmt, pos, d); }
-  int bind(sqlite3_stmt* stmt, int pos, long int d) const {
+  inline int bind(sqlite3_stmt* stmt, int pos, int d) const { return sqlite3_bind_int(stmt, pos, d); }
+  inline int bind(sqlite3_stmt* stmt, int pos, long int d) const {
     return sqlite3_bind_int64(stmt, pos, d);
   }
-  int bind(sqlite3_stmt* stmt, int pos, long long int d) const {
+  inline int bind(sqlite3_stmt* stmt, int pos, long long int d) const {
     return sqlite3_bind_int64(stmt, pos, d);
   }
-  void bind(sqlite3_stmt* stmt, int pos, sql_null_t) { sqlite3_bind_null(stmt, pos); }
-  int bind(sqlite3_stmt* stmt, int pos, const char* s) const {
+  inline void bind(sqlite3_stmt* stmt, int pos, sql_null_t) { sqlite3_bind_null(stmt, pos); }
+  inline int bind(sqlite3_stmt* stmt, int pos, const char* s) const {
     return sqlite3_bind_text(stmt, pos, s, strlen(s), nullptr);
   }
-  int bind(sqlite3_stmt* stmt, int pos, const std::string& s) const {
+  inline int bind(sqlite3_stmt* stmt, int pos, const std::string& s) const {
     return sqlite3_bind_text(stmt, pos, s.data(), s.size(), nullptr);
   }
-  int bind(sqlite3_stmt* stmt, int pos, const std::string_view& s) const {
+  inline int bind(sqlite3_stmt* stmt, int pos, const std::string_view& s) const {
     return sqlite3_bind_text(stmt, pos, s.data(), s.size(), nullptr);
   }
-  int bind(sqlite3_stmt* stmt, int pos, const sql_blob& b) const {
+  inline int bind(sqlite3_stmt* stmt, int pos, const sql_blob& b) const {
     return sqlite3_bind_blob(stmt, pos, b.data(), b.size(), nullptr);
   }
 };
 
-void free_sqlite3_db(void* db) { sqlite3_close_v2((sqlite3*)db); }
+inline void free_sqlite3_db(void* db) { sqlite3_close_v2((sqlite3*)db); }
 
 struct sqlite_connection {
   typedef sqlite_tag db_tag;
@@ -215,11 +211,11 @@ struct sqlite_connection {
   stmt_map_ptr stm_cache_;
   type_hashmap<sqlite_statement> statements_hashmap;
 
-  sqlite_connection()
+  inline sqlite_connection()
       : db_(nullptr), stm_cache_(new stmt_map()), cache_mutex_(new std::mutex()) // FIXME
   {}
 
-  void connect(const std::string& filename,
+  inline void connect(const std::string& filename,
                int flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE) {
     int r = sqlite3_open_v2(filename.c_str(), &db_, flags, nullptr);
     if (r != SQLITE_OK)
@@ -244,7 +240,7 @@ struct sqlite_connection {
       return statements_hashmap(f);
   }
 
-  sqlite_statement prepare(const std::string& req) {
+  inline sqlite_statement prepare(const std::string& req) {
     // std::cout << req << std::endl;
     auto it = stm_cache_->find(req);
     if (it != stm_cache_->end())
@@ -262,7 +258,7 @@ struct sqlite_connection {
     cache_mutex_->unlock();
     return it2->second;
   }
-  sql_result<sqlite_statement_result> operator()(const std::string& req) { return prepare(req)(); }
+  inline sql_result<sqlite_statement_result> operator()(const std::string& req) { return prepare(req)(); }
 
   template <typename T>
   inline std::string type_to_string(const T&, std::enable_if_t<std::is_integral<T>::value>* = 0) {
@@ -287,7 +283,7 @@ struct sqlite_database {
 
   typedef sqlite_connection connection_type;
 
-  sqlite_database() {}
+  inline sqlite_database() {}
 
   template <typename... O> sqlite_database(const std::string& path, O... options_) {
     auto options = mmm(options_...);

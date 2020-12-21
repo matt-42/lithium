@@ -5,7 +5,7 @@
 namespace li {
 
 // Map a function(key, value) on all kv pair
-template <typename... M, typename F> void map(const metamap<M...>& m, F fun) {
+template <typename... M, typename F> constexpr void map(const metamap<M...>& m, F fun) {
   auto apply = [&](auto key) -> decltype(auto) { return fun(key, m[key]); };
 
   apply_each(apply, typename M::_iod_symbol_type{}...);
@@ -39,13 +39,13 @@ template <typename... M, typename F> void map(const metamap<M...>& m, F fun) {
 // }
 
 // Map a function(key, value) on all kv pair (non const).
-template <typename... M, typename F> void map(metamap<M...>& m, F fun) {
+template <typename... M, typename F> constexpr void map(metamap<M...>& m, F fun) {
   auto apply = [&](auto key) -> decltype(auto) { return fun(key, m[key]); };
 
   apply_each(apply, typename M::_iod_symbol_type{}...);
 }
 
-template <typename... E, typename F, typename R> auto apply_each2(F&& f, R&& r, E&&... e) {
+template <typename... E, typename F, typename R> constexpr auto apply_each2(F&& f, R&& r, E&&... e) {
   return r(f(std::forward<E>(e))...);
   //(void)std::initializer_list<int>{
   //  ((void)f(std::forward<E>(e)), 0)...};
@@ -54,7 +54,7 @@ template <typename... E, typename F, typename R> auto apply_each2(F&& f, R&& r, 
 // Map a function(key, value) on all kv pair an reduce
 // all the results value with the reduce(r1, r2, ...) function.
 template <typename... M, typename F, typename R>
-decltype(auto) map_reduce(const metamap<M...>& m, F map, R reduce) {
+constexpr decltype(auto) map_reduce(const metamap<M...>& m, F map, R reduce) {
   auto apply = [&](auto key) -> decltype(auto) {
     // return map(key, std::forward<decltype(m[key])>(m[key]));
     return map(key, m[key]);
@@ -66,7 +66,7 @@ decltype(auto) map_reduce(const metamap<M...>& m, F map, R reduce) {
 
 // Map a function(key, value) on all kv pair an reduce
 // all the results value with the reduce(r1, r2, ...) function.
-template <typename... M, typename R> decltype(auto) reduce(const metamap<M...>& m, R reduce) {
+template <typename... M, typename R> constexpr decltype(auto) reduce(const metamap<M...>& m, R reduce) {
   return reduce(m[typename M::_iod_symbol_type{}]...);
 }
 

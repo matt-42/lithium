@@ -14,7 +14,6 @@
 #include <cstring>
 #include <deque>
 #include <iostream>
-#include <lithium_symbol.hh>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -22,7 +21,6 @@
 #include <sqlite3.h>
 #include <sstream>
 #include <string>
-#include <sys/epoll.h>
 #include <thread>
 #include <tuple>
 #include <unordered_map>
@@ -44,9 +42,101 @@
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_CALLABLE_TRAITS_CALLABLE_TRAITS_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_CALLABLE_TRAITS_CALLABLE_TRAITS_HH
 
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_CALLABLE_TRAITS_TYPELIST_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_CALLABLE_TRAITS_TYPELIST_HH
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS_HH
+
+
+namespace li {
+
+template <typename... E, typename F> constexpr void apply_each(F&& f, E&&... e) {
+  (void)std::initializer_list<int>{((void)f(std::forward<E>(e)), 0)...};
+}
+
+template <typename... E, typename F, typename R>
+constexpr auto tuple_map_reduce_impl(F&& f, R&& reduce, E&&... e) {
+  return reduce(f(std::forward<E>(e))...);
+}
+
+template <typename T, typename F> constexpr void tuple_map(T&& t, F&& f) {
+  return std::apply([&](auto&&... e) { apply_each(f, std::forward<decltype(e)>(e)...); },
+                    std::forward<T>(t));
+}
+
+template <typename T, typename F> constexpr auto tuple_reduce(T&& t, F&& f) {
+  return std::apply(std::forward<F>(f), std::forward<T>(t));
+}
+
+template <typename T, typename F, typename R>
+decltype(auto) tuple_map_reduce(T&& m, F map, R reduce) {
+  auto fun = [&](auto... e) { return tuple_map_reduce_impl(map, reduce, e...); };
+  return std::apply(fun, m);
+}
+
+template <typename F> constexpr inline std::tuple<> tuple_filter_impl() { return std::make_tuple(); }
+
+template <typename F, typename... M, typename M1> constexpr auto tuple_filter_impl(M1 m1, M... m) {
+  if constexpr (std::is_same<M1, F>::value)
+    return tuple_filter_impl<F>(m...);
+  else
+    return std::tuple_cat(std::make_tuple(m1), tuple_filter_impl<F>(m...));
+}
+
+template <typename F, typename... M> constexpr auto tuple_filter(const std::tuple<M...>& m) {
+
+  auto fun = [](auto... e) { return tuple_filter_impl<F>(e...); };
+  return std::apply(fun, m);
+}
+
+} // namespace li
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS_HH
+
+
 namespace li {
 
 template <typename... T> struct typelist {};
+
+template <typename... T1, typename... T2>
+constexpr auto typelist_cat(typelist<T1...> t1, typelist<T2...> t2) {
+  return typelist<T1..., T2...>();
+}
+
+template <typename T> struct typelist_to_tuple {};
+
+template <typename... T> struct typelist_to_tuple<typelist<T...>> {
+  typedef std::tuple<T...> type;
+};
+
+template <typename T> struct tuple_to_typelist {};
+
+template <typename... T> struct tuple_to_typelist<std::tuple<T...>> {
+  typedef typelist<T...> type;
+};
+
+template <typename T> using typelist_to_tuple_t = typename typelist_to_tuple<T>::type;
+template <typename T> using tuple_to_typelist_t = typename tuple_to_typelist<T>::type;
+
+template <typename T, typename U> struct typelist_embeds : public std::false_type {};
+
+template <typename... T, typename U>
+struct typelist_embeds<typelist<T...>, U>
+    : public std::integral_constant<bool, count_first_falses(std::is_same<T, U>::value...) !=
+                                              sizeof...(T)> {};
+
+template <typename T, typename E> struct typelist_embeds_any_ref_of : public std::false_type {};
+
+template <typename U, typename... T>
+struct typelist_embeds_any_ref_of<typelist<T...>, U>
+    : public typelist_embeds<typelist<std::decay_t<T>...>, std::decay_t<U>> {};
+
+} // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_CALLABLE_TRAITS_TYPELIST_HH
+
+
+namespace li {
 
 namespace internal {
 template <typename T> struct has_parenthesis_operator {
@@ -138,6 +228,182 @@ template <typename F, typename... A> struct callable_with {
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_CALLABLE_TRAITS_CALLABLE_TRAITS_HH
 
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_CALLABLE_TRAITS_TUPLE_UTILS_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_CALLABLE_TRAITS_TUPLE_UTILS_HH
+
+
+namespace li {
+
+constexpr int count_first_falses() { return 0; }
+
+template <typename... B> constexpr int count_first_falses(bool b1, B... b) {
+  if (b1)
+    return 0;
+  else
+    return 1 + count_first_falses(b...);
+}
+
+template <typename E, typename... T> decltype(auto) arg_get_by_type_(void*, E* a1, T&&... args) {
+  return std::forward<E*>(a1);
+}
+
+template <typename E, typename... T>
+decltype(auto) arg_get_by_type_(void*, const E* a1, T&&... args) {
+  return std::forward<const E*>(a1);
+}
+
+template <typename E, typename... T> decltype(auto) arg_get_by_type_(void*, E& a1, T&&... args) {
+  return std::forward<E&>(a1);
+}
+
+template <typename E, typename... T>
+decltype(auto) arg_get_by_type_(void*, const E& a1, T&&... args) {
+  return std::forward<const E&>(a1);
+}
+
+template <typename E, typename T1, typename... T>
+decltype(auto) arg_get_by_type_(std::enable_if_t<!std::is_same<E, std::decay_t<T1>>::value>*,
+                                // void*,
+                                T1&&, T&&... args) {
+  return arg_get_by_type_<E>((void*)0, std::forward<T>(args)...);
+}
+
+template <typename E, typename... T> decltype(auto) arg_get_by_type(T&&... args) {
+  return arg_get_by_type_<std::decay_t<E>>(0, args...);
+}
+
+template <typename E, typename... T> decltype(auto) tuple_get_by_type(std::tuple<T...>& tuple) {
+  typedef std::decay_t<E> DE;
+  return std::get<count_first_falses((std::is_same<std::decay_t<T>, DE>::value)...)>(tuple);
+}
+
+template <typename E, typename... T> decltype(auto) tuple_get_by_type(std::tuple<T...>&& tuple) {
+  typedef std::decay_t<E> DE;
+  return std::get<count_first_falses((std::is_same<std::decay_t<T>, DE>::value)...)>(tuple);
+}
+
+template <typename T, typename U> struct tuple_embeds : public std::false_type {};
+
+template <typename... T, typename U>
+struct tuple_embeds<std::tuple<T...>, U>
+    : public std::integral_constant<bool, count_first_falses(std::is_same<T, U>::value...) !=
+                                              sizeof...(T)> {};
+
+template <typename U, typename... T> struct tuple_embeds_any_ref_of : public std::false_type {};
+template <typename U, typename... T>
+struct tuple_embeds_any_ref_of<std::tuple<T...>, U>
+    : public tuple_embeds<std::tuple<std::decay_t<T>...>, std::decay_t<U>> {};
+
+template <typename T> struct tuple_remove_references;
+template <typename... T> struct tuple_remove_references<std::tuple<T...>> {
+  typedef std::tuple<std::remove_reference_t<T>...> type;
+};
+
+template <typename T> using tuple_remove_references_t = typename tuple_remove_references<T>::type;
+
+template <typename T> struct tuple_remove_references_and_const;
+template <typename... T> struct tuple_remove_references_and_const<std::tuple<T...>> {
+  typedef std::tuple<std::remove_const_t<std::remove_reference_t<T>>...> type;
+};
+
+template <typename T>
+using tuple_remove_references_and_const_t = typename tuple_remove_references_and_const<T>::type;
+
+template <typename T, typename U, typename E> struct tuple_remove_element2;
+
+template <typename... T, typename... U, typename E1>
+struct tuple_remove_element2<std::tuple<E1, T...>, std::tuple<U...>, E1>
+    : public tuple_remove_element2<std::tuple<T...>, std::tuple<U...>, E1> {};
+
+template <typename... T, typename... U, typename T1, typename E1>
+struct tuple_remove_element2<std::tuple<T1, T...>, std::tuple<U...>, E1>
+    : public tuple_remove_element2<std::tuple<T...>, std::tuple<U..., T1>, E1> {};
+
+template <typename... U, typename E1>
+struct tuple_remove_element2<std::tuple<>, std::tuple<U...>, E1> {
+  typedef std::tuple<U...> type;
+};
+
+template <typename T, typename E>
+struct tuple_remove_element : public tuple_remove_element2<T, std::tuple<>, E> {};
+
+template <typename T, typename... E> struct tuple_remove_elements;
+
+template <typename... T, typename E1, typename... E>
+struct tuple_remove_elements<std::tuple<T...>, E1, E...> {
+  typedef typename tuple_remove_elements<typename tuple_remove_element<std::tuple<T...>, E1>::type,
+                                         E...>::type type;
+};
+
+template <typename... T> struct tuple_remove_elements<std::tuple<T...>> {
+  typedef std::tuple<T...> type;
+};
+
+template <typename A, typename B> struct tuple_minus;
+
+template <typename... T, typename... R> struct tuple_minus<std::tuple<T...>, std::tuple<R...>> {
+  typedef typename tuple_remove_elements<std::tuple<T...>, R...>::type type;
+};
+
+template <typename T, typename... E>
+using tuple_remove_elements_t = typename tuple_remove_elements<T, E...>::type;
+
+template <typename F, size_t... I, typename... T>
+inline F tuple_map(std::tuple<T...>& t, F f, std::index_sequence<I...>) {
+  return (void)std::initializer_list<int>{((void)f(std::get<I>(t)), 0)...}, f;
+}
+
+template <typename F, typename... T> inline void tuple_map(std::tuple<T...>& t, F f) {
+  tuple_map(t, f, std::index_sequence_for<T...>{});
+}
+
+template <typename F, size_t... I, typename T>
+inline decltype(auto) tuple_transform(T&& t, F f, std::index_sequence<I...>) {
+  return std::make_tuple(f(std::get<I>(std::forward<T>(t)))...);
+}
+
+template <typename F, typename T> inline decltype(auto) tuple_transform(T&& t, F f) {
+  return tuple_transform(std::forward<T>(t), f,
+                         std::make_index_sequence<std::tuple_size<std::decay_t<T>>{}>{});
+}
+
+template <template <class> class F, typename T, typename I, typename R, typename X = void>
+struct tuple_filter_sequence;
+
+template <template <class> class F, typename... T, typename R>
+struct tuple_filter_sequence<F, std::tuple<T...>, std::index_sequence<>, R> {
+  using ret = R;
+};
+
+template <template <class> class F, typename T1, typename... T, size_t I1, size_t... I, size_t... R>
+struct tuple_filter_sequence<F, std::tuple<T1, T...>, std::index_sequence<I1, I...>,
+                             std::index_sequence<R...>, std::enable_if_t<F<T1>::value>> {
+  using ret = typename tuple_filter_sequence<F, std::tuple<T...>, std::index_sequence<I...>,
+                                             std::index_sequence<R..., I1>>::ret;
+};
+
+template <template <class> class F, typename T1, typename... T, size_t I1, size_t... I, size_t... R>
+struct tuple_filter_sequence<F, std::tuple<T1, T...>, std::index_sequence<I1, I...>,
+                             std::index_sequence<R...>, std::enable_if_t<!F<T1>::value>> {
+  using ret = typename tuple_filter_sequence<F, std::tuple<T...>, std::index_sequence<I...>,
+                                             std::index_sequence<R...>>::ret;
+};
+
+template <std::size_t... I, typename T>
+decltype(auto) tuple_filter_impl(std::index_sequence<I...>, T&& t) {
+  return std::make_tuple(std::get<I>(t)...);
+}
+
+template <template <class> class F, typename T> decltype(auto) tuple_filter(T&& t) {
+  using seq = typename tuple_filter_sequence<
+      F, std::decay_t<T>, std::make_index_sequence<std::tuple_size<std::decay_t<T>>::value>,
+      std::index_sequence<>>::ret;
+  return tuple_filter_impl(seq{}, t);
+}
+} // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_CALLABLE_TRAITS_TUPLE_UTILS_HH
+
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_METAMAP_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_METAMAP_HH
 
@@ -158,7 +424,7 @@ struct {
 
 template <typename... Ms> struct metamap;
 
-template <typename F, typename... M> decltype(auto) find_first(metamap<M...>&& map, F fun);
+template <typename F, typename... M> constexpr decltype(auto) find_first(metamap<M...>&& map, F fun);
 
 template <typename... Ms> struct metamap;
 
@@ -174,16 +440,16 @@ template <typename M1, typename... Ms> struct metamap<M1, Ms...> : public M1, pu
   // metamap(self& other)
   //  : metamap(const_cast<const self&>(other)) {}
 
-  inline metamap(typename M1::_iod_value_type&& m1, typename Ms::_iod_value_type&&... members) : M1{m1}, Ms{std::forward<typename Ms::_iod_value_type>(members)}... {}
-  inline metamap(M1&& m1, Ms&&... members) : M1(m1), Ms(std::forward<Ms>(members))... {}
-  inline metamap(const M1& m1, const Ms&... members) : M1(m1), Ms((members))... {}
+  constexpr inline metamap(typename M1::_iod_value_type&& m1, typename Ms::_iod_value_type&&... members) : M1{m1}, Ms{std::forward<typename Ms::_iod_value_type>(members)}... {}
+  constexpr inline metamap(M1&& m1, Ms&&... members) : M1(m1), Ms(std::forward<Ms>(members))... {}
+  constexpr inline metamap(const M1& m1, const Ms&... members) : M1(m1), Ms((members))... {}
 
   // Assignemnt ?
 
   // Retrive a value.
-  template <typename K> decltype(auto) operator[](K k) { return symbol_member_access(*this, k); }
+  template <typename K> constexpr decltype(auto) operator[](K k) { return symbol_member_access(*this, k); }
 
-  template <typename K> decltype(auto) operator[](K k) const {
+  template <typename K> constexpr decltype(auto) operator[](K k) const {
     return symbol_member_access(*this, k);
   }
 };
@@ -191,9 +457,9 @@ template <typename M1, typename... Ms> struct metamap<M1, Ms...> : public M1, pu
 template <> struct metamap<> {
   typedef metamap<> self;
   // Constructors.
-  inline metamap() = default;
+  constexpr inline metamap() = default;
   // inline metamap(self&&) = default;
-  inline metamap(const self&) = default;
+  constexpr inline metamap(const self&) = default;
   // self& operator=(const self&) = default;
 
   // metamap(self& other)
@@ -202,9 +468,9 @@ template <> struct metamap<> {
   // Assignemnt ?
 
   // Retrive a value.
-  template <typename K> decltype(auto) operator[](K k) { return symbol_member_access(*this, k); }
+  template <typename K> constexpr decltype(auto) operator[](K k) { return symbol_member_access(*this, k); }
 
-  template <typename K> decltype(auto) operator[](K k) const {
+  template <typename K> constexpr decltype(auto) operator[](K k) const {
     return symbol_member_access(*this, k);
   }
 };
@@ -219,8 +485,15 @@ template <typename M> constexpr int metamap_size() {
   return metamap_size_t<std::decay_t<M>>::value;
 }
 
-template <typename... Ks> decltype(auto) metamap_values(const metamap<Ks...>& map) {
+template <typename... Ks> constexpr decltype(auto) metamap_values(const metamap<Ks...>& map) {
   return std::forward_as_tuple(map[typename Ks::_iod_symbol_type()]...);
+}
+template <typename... Ks> constexpr decltype(auto) metamap_values(metamap<Ks...>& map) {
+  return std::forward_as_tuple(map[typename Ks::_iod_symbol_type()]...);
+}
+
+template <typename... Ks> constexpr decltype(auto) metamap_keys(const metamap<Ks...>& map) {
+  return std::make_tuple(typename Ks::_iod_symbol_type()...);
 }
 
 template <typename K, typename M> constexpr auto has_key(M&& map, K k) {
@@ -257,7 +530,7 @@ template <typename... M> struct is_metamap<metamap<M...>> {
 namespace li {
 
 template <typename... T, typename... U>
-inline decltype(auto) cat(const metamap<T...>& a, const metamap<U...>& b) {
+constexpr inline decltype(auto) cat(const metamap<T...>& a, const metamap<U...>& b) {
   return metamap<T..., U...>(*static_cast<const T*>(&a)..., *static_cast<const U*>(&b)...);
 }
 
@@ -456,6 +729,7 @@ class symbol : public assignable<S>,
     template <typename T> static constexpr auto has_member(long) { return std::false_type{}; }     \
                                                                                                    \
     static inline auto symbol_string() { return #NAME; }                                           \
+    static inline auto json_key_string() { return "\"" #NAME "\":"; }                              \
   };                                                                                               \
   static constexpr NAME##_t NAME;                                                                  \
   }
@@ -528,38 +802,61 @@ template <typename... Ms> struct metamap;
 
 namespace internal {
 
-template <typename S, typename V> decltype(auto) exp_to_variable_ref(const assign_exp<S, V>& e) {
+template <typename S, typename V> constexpr decltype(auto) exp_to_variable_ref(const assign_exp<S, V>& e) {
   return make_variable_reference(S{}, e.right);
 }
 
-template <typename S, typename V> decltype(auto) exp_to_variable(const assign_exp<S, V>& e) {
+template <typename S, typename V> constexpr decltype(auto) exp_to_variable(const assign_exp<S, V>& e) {
   typedef std::remove_const_t<std::remove_reference_t<V>> vtype;
   return make_variable(S{}, e.right);
 }
 
-template <typename S> decltype(auto) exp_to_variable(const symbol<S>& e) {
+template <typename S> decltype(auto) constexpr exp_to_variable(const symbol<S>& e) {
   return exp_to_variable(S() = int());
 }
 
-template <typename... T> inline decltype(auto) make_metamap_helper(T&&... args) {
+template <typename... T> constexpr inline decltype(auto) make_metamap_helper(T&&... args) {
   return metamap<T...>(std::forward<T>(args)...);
 }
 
 } // namespace internal
 
 // Store copies of values in the map
-static struct {
-  template <typename... T> inline decltype(auto) operator()(T&&... args) const {
-    // Copy values.
-    return internal::make_metamap_helper(internal::exp_to_variable(std::forward<T>(args))...);
-  }
-} mmm;
+template <typename... T> constexpr inline decltype(auto) mmm(T&&... args) {
+  // Copy values.
+  return internal::make_metamap_helper(internal::exp_to_variable(std::forward<T>(args))...);
+}
 
 // Store references of values in the map
-template <typename... T> inline decltype(auto) make_metamap_reference(T&&... args) {
+template <typename... T> constexpr inline decltype(auto) make_metamap_reference(T&&... args) {
   // Keep references.
   return internal::make_metamap_helper(internal::exp_to_variable_ref(std::forward<T>(args))...);
 }
+
+template <typename... Ks> constexpr decltype(auto) metamap_clone(const metamap<Ks...>& map) {
+  return mmm((typename Ks::_iod_symbol_type() = map[typename Ks::_iod_symbol_type()])...);
+}
+
+namespace internal {
+  
+  template <typename... V>
+  auto make_metamap_type(typelist<V...> variables) {
+    return mmm(V(*(typename V::left_t*)0, *(typename V::right_t*)0)...);
+  };
+
+  template <typename T1, typename T2, typename... V, typename... T>
+  auto make_metamap_type(typelist<V...> variables, T1, T2, T... args) {
+    return make_metamap_type(typelist<V..., assign_exp<T1, T2>>{},
+              args...);
+  };
+}
+
+// Helper to make a metamap type:
+//  metamap_t<s::name_t, string, s::age_t, int>
+//  instead of decltype(mmm(s::name = string(), s::age = int()));
+template <typename... T>
+using metamap_t = decltype(internal::make_metamap_type(typelist<>{}, std::declval<T>()...));
+
 
 } // namespace li
 
@@ -572,20 +869,20 @@ struct skip {};
 static struct {
 
   template <typename... M, typename... T>
-  inline decltype(auto) run(metamap<M...> map, skip, T&&... args) const {
+  constexpr inline decltype(auto) run(metamap<M...> map, skip, T&&... args) const {
     return run(map, std::forward<T>(args)...);
   }
 
   template <typename T1, typename... M, typename... T>
-  inline decltype(auto) run(metamap<M...> map, T1&& a, T&&... args) const {
+  constexpr inline decltype(auto) run(metamap<M...> map, T1&& a, T&&... args) const {
     return run(
         cat(map, internal::make_metamap_helper(internal::exp_to_variable(std::forward<T1>(a)))),
         std::forward<T>(args)...);
   }
 
-  template <typename... M> inline decltype(auto) run(metamap<M...> map) const { return map; }
+  template <typename... M> constexpr inline decltype(auto) run(metamap<M...> map) const { return map; }
 
-  template <typename... T> inline decltype(auto) operator()(T&&... args) const {
+  template <typename... T> constexpr inline decltype(auto) operator()(T&&... args) const {
     // Copy values.
     return run(metamap<>{}, std::forward<T>(args)...);
   }
@@ -599,59 +896,11 @@ static struct {
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_MAP_REDUCE_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_MAP_REDUCE_HH
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS_HH
-
-
-namespace li {
-
-template <typename... E, typename F> void apply_each(F&& f, E&&... e) {
-  (void)std::initializer_list<int>{((void)f(std::forward<E>(e)), 0)...};
-}
-
-template <typename... E, typename F, typename R>
-auto tuple_map_reduce_impl(F&& f, R&& reduce, E&&... e) {
-  return reduce(f(std::forward<E>(e))...);
-}
-
-template <typename T, typename F> void tuple_map(T&& t, F&& f) {
-  return std::apply([&](auto&&... e) { apply_each(f, std::forward<decltype(e)>(e)...); },
-                    std::forward<T>(t));
-}
-
-template <typename T, typename F> auto tuple_reduce(T&& t, F&& f) {
-  return std::apply(std::forward<F>(f), std::forward<T>(t));
-}
-
-template <typename T, typename F, typename R>
-decltype(auto) tuple_map_reduce(T&& m, F map, R reduce) {
-  auto fun = [&](auto... e) { return tuple_map_reduce_impl(map, reduce, e...); };
-  return std::apply(fun, m);
-}
-
-template <typename F> inline std::tuple<> tuple_filter_impl() { return std::make_tuple(); }
-
-template <typename F, typename... M, typename M1> auto tuple_filter_impl(M1 m1, M... m) {
-  if constexpr (std::is_same<M1, F>::value)
-    return tuple_filter_impl<F>(m...);
-  else
-    return std::tuple_cat(std::make_tuple(m1), tuple_filter_impl<F>(m...));
-}
-
-template <typename F, typename... M> auto tuple_filter(const std::tuple<M...>& m) {
-
-  auto fun = [](auto... e) { return tuple_filter_impl<F>(e...); };
-  return std::apply(fun, m);
-}
-
-} // namespace li
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS_HH
-
 
 namespace li {
 
 // Map a function(key, value) on all kv pair
-template <typename... M, typename F> void map(const metamap<M...>& m, F fun) {
+template <typename... M, typename F> constexpr void map(const metamap<M...>& m, F fun) {
   auto apply = [&](auto key) -> decltype(auto) { return fun(key, m[key]); };
 
   apply_each(apply, typename M::_iod_symbol_type{}...);
@@ -685,13 +934,13 @@ template <typename... M, typename F> void map(const metamap<M...>& m, F fun) {
 // }
 
 // Map a function(key, value) on all kv pair (non const).
-template <typename... M, typename F> void map(metamap<M...>& m, F fun) {
+template <typename... M, typename F> constexpr void map(metamap<M...>& m, F fun) {
   auto apply = [&](auto key) -> decltype(auto) { return fun(key, m[key]); };
 
   apply_each(apply, typename M::_iod_symbol_type{}...);
 }
 
-template <typename... E, typename F, typename R> auto apply_each2(F&& f, R&& r, E&&... e) {
+template <typename... E, typename F, typename R> constexpr auto apply_each2(F&& f, R&& r, E&&... e) {
   return r(f(std::forward<E>(e))...);
   //(void)std::initializer_list<int>{
   //  ((void)f(std::forward<E>(e)), 0)...};
@@ -700,7 +949,7 @@ template <typename... E, typename F, typename R> auto apply_each2(F&& f, R&& r, 
 // Map a function(key, value) on all kv pair an reduce
 // all the results value with the reduce(r1, r2, ...) function.
 template <typename... M, typename F, typename R>
-decltype(auto) map_reduce(const metamap<M...>& m, F map, R reduce) {
+constexpr decltype(auto) map_reduce(const metamap<M...>& m, F map, R reduce) {
   auto apply = [&](auto key) -> decltype(auto) {
     // return map(key, std::forward<decltype(m[key])>(m[key]));
     return map(key, m[key]);
@@ -712,7 +961,7 @@ decltype(auto) map_reduce(const metamap<M...>& m, F map, R reduce) {
 
 // Map a function(key, value) on all kv pair an reduce
 // all the results value with the reduce(r1, r2, ...) function.
-template <typename... M, typename R> decltype(auto) reduce(const metamap<M...>& m, R reduce) {
+template <typename... M, typename R> constexpr decltype(auto) reduce(const metamap<M...>& m, R reduce) {
   return reduce(m[typename M::_iod_symbol_type{}]...);
 }
 
@@ -725,7 +974,7 @@ template <typename... M, typename R> decltype(auto) reduce(const metamap<M...>& 
 namespace li {
 
 template <typename... T, typename... U>
-inline decltype(auto) intersection(const metamap<T...>& a, const metamap<U...>& b) {
+constexpr inline decltype(auto) intersection(const metamap<T...>& a, const metamap<U...>& b) {
   return map_reduce(a,
                     [&](auto k, auto&& v) -> decltype(auto) {
                       if constexpr (has_key<metamap<U...>, decltype(k)>()) {
@@ -747,7 +996,7 @@ inline decltype(auto) intersection(const metamap<T...>& a, const metamap<U...>& 
 namespace li {
 
 template <typename... T, typename... U>
-inline auto substract(const metamap<T...>& a, const metamap<U...>& b) {
+constexpr inline auto substract(const metamap<T...>& a, const metamap<U...>& b) {
   return map_reduce(a,
                     [&](auto k, auto&& v) {
                       if constexpr (!has_key<metamap<U...>, decltype(k)>()) {
@@ -761,6 +1010,37 @@ inline auto substract(const metamap<T...>& a, const metamap<U...>& b) {
 } // namespace li
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_SUBSTRACT_HH
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_FORWARD_TUPLE_AS_METAMAP_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_FORWARD_TUPLE_AS_METAMAP_HH
+
+
+namespace li {
+
+namespace internal {
+
+template <typename... S, typename... V, typename T, T... I>
+constexpr auto forward_tuple_as_metamap_impl(std::tuple<S...> keys, std::tuple<V...>& values, std::integer_sequence<T, I...>) {
+  return make_metamap_reference((std::get<I>(keys) = std::get<I>(values))...);
+}
+template <typename... S, typename... V, typename T, T... I>
+constexpr auto forward_tuple_as_metamap_impl(std::tuple<S...> keys, const std::tuple<V...>& values, std::integer_sequence<T, I...>) {
+  return make_metamap_reference((std::get<I>(keys) = std::get<I>(values))...);
+}
+
+} // namespace internal
+
+template <typename... S, typename... V>
+constexpr auto forward_tuple_as_metamap(std::tuple<S...> keys, std::tuple<V...>& values) {
+  return internal::forward_tuple_as_metamap_impl(keys, values, std::make_index_sequence<sizeof...(V)>{});
+}
+template <typename... S, typename... V>
+constexpr auto forward_tuple_as_metamap(std::tuple<S...> keys, const std::tuple<V...>& values) {
+  return internal::forward_tuple_as_metamap_impl(keys, values, std::make_index_sequence<sizeof...(V)>{});
+}
+
+} // namespace li
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_FORWARD_TUPLE_AS_METAMAP_HH
 
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_METAMAP_HH
@@ -924,6 +1204,11 @@ template <unsigned SIZE> struct sql_varchar : public std::string {
 #ifndef LI_SYMBOL_validate
 #define LI_SYMBOL_validate
     LI_SYMBOL(validate)
+#endif
+
+#ifndef LI_SYMBOL_waiting_list
+#define LI_SYMBOL_waiting_list
+    LI_SYMBOL(waiting_list)
 #endif
 
 #ifndef LI_SYMBOL_write_access
@@ -1137,26 +1422,43 @@ auto sql_result<B>::read_optional() {
     return std::optional<decltype(t)>{};
 }
 
+namespace internal {
+
+  template<typename T, typename F>
+  constexpr auto is_valid(F&& f) -> decltype(f(std::declval<T>()), true) { return true; }
+
+  template<typename>
+  constexpr bool is_valid(...) { return false; }
+
+}
+
+#define IS_VALID(T, EXPR) internal::is_valid<T>( [](auto&& obj)->decltype(obj.EXPR){} )
+
 template <typename B> template <typename F> void sql_result<B>::map(F map_function) {
 
+
+  if constexpr (IS_VALID(B, map(map_function)))
+    this->impl_.map(map_function);
+
   typedef typename unconstref_tuple_elements<callable_arguments_tuple_t<F>>::ret TP;
+  typedef std::tuple_element_t<0, TP> TP0;
 
   auto t = [] {
     static_assert(std::tuple_size_v<TP> > 0, "sql_result map function must take at least 1 argument.");
 
-    if constexpr (std::tuple_size_v<TP> == 1)
-      return std::tuple_element_t<0, TP>{};
-    else if constexpr (std::tuple_size_v<TP> > 1)
+    if constexpr (is_tuple<TP0>::value || is_metamap<TP0>::value)
+      return TP0{};
+    else
       return TP{};
   }();
 
-
-  while (auto res = this->read_optional<decltype(t)>()) {
-    if constexpr (std::tuple_size<TP>::value == 1)
-      map_function(res.value());
-    else if constexpr (std::tuple_size<TP>::value > 1)
-      std::apply(map_function, res.value());
+  while (this->read(t)) {
+    if constexpr (is_tuple<TP0>::value || is_metamap<TP0>::value)
+      map_function(t);
+    else
+      std::apply(map_function, t);
   }
+
 }
 } // namespace li
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_RESULT_HPP
@@ -1169,15 +1471,10 @@ namespace li {
 
 struct sqlite_tag {};
 
-template <typename T> struct tuple_remove_references_and_const;
-template <typename... T> struct tuple_remove_references_and_const<std::tuple<T...>> {
-  typedef std::tuple<std::remove_const_t<std::remove_reference_t<T>>...> type;
-};
-
 template <typename T>
 using tuple_remove_references_and_const_t = typename tuple_remove_references_and_const<T>::type;
 
-void free_sqlite3_statement(void* s) { sqlite3_finalize((sqlite3_stmt*)s); }
+inline void free_sqlite3_statement(void* s) { sqlite3_finalize((sqlite3_stmt*)s); }
 
 struct sqlite_statement_result {
   sqlite3* db_;
@@ -1238,37 +1535,37 @@ struct sqlite_statement_result {
     return true;
   }
 
-  long long int last_insert_id() { return sqlite3_last_insert_rowid(db_); }
+  inline long long int last_insert_id() { return sqlite3_last_insert_rowid(db_); }
 
-  void read_column(int pos, int& v, int sqltype) {
+  inline void read_column(int pos, int& v, int sqltype) {
     if (sqltype != SQLITE_INTEGER)
       throw std::runtime_error(
           "Type mismatch between request result data type and destination type (integer).");
     v = sqlite3_column_int(stmt_, pos);
   }
 
-  void read_column(int pos, float& v, int sqltype) {
+  inline void read_column(int pos, float& v, int sqltype) {
     if (sqltype != SQLITE_FLOAT)
       throw std::runtime_error(
           "Type mismatch between request result data type and destination type (float).");
     v = float(sqlite3_column_double(stmt_, pos));
   }
 
-  void read_column(int pos, double& v, int sqltype) {
+  inline void read_column(int pos, double& v, int sqltype) {
     if (sqltype != SQLITE_FLOAT)
       throw std::runtime_error(
           "Type mismatch between request result data type and destination type (double).");
     v = sqlite3_column_double(stmt_, pos);
   }
 
-  void read_column(int pos, int64_t& v, int sqltype) {
+  inline void read_column(int pos, int64_t& v, int sqltype) {
     if (sqltype != SQLITE_INTEGER)
       throw std::runtime_error(
           "Type mismatch between request result data type and destination type (int64).");
     v = sqlite3_column_int64(stmt_, pos);
   }
 
-  void read_column(int pos, std::string& v, int sqltype) {
+  inline void read_column(int pos, std::string& v, int sqltype) {
     if (sqltype != SQLITE_TEXT && sqltype != SQLITE_BLOB)
       throw std::runtime_error(
           "Type mismatch between request result data type and destination type (std::string).");
@@ -1292,9 +1589,9 @@ struct sqlite_statement {
   sqlite3_stmt* stmt_;
   stmt_sptr stmt_sptr_;
 
-  sqlite_statement() {}
+  inline sqlite_statement() {}
 
-  sqlite_statement(sqlite3* db, sqlite3_stmt* s)
+  inline sqlite_statement(sqlite3* db, sqlite3_stmt* s)
       : db_(db), stmt_(s), stmt_sptr_(stmt_sptr(s, free_sqlite3_statement)) {}
 
   // Bind arguments to the request unknowns (marked with ?)
@@ -1318,33 +1615,33 @@ struct sqlite_statement {
         sqlite_statement_result{this->db_, this->stmt_, last_step_ret}};
   }
 
-  int bind(sqlite3_stmt* stmt, int pos, double d) const {
+  inline int bind(sqlite3_stmt* stmt, int pos, double d) const {
     return sqlite3_bind_double(stmt, pos, d);
   }
 
-  int bind(sqlite3_stmt* stmt, int pos, int d) const { return sqlite3_bind_int(stmt, pos, d); }
-  int bind(sqlite3_stmt* stmt, int pos, long int d) const {
+  inline int bind(sqlite3_stmt* stmt, int pos, int d) const { return sqlite3_bind_int(stmt, pos, d); }
+  inline int bind(sqlite3_stmt* stmt, int pos, long int d) const {
     return sqlite3_bind_int64(stmt, pos, d);
   }
-  int bind(sqlite3_stmt* stmt, int pos, long long int d) const {
+  inline int bind(sqlite3_stmt* stmt, int pos, long long int d) const {
     return sqlite3_bind_int64(stmt, pos, d);
   }
-  void bind(sqlite3_stmt* stmt, int pos, sql_null_t) { sqlite3_bind_null(stmt, pos); }
-  int bind(sqlite3_stmt* stmt, int pos, const char* s) const {
+  inline void bind(sqlite3_stmt* stmt, int pos, sql_null_t) { sqlite3_bind_null(stmt, pos); }
+  inline int bind(sqlite3_stmt* stmt, int pos, const char* s) const {
     return sqlite3_bind_text(stmt, pos, s, strlen(s), nullptr);
   }
-  int bind(sqlite3_stmt* stmt, int pos, const std::string& s) const {
+  inline int bind(sqlite3_stmt* stmt, int pos, const std::string& s) const {
     return sqlite3_bind_text(stmt, pos, s.data(), s.size(), nullptr);
   }
-  int bind(sqlite3_stmt* stmt, int pos, const std::string_view& s) const {
+  inline int bind(sqlite3_stmt* stmt, int pos, const std::string_view& s) const {
     return sqlite3_bind_text(stmt, pos, s.data(), s.size(), nullptr);
   }
-  int bind(sqlite3_stmt* stmt, int pos, const sql_blob& b) const {
+  inline int bind(sqlite3_stmt* stmt, int pos, const sql_blob& b) const {
     return sqlite3_bind_blob(stmt, pos, b.data(), b.size(), nullptr);
   }
 };
 
-void free_sqlite3_db(void* db) { sqlite3_close_v2((sqlite3*)db); }
+inline void free_sqlite3_db(void* db) { sqlite3_close_v2((sqlite3*)db); }
 
 struct sqlite_connection {
   typedef sqlite_tag db_tag;
@@ -1360,11 +1657,11 @@ struct sqlite_connection {
   stmt_map_ptr stm_cache_;
   type_hashmap<sqlite_statement> statements_hashmap;
 
-  sqlite_connection()
+  inline sqlite_connection()
       : db_(nullptr), stm_cache_(new stmt_map()), cache_mutex_(new std::mutex()) // FIXME
   {}
 
-  void connect(const std::string& filename,
+  inline void connect(const std::string& filename,
                int flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE) {
     int r = sqlite3_open_v2(filename.c_str(), &db_, flags, nullptr);
     if (r != SQLITE_OK)
@@ -1389,7 +1686,7 @@ struct sqlite_connection {
       return statements_hashmap(f);
   }
 
-  sqlite_statement prepare(const std::string& req) {
+  inline sqlite_statement prepare(const std::string& req) {
     // std::cout << req << std::endl;
     auto it = stm_cache_->find(req);
     if (it != stm_cache_->end())
@@ -1407,7 +1704,7 @@ struct sqlite_connection {
     cache_mutex_->unlock();
     return it2->second;
   }
-  sql_result<sqlite_statement_result> operator()(const std::string& req) { return prepare(req)(); }
+  inline sql_result<sqlite_statement_result> operator()(const std::string& req) { return prepare(req)(); }
 
   template <typename T>
   inline std::string type_to_string(const T&, std::enable_if_t<std::is_integral<T>::value>* = 0) {
@@ -1432,7 +1729,7 @@ struct sqlite_database {
 
   typedef sqlite_connection connection_type;
 
-  sqlite_database() {}
+  inline sqlite_database() {}
 
   template <typename... O> sqlite_database(const std::string& path, O... options_) {
     auto options = mmm(options_...);
@@ -1459,122 +1756,6 @@ struct sqlite_database {
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_ORM_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_ORM_HH
-
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SYMBOLS_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SYMBOLS_HH
-
-#ifndef LI_SYMBOL_blocking
-#define LI_SYMBOL_blocking
-    LI_SYMBOL(blocking)
-#endif
-
-#ifndef LI_SYMBOL_create_secret_key
-#define LI_SYMBOL_create_secret_key
-    LI_SYMBOL(create_secret_key)
-#endif
-
-#ifndef LI_SYMBOL_date_thread
-#define LI_SYMBOL_date_thread
-    LI_SYMBOL(date_thread)
-#endif
-
-#ifndef LI_SYMBOL_hash_password
-#define LI_SYMBOL_hash_password
-    LI_SYMBOL(hash_password)
-#endif
-
-#ifndef LI_SYMBOL_https_cert
-#define LI_SYMBOL_https_cert
-    LI_SYMBOL(https_cert)
-#endif
-
-#ifndef LI_SYMBOL_https_key
-#define LI_SYMBOL_https_key
-    LI_SYMBOL(https_key)
-#endif
-
-#ifndef LI_SYMBOL_id
-#define LI_SYMBOL_id
-    LI_SYMBOL(id)
-#endif
-
-#ifndef LI_SYMBOL_linux_epoll
-#define LI_SYMBOL_linux_epoll
-    LI_SYMBOL(linux_epoll)
-#endif
-
-#ifndef LI_SYMBOL_name
-#define LI_SYMBOL_name
-    LI_SYMBOL(name)
-#endif
-
-#ifndef LI_SYMBOL_non_blocking
-#define LI_SYMBOL_non_blocking
-    LI_SYMBOL(non_blocking)
-#endif
-
-#ifndef LI_SYMBOL_nthreads
-#define LI_SYMBOL_nthreads
-    LI_SYMBOL(nthreads)
-#endif
-
-#ifndef LI_SYMBOL_one_thread_per_connection
-#define LI_SYMBOL_one_thread_per_connection
-    LI_SYMBOL(one_thread_per_connection)
-#endif
-
-#ifndef LI_SYMBOL_path
-#define LI_SYMBOL_path
-    LI_SYMBOL(path)
-#endif
-
-#ifndef LI_SYMBOL_primary_key
-#define LI_SYMBOL_primary_key
-    LI_SYMBOL(primary_key)
-#endif
-
-#ifndef LI_SYMBOL_read_only
-#define LI_SYMBOL_read_only
-    LI_SYMBOL(read_only)
-#endif
-
-#ifndef LI_SYMBOL_select
-#define LI_SYMBOL_select
-    LI_SYMBOL(select)
-#endif
-
-#ifndef LI_SYMBOL_server_thread
-#define LI_SYMBOL_server_thread
-    LI_SYMBOL(server_thread)
-#endif
-
-#ifndef LI_SYMBOL_session_id
-#define LI_SYMBOL_session_id
-    LI_SYMBOL(session_id)
-#endif
-
-#ifndef LI_SYMBOL_ssl_certificate
-#define LI_SYMBOL_ssl_certificate
-    LI_SYMBOL(ssl_certificate)
-#endif
-
-#ifndef LI_SYMBOL_ssl_key
-#define LI_SYMBOL_ssl_key
-    LI_SYMBOL(ssl_key)
-#endif
-
-#ifndef LI_SYMBOL_update_secret_key
-#define LI_SYMBOL_update_secret_key
-    LI_SYMBOL(update_secret_key)
-#endif
-
-#ifndef LI_SYMBOL_user_id
-#define LI_SYMBOL_user_id
-    LI_SYMBOL(user_id)
-#endif
-
-
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SYMBOLS_HH
 
 
 
@@ -1712,10 +1893,16 @@ template <typename SCHEMA, typename C> struct sql_orm {
         return ss.str();
     });
 
-    auto res = li::tuple_reduce(metamap_values(where), stmt).template read_optional<O>();
-    if (res)
-      call_callback(s::read_access, *res, cb_args...);
-    return res;
+    O result;
+    bool read_success = li::tuple_reduce(metamap_values(where), stmt).template read(metamap_values(result));
+    if (read_success)
+    {
+      call_callback(s::read_access, result, cb_args...);
+      return std::make_optional<O>(std::move(result));
+    }
+    else {
+      return std::optional<O>{};
+    }
   }
 
   template <typename A, typename B, typename... O, typename... W>
@@ -1827,7 +2014,11 @@ template <typename SCHEMA, typename C> struct sql_orm {
         ss << " FROM " << schema_.table_name();
         return ss.str();
     });
-    stmt().map([&](const O& o) { f(o); });
+    // stmt().map([&](const O& o) { f(o); });
+    using values_tuple = tuple_remove_references_and_const_t<decltype(metamap_values(std::declval<O>()))>;
+    using keys_tuple = decltype(metamap_keys(std::declval<O>()));
+    stmt().map([&](const values_tuple& values) { f(forward_tuple_as_metamap(keys_tuple{}, values)); });
+
   }
 
   // Update N's members except auto increment members.

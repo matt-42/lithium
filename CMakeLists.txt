@@ -2,22 +2,33 @@ cmake_minimum_required(VERSION 2.8)
 SET(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH}
                       ${CMAKE_SOURCE_DIR}/cmake)
 
-project(li)
+project(lithium)
 
+
+set(CMAKE_VERBOSE_MAKEFILE ON)
+
+# On MacOS use -DCMAKE_PREFIX_PATH='/usr/local/opt/openssl/;/usr/local/opt/curl;/usr/local/opt/libpq
+# to have find_package look into brew installed locations first.
 find_package(MYSQL REQUIRED)
-find_package(PostgreSQL REQUIRED)
-find_package(Boost REQUIRED filesystem context)
+find_package(Boost REQUIRED context)
 find_package(SQLite3 REQUIRED)
 find_package(CURL REQUIRED)
+find_package(PostgreSQL REQUIRED)
 find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
 
-include_directories(${SQLite3_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS} ${MICROHTTPD_INCLUDE_DIRS} ${MYSQL_INCLUDE_DIR})
+include_directories(${SQLite3_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS} ${MYSQL_INCLUDE_DIR})
 include_directories(${PostgreSQL_INCLUDE_DIRS})
 include_directories(${Boost_INCLUDE_DIRS})
+include_directories(${OPENSSL_INCLUDE_DIR})
 
-set(LIBS ${MICROHTTPD_LIBRARIES} ${SQLite3_LIBRARIES} ${CURL_LIBRARIES} ${MYSQL_LIBRARY} ${PostgreSQL_LIBRARIES} 
-          ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} ${OPENSSL_LIBRARIES})
+set(LIBS ${OPENSSL_LIBRARIES} ${SQLite3_LIBRARIES} ${CURL_LIBRARIES} ${MYSQL_LIBRARY} ${PostgreSQL_LIBRARIES} 
+          ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
+
+if (APPLE)
+  # needed by mariadbclient on macos:
+  set(LIBS ${LIBS} z iconv)
+endif()
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -48,7 +59,7 @@ link_build_include("metamap" "/libraries/metamap/metamap")
 link_build_include("json" "/libraries/json/json")
 link_build_include("sqlite" "/libraries/sqlite")
 link_build_include("callable_traits" "/libraries/callable_traits")
-link_build_include("http_backend" "/libraries/http_backend/http_backend")
+link_build_include("http_server" "/libraries/http_server/http_server")
 link_build_include("http_client" "/libraries/http_client/http_client")
 link_build_include("symbol" "/libraries/symbol/symbol")
 link_build_include("sql" "/libraries/sql/sql")                               
@@ -59,20 +70,47 @@ include_directories(${CMAKE_BINARY_DIR}/include) # just to enable vscode intelli
 #set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -march=native -mtune=native -flto") 
 add_definitions(-Wno-ignored-attributes) # to skip postgresql warnings.
 
+# Generate content type definition header file
+set(GENERATED_CONTENT_TYPES
+"${CMAKE_SOURCE_DIR}\
+/libraries/http_server/http_server\
+/content_types.hh")
+
+add_custom_target(
+    content_types ALL
+    DEPENDS ${GENERATED_CONTENT_TYPES}
+)
+
+add_custom_command(
+    OUTPUT ${GENERATED_CONTENT_TYPES}
+    COMMAND touch ${GENERATED_CONTENT_TYPES}
+    COMMAND echo \"// This file is generated do not edit it.\" >> ${GENERATED_CONTENT_TYPES}
+    COMMAND echo \"\#pragma once\" >> ${GENERATED_CONTENT_TYPES}
+    COMMAND echo \"\#include <unordered_map>\" >> ${GENERATED_CONTENT_TYPES}
+    COMMAND echo \"\#include <string_view>\" >> ${GENERATED_CONTENT_TYPES}
+    COMMAND echo \"namespace li {\" >> ${GENERATED_CONTENT_TYPES}
+    COMMAND echo \"static std::unordered_map<std::string_view, std::string_view> content_types = {\" >> ${GENERATED_CONTENT_TYPES}
+    COMMAND wget -qO- http://svn.apache.org/repos/asf/httpd/httpd/trunk/docs/conf/mime.types
+      | egrep -v ^\#
+      | awk '{for(i=2\; i<=NF\; i++) {print \"{\\\"\"$$i"\\\",\\\""$$1\"\\\"},\"}}' | sort >> ${GENERATED_CONTENT_TYPES}
+    COMMAND echo \"}\;}\" >> ${GENERATED_CONTENT_TYPES}
+)
+
 # Automatic symbol generation
 add_custom_target(
     symbols_generation DEPENDS li_symbol_generator
-    COMMAND ${CMAKE_BINARY_DIR}/libraries/symbol/li_symbol_generator ${CMAKE_CURRENT_SOURCE_DIR}/libraries)
+    COMMAND ${CMAKE_BINARY_DIR}/libraries/symbol/li_symbol_generator ${CMAKE_CURRENT_SOURCE_DIR}/libraries ${CMAKE_CURRENT_SOURCE_DIR}/single_headers ${CMAKE_CURRENT_SOURCE_DIR}/docs)
 
-# Automatic single header generation (for tests with line directives to map compile error to original headers)
-add_custom_target(
-      single_headers
-      COMMAND python3 ${CMAKE_SOURCE_DIR}/single_headers/make_single_headers.py --with-line-directives ${CMAKE_BINARY_DIR} ${CMAKE_BINARY_DIR}/single_headers)
 
 # Automatic single header generation for release (without line directives)
 add_custom_target(
       single_headers_release
       COMMAND python3 ${CMAKE_SOURCE_DIR}/single_headers/make_single_headers.py ${CMAKE_BINARY_DIR} ${CMAKE_SOURCE_DIR}/single_headers)
+
+# Automatic single header generation (for tests with line directives to map compile error to original headers)
+add_custom_target(
+  single_headers DEPENDS single_headers_release
+  COMMAND python3 ${CMAKE_SOURCE_DIR}/single_headers/make_single_headers.py --with-line-directives ${CMAKE_BINARY_DIR} ${CMAKE_BINARY_DIR}/single_headers)
 
 # add_library(precompiled_header_target ${CMAKE_SOURCE_DIR}/single_headers/test.cc)
 # target_precompile_headers(precompiled_header_target 
@@ -86,12 +124,14 @@ function(li_add_executable target_name)
   # target_precompile_headers(${target_name}  REUSE_FROM precompiled_header_target)
 endfunction(li_add_executable)
 
+add_subdirectory(docs)
 add_subdirectory(libraries/metamap)
 add_subdirectory(libraries/callable_traits)
 add_subdirectory(libraries/json)
 add_subdirectory(libraries/symbol)
-add_subdirectory(libraries/http_backend)
+add_subdirectory(libraries/http_server)
 add_subdirectory(libraries/http_client)
 add_subdirectory(libraries/sql)
+add_subdirectory(single_headers/tests)
 
 install(DIRECTORY single_headers/ DESTINATION include FILES_MATCHING PATTERN "*.hh")

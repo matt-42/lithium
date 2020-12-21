@@ -1,6 +1,6 @@
 #include "symbols.hh"
 #include <cassert>
-#include <lithium.hh>
+#include <lithium_metamap.hh>
 
 #include <string>
 
@@ -41,4 +41,8 @@ int main() {
   decltype(m3) m4 = m3;
   assert(m4.test1 == "test");
   assert(m4.test1.data() != m3.test1.data());
+
+  metamap_t<s::name_t, std::string, s::age_t, int> m5;
+  m5.name = "xxx";
+  m5.age = 42;
 }

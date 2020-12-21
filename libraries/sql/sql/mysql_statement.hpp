@@ -20,18 +20,18 @@ sql_result<mysql_statement_result<B>> mysql_statement<B>::operator()(T&&... args
 
     // Pass MYSQL BIND to mysql.
     if (mysql_stmt_bind_param(data_.stmt_, bind) != 0) {
-      *connection_status_ = 1;
+      connection_->error_ = 1;
       throw std::runtime_error(std::string("mysql_stmt_bind_param error: ") +
                                mysql_stmt_error(data_.stmt_));
     }
   }
   
   // Execute the statement.
-  mysql_wrapper_.mysql_stmt_execute(connection_status_, data_.stmt_);
+  mysql_wrapper_.mysql_stmt_execute(connection_->error_, data_.stmt_);
 
   // Return the wrapped mysql result.
   return sql_result<mysql_statement_result<B>>{
-      mysql_statement_result<B>{mysql_wrapper_, data_, connection_status_}};
+      mysql_statement_result<B>{mysql_wrapper_, data_, connection_}};
 }
 
 } // namespace li

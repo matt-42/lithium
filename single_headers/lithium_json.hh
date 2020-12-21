@@ -12,7 +12,6 @@
 #include <cstring>
 #include <functional>
 #include <iostream>
-#include <lithium_symbol.hh>
 #include <map>
 #include <memory>
 #include <optional>
@@ -159,6 +158,17 @@ public:
   inline int bad() const { return bad_; }
   inline int good() const { return !bad_ && !eof(); }
 
+  template <typename O, typename F> void copy_until(O& output, F until) {
+    const char* start = cur;
+    const char* end = cur;
+    const char* buffer_end = buffer.data() + buffer.size();
+    while (until(*end) && end < buffer_end)
+      end++;
+
+    output.append(std::string_view(start, end - start));
+    cur = end;
+  }
+
   template <typename T> void operator>>(T& value) {
     eat_spaces();
     if constexpr (std::is_floating_point<T>::value) {
@@ -240,8 +250,8 @@ struct json_error {
   std::string what;
 };
 
-int make_json_error(const char* what) { return 1; }
-int json_no_error() { return 0; }
+inline int make_json_error(const char* what) { return 1; }
+inline int json_no_error() { return 0; }
 
 static int json_ok = json_no_error();
 
@@ -274,7 +284,7 @@ struct {
 
 template <typename... Ms> struct metamap;
 
-template <typename F, typename... M> decltype(auto) find_first(metamap<M...>&& map, F fun);
+template <typename F, typename... M> constexpr decltype(auto) find_first(metamap<M...>&& map, F fun);
 
 template <typename... Ms> struct metamap;
 
@@ -290,16 +300,16 @@ template <typename M1, typename... Ms> struct metamap<M1, Ms...> : public M1, pu
   // metamap(self& other)
   //  : metamap(const_cast<const self&>(other)) {}
 
-  inline metamap(typename M1::_iod_value_type&& m1, typename Ms::_iod_value_type&&... members) : M1{m1}, Ms{std::forward<typename Ms::_iod_value_type>(members)}... {}
-  inline metamap(M1&& m1, Ms&&... members) : M1(m1), Ms(std::forward<Ms>(members))... {}
-  inline metamap(const M1& m1, const Ms&... members) : M1(m1), Ms((members))... {}
+  constexpr inline metamap(typename M1::_iod_value_type&& m1, typename Ms::_iod_value_type&&... members) : M1{m1}, Ms{std::forward<typename Ms::_iod_value_type>(members)}... {}
+  constexpr inline metamap(M1&& m1, Ms&&... members) : M1(m1), Ms(std::forward<Ms>(members))... {}
+  constexpr inline metamap(const M1& m1, const Ms&... members) : M1(m1), Ms((members))... {}
 
   // Assignemnt ?
 
   // Retrive a value.
-  template <typename K> decltype(auto) operator[](K k) { return symbol_member_access(*this, k); }
+  template <typename K> constexpr decltype(auto) operator[](K k) { return symbol_member_access(*this, k); }
 
-  template <typename K> decltype(auto) operator[](K k) const {
+  template <typename K> constexpr decltype(auto) operator[](K k) const {
     return symbol_member_access(*this, k);
   }
 };
@@ -307,9 +317,9 @@ template <typename M1, typename... Ms> struct metamap<M1, Ms...> : public M1, pu
 template <> struct metamap<> {
   typedef metamap<> self;
   // Constructors.
-  inline metamap() = default;
+  constexpr inline metamap() = default;
   // inline metamap(self&&) = default;
-  inline metamap(const self&) = default;
+  constexpr inline metamap(const self&) = default;
   // self& operator=(const self&) = default;
 
   // metamap(self& other)
@@ -318,9 +328,9 @@ template <> struct metamap<> {
   // Assignemnt ?
 
   // Retrive a value.
-  template <typename K> decltype(auto) operator[](K k) { return symbol_member_access(*this, k); }
+  template <typename K> constexpr decltype(auto) operator[](K k) { return symbol_member_access(*this, k); }
 
-  template <typename K> decltype(auto) operator[](K k) const {
+  template <typename K> constexpr decltype(auto) operator[](K k) const {
     return symbol_member_access(*this, k);
   }
 };
@@ -335,8 +345,15 @@ template <typename M> constexpr int metamap_size() {
   return metamap_size_t<std::decay_t<M>>::value;
 }
 
-template <typename... Ks> decltype(auto) metamap_values(const metamap<Ks...>& map) {
+template <typename... Ks> constexpr decltype(auto) metamap_values(const metamap<Ks...>& map) {
   return std::forward_as_tuple(map[typename Ks::_iod_symbol_type()]...);
+}
+template <typename... Ks> constexpr decltype(auto) metamap_values(metamap<Ks...>& map) {
+  return std::forward_as_tuple(map[typename Ks::_iod_symbol_type()]...);
+}
+
+template <typename... Ks> constexpr decltype(auto) metamap_keys(const metamap<Ks...>& map) {
+  return std::make_tuple(typename Ks::_iod_symbol_type()...);
 }
 
 template <typename K, typename M> constexpr auto has_key(M&& map, K k) {
@@ -373,7 +390,7 @@ template <typename... M> struct is_metamap<metamap<M...>> {
 namespace li {
 
 template <typename... T, typename... U>
-inline decltype(auto) cat(const metamap<T...>& a, const metamap<U...>& b) {
+constexpr inline decltype(auto) cat(const metamap<T...>& a, const metamap<U...>& b) {
   return metamap<T..., U...>(*static_cast<const T*>(&a)..., *static_cast<const U*>(&b)...);
 }
 
@@ -572,6 +589,7 @@ class symbol : public assignable<S>,
     template <typename T> static constexpr auto has_member(long) { return std::false_type{}; }     \
                                                                                                    \
     static inline auto symbol_string() { return #NAME; }                                           \
+    static inline auto json_key_string() { return "\"" #NAME "\":"; }                              \
   };                                                                                               \
   static constexpr NAME##_t NAME;                                                                  \
   }
@@ -637,6 +655,99 @@ template <typename V> auto symbol_string(V v, typename V::_iod_symbol_type* = 0)
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SYMBOL_SYMBOL_HH
 
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_CALLABLE_TRAITS_TYPELIST_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_CALLABLE_TRAITS_TYPELIST_HH
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS_HH
+
+
+namespace li {
+
+template <typename... E, typename F> constexpr void apply_each(F&& f, E&&... e) {
+  (void)std::initializer_list<int>{((void)f(std::forward<E>(e)), 0)...};
+}
+
+template <typename... E, typename F, typename R>
+constexpr auto tuple_map_reduce_impl(F&& f, R&& reduce, E&&... e) {
+  return reduce(f(std::forward<E>(e))...);
+}
+
+template <typename T, typename F> constexpr void tuple_map(T&& t, F&& f) {
+  return std::apply([&](auto&&... e) { apply_each(f, std::forward<decltype(e)>(e)...); },
+                    std::forward<T>(t));
+}
+
+template <typename T, typename F> constexpr auto tuple_reduce(T&& t, F&& f) {
+  return std::apply(std::forward<F>(f), std::forward<T>(t));
+}
+
+template <typename T, typename F, typename R>
+decltype(auto) tuple_map_reduce(T&& m, F map, R reduce) {
+  auto fun = [&](auto... e) { return tuple_map_reduce_impl(map, reduce, e...); };
+  return std::apply(fun, m);
+}
+
+template <typename F> constexpr inline std::tuple<> tuple_filter_impl() { return std::make_tuple(); }
+
+template <typename F, typename... M, typename M1> constexpr auto tuple_filter_impl(M1 m1, M... m) {
+  if constexpr (std::is_same<M1, F>::value)
+    return tuple_filter_impl<F>(m...);
+  else
+    return std::tuple_cat(std::make_tuple(m1), tuple_filter_impl<F>(m...));
+}
+
+template <typename F, typename... M> constexpr auto tuple_filter(const std::tuple<M...>& m) {
+
+  auto fun = [](auto... e) { return tuple_filter_impl<F>(e...); };
+  return std::apply(fun, m);
+}
+
+} // namespace li
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS_HH
+
+
+namespace li {
+
+template <typename... T> struct typelist {};
+
+template <typename... T1, typename... T2>
+constexpr auto typelist_cat(typelist<T1...> t1, typelist<T2...> t2) {
+  return typelist<T1..., T2...>();
+}
+
+template <typename T> struct typelist_to_tuple {};
+
+template <typename... T> struct typelist_to_tuple<typelist<T...>> {
+  typedef std::tuple<T...> type;
+};
+
+template <typename T> struct tuple_to_typelist {};
+
+template <typename... T> struct tuple_to_typelist<std::tuple<T...>> {
+  typedef typelist<T...> type;
+};
+
+template <typename T> using typelist_to_tuple_t = typename typelist_to_tuple<T>::type;
+template <typename T> using tuple_to_typelist_t = typename tuple_to_typelist<T>::type;
+
+template <typename T, typename U> struct typelist_embeds : public std::false_type {};
+
+template <typename... T, typename U>
+struct typelist_embeds<typelist<T...>, U>
+    : public std::integral_constant<bool, count_first_falses(std::is_same<T, U>::value...) !=
+                                              sizeof...(T)> {};
+
+template <typename T, typename E> struct typelist_embeds_any_ref_of : public std::false_type {};
+
+template <typename U, typename... T>
+struct typelist_embeds_any_ref_of<typelist<T...>, U>
+    : public typelist_embeds<typelist<std::decay_t<T>...>, std::decay_t<U>> {};
+
+} // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_CALLABLE_TRAITS_TYPELIST_HH
+
 
 namespace li {
 
@@ -644,38 +755,61 @@ template <typename... Ms> struct metamap;
 
 namespace internal {
 
-template <typename S, typename V> decltype(auto) exp_to_variable_ref(const assign_exp<S, V>& e) {
+template <typename S, typename V> constexpr decltype(auto) exp_to_variable_ref(const assign_exp<S, V>& e) {
   return make_variable_reference(S{}, e.right);
 }
 
-template <typename S, typename V> decltype(auto) exp_to_variable(const assign_exp<S, V>& e) {
+template <typename S, typename V> constexpr decltype(auto) exp_to_variable(const assign_exp<S, V>& e) {
   typedef std::remove_const_t<std::remove_reference_t<V>> vtype;
   return make_variable(S{}, e.right);
 }
 
-template <typename S> decltype(auto) exp_to_variable(const symbol<S>& e) {
+template <typename S> decltype(auto) constexpr exp_to_variable(const symbol<S>& e) {
   return exp_to_variable(S() = int());
 }
 
-template <typename... T> inline decltype(auto) make_metamap_helper(T&&... args) {
+template <typename... T> constexpr inline decltype(auto) make_metamap_helper(T&&... args) {
   return metamap<T...>(std::forward<T>(args)...);
 }
 
 } // namespace internal
 
 // Store copies of values in the map
-static struct {
-  template <typename... T> inline decltype(auto) operator()(T&&... args) const {
-    // Copy values.
-    return internal::make_metamap_helper(internal::exp_to_variable(std::forward<T>(args))...);
-  }
-} mmm;
+template <typename... T> constexpr inline decltype(auto) mmm(T&&... args) {
+  // Copy values.
+  return internal::make_metamap_helper(internal::exp_to_variable(std::forward<T>(args))...);
+}
 
 // Store references of values in the map
-template <typename... T> inline decltype(auto) make_metamap_reference(T&&... args) {
+template <typename... T> constexpr inline decltype(auto) make_metamap_reference(T&&... args) {
   // Keep references.
   return internal::make_metamap_helper(internal::exp_to_variable_ref(std::forward<T>(args))...);
 }
+
+template <typename... Ks> constexpr decltype(auto) metamap_clone(const metamap<Ks...>& map) {
+  return mmm((typename Ks::_iod_symbol_type() = map[typename Ks::_iod_symbol_type()])...);
+}
+
+namespace internal {
+  
+  template <typename... V>
+  auto make_metamap_type(typelist<V...> variables) {
+    return mmm(V(*(typename V::left_t*)0, *(typename V::right_t*)0)...);
+  };
+
+  template <typename T1, typename T2, typename... V, typename... T>
+  auto make_metamap_type(typelist<V...> variables, T1, T2, T... args) {
+    return make_metamap_type(typelist<V..., assign_exp<T1, T2>>{},
+              args...);
+  };
+}
+
+// Helper to make a metamap type:
+//  metamap_t<s::name_t, string, s::age_t, int>
+//  instead of decltype(mmm(s::name = string(), s::age = int()));
+template <typename... T>
+using metamap_t = decltype(internal::make_metamap_type(typelist<>{}, std::declval<T>()...));
+
 
 } // namespace li
 
@@ -688,20 +822,20 @@ struct skip {};
 static struct {
 
   template <typename... M, typename... T>
-  inline decltype(auto) run(metamap<M...> map, skip, T&&... args) const {
+  constexpr inline decltype(auto) run(metamap<M...> map, skip, T&&... args) const {
     return run(map, std::forward<T>(args)...);
   }
 
   template <typename T1, typename... M, typename... T>
-  inline decltype(auto) run(metamap<M...> map, T1&& a, T&&... args) const {
+  constexpr inline decltype(auto) run(metamap<M...> map, T1&& a, T&&... args) const {
     return run(
         cat(map, internal::make_metamap_helper(internal::exp_to_variable(std::forward<T1>(a)))),
         std::forward<T>(args)...);
   }
 
-  template <typename... M> inline decltype(auto) run(metamap<M...> map) const { return map; }
+  template <typename... M> constexpr inline decltype(auto) run(metamap<M...> map) const { return map; }
 
-  template <typename... T> inline decltype(auto) operator()(T&&... args) const {
+  template <typename... T> constexpr inline decltype(auto) operator()(T&&... args) const {
     // Copy values.
     return run(metamap<>{}, std::forward<T>(args)...);
   }
@@ -715,59 +849,11 @@ static struct {
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_MAP_REDUCE_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_MAP_REDUCE_HH
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS_HH
-
-
-namespace li {
-
-template <typename... E, typename F> void apply_each(F&& f, E&&... e) {
-  (void)std::initializer_list<int>{((void)f(std::forward<E>(e)), 0)...};
-}
-
-template <typename... E, typename F, typename R>
-auto tuple_map_reduce_impl(F&& f, R&& reduce, E&&... e) {
-  return reduce(f(std::forward<E>(e))...);
-}
-
-template <typename T, typename F> void tuple_map(T&& t, F&& f) {
-  return std::apply([&](auto&&... e) { apply_each(f, std::forward<decltype(e)>(e)...); },
-                    std::forward<T>(t));
-}
-
-template <typename T, typename F> auto tuple_reduce(T&& t, F&& f) {
-  return std::apply(std::forward<F>(f), std::forward<T>(t));
-}
-
-template <typename T, typename F, typename R>
-decltype(auto) tuple_map_reduce(T&& m, F map, R reduce) {
-  auto fun = [&](auto... e) { return tuple_map_reduce_impl(map, reduce, e...); };
-  return std::apply(fun, m);
-}
-
-template <typename F> inline std::tuple<> tuple_filter_impl() { return std::make_tuple(); }
-
-template <typename F, typename... M, typename M1> auto tuple_filter_impl(M1 m1, M... m) {
-  if constexpr (std::is_same<M1, F>::value)
-    return tuple_filter_impl<F>(m...);
-  else
-    return std::tuple_cat(std::make_tuple(m1), tuple_filter_impl<F>(m...));
-}
-
-template <typename F, typename... M> auto tuple_filter(const std::tuple<M...>& m) {
-
-  auto fun = [](auto... e) { return tuple_filter_impl<F>(e...); };
-  return std::apply(fun, m);
-}
-
-} // namespace li
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS_HH
-
 
 namespace li {
 
 // Map a function(key, value) on all kv pair
-template <typename... M, typename F> void map(const metamap<M...>& m, F fun) {
+template <typename... M, typename F> constexpr void map(const metamap<M...>& m, F fun) {
   auto apply = [&](auto key) -> decltype(auto) { return fun(key, m[key]); };
 
   apply_each(apply, typename M::_iod_symbol_type{}...);
@@ -801,13 +887,13 @@ template <typename... M, typename F> void map(const metamap<M...>& m, F fun) {
 // }
 
 // Map a function(key, value) on all kv pair (non const).
-template <typename... M, typename F> void map(metamap<M...>& m, F fun) {
+template <typename... M, typename F> constexpr void map(metamap<M...>& m, F fun) {
   auto apply = [&](auto key) -> decltype(auto) { return fun(key, m[key]); };
 
   apply_each(apply, typename M::_iod_symbol_type{}...);
 }
 
-template <typename... E, typename F, typename R> auto apply_each2(F&& f, R&& r, E&&... e) {
+template <typename... E, typename F, typename R> constexpr auto apply_each2(F&& f, R&& r, E&&... e) {
   return r(f(std::forward<E>(e))...);
   //(void)std::initializer_list<int>{
   //  ((void)f(std::forward<E>(e)), 0)...};
@@ -816,7 +902,7 @@ template <typename... E, typename F, typename R> auto apply_each2(F&& f, R&& r, 
 // Map a function(key, value) on all kv pair an reduce
 // all the results value with the reduce(r1, r2, ...) function.
 template <typename... M, typename F, typename R>
-decltype(auto) map_reduce(const metamap<M...>& m, F map, R reduce) {
+constexpr decltype(auto) map_reduce(const metamap<M...>& m, F map, R reduce) {
   auto apply = [&](auto key) -> decltype(auto) {
     // return map(key, std::forward<decltype(m[key])>(m[key]));
     return map(key, m[key]);
@@ -828,7 +914,7 @@ decltype(auto) map_reduce(const metamap<M...>& m, F map, R reduce) {
 
 // Map a function(key, value) on all kv pair an reduce
 // all the results value with the reduce(r1, r2, ...) function.
-template <typename... M, typename R> decltype(auto) reduce(const metamap<M...>& m, R reduce) {
+template <typename... M, typename R> constexpr decltype(auto) reduce(const metamap<M...>& m, R reduce) {
   return reduce(m[typename M::_iod_symbol_type{}]...);
 }
 
@@ -841,7 +927,7 @@ template <typename... M, typename R> decltype(auto) reduce(const metamap<M...>& 
 namespace li {
 
 template <typename... T, typename... U>
-inline decltype(auto) intersection(const metamap<T...>& a, const metamap<U...>& b) {
+constexpr inline decltype(auto) intersection(const metamap<T...>& a, const metamap<U...>& b) {
   return map_reduce(a,
                     [&](auto k, auto&& v) -> decltype(auto) {
                       if constexpr (has_key<metamap<U...>, decltype(k)>()) {
@@ -863,7 +949,7 @@ inline decltype(auto) intersection(const metamap<T...>& a, const metamap<U...>& 
 namespace li {
 
 template <typename... T, typename... U>
-inline auto substract(const metamap<T...>& a, const metamap<U...>& b) {
+constexpr inline auto substract(const metamap<T...>& a, const metamap<U...>& b) {
   return map_reduce(a,
                     [&](auto k, auto&& v) {
                       if constexpr (!has_key<metamap<U...>, decltype(k)>()) {
@@ -878,6 +964,37 @@ inline auto substract(const metamap<T...>& a, const metamap<U...>& b) {
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_SUBSTRACT_HH
 
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_FORWARD_TUPLE_AS_METAMAP_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_FORWARD_TUPLE_AS_METAMAP_HH
+
+
+namespace li {
+
+namespace internal {
+
+template <typename... S, typename... V, typename T, T... I>
+constexpr auto forward_tuple_as_metamap_impl(std::tuple<S...> keys, std::tuple<V...>& values, std::integer_sequence<T, I...>) {
+  return make_metamap_reference((std::get<I>(keys) = std::get<I>(values))...);
+}
+template <typename... S, typename... V, typename T, T... I>
+constexpr auto forward_tuple_as_metamap_impl(std::tuple<S...> keys, const std::tuple<V...>& values, std::integer_sequence<T, I...>) {
+  return make_metamap_reference((std::get<I>(keys) = std::get<I>(values))...);
+}
+
+} // namespace internal
+
+template <typename... S, typename... V>
+constexpr auto forward_tuple_as_metamap(std::tuple<S...> keys, std::tuple<V...>& values) {
+  return internal::forward_tuple_as_metamap_impl(keys, values, std::make_index_sequence<sizeof...(V)>{});
+}
+template <typename... S, typename... V>
+constexpr auto forward_tuple_as_metamap(std::tuple<S...> keys, const std::tuple<V...>& values) {
+  return internal::forward_tuple_as_metamap_impl(keys, values, std::make_index_sequence<sizeof...(V)>{});
+}
+
+} // namespace li
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_FORWARD_TUPLE_AS_METAMAP_HH
+
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_METAMAP_HH
 
@@ -890,6 +1007,11 @@ inline auto substract(const metamap<T...>& a, const metamap<U...>& b) {
     LI_SYMBOL(append)
 #endif
 
+#ifndef LI_SYMBOL_generator
+#define LI_SYMBOL_generator
+    LI_SYMBOL(generator)
+#endif
+
 #ifndef LI_SYMBOL_json_key
 #define LI_SYMBOL_json_key
     LI_SYMBOL(json_key)
@@ -898,6 +1020,11 @@ inline auto substract(const metamap<T...>& a, const metamap<U...>& b) {
 #ifndef LI_SYMBOL_name
 #define LI_SYMBOL_name
     LI_SYMBOL(name)
+#endif
+
+#ifndef LI_SYMBOL_size
+#define LI_SYMBOL_size
+    LI_SYMBOL(size)
 #endif
 
 #ifndef LI_SYMBOL_type
@@ -912,15 +1039,21 @@ inline auto substract(const metamap<T...>& a, const metamap<U...>& b) {
 namespace li {
 
 template <typename O> inline decltype(auto) wrap_json_output_stream(O&& s) {
-  return mmm(s::append = [&s](char c) { s << c; });
+  return mmm(s::append = [&s](auto c) { s << c; });
 }
 
 inline decltype(auto) wrap_json_output_stream(std::ostringstream& s) {
-  return mmm(s::append = [&s](char c) { s << c; });
+  return mmm(s::append = [&s](auto c) { s << c; });
 }
 
 inline decltype(auto) wrap_json_output_stream(std::string& s) {
-  return mmm(s::append = [&s](char c) { s.append(1, c); });
+  return mmm(s::append = [&s](auto c) {
+    using C = std::remove_reference_t<decltype(c)>;
+    if constexpr(std::is_same_v<C, char> || std::is_same_v<C, unsigned char> || std::is_same_v<C, int>)
+      s.append(1, c); 
+    else
+      s.append(c);
+  });
 }
 
 inline decltype(auto) wrap_json_input_stream(std::istringstream& s) { return s; }
@@ -954,7 +1087,7 @@ enum json_encodings { UTF32BE, UTF32LE, UTF16BE, UTF16LE, UTF8 };
 
 // Detection of encoding depending on the pattern of the
 // first fourth characters.
-auto detect_encoding(char a, char b, char c, char d) {
+inline auto detect_encoding(char a, char b, char c, char d) {
   // 00 00 00 xx  UTF-32BE
   // xx 00 00 00  UTF-32LE
   // 00 xx 00 xx  UTF-16BE
@@ -1147,6 +1280,9 @@ template <typename S, typename T> auto utf8_to_json(S&& s, T&& o) {
 
   while (!s.eof()) {
     // 7-bits codepoint
+    if constexpr(std::is_same_v<std::remove_reference_t<S>, decode_stringstream>)
+      s.copy_until(o, [] (char c) { return c > '"' && c <= '~' && c != '\\'; });
+
     while (s.good() and s.peek() <= 0x7F and s.peek() != EOF) {
       switch (s.peek()) {
       case '"':
@@ -1269,12 +1405,23 @@ template <typename S> auto make_json_object_member(const li::symbol<S>&) {
   return mmm(s::name = S{});
 }
 
-template <typename V> auto to_json_schema(V v) { return json_value_<V>{}; }
-
+template <typename V> auto to_json_schema(V v);
+template <typename... M> auto to_json_schema(const metamap<M...>& m);
+template <typename V> auto to_json_schema(const std::vector<V>& arr);
+template <typename... V> auto to_json_schema(const std::tuple<V...>& arr);
+template <typename K, typename V> auto to_json_schema(const std::unordered_map<K, V>& arr);
+template <typename K, typename V> auto to_json_schema(const std::map<K, V>& arr);
 template <typename... M> auto to_json_schema(const metamap<M...>& m);
 
+template <typename V> auto to_json_schema(V v) {
+  if constexpr (std::is_pointer_v<V> and !std::is_same_v<const char*, V>)
+    return to_json_schema(*v);
+  else
+   return json_value_<V>{}; 
+}
+
 template <typename V> auto to_json_schema(const std::vector<V>& arr) {
-  auto elt = to_json_schema(decltype(arr[0]){});
+  auto elt = to_json_schema(V{});
   return json_vector_<decltype(elt)>{elt};
 }
 
@@ -1297,11 +1444,10 @@ template <typename... M> auto to_json_schema(const metamap<M...>& m) {
   return json_object_<decltype(entities)>(entities);
 }
 
-template <typename... E> auto json_object_to_metamap(const json_object_<std::tuple<E...>>& s) {
-  auto make_kvs = [](auto... elt) { return std::make_tuple((elt.name = elt.type)...); };
 
-  auto kvs = std::apply(make_kvs, s.entities);
-  return std::apply(mmm, kvs);
+template <typename... E> auto json_object_to_metamap(const json_object_<std::tuple<E...>>& s) {
+  auto make_mmm = [](auto... elt) { return mmm((elt.name = elt.type)...); };
+  return std::apply(make_mmm, s.entities);
 }
 
 template <typename S, typename... A>
@@ -1736,13 +1882,17 @@ namespace impl {
 // =============================================
 
 template <typename C, typename O, typename E>
-inline void json_encode(C& ss, O obj, const json_object_<E>& schema);
+inline std::enable_if_t<!std::is_pointer<O>::value, void> json_encode(C& ss, O obj, const json_object_<E>& schema);
 template <typename C, typename... E, typename... T>
 inline void json_encode(C& ss, const std::tuple<T...>& tu, const json_tuple_<E...>& schema);
 template <typename T, typename C, typename E>
 inline void json_encode(C& ss, const T& value, const E& schema);
 template <typename T, typename C, typename E>
 inline void json_encode(C& ss, const std::vector<T>& array, const json_vector_<E>& schema);
+template <typename C, typename O, typename S>
+inline void json_encode(C& ss, O* obj, const S& schema);
+template <typename C, typename O, typename S>
+inline void json_encode(C& ss, const O* obj, const S& schema);
 
 template <typename T, typename C> inline void json_encode_value(C& ss, const T& t) { ss << t; }
 
@@ -1777,8 +1927,6 @@ inline void json_encode_value(C& ss, const std::variant<T...>& t) {
   ss << '}';
 }
 
-template <typename C, typename O, typename E>
-inline void json_encode(C& ss, O obj, const json_object_<E>& schema);
 
 template <typename T, typename C, typename E>
 inline void json_encode(C& ss, const T& value, const E& schema) {
@@ -1799,6 +1947,25 @@ inline void json_encode(C& ss, const std::vector<T>& array, const json_vector_<E
   }
   ss << ']';
 }
+
+template <typename E, typename C, typename G>
+inline void json_encode(C& ss, 
+                        const metamap<typename s::size_t::variable_t<int>, 
+                                      typename s::generator_t::variable_t<G>>& generator, 
+                        const json_vector_<E>& schema) {
+  ss << '[';
+  for (int i = 0; i < generator.size; i++) {
+    if constexpr (decltype(json_is_vector(E{})){} or decltype(json_is_object(E{})){}) {
+      json_encode(ss, generator.generator(), schema.schema);
+    } else
+      json_encode_value(ss, generator.generator());
+
+    if (i != generator.size - 1)
+      ss << ',';
+  }
+  ss << ']';
+}
+
 
 template <typename V, typename C, typename M>
 inline void json_encode(C& ss, const M& map, const json_map_<V>& schema) {
@@ -1848,7 +2015,7 @@ inline void json_encode(C& ss, const std::tuple<T...>& tu, const json_tuple_<E..
 }
 
 template <typename C, typename O, typename E>
-inline void json_encode(C& ss, O obj, const json_object_<E>& schema) {
+inline std::enable_if_t<!std::is_pointer<O>::value, void> json_encode(C& ss, O obj, const json_object_<E>& schema) {
   ss << '{';
   bool first = true;
 
@@ -1864,9 +2031,9 @@ inline void json_encode(C& ss, O obj, const json_object_<E>& schema) {
     first = false;
     if constexpr (has_key(e, s::json_key)) {
       json_encode_value(ss, e.json_key);
+      ss << ':';
     } else
-      json_encode_value(ss, symbol_string(e.name));
-    ss << ':';
+      ss << e.name.json_key_string();
 
     if constexpr (has_key(e, s::type)) {
       if constexpr (decltype(json_is_vector(e.type)){} or decltype(json_is_object(e.type)){}) {
@@ -1880,6 +2047,24 @@ inline void json_encode(C& ss, O obj, const json_object_<E>& schema) {
   tuple_map(schema.schema, encode_one_entity);
   ss << '}';
 }
+
+template <typename C, typename O, typename S>
+inline void json_encode(C& ss, O* obj, const S& schema)
+{
+  json_encode(ss, *obj, schema);
+}
+template <typename C, typename O, typename S>
+inline void json_encode(C& ss, const O* obj, const S& schema)
+{
+  // Special case for pointers.
+
+  // const char* -> json_encode_value 
+  if constexpr(std::is_same_v<char, O>)
+    return json_encode_value(ss, obj);
+  // other pointers, dereference encode(*v);
+  json_encode(ss, *obj, schema);
+}
+
 } // namespace impl
 
 } // namespace li
@@ -1888,6 +2073,8 @@ inline void json_encode(C& ss, O obj, const json_object_<E>& schema) {
 
 
 namespace li {
+
+template <typename T> struct is_json_vector;
 
 template <typename T> struct json_object_base {
 
@@ -1913,6 +2100,16 @@ public:
     impl::json_encode(ss, obj, *downcast());
     return ss.str();
   }
+
+  template <typename C, typename G> void encode_generator(C& output, int size, G& generator) const {
+    static_assert(is_json_vector<T>::value, "encode_generator is only supported on json vector");
+      return this->encode(output, mmm(s::size = size, s::generator = generator));
+  }
+  template <typename G> std::string encode_generator(int size, G& generator) const {
+    static_assert(is_json_vector<T>::value, "encode_generator is only supported on json vector");
+      return this->encode(mmm(s::size = size, s::generator = generator));
+  }
+
 
   template <typename C, typename O> json_error decode(C& input, O& obj) const {
     return impl::json_decode(input, obj, *downcast());
@@ -1943,10 +2140,13 @@ template <typename V> struct json_value_ : public json_object_base<json_value_<V
 template <typename V> auto json_value(V&& v) { return json_value_<V>{}; }
 
 template <typename T> struct json_vector_ : public json_object_base<json_vector_<T>> {
+  enum { is_json_vector = true };
   json_vector_() = default;
   json_vector_(const T& s) : schema(s) {}
   T schema;
 };
+template <typename T> struct is_json_vector : std::false_type {};
+template <typename T> struct is_json_vector<json_vector_<T>> : std::true_type {};
 
 template <typename... S> auto json_vector(S&&... s) {
   auto obj = json_object(std::forward<S>(s)...);
@@ -1983,7 +2183,16 @@ template <typename C, typename M> decltype(auto) json_encode(C& output, const M&
 }
 
 template <typename M> auto json_encode(const M& obj) {
-  return std::move(impl::to_json_schema(obj).encode(obj));
+  return impl::to_json_schema(obj).encode(obj);
+}
+
+template <typename C, typename F> decltype(auto) json_encode_generator(C& output, int N, F generator) {
+  auto elt = impl::to_json_schema(decltype(generator()){});
+  json_vector_<decltype(elt)>(elt).encode_generator(output, N, generator);
+}
+template <typename F> decltype(auto) json_encode_generator(int N, F generator) {
+  auto elt = impl::to_json_schema(decltype(generator()){});
+  return json_vector_<decltype(elt)>(elt).encode_generator(N, generator);
 }
 
 template <typename A, typename B, typename... C>

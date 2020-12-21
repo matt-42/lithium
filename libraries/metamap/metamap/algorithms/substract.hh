@@ -6,7 +6,7 @@
 namespace li {
 
 template <typename... T, typename... U>
-inline auto substract(const metamap<T...>& a, const metamap<U...>& b) {
+constexpr inline auto substract(const metamap<T...>& a, const metamap<U...>& b) {
   return map_reduce(a,
                     [&](auto k, auto&& v) {
                       if constexpr (!has_key<metamap<U...>, decltype(k)>()) {

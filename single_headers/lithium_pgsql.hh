@@ -8,21 +8,32 @@
 #pragma once
 
 #include <any>
+#include <arpa/inet.h>
 #include <atomic>
 #include <boost/lexical_cast.hpp>
 #include <cassert>
 #include <cstring>
 #include <deque>
 #include <iostream>
+#if __APPLE__
+#include <libkern/OSByteOrder.h>
+#endif
 #include <libpq-fe.h>
-#include <lithium_symbol.hh>
+#if __APPLE__
+#include <machine/endian.h>
+#endif
 #include <map>
 #include <memory>
 #include <mutex>
 #include <optional>
 #include <sstream>
 #include <string>
+#if __linux__
 #include <sys/epoll.h>
+#endif
+#if __APPLE__
+#include <sys/event.h>
+#endif
 #include <thread>
 #include <tuple>
 #include <unistd.h>
@@ -40,12 +51,109 @@
 
 #include "libpq-fe.h"
 
+#if __linux__
+#elif __APPLE__
+#endif
+
+
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_CALLABLE_TRAITS_CALLABLE_TRAITS_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_CALLABLE_TRAITS_CALLABLE_TRAITS_HH
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_CALLABLE_TRAITS_TYPELIST_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_CALLABLE_TRAITS_TYPELIST_HH
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS_HH
+
+
+namespace li {
+
+template <typename... E, typename F> constexpr void apply_each(F&& f, E&&... e) {
+  (void)std::initializer_list<int>{((void)f(std::forward<E>(e)), 0)...};
+}
+
+template <typename... E, typename F, typename R>
+constexpr auto tuple_map_reduce_impl(F&& f, R&& reduce, E&&... e) {
+  return reduce(f(std::forward<E>(e))...);
+}
+
+template <typename T, typename F> constexpr void tuple_map(T&& t, F&& f) {
+  return std::apply([&](auto&&... e) { apply_each(f, std::forward<decltype(e)>(e)...); },
+                    std::forward<T>(t));
+}
+
+template <typename T, typename F> constexpr auto tuple_reduce(T&& t, F&& f) {
+  return std::apply(std::forward<F>(f), std::forward<T>(t));
+}
+
+template <typename T, typename F, typename R>
+decltype(auto) tuple_map_reduce(T&& m, F map, R reduce) {
+  auto fun = [&](auto... e) { return tuple_map_reduce_impl(map, reduce, e...); };
+  return std::apply(fun, m);
+}
+
+template <typename F> constexpr inline std::tuple<> tuple_filter_impl() { return std::make_tuple(); }
+
+template <typename F, typename... M, typename M1> constexpr auto tuple_filter_impl(M1 m1, M... m) {
+  if constexpr (std::is_same<M1, F>::value)
+    return tuple_filter_impl<F>(m...);
+  else
+    return std::tuple_cat(std::make_tuple(m1), tuple_filter_impl<F>(m...));
+}
+
+template <typename F, typename... M> constexpr auto tuple_filter(const std::tuple<M...>& m) {
+
+  auto fun = [](auto... e) { return tuple_filter_impl<F>(e...); };
+  return std::apply(fun, m);
+}
+
+} // namespace li
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS_HH
+
 
 namespace li {
 
 template <typename... T> struct typelist {};
+
+template <typename... T1, typename... T2>
+constexpr auto typelist_cat(typelist<T1...> t1, typelist<T2...> t2) {
+  return typelist<T1..., T2...>();
+}
+
+template <typename T> struct typelist_to_tuple {};
+
+template <typename... T> struct typelist_to_tuple<typelist<T...>> {
+  typedef std::tuple<T...> type;
+};
+
+template <typename T> struct tuple_to_typelist {};
+
+template <typename... T> struct tuple_to_typelist<std::tuple<T...>> {
+  typedef typelist<T...> type;
+};
+
+template <typename T> using typelist_to_tuple_t = typename typelist_to_tuple<T>::type;
+template <typename T> using tuple_to_typelist_t = typename tuple_to_typelist<T>::type;
+
+template <typename T, typename U> struct typelist_embeds : public std::false_type {};
+
+template <typename... T, typename U>
+struct typelist_embeds<typelist<T...>, U>
+    : public std::integral_constant<bool, count_first_falses(std::is_same<T, U>::value...) !=
+                                              sizeof...(T)> {};
+
+template <typename T, typename E> struct typelist_embeds_any_ref_of : public std::false_type {};
+
+template <typename U, typename... T>
+struct typelist_embeds_any_ref_of<typelist<T...>, U>
+    : public typelist_embeds<typelist<std::decay_t<T>...>, std::decay_t<U>> {};
+
+} // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_CALLABLE_TRAITS_TYPELIST_HH
+
+
+namespace li {
 
 namespace internal {
 template <typename T> struct has_parenthesis_operator {
@@ -157,7 +265,7 @@ struct {
 
 template <typename... Ms> struct metamap;
 
-template <typename F, typename... M> decltype(auto) find_first(metamap<M...>&& map, F fun);
+template <typename F, typename... M> constexpr decltype(auto) find_first(metamap<M...>&& map, F fun);
 
 template <typename... Ms> struct metamap;
 
@@ -173,16 +281,16 @@ template <typename M1, typename... Ms> struct metamap<M1, Ms...> : public M1, pu
   // metamap(self& other)
   //  : metamap(const_cast<const self&>(other)) {}
 
-  inline metamap(typename M1::_iod_value_type&& m1, typename Ms::_iod_value_type&&... members) : M1{m1}, Ms{std::forward<typename Ms::_iod_value_type>(members)}... {}
-  inline metamap(M1&& m1, Ms&&... members) : M1(m1), Ms(std::forward<Ms>(members))... {}
-  inline metamap(const M1& m1, const Ms&... members) : M1(m1), Ms((members))... {}
+  constexpr inline metamap(typename M1::_iod_value_type&& m1, typename Ms::_iod_value_type&&... members) : M1{m1}, Ms{std::forward<typename Ms::_iod_value_type>(members)}... {}
+  constexpr inline metamap(M1&& m1, Ms&&... members) : M1(m1), Ms(std::forward<Ms>(members))... {}
+  constexpr inline metamap(const M1& m1, const Ms&... members) : M1(m1), Ms((members))... {}
 
   // Assignemnt ?
 
   // Retrive a value.
-  template <typename K> decltype(auto) operator[](K k) { return symbol_member_access(*this, k); }
+  template <typename K> constexpr decltype(auto) operator[](K k) { return symbol_member_access(*this, k); }
 
-  template <typename K> decltype(auto) operator[](K k) const {
+  template <typename K> constexpr decltype(auto) operator[](K k) const {
     return symbol_member_access(*this, k);
   }
 };
@@ -190,9 +298,9 @@ template <typename M1, typename... Ms> struct metamap<M1, Ms...> : public M1, pu
 template <> struct metamap<> {
   typedef metamap<> self;
   // Constructors.
-  inline metamap() = default;
+  constexpr inline metamap() = default;
   // inline metamap(self&&) = default;
-  inline metamap(const self&) = default;
+  constexpr inline metamap(const self&) = default;
   // self& operator=(const self&) = default;
 
   // metamap(self& other)
@@ -201,9 +309,9 @@ template <> struct metamap<> {
   // Assignemnt ?
 
   // Retrive a value.
-  template <typename K> decltype(auto) operator[](K k) { return symbol_member_access(*this, k); }
+  template <typename K> constexpr decltype(auto) operator[](K k) { return symbol_member_access(*this, k); }
 
-  template <typename K> decltype(auto) operator[](K k) const {
+  template <typename K> constexpr decltype(auto) operator[](K k) const {
     return symbol_member_access(*this, k);
   }
 };
@@ -218,8 +326,15 @@ template <typename M> constexpr int metamap_size() {
   return metamap_size_t<std::decay_t<M>>::value;
 }
 
-template <typename... Ks> decltype(auto) metamap_values(const metamap<Ks...>& map) {
+template <typename... Ks> constexpr decltype(auto) metamap_values(const metamap<Ks...>& map) {
   return std::forward_as_tuple(map[typename Ks::_iod_symbol_type()]...);
+}
+template <typename... Ks> constexpr decltype(auto) metamap_values(metamap<Ks...>& map) {
+  return std::forward_as_tuple(map[typename Ks::_iod_symbol_type()]...);
+}
+
+template <typename... Ks> constexpr decltype(auto) metamap_keys(const metamap<Ks...>& map) {
+  return std::make_tuple(typename Ks::_iod_symbol_type()...);
 }
 
 template <typename K, typename M> constexpr auto has_key(M&& map, K k) {
@@ -256,7 +371,7 @@ template <typename... M> struct is_metamap<metamap<M...>> {
 namespace li {
 
 template <typename... T, typename... U>
-inline decltype(auto) cat(const metamap<T...>& a, const metamap<U...>& b) {
+constexpr inline decltype(auto) cat(const metamap<T...>& a, const metamap<U...>& b) {
   return metamap<T..., U...>(*static_cast<const T*>(&a)..., *static_cast<const U*>(&b)...);
 }
 
@@ -455,6 +570,7 @@ class symbol : public assignable<S>,
     template <typename T> static constexpr auto has_member(long) { return std::false_type{}; }     \
                                                                                                    \
     static inline auto symbol_string() { return #NAME; }                                           \
+    static inline auto json_key_string() { return "\"" #NAME "\":"; }                              \
   };                                                                                               \
   static constexpr NAME##_t NAME;                                                                  \
   }
@@ -527,38 +643,61 @@ template <typename... Ms> struct metamap;
 
 namespace internal {
 
-template <typename S, typename V> decltype(auto) exp_to_variable_ref(const assign_exp<S, V>& e) {
+template <typename S, typename V> constexpr decltype(auto) exp_to_variable_ref(const assign_exp<S, V>& e) {
   return make_variable_reference(S{}, e.right);
 }
 
-template <typename S, typename V> decltype(auto) exp_to_variable(const assign_exp<S, V>& e) {
+template <typename S, typename V> constexpr decltype(auto) exp_to_variable(const assign_exp<S, V>& e) {
   typedef std::remove_const_t<std::remove_reference_t<V>> vtype;
   return make_variable(S{}, e.right);
 }
 
-template <typename S> decltype(auto) exp_to_variable(const symbol<S>& e) {
+template <typename S> decltype(auto) constexpr exp_to_variable(const symbol<S>& e) {
   return exp_to_variable(S() = int());
 }
 
-template <typename... T> inline decltype(auto) make_metamap_helper(T&&... args) {
+template <typename... T> constexpr inline decltype(auto) make_metamap_helper(T&&... args) {
   return metamap<T...>(std::forward<T>(args)...);
 }
 
 } // namespace internal
 
 // Store copies of values in the map
-static struct {
-  template <typename... T> inline decltype(auto) operator()(T&&... args) const {
-    // Copy values.
-    return internal::make_metamap_helper(internal::exp_to_variable(std::forward<T>(args))...);
-  }
-} mmm;
+template <typename... T> constexpr inline decltype(auto) mmm(T&&... args) {
+  // Copy values.
+  return internal::make_metamap_helper(internal::exp_to_variable(std::forward<T>(args))...);
+}
 
 // Store references of values in the map
-template <typename... T> inline decltype(auto) make_metamap_reference(T&&... args) {
+template <typename... T> constexpr inline decltype(auto) make_metamap_reference(T&&... args) {
   // Keep references.
   return internal::make_metamap_helper(internal::exp_to_variable_ref(std::forward<T>(args))...);
 }
+
+template <typename... Ks> constexpr decltype(auto) metamap_clone(const metamap<Ks...>& map) {
+  return mmm((typename Ks::_iod_symbol_type() = map[typename Ks::_iod_symbol_type()])...);
+}
+
+namespace internal {
+  
+  template <typename... V>
+  auto make_metamap_type(typelist<V...> variables) {
+    return mmm(V(*(typename V::left_t*)0, *(typename V::right_t*)0)...);
+  };
+
+  template <typename T1, typename T2, typename... V, typename... T>
+  auto make_metamap_type(typelist<V...> variables, T1, T2, T... args) {
+    return make_metamap_type(typelist<V..., assign_exp<T1, T2>>{},
+              args...);
+  };
+}
+
+// Helper to make a metamap type:
+//  metamap_t<s::name_t, string, s::age_t, int>
+//  instead of decltype(mmm(s::name = string(), s::age = int()));
+template <typename... T>
+using metamap_t = decltype(internal::make_metamap_type(typelist<>{}, std::declval<T>()...));
+
 
 } // namespace li
 
@@ -571,20 +710,20 @@ struct skip {};
 static struct {
 
   template <typename... M, typename... T>
-  inline decltype(auto) run(metamap<M...> map, skip, T&&... args) const {
+  constexpr inline decltype(auto) run(metamap<M...> map, skip, T&&... args) const {
     return run(map, std::forward<T>(args)...);
   }
 
   template <typename T1, typename... M, typename... T>
-  inline decltype(auto) run(metamap<M...> map, T1&& a, T&&... args) const {
+  constexpr inline decltype(auto) run(metamap<M...> map, T1&& a, T&&... args) const {
     return run(
         cat(map, internal::make_metamap_helper(internal::exp_to_variable(std::forward<T1>(a)))),
         std::forward<T>(args)...);
   }
 
-  template <typename... M> inline decltype(auto) run(metamap<M...> map) const { return map; }
+  template <typename... M> constexpr inline decltype(auto) run(metamap<M...> map) const { return map; }
 
-  template <typename... T> inline decltype(auto) operator()(T&&... args) const {
+  template <typename... T> constexpr inline decltype(auto) operator()(T&&... args) const {
     // Copy values.
     return run(metamap<>{}, std::forward<T>(args)...);
   }
@@ -598,59 +737,11 @@ static struct {
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_MAP_REDUCE_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_MAP_REDUCE_HH
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS_HH
-
-
-namespace li {
-
-template <typename... E, typename F> void apply_each(F&& f, E&&... e) {
-  (void)std::initializer_list<int>{((void)f(std::forward<E>(e)), 0)...};
-}
-
-template <typename... E, typename F, typename R>
-auto tuple_map_reduce_impl(F&& f, R&& reduce, E&&... e) {
-  return reduce(f(std::forward<E>(e))...);
-}
-
-template <typename T, typename F> void tuple_map(T&& t, F&& f) {
-  return std::apply([&](auto&&... e) { apply_each(f, std::forward<decltype(e)>(e)...); },
-                    std::forward<T>(t));
-}
-
-template <typename T, typename F> auto tuple_reduce(T&& t, F&& f) {
-  return std::apply(std::forward<F>(f), std::forward<T>(t));
-}
-
-template <typename T, typename F, typename R>
-decltype(auto) tuple_map_reduce(T&& m, F map, R reduce) {
-  auto fun = [&](auto... e) { return tuple_map_reduce_impl(map, reduce, e...); };
-  return std::apply(fun, m);
-}
-
-template <typename F> inline std::tuple<> tuple_filter_impl() { return std::make_tuple(); }
-
-template <typename F, typename... M, typename M1> auto tuple_filter_impl(M1 m1, M... m) {
-  if constexpr (std::is_same<M1, F>::value)
-    return tuple_filter_impl<F>(m...);
-  else
-    return std::tuple_cat(std::make_tuple(m1), tuple_filter_impl<F>(m...));
-}
-
-template <typename F, typename... M> auto tuple_filter(const std::tuple<M...>& m) {
-
-  auto fun = [](auto... e) { return tuple_filter_impl<F>(e...); };
-  return std::apply(fun, m);
-}
-
-} // namespace li
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS_HH
-
 
 namespace li {
 
 // Map a function(key, value) on all kv pair
-template <typename... M, typename F> void map(const metamap<M...>& m, F fun) {
+template <typename... M, typename F> constexpr void map(const metamap<M...>& m, F fun) {
   auto apply = [&](auto key) -> decltype(auto) { return fun(key, m[key]); };
 
   apply_each(apply, typename M::_iod_symbol_type{}...);
@@ -684,13 +775,13 @@ template <typename... M, typename F> void map(const metamap<M...>& m, F fun) {
 // }
 
 // Map a function(key, value) on all kv pair (non const).
-template <typename... M, typename F> void map(metamap<M...>& m, F fun) {
+template <typename... M, typename F> constexpr void map(metamap<M...>& m, F fun) {
   auto apply = [&](auto key) -> decltype(auto) { return fun(key, m[key]); };
 
   apply_each(apply, typename M::_iod_symbol_type{}...);
 }
 
-template <typename... E, typename F, typename R> auto apply_each2(F&& f, R&& r, E&&... e) {
+template <typename... E, typename F, typename R> constexpr auto apply_each2(F&& f, R&& r, E&&... e) {
   return r(f(std::forward<E>(e))...);
   //(void)std::initializer_list<int>{
   //  ((void)f(std::forward<E>(e)), 0)...};
@@ -699,7 +790,7 @@ template <typename... E, typename F, typename R> auto apply_each2(F&& f, R&& r, 
 // Map a function(key, value) on all kv pair an reduce
 // all the results value with the reduce(r1, r2, ...) function.
 template <typename... M, typename F, typename R>
-decltype(auto) map_reduce(const metamap<M...>& m, F map, R reduce) {
+constexpr decltype(auto) map_reduce(const metamap<M...>& m, F map, R reduce) {
   auto apply = [&](auto key) -> decltype(auto) {
     // return map(key, std::forward<decltype(m[key])>(m[key]));
     return map(key, m[key]);
@@ -711,7 +802,7 @@ decltype(auto) map_reduce(const metamap<M...>& m, F map, R reduce) {
 
 // Map a function(key, value) on all kv pair an reduce
 // all the results value with the reduce(r1, r2, ...) function.
-template <typename... M, typename R> decltype(auto) reduce(const metamap<M...>& m, R reduce) {
+template <typename... M, typename R> constexpr decltype(auto) reduce(const metamap<M...>& m, R reduce) {
   return reduce(m[typename M::_iod_symbol_type{}]...);
 }
 
@@ -724,7 +815,7 @@ template <typename... M, typename R> decltype(auto) reduce(const metamap<M...>& 
 namespace li {
 
 template <typename... T, typename... U>
-inline decltype(auto) intersection(const metamap<T...>& a, const metamap<U...>& b) {
+constexpr inline decltype(auto) intersection(const metamap<T...>& a, const metamap<U...>& b) {
   return map_reduce(a,
                     [&](auto k, auto&& v) -> decltype(auto) {
                       if constexpr (has_key<metamap<U...>, decltype(k)>()) {
@@ -746,7 +837,7 @@ inline decltype(auto) intersection(const metamap<T...>& a, const metamap<U...>& 
 namespace li {
 
 template <typename... T, typename... U>
-inline auto substract(const metamap<T...>& a, const metamap<U...>& b) {
+constexpr inline auto substract(const metamap<T...>& a, const metamap<U...>& b) {
   return map_reduce(a,
                     [&](auto k, auto&& v) {
                       if constexpr (!has_key<metamap<U...>, decltype(k)>()) {
@@ -761,12 +852,48 @@ inline auto substract(const metamap<T...>& a, const metamap<U...>& b) {
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_SUBSTRACT_HH
 
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_FORWARD_TUPLE_AS_METAMAP_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_FORWARD_TUPLE_AS_METAMAP_HH
+
+
+namespace li {
+
+namespace internal {
+
+template <typename... S, typename... V, typename T, T... I>
+constexpr auto forward_tuple_as_metamap_impl(std::tuple<S...> keys, std::tuple<V...>& values, std::integer_sequence<T, I...>) {
+  return make_metamap_reference((std::get<I>(keys) = std::get<I>(values))...);
+}
+template <typename... S, typename... V, typename T, T... I>
+constexpr auto forward_tuple_as_metamap_impl(std::tuple<S...> keys, const std::tuple<V...>& values, std::integer_sequence<T, I...>) {
+  return make_metamap_reference((std::get<I>(keys) = std::get<I>(values))...);
+}
+
+} // namespace internal
+
+template <typename... S, typename... V>
+constexpr auto forward_tuple_as_metamap(std::tuple<S...> keys, std::tuple<V...>& values) {
+  return internal::forward_tuple_as_metamap_impl(keys, values, std::make_index_sequence<sizeof...(V)>{});
+}
+template <typename... S, typename... V>
+constexpr auto forward_tuple_as_metamap(std::tuple<S...> keys, const std::tuple<V...>& values) {
+  return internal::forward_tuple_as_metamap_impl(keys, values, std::make_index_sequence<sizeof...(V)>{});
+}
+
+} // namespace li
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_FORWARD_TUPLE_AS_METAMAP_HH
+
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_METAMAP_HH
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_STATEMENT_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_STATEMENT_HH
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_CONNECTION_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_CONNECTION_HH
 
+
+#include "libpq-fe.h"
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_RESULT_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_RESULT_HH
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_COMMON_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_COMMON_HH
@@ -791,6 +918,429 @@ template <unsigned SIZE> struct sql_varchar : public std::string {
 };
 } // namespace li
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_COMMON_HH
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_CONNECTION_DATA_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_CONNECTION_DATA_HH
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_TYPE_HASHMAP_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_TYPE_HASHMAP_HH
+
+
+namespace li {
+
+template <typename V>
+struct type_hashmap {
+
+  template <typename E, typename F> E& get_cache_entry(int& hash, F)
+  {
+    // Init hash if needed.
+    if (hash == -1)
+    {
+      std::lock_guard lock(mutex_);
+      if (hash == -1)
+        hash = counter_++;
+    }
+    // Init cache if miss.
+    if (hash >= values_.size() or !values_[hash].has_value())
+    {
+      if (values_.size() < hash + 1)
+        values_.resize(hash+1);
+      values_[hash] = E();
+    }
+
+    // Return existing cache entry.
+    return std::any_cast<E&>(values_[hash]);
+  }
+  template <typename K, typename F> V& operator()(F f, K key)
+  {
+    static int hash = -1;
+    return this->template get_cache_entry<std::unordered_map<K, V>>(hash, f)[key];
+  }
+
+  template <typename F> V& operator()(F f)
+  {
+    static int hash = -1;
+    return this->template get_cache_entry<V>(hash, f);
+  }
+
+private:
+  static std::mutex mutex_;
+  static int counter_;
+  std::vector<std::any> values_;
+};
+
+template <typename V>
+std::mutex type_hashmap<V>::mutex_;
+template <typename V>
+int type_hashmap<V>::counter_ = 0;
+
+}
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_TYPE_HASHMAP_HH
+
+
+namespace li
+{
+
+struct pgsql_statement_data;
+struct pgsql_connection_data {
+
+  ~pgsql_connection_data() {
+    if (pgconn_) {
+      cancel();
+      PQfinish(pgconn_);
+    }
+  }
+  void cancel() {
+    if (pgconn_) {
+      // Cancel any pending request.
+      PGcancel* cancel = PQgetCancel(pgconn_);
+      char x[256];
+      if (cancel) {
+        PQcancel(cancel, x, 256);
+        PQfreeCancel(cancel);
+      }
+    }
+  }
+  template <typename Y>
+  void flush(Y& fiber) {
+    while(int ret = PQflush(pgconn_))
+    {
+      if (ret == -1)
+      {
+        std::cerr << "PQflush error" << std::endl;
+      }
+      if (ret == 1)
+        fiber.yield();
+    }
+  }
+
+  PGconn* pgconn_ = nullptr;
+  int fd = -1;
+  std::unordered_map<std::string, std::shared_ptr<pgsql_statement_data>> statements;
+  type_hashmap<std::shared_ptr<pgsql_statement_data>> statements_hashmap;
+  int error_ = 0;
+};
+
+}
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_CONNECTION_DATA_HH
+
+
+namespace li {
+
+
+template <typename Y> struct pgsql_result {
+
+public:
+  ~pgsql_result() { if (current_result_) PQclear(current_result_); }
+  // Read metamap and tuples.
+  template <typename T> bool read(T&& t1);
+  long long int last_insert_id();
+  // Flush all results.
+  void flush_results();
+
+  std::shared_ptr<pgsql_connection_data> connection_;
+  Y& fiber_;
+
+  int last_insert_id_ = -1;
+  int row_i_ = 0;
+  int current_result_nrows_ = 0;
+  PGresult* current_result_ = nullptr;
+  std::vector<Oid> curent_result_field_types_;
+  std::vector<int> curent_result_field_positions_;
+  
+private:
+
+  // Wait for the next result.
+  PGresult* wait_for_next_result();
+
+  // Fetch a string from a result field.
+  template <typename... A>
+  void fetch_value(std::string& out, int field_i, Oid field_type);
+  // Fetch a blob from a result field.
+  template <typename... A> void fetch_value(sql_blob& out, int field_i, Oid field_type);
+  // Fetch an int from a result field.
+  void fetch_value(int& out, int field_i, Oid field_type);
+  // Fetch an unsigned int from a result field.
+  void fetch_value(unsigned int& out, int field_i, Oid field_type);
+};
+
+} // namespace li
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_RESULT_HPP
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_RESULT_HPP
+
+#include "libpq-fe.h"
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_INTERNAL_UTILS_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_INTERNAL_UTILS_HH
+
+
+namespace li {
+template <typename T> struct is_tuple_after_decay : std::false_type {};
+template <typename... T> struct is_tuple_after_decay<std::tuple<T...>> : std::true_type {};
+
+template <typename T> struct is_tuple : is_tuple_after_decay<std::decay_t<T>> {};
+template <typename T> struct unconstref_tuple_elements {};
+template <typename... T> struct unconstref_tuple_elements<std::tuple<T...>> {
+  typedef std::tuple<std::remove_const_t<std::remove_reference_t<T>>...> ret;
+};
+
+} // namespace li
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_INTERNAL_UTILS_HH
+
+#if __APPLE__
+#endif
+//#include <catalog/pg_type_d.h>
+
+#if __APPLE__ // from https://gist.github.com/yinyin/2027912
+#define be64toh(x) OSSwapBigToHostInt64(x)
+#endif
+
+#define INT8OID 20
+#define INT2OID 21
+#define INT4OID 23
+
+namespace li {
+
+template <typename Y>
+PGresult* pg_wait_for_next_result(PGconn* connection, Y& fiber,
+                                  int& connection_status, bool nothrow = false) {
+  // std::cout << "WAIT ======================" << std::endl;
+  while (true) {
+    if (PQconsumeInput(connection) == 0)
+    {
+      connection_status = 1;          
+      if (!nothrow)
+        throw std::runtime_error(std::string("PQconsumeInput() failed: ") +
+                                 PQerrorMessage(connection));
+      else
+        std::cerr << "PQconsumeInput() failed: " << PQerrorMessage(connection) << std::endl;
+#ifdef DEBUG
+      assert(0);
+#endif
+    }
+
+    if (PQisBusy(connection)) {
+      // std::cout << "isbusy" << std::endl;
+      try {
+        fiber.yield();
+      } catch (typename Y::exception_type& e) {
+        // Free results.
+        // Yield thrown a exception (probably because a closed connection).
+        // Flush the remaining results.
+        while (true)
+        {
+          if (PQconsumeInput(connection) == 0)
+          {
+            connection_status = 1;
+            break;
+          }
+          if (!PQisBusy(connection))
+          {
+            PGresult* res = PQgetResult(connection);
+            if (res) PQclear(res);
+            else break;
+          }
+        }
+        throw std::move(e);
+      }
+    } else {
+      // std::cout << "notbusy" << std::endl;
+      PGresult* res = PQgetResult(connection);
+      if (PQresultStatus(res) == PGRES_FATAL_ERROR and PQerrorMessage(connection)[0] != 0)
+      {
+        PQclear(res);
+        connection_status = 1;          
+        if (!nothrow)
+          throw std::runtime_error(std::string("Postresql fatal error:") +
+                                  PQerrorMessage(connection));
+        else
+          std::cerr << "Postgresql FATAL error: " << PQerrorMessage(connection) << std::endl;
+#ifdef DEBUG
+        assert(0);
+#endif
+      }
+      else if (PQresultStatus(res) == PGRES_NONFATAL_ERROR)
+        std::cerr << "Postgresql non fatal error: " << PQerrorMessage(connection) << std::endl;
+
+      return res;
+    }
+  }
+}
+template <typename Y> PGresult* pgsql_result<Y>::wait_for_next_result() {
+  return pg_wait_for_next_result(connection_->pgconn_, fiber_, connection_->error_);
+}
+
+template <typename Y> void pgsql_result<Y>::flush_results() {
+  try {
+    while (true)
+    {
+      if (connection_->error_ == 1) break;
+      PGresult* res = pg_wait_for_next_result(connection_->pgconn_, fiber_, connection_->error_, true);
+      if (res)
+        PQclear(res);
+      else break;
+    }
+  } catch (typename Y::exception_type& e) {
+    // Forward fiber execptions.
+    throw std::move(e);
+  }
+}
+
+// Fetch a string from a result field.
+template <typename Y>
+template <typename... A>
+void pgsql_result<Y>::fetch_value(std::string& out, int field_i,
+                                  Oid field_type) {
+  // assert(!is_binary);
+  // std::cout << "fetch string: " << length << " '"<< val <<"'" << std::endl;
+  out = std::move(std::string(PQgetvalue(current_result_, row_i_, field_i),
+                              PQgetlength(current_result_, row_i_, field_i)));
+  // out = std::move(std::string(val, strlen(val)));
+}
+
+// Fetch a blob from a result field.
+template <typename Y>
+template <typename... A>
+void pgsql_result<Y>::fetch_value(sql_blob& out, int field_i, Oid field_type) {
+  // assert(is_binary);
+  out = std::move(std::string(PQgetvalue(current_result_, row_i_, field_i),
+                              PQgetlength(current_result_, row_i_, field_i)));
+}
+
+// Fetch an int from a result field.
+template <typename Y>
+void pgsql_result<Y>::fetch_value(int& out, int field_i, Oid field_type) {
+  assert(PQfformat(current_result_, field_i) == 1); // Assert binary format
+  char* val = PQgetvalue(current_result_, row_i_, field_i);
+
+  // TYPCATEGORY_NUMERIC
+  // std::cout << "fetch integer " << length << " " << is_binary << std::endl;
+  // std::cout << "fetch integer " << be64toh(*((uint64_t *) val)) << std::endl;
+  if (field_type == INT8OID) {
+    // std::cout << "fetch 64b integer " << std::hex << int(32) << std::endl;
+    // std::cout << "fetch 64b integer " << std::hex << uint64_t(*((uint64_t *) val)) << std::endl;
+    // std::cout << "fetch 64b integer " << std::hex << (*((uint64_t *) val)) << std::endl;
+    // std::cout << "fetch 64b integer " << std::hex << be64toh(*((uint64_t *) val)) << std::endl;
+    out = be64toh(*((uint64_t*)val));
+  } else if (field_type == INT4OID)
+    out = (uint32_t)ntohl(*((uint32_t*)val));
+  else if (field_type == INT2OID)
+    out = (uint16_t)ntohs(*((uint16_t*)val));
+  else
+    throw std::runtime_error("The type of request result does not match the destination type");
+}
+
+
+// Fetch an unsigned int from a result field.
+template <typename Y>
+void pgsql_result<Y>::fetch_value(unsigned int& out, int field_i, Oid field_type) {
+  assert(PQfformat(current_result_, field_i) == 1); // Assert binary format
+  char* val = PQgetvalue(current_result_, row_i_, field_i);
+
+  // if (length == 8)
+  if (field_type == INT8OID)
+    out = be64toh(*((uint64_t*)val));
+  else if (field_type == INT4OID)
+    out = ntohl(*((uint32_t*)val));
+  else if (field_type == INT2OID)
+    out = ntohs(*((uint16_t*)val));
+  else
+    assert(0);
+}
+
+template <typename B> template <typename T> bool pgsql_result<B>::read(T&& output) {
+
+  if (!current_result_ || row_i_ == current_result_nrows_) {
+    if (current_result_) {
+      PQclear(current_result_);
+      current_result_ = nullptr;
+    }
+    current_result_ = wait_for_next_result();
+    if (!current_result_)
+      return false;
+    row_i_ = 0;
+    current_result_nrows_ = PQntuples(current_result_);
+    if (current_result_nrows_ == 0) {
+      PQclear(current_result_);
+      current_result_ = nullptr;
+      return false;
+    }
+
+    // Metamaps.
+    if constexpr (is_metamap<std::decay_t<T>>::value) {
+      curent_result_field_positions_.clear();
+      li::map(std::forward<T>(output), [&](auto k, auto& m) {
+        curent_result_field_positions_.push_back(PQfnumber(current_result_, symbol_string(k)));
+        if (curent_result_field_positions_.back() == -1)
+          throw std::runtime_error(std::string("postgresql errror : Field ") + symbol_string(k) +
+                                    " not found in result.");
+
+      });
+    }
+
+    if (curent_result_field_types_.size() == 0) {
+
+      curent_result_field_types_.resize(PQnfields(current_result_));
+      for (int field_i = 0; field_i < curent_result_field_types_.size(); field_i++)
+        curent_result_field_types_[field_i] = PQftype(current_result_, field_i);
+    }
+  }
+
+  // Tuples
+  if constexpr (is_tuple<T>::value) {
+    int field_i = 0;
+
+    int nfields = curent_result_field_types_.size();
+    if (nfields != std::tuple_size_v<std::decay_t<T>>)
+      throw std::runtime_error("postgresql error: in fetch: Mismatch between the request number of "
+                               "field and the outputs.");
+
+    tuple_map(std::forward<T>(output), [&](auto& m) {
+      fetch_value(m, field_i, curent_result_field_types_[field_i]);
+      field_i++;
+    });
+  } else { // Metamaps.
+    int i = 0;
+    li::map(std::forward<T>(output), [&](auto k, auto& m) {
+      int field_i = curent_result_field_positions_[i];
+      fetch_value(m, field_i, curent_result_field_types_[field_i]);
+      i++;
+    });
+  }
+
+  this->row_i_++;
+
+  return true;
+}
+
+// Get the last id of the row inserted by the last command.
+template <typename Y> long long int pgsql_result<Y>::last_insert_id() {
+  // while (PGresult* res = wait_for_next_result())
+  //  PQclear(res);
+  // PQsendQuery(connection_, "LASTVAL()");
+  int t = 0;
+  this->read(std::tie(t));
+  return t;
+  // PGresult *PQexec(connection_, const char *command);
+  // this->operator()
+  //   last_insert_id_ = PQoidValue(res);
+  //   std::cout << "id " << last_insert_id_ << std::endl;
+  //   PQclear(res);
+  // }
+  // return last_insert_id_;
+}
+
+} // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_RESULT_HPP
+
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_RESULT_HH
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_STATEMENT_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_STATEMENT_HH
+
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SYMBOLS_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SYMBOLS_HH
@@ -925,6 +1475,11 @@ template <unsigned SIZE> struct sql_varchar : public std::string {
     LI_SYMBOL(validate)
 #endif
 
+#ifndef LI_SYMBOL_waiting_list
+#define LI_SYMBOL_waiting_list
+    LI_SYMBOL(waiting_list)
+#endif
+
 #ifndef LI_SYMBOL_write_access
 #define LI_SYMBOL_write_access
     LI_SYMBOL(write_access)
@@ -933,315 +1488,9 @@ template <unsigned SIZE> struct sql_varchar : public std::string {
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SYMBOLS_HH
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_RESULT_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_RESULT_HH
-
-namespace li {
-
-template <typename Y> struct pgsql_result {
-
-public:
-  ~pgsql_result() { if (current_result_) PQclear(current_result_); }
-  // Read metamap and tuples.
-  template <typename T> bool read(T&& t1);
-  long long int last_insert_id();
-  // Flush all results.
-  void flush_results();
-
-  PGconn* connection_;
-  Y& fiber_;
-  std::shared_ptr<int> connection_status_;
-
-  int last_insert_id_ = -1;
-  int row_i_ = 0;
-  int current_result_nrows_ = 0;
-  PGresult* current_result_ = nullptr;
-  std::vector<Oid> curent_result_field_types_;
-  
-private:
-
-  // Wait for the next result.
-  PGresult* wait_for_next_result();
-
-  // Fetch a string from a result field.
-  template <typename... A>
-  void fetch_value(std::string& out, char* val, int length, bool is_binary, Oid field_type);
-  // Fetch a blob from a result field.
-  template <typename... A> void fetch_value(sql_blob& out, char* val, int length, bool is_binary, Oid field_type);
-  // Fetch an int from a result field.
-  void fetch_value(int& out, char* val, int length, bool is_binary, Oid field_type);
-  // Fetch an unsigned int from a result field.
-  void fetch_value(unsigned int& out, char* val, int length, bool is_binary, Oid field_type);
-};
-
-} // namespace li
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_RESULT_HPP
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_RESULT_HPP
-
-
-#include "libpq-fe.h"
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_INTERNAL_UTILS_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_INTERNAL_UTILS_HH
-
-
-namespace li {
-template <typename T> struct is_tuple_after_decay : std::false_type {};
-template <typename... T> struct is_tuple_after_decay<std::tuple<T...>> : std::true_type {};
-
-template <typename T> struct is_tuple : is_tuple_after_decay<std::decay_t<T>> {};
-template <typename T> struct unconstref_tuple_elements {};
-template <typename... T> struct unconstref_tuple_elements<std::tuple<T...>> {
-  typedef std::tuple<std::remove_const_t<std::remove_reference_t<T>>...> ret;
-};
-
-} // namespace li
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_INTERNAL_UTILS_HH
-
-//#include <catalog/pg_type_d.h>
-
-#define INT8OID 20
-#define INT2OID 21
-#define INT4OID 23
-
-namespace li {
-
-template <typename Y>
-PGresult* pg_wait_for_next_result(PGconn* connection, Y& fiber, std::shared_ptr<int> connection_status)
-{
-    // std::cout << "WAIT ======================" << std::endl;
-  while (true) {
-    if (PQconsumeInput(connection) == 0)
-      throw std::runtime_error(std::string("PQconsumeInput() failed: ") +
-                               PQerrorMessage(connection));
-
-    if (PQisBusy(connection)) {
-      // std::cout << "isbusy" << std::endl;
-      try {
-        fiber.yield();
-      } catch (typename Y::exception_type& e) {
-        // Yield thrown a exception (probably because a closed connection).
-        // Mark the connection as broken because it is left in a undefined state.
-        *connection_status = 1;
-        throw std::move(e);
-      }
-    } else {
-      // std::cout << "notbusy" << std::endl;
-      PGresult* res = PQgetResult(connection);
-      if (PQresultStatus(res) == PGRES_FATAL_ERROR and PQerrorMessage(connection)[0] != 0)
-        throw std::runtime_error(std::string("Postresql fatal error:") +
-                                 PQerrorMessage(connection));
-      else if (PQresultStatus(res) == PGRES_NONFATAL_ERROR)
-        std::cerr << "Postgresql non fatal error: " << PQerrorMessage(connection) << std::endl;
-      return res;
-    }
-  }
-}
-template <typename Y> PGresult* pgsql_result<Y>::wait_for_next_result() {
-  return pg_wait_for_next_result(connection_, fiber_, connection_status_);
-}
-
-template <typename Y> void pgsql_result<Y>::flush_results() {
-  try {
-    if (*connection_status_ == 0)
-      while (PGresult* res = wait_for_next_result())
-        PQclear(res);
-  } catch (...) {}
-}
-
-// Fetch a string from a result field.
-template <typename Y>
-template <typename... A>
-void pgsql_result<Y>::fetch_value(std::string& out, char* val, int length,
-                                            bool is_binary, Oid field_type) {
-  // assert(!is_binary);
-  // std::cout << "fetch string: " << length << " '"<< val <<"'" << std::endl;
-  out = std::move(std::string(val, strlen(val)));
-}
-
-// Fetch a blob from a result field.
-template <typename Y>
-template <typename... A>
-void pgsql_result<Y>::fetch_value(sql_blob& out, char* val, int length, bool is_binary, Oid field_type) {
-  // assert(is_binary);
-  out = std::move(std::string(val, length));
-}
-
-// Fetch an int from a result field.
-template <typename Y> void pgsql_result<Y>::fetch_value(int& out, char* val, int length, bool is_binary, Oid field_type) {
-  assert(is_binary);
-  // TYPCATEGORY_NUMERIC
-  //std::cout << "fetch integer " << length << " " << is_binary << std::endl;
-  // std::cout << "fetch integer " << be64toh(*((uint64_t *) val)) << std::endl;
-  if (field_type == INT8OID) {
-    // std::cout << "fetch 64b integer " << std::hex << int(32) << std::endl;
-    // std::cout << "fetch 64b integer " << std::hex << uint64_t(*((uint64_t *) val)) << std::endl;
-    // std::cout << "fetch 64b integer " << std::hex << (*((uint64_t *) val)) << std::endl;
-    // std::cout << "fetch 64b integer " << std::hex << be64toh(*((uint64_t *) val)) << std::endl;
-    out = be64toh(*((uint64_t*)val));
-  } else if (field_type == INT4OID)
-    out = (uint32_t)ntohl(*((uint32_t*)val));
-  else if (field_type == INT2OID)
-    out = (uint16_t)ntohs(*((uint16_t*)val));
-  else
-    throw std::runtime_error("The type of request result does not match the destination type");
-}
-
-// Fetch an unsigned int from a result field.
-template <typename Y>
-void pgsql_result<Y>::fetch_value(unsigned int& out, char* val, int length,
-                                            bool is_binary, Oid field_type) {
-  assert(is_binary);
-  // if (length == 8)
-  if (field_type == INT8OID)
-    out = be64toh(*((uint64_t*)val));
-  else if (field_type == INT4OID)
-    out = ntohl(*((uint32_t*)val));
-  else if (field_type == INT2OID)
-    out = ntohs(*((uint16_t*)val));
-  else
-    assert(0);
-}
-
-template <typename B> template <typename T> bool pgsql_result<B>::read(T&& output) {
-
-  if (!current_result_ || row_i_ == current_result_nrows_) {
-    if (current_result_) {
-      PQclear(current_result_);
-      current_result_ = nullptr;
-    }
-    current_result_ = wait_for_next_result();
-    if (!current_result_)
-      return false;
-    row_i_ = 0;
-    current_result_nrows_ = PQntuples(current_result_);
-    if (current_result_nrows_ == 0)
-    {
-      PQclear(current_result_);
-      current_result_ = nullptr;
-      return false;
-    }
-
-    if (curent_result_field_types_.size() == 0)
-    {
-      curent_result_field_types_.resize(PQnfields(current_result_));
-      for (int field_i = 0; field_i < curent_result_field_types_.size(); field_i++)
-        curent_result_field_types_[field_i] = PQftype(current_result_, field_i);
-    }
-  }
-
-  // Tuples
-  if constexpr (is_tuple<T>::value) {
-    int field_i = 0;
-
-    int nfields = curent_result_field_types_.size();
-    if (nfields != std::tuple_size_v<std::decay_t<T>>)
-      throw std::runtime_error("postgresql error: in fetch: Mismatch between the request number of "
-                               "field and the outputs.");
-
-    tuple_map(std::forward<T>(output), [&](auto& m) {
-      fetch_value(m, PQgetvalue(current_result_, row_i_, field_i), PQgetlength(current_result_, row_i_, field_i),
-                  PQfformat(current_result_, field_i), curent_result_field_types_[field_i]);
-      field_i++;
-    });
-  } else { // Metamaps.
-    li::map(std::forward<T>(output), [&](auto k, auto& m) {
-      int field_i = PQfnumber(current_result_, symbol_string(k));
-      if (field_i == -1)
-        throw std::runtime_error(std::string("postgresql errror : Field ") + symbol_string(k) +
-                                 " not fount in result.");
-
-      fetch_value(m, PQgetvalue(current_result_, row_i_, field_i), PQgetlength(current_result_, row_i_, field_i),
-                  PQfformat(current_result_, field_i), curent_result_field_types_[field_i]);
-    });
-  }
-
-  this->row_i_++;
-
-  return true;
-}
-
-// Get the last id of the row inserted by the last command.
-template <typename Y> long long int pgsql_result<Y>::last_insert_id() {
-  // while (PGresult* res = wait_for_next_result())
-  //  PQclear(res);
-  // PQsendQuery(connection_, "LASTVAL()");
-  int t = 0;
-  this->read(std::tie(t));
-  return t;
-  // PGresult *PQexec(connection_, const char *command);
-  // this->operator()
-  //   last_insert_id_ = PQoidValue(res);
-  //   std::cout << "id " << last_insert_id_ << std::endl;
-  //   PQclear(res);
-  // }
-  // return last_insert_id_;
-}
-
-} // namespace li
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_RESULT_HPP
-
-
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_RESULT_HH
-
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_RESULT_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_RESULT_HH
 
-
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_TYPE_HASHMAP_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_TYPE_HASHMAP_HH
-
-
-namespace li {
-
-template <typename V>
-struct type_hashmap {
-
-  template <typename E, typename F> E& get_cache_entry(int& hash, F)
-  {
-    // Init hash if needed.
-    if (hash == -1)
-    {
-      std::lock_guard lock(mutex_);
-      if (hash == -1)
-        hash = counter_++;
-    }
-    // Init cache if miss.
-    if (hash >= values_.size() or !values_[hash].has_value())
-    {
-      if (values_.size() < hash + 1)
-        values_.resize(hash+1);
-      values_[hash] = E();
-    }
-
-    // Return existing cache entry.
-    return std::any_cast<E&>(values_[hash]);
-  }
-  template <typename K, typename F> V& operator()(F f, K key)
-  {
-    static int hash = -1;
-    return this->template get_cache_entry<std::unordered_map<K, V>>(hash, f)[key];
-  }
-
-  template <typename F> V& operator()(F f)
-  {
-    static int hash = -1;
-    return this->template get_cache_entry<V>(hash, f);
-  }
-
-private:
-  static std::mutex mutex_;
-  static int counter_;
-  std::vector<std::any> values_;
-};
-
-template <typename V>
-std::mutex type_hashmap<V>::mutex_;
-template <typename V>
-int type_hashmap<V>::counter_ = 0;
-
-}
-
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_TYPE_HASHMAP_HH
 
 
 namespace li {
@@ -1373,26 +1622,43 @@ auto sql_result<B>::read_optional() {
     return std::optional<decltype(t)>{};
 }
 
+namespace internal {
+
+  template<typename T, typename F>
+  constexpr auto is_valid(F&& f) -> decltype(f(std::declval<T>()), true) { return true; }
+
+  template<typename>
+  constexpr bool is_valid(...) { return false; }
+
+}
+
+#define IS_VALID(T, EXPR) internal::is_valid<T>( [](auto&& obj)->decltype(obj.EXPR){} )
+
 template <typename B> template <typename F> void sql_result<B>::map(F map_function) {
 
+
+  if constexpr (IS_VALID(B, map(map_function)))
+    this->impl_.map(map_function);
+
   typedef typename unconstref_tuple_elements<callable_arguments_tuple_t<F>>::ret TP;
+  typedef std::tuple_element_t<0, TP> TP0;
 
   auto t = [] {
     static_assert(std::tuple_size_v<TP> > 0, "sql_result map function must take at least 1 argument.");
 
-    if constexpr (std::tuple_size_v<TP> == 1)
-      return std::tuple_element_t<0, TP>{};
-    else if constexpr (std::tuple_size_v<TP> > 1)
+    if constexpr (is_tuple<TP0>::value || is_metamap<TP0>::value)
+      return TP0{};
+    else
       return TP{};
   }();
 
-
-  while (auto res = this->read_optional<decltype(t)>()) {
-    if constexpr (std::tuple_size<TP>::value == 1)
-      map_function(res.value());
-    else if constexpr (std::tuple_size<TP>::value > 1)
-      std::apply(map_function, res.value());
+  while (this->read(t)) {
+    if constexpr (is_tuple<TP0>::value || is_metamap<TP0>::value)
+      map_function(t);
+    else
+      std::apply(map_function, t);
   }
+
 }
 } // namespace li
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_RESULT_HPP
@@ -1413,11 +1679,9 @@ template <typename Y> struct pgsql_statement {
 public:
   template <typename... T> sql_result<pgsql_result<Y>> operator()(T&&... args);
 
-  PGconn* connection_;
+  std::shared_ptr<pgsql_connection_data> connection_;
   Y& fiber_;
   pgsql_statement_data& data_;
-  std::shared_ptr<int> connection_status_;
-
 
 private:
 
@@ -1564,18 +1828,16 @@ sql_result<pgsql_result<Y>> pgsql_statement<Y>::operator()(T&&... args) {
     i += bind_compute_nparam(a);
   });
 
-  // std::cout << "flush" << std::endl;
-  // FIXME: do we really need to flush the results here ?
-  // flush_results();
-  // std::cout << "flushed" << std::endl;
-  // std::cout << "sending " << data_.stmt_name.c_str() << " with " << nparams << " params" <<
-  // std::endl;
-  if (!PQsendQueryPrepared(connection_, data_.stmt_name.c_str(), nparams, values, lengths, binary,
+  if (!PQsendQueryPrepared(connection_->pgconn_, data_.stmt_name.c_str(), nparams, values, lengths, binary,
                            1)) {
-    throw std::runtime_error(std::string("Postresql error:") + PQerrorMessage(connection_));
+    throw std::runtime_error(std::string("Postresql error:") + PQerrorMessage(connection_->pgconn_));
   }
+
+  // Now calling pqflush seems to work aswell...
+  // connection_->flush(this->fiber_);
+
   return sql_result<pgsql_result<Y>>{
-      pgsql_result<Y>{this->connection_, this->fiber_, this->connection_status_}};
+      pgsql_result<Y>{this->connection_, this->fiber_}};
 }
 
 // FIXME long long int affected_rows() { return pgsql_stmt_affected_rows(data_.stmt_); }
@@ -1587,44 +1849,10 @@ sql_result<pgsql_result<Y>> pgsql_statement<Y>::operator()(T&&... args) {
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_STATEMENT_HH
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_CONNECTION_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_CONNECTION_HH
-
-
-#include "libpq-fe.h"
-
 
 namespace li {
 
 struct pgsql_tag {};
-
-struct pgsql_connection_data {
-
-  ~pgsql_connection_data() {
-    if (connection) {
-      cancel();
-      PQfinish(connection);
-    }
-  }
-  void cancel() {
-    if (connection) {
-      // Cancel any pending request.
-      PGcancel* cancel = PQgetCancel(connection);
-      char x[256];
-      if (cancel) {
-        PQcancel(cancel, x, 256);
-        PQfreeCancel(cancel);
-      }
-    }
-  }
-
-  PGconn* connection = nullptr;
-  int fd = -1;
-  std::unordered_map<std::string, std::shared_ptr<pgsql_statement_data>> statements;
-  type_hashmap<std::shared_ptr<pgsql_statement_data>> statements_hashmap;
-};
-
-thread_local std::deque<std::shared_ptr<pgsql_connection_data>> pgsql_connection_pool;
 
 // template <typename Y> void pq_wait(Y& yield, PGconn* con) {
 //   while (PQisBusy(con))
@@ -1637,31 +1865,16 @@ template <typename Y> struct pgsql_connection {
   std::shared_ptr<pgsql_connection_data> data_;
   std::unordered_map<std::string, std::shared_ptr<pgsql_statement_data>>& stm_cache_;
   PGconn* connection_;
-  std::shared_ptr<int> connection_status_;
 
   typedef pgsql_tag db_tag;
 
   inline pgsql_connection(const pgsql_connection&) = delete;
   inline pgsql_connection& operator=(const pgsql_connection&) = delete;
-  inline pgsql_connection(pgsql_connection&&) = default;
+  inline pgsql_connection(pgsql_connection&& o) = default;
 
-  template <typename P>
-  inline pgsql_connection(Y& fiber, std::shared_ptr<li::pgsql_connection_data> data,
-                          P put_data_back_in_pool)
-      : fiber_(fiber), data_(data), stm_cache_(data->statements), connection_(data->connection) {
+  inline pgsql_connection(Y& fiber, std::shared_ptr<pgsql_connection_data>& data)
+      : fiber_(fiber), data_(data), stm_cache_(data->statements), connection_(data->pgconn_) {
 
-    connection_status_ =
-        std::shared_ptr<int>(new int(0), [data, put_data_back_in_pool](int* p) mutable {
-          put_data_back_in_pool(data, *p);
-        });
-  }
-
-  ~pgsql_connection() {
-    if (connection_status_ && *connection_status_ == 0) {
-      // flush results if needed.
-      // while (PGresult* res = wait_for_next_result())
-      //   PQclear(res);
-    }
   }
 
   // FIXME long long int last_insert_rowid() { return pgsql_insert_id(connection_); }
@@ -1672,7 +1885,7 @@ template <typename Y> struct pgsql_connection {
     if (!PQsendQueryParams(connection_, rq.c_str(), 0, nullptr, nullptr, nullptr, nullptr, 1))
       throw std::runtime_error(std::string("Postresql error:") + PQerrorMessage(connection_));
     return sql_result<pgsql_result<Y>>{
-        pgsql_result<Y>{this->connection_, this->fiber_, this->connection_status_}};
+        pgsql_result<Y>{this->data_, this->fiber_, data_->error_}};
   }
 
   // PQsendQueryParams
@@ -1682,45 +1895,26 @@ template <typename Y> struct pgsql_connection {
       data_->statements_hashmap(f, keys...) = res.data_.shared_from_this();
       return res;
     } else
-      return pgsql_statement<Y>{connection_, fiber_, *data_->statements_hashmap(f, keys...),
-                                connection_status_};
+      return pgsql_statement<Y>{data_, fiber_, *data_->statements_hashmap(f, keys...)};
   }
 
   pgsql_statement<Y> prepare(const std::string& rq) {
     auto it = stm_cache_.find(rq);
     if (it != stm_cache_.end()) {
-      // pgsql_wrapper_.pgsql_stmt_free_result(it->second->stmt_);
-      // pgsql_wrapper_.pgsql_stmt_reset(it->second->stmt_);
-      return pgsql_statement<Y>{connection_, fiber_, *it->second, connection_status_};
+      return pgsql_statement<Y>{data_, fiber_, *it->second};
     }
-    std::stringstream stmt_name;
-    stmt_name << (void*)connection_ << stm_cache_.size();
-    // std::cout << "prepare " << rq << " NAME: " << stmt_name.str() << std::endl;
+    std::string stmt_name = boost::lexical_cast<std::string>(stm_cache_.size());
 
-    // FIXME REALLY USEFUL??
-    // while (PGresult* res = wait_for_next_result())
-    //   PQclear(res);
-
-    if (!PQsendPrepare(connection_, stmt_name.str().c_str(), rq.c_str(), 0, nullptr)) {
+    if (!PQsendPrepare(connection_, stmt_name.c_str(), rq.c_str(), 0, nullptr)) {
       throw std::runtime_error(std::string("PQsendPrepare error") + PQerrorMessage(connection_));
     }
 
     // flush results.
-    while (PGresult* ret = pg_wait_for_next_result(connection_, fiber_, connection_status_))
+    while (PGresult* ret = pg_wait_for_next_result(connection_, fiber_, data_->error_))
       PQclear(ret);
 
-    // while (PGresult* ret = PQgetResult(connection_)) {
-    //   if (PQresultStatus(ret) == PGRES_FATAL_ERROR)
-    //     throw std::runtime_error(std::string("Postresql fatal error:") +
-    //                              PQerrorMessage(connection_));
-    //   if (PQresultStatus(ret) == PGRES_NONFATAL_ERROR)
-    //     std::cerr << "Postgresql non fatal error: " << PQerrorMessage(connection_) << std::endl;
-    //   PQclear(ret);
-    // }
-    // pq_wait(yield_, connection_);
-
-    auto pair = stm_cache_.emplace(rq, std::make_shared<pgsql_statement_data>(stmt_name.str()));
-    return pgsql_statement<Y>{connection_, fiber_, *pair.first->second, connection_status_};
+    auto pair = stm_cache_.emplace(rq, std::make_shared<pgsql_statement_data>(stmt_name));
+    return pgsql_statement<Y>{data_, fiber_, *pair.first->second};
   }
 
   template <typename T>
@@ -1751,26 +1945,33 @@ template <typename Y> struct pgsql_connection {
 
 
 namespace li {
-// thread local map of sql_database<I> -> sql_database_thread_local_data<I>;
+// thread local map of sql_database<I>* -> sql_database_thread_local_data<I>*;
 // This is used to store the thread local async connection pool.
-thread_local std::unordered_map<int, void*> sql_thread_local_data;
-thread_local int database_id_counter = 0;
+// void* is used instead of concrete types to handle different I parameter.
+
+thread_local std::unordered_map<void*, void*> sql_thread_local_data [[gnu::weak]];
 
 template <typename I> struct sql_database_thread_local_data {
 
   typedef typename I::connection_data_type connection_data_type;
 
   // Async connection pools.
-  std::deque<std::shared_ptr<connection_data_type>> async_connections_;
+  std::deque<connection_data_type*> async_connections_;
 
   int n_connections_on_this_thread_ = 0;
+  std::deque<int> fibers_waiting_for_connections_;
 };
 
 struct active_yield {
   typedef std::runtime_error exception_type;
-  void epoll_add(int, int) {}
-  void epoll_mod(int, int) {}
-  void yield() {}
+  int fiber_id = 0;
+  inline void defer(std::function<void()>) {}
+  inline void defer_fiber_resume(int fiber_id) {}
+  inline void reassign_fd_to_this_fiber(int fd) {}
+
+  inline void epoll_add(int fd, int flags) {}
+  inline void epoll_mod(int fd, int flags) {}
+  inline void yield() {}
 };
 
 template <typename I> struct sql_database {
@@ -1780,38 +1981,49 @@ template <typename I> struct sql_database {
   typedef typename I::db_tag db_tag;
 
   // Sync connections pool.
-  std::deque<std::shared_ptr<connection_data_type>> sync_connections_;
+  std::deque<connection_data_type*> sync_connections_;
   // Sync connections mutex.
   std::mutex sync_connections_mutex_;
 
   int n_sync_connections_ = 0;
   int max_sync_connections_ = 0;
   int max_async_connections_per_thread_ = 0;
-  int database_id_ = 0;
 
   template <typename... O> sql_database(O&&... opts) : impl(std::forward<O>(opts)...) {
     auto options = mmm(opts...);
     max_async_connections_per_thread_ = get_or(options, s::max_async_connections_per_thread, 200);
     max_sync_connections_ = get_or(options, s::max_sync_connections, 2000);
 
-    this->database_id_ = database_id_counter++;
   }
 
   ~sql_database() {
-    auto it = sql_thread_local_data.find(this->database_id_);
+    clear_connections();
+  }
+
+  void clear_connections() {
+    auto it = sql_thread_local_data.find(this);
     if (it != sql_thread_local_data.end())
     {
-      delete (sql_database_thread_local_data<I>*) sql_thread_local_data[this->database_id_];
-      sql_thread_local_data.erase(this->database_id_);
+      auto store = (sql_database_thread_local_data<I>*) it->second;
+      for (auto ptr : store->async_connections_)
+        delete ptr;
+      delete store;
+      sql_thread_local_data.erase(this);
     }
+
+    std::lock_guard<std::mutex> lock(this->sync_connections_mutex_);
+    for (auto* ptr : this->sync_connections_)
+      delete ptr;
+    sync_connections_.clear();
+    n_sync_connections_ = 0;
   }
 
   auto& thread_local_data() {
-    auto it = sql_thread_local_data.find(this->database_id_);
+    auto it = sql_thread_local_data.find(this);
     if (it == sql_thread_local_data.end())
     {
       auto data = new sql_database_thread_local_data<I>;
-      sql_thread_local_data[this->database_id_] = data;
+      sql_thread_local_data[this] = data;
       return *data;
     }
     else
@@ -1833,7 +2045,8 @@ template <typename I> struct sql_database {
    */
   template <typename Y> inline auto connect(Y& fiber) {
 
-    auto pool = [this] {
+    auto& tldata = this->thread_local_data();
+    auto pool = [this, &tldata] {
 
       if constexpr (std::is_same_v<Y, active_yield>) // Synchonous mode
         return make_metamap_reference(
@@ -1842,12 +2055,14 @@ template <typename I> struct sql_database {
             s::max_connections = this->max_sync_connections_);
       else  // Asynchonous mode
         return make_metamap_reference(
-            s::connections = this->thread_local_data().async_connections_,
-            s::n_connections =  this->thread_local_data().n_connections_on_this_thread_,
-            s::max_connections = this->max_async_connections_per_thread_);
+            s::connections = tldata.async_connections_,
+            s::n_connections =  tldata.n_connections_on_this_thread_,
+            s::max_connections = this->max_async_connections_per_thread_,
+            s::waiting_list = tldata.fibers_waiting_for_connections_);
     }();
 
-    std::shared_ptr<connection_data_type> data = nullptr;
+    connection_data_type* data = nullptr;
+    bool reuse = false;
     while (!data) {
 
       if (!pool.connections.empty()) {
@@ -1858,20 +2073,22 @@ template <typename I> struct sql_database {
         }();
         data = pool.connections.back();
         pool.connections.pop_back();
-        fiber.epoll_add(impl.get_socket(data), EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
+        reuse = true;
       } else {
         if (pool.n_connections >= pool.max_connections) {
           if constexpr (std::is_same_v<Y, active_yield>)
             throw std::runtime_error("Maximum number of sql connection exeeded.");
           else
+          {
             // std::cout << "Waiting for a free sql connection..." << std::endl;
+            //  pool.waiting_list.push_back(fiber.fiber_id);
             fiber.yield();
+          }
           continue;
         }
         pool.n_connections++;
 
         try {
-
           data = impl.new_connection(fiber);
         } catch (typename Y::exception_type& e) {
           pool.n_connections--;
@@ -1882,10 +2099,12 @@ template <typename I> struct sql_database {
           pool.n_connections--;
       }
     }
+
     assert(data);
-    return impl.scoped_connection(
-        fiber, data, [pool, this](std::shared_ptr<connection_data_type> data, int error) {
-          if (!error && pool.connections.size() < pool.max_connections) {
+    assert(data->error_ == 0);
+    
+    auto sptr = std::shared_ptr<connection_data_type>(data, [pool, this, &fiber](connection_data_type* data) {
+          if (!data->error_ && pool.connections.size() < pool.max_connections) {
             auto lock = [&pool, this] {
               if constexpr (std::is_same_v<Y, active_yield>)
                 return std::lock_guard<std::mutex>(this->sync_connections_mutex_);
@@ -1893,14 +2112,27 @@ template <typename I> struct sql_database {
             }();
 
             pool.connections.push_back(data);
-            
+            if constexpr (!std::is_same_v<Y, active_yield>)
+             if (pool.waiting_list.size())
+             {
+               int next_fiber_id = pool.waiting_list.front();
+               pool.waiting_list.pop_front();
+               fiber.defer_fiber_resume(next_fiber_id);
+             }
+           
           } else {
-            if (pool.connections.size() > pool.max_connections)
+            if (pool.connections.size() >= pool.max_connections)
               std::cerr << "Error: connection pool size " << pool.connections.size()
                         << " exceed pool max_connections " << pool.max_connections << std::endl;
             pool.n_connections--;
+            delete data;
           }
         });
+
+    if (reuse) 
+      fiber.reassign_fd_to_this_fiber(impl.get_socket(sptr));
+
+    return impl.scoped_connection(fiber, sptr);
   }
 
   /**
@@ -1920,7 +2152,7 @@ namespace li {
 
 struct pgsql_database_impl {
 
-  typedef pgsql_connection_data  connection_data_type;
+  typedef pgsql_connection_data connection_data_type;
 
   typedef pgsql_tag db_tag;
   std::string host_, user_, passwd_, database_;
@@ -1948,11 +2180,11 @@ struct pgsql_database_impl {
       throw std::runtime_error("LibPQ is not threadsafe.");
   }
 
-  inline int get_socket(std::shared_ptr<pgsql_connection_data> data) {
-    return PQsocket(data->connection);
+  inline int get_socket(const std::shared_ptr<pgsql_connection_data>& data) {
+    return PQsocket(data->pgconn_);
   }
 
-  template <typename Y> inline std::shared_ptr<pgsql_connection_data> new_connection(Y& fiber) {
+  template <typename Y> inline pgsql_connection_data* new_connection(Y& fiber) {
 
     PGconn* connection = nullptr;
     int pgsql_fd = -1;
@@ -1981,14 +2213,22 @@ struct pgsql_database_impl {
       PQfinish(connection);
       return nullptr;
     }
-    fiber.epoll_add(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP);
+    #if __linux__
+      fiber.epoll_add(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP);
+    #elif __APPLE__
+      fiber.epoll_add(pgsql_fd, EVFILT_READ | EVFILT_WRITE);
+    #endif
 
     try {
       while (status != PGRES_POLLING_FAILED and status != PGRES_POLLING_OK) {
         int new_pgsql_fd = PQsocket(connection);
         if (new_pgsql_fd != pgsql_fd) {
           pgsql_fd = new_pgsql_fd;
-          fiber.epoll_add(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP);
+          #if __linux__
+            fiber.epoll_add(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP);
+          #elif __APPLE__
+            fiber.epoll_add(pgsql_fd, EVFILT_READ | EVFILT_WRITE);
+          #endif
         }
         fiber.yield();
         status = PQconnectPoll(connection);
@@ -1999,7 +2239,11 @@ struct pgsql_database_impl {
       throw std::move(e);
     }
     // std::cout << "CONNECTED " << std::endl;
-    fiber.epoll_mod(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
+    #if __linux__
+      fiber.epoll_mod(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
+    #elif __APPLE__
+      fiber.epoll_mod(pgsql_fd, EVFILT_READ | EVFILT_WRITE);
+    #endif
     if (status != PGRES_POLLING_OK) {
       std::cerr << "Warning: cannot connect to the postgresql server " << host_ << ": "
                 << PQerrorMessage(connection) << std::endl;
@@ -2008,13 +2252,12 @@ struct pgsql_database_impl {
     }
 
     // pgsql_set_character_set(pgsql, character_set_.c_str());
-    return std::shared_ptr<pgsql_connection_data>(new pgsql_connection_data{connection, pgsql_fd});
+    return new pgsql_connection_data{connection, pgsql_fd};
   }
 
-  template <typename Y, typename F>
-  auto scoped_connection(Y& fiber, std::shared_ptr<pgsql_connection_data>& data,
-                         F put_back_in_pool) {
-    return pgsql_connection(fiber, data, put_back_in_pool);
+  template <typename Y>
+  auto scoped_connection(Y& fiber, std::shared_ptr<pgsql_connection_data>& data) {
+    return pgsql_connection<Y>(fiber, data);
   }
 };
 
@@ -2030,122 +2273,182 @@ typedef sql_database<pgsql_database_impl> pgsql_database;
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_ORM_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_ORM_HH
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SYMBOLS_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SYMBOLS_HH
 
-#ifndef LI_SYMBOL_blocking
-#define LI_SYMBOL_blocking
-    LI_SYMBOL(blocking)
-#endif
-
-#ifndef LI_SYMBOL_create_secret_key
-#define LI_SYMBOL_create_secret_key
-    LI_SYMBOL(create_secret_key)
-#endif
-
-#ifndef LI_SYMBOL_date_thread
-#define LI_SYMBOL_date_thread
-    LI_SYMBOL(date_thread)
-#endif
-
-#ifndef LI_SYMBOL_hash_password
-#define LI_SYMBOL_hash_password
-    LI_SYMBOL(hash_password)
-#endif
-
-#ifndef LI_SYMBOL_https_cert
-#define LI_SYMBOL_https_cert
-    LI_SYMBOL(https_cert)
-#endif
-
-#ifndef LI_SYMBOL_https_key
-#define LI_SYMBOL_https_key
-    LI_SYMBOL(https_key)
-#endif
-
-#ifndef LI_SYMBOL_id
-#define LI_SYMBOL_id
-    LI_SYMBOL(id)
-#endif
-
-#ifndef LI_SYMBOL_linux_epoll
-#define LI_SYMBOL_linux_epoll
-    LI_SYMBOL(linux_epoll)
-#endif
-
-#ifndef LI_SYMBOL_name
-#define LI_SYMBOL_name
-    LI_SYMBOL(name)
-#endif
-
-#ifndef LI_SYMBOL_non_blocking
-#define LI_SYMBOL_non_blocking
-    LI_SYMBOL(non_blocking)
-#endif
-
-#ifndef LI_SYMBOL_nthreads
-#define LI_SYMBOL_nthreads
-    LI_SYMBOL(nthreads)
-#endif
-
-#ifndef LI_SYMBOL_one_thread_per_connection
-#define LI_SYMBOL_one_thread_per_connection
-    LI_SYMBOL(one_thread_per_connection)
-#endif
-
-#ifndef LI_SYMBOL_path
-#define LI_SYMBOL_path
-    LI_SYMBOL(path)
-#endif
-
-#ifndef LI_SYMBOL_primary_key
-#define LI_SYMBOL_primary_key
-    LI_SYMBOL(primary_key)
-#endif
-
-#ifndef LI_SYMBOL_read_only
-#define LI_SYMBOL_read_only
-    LI_SYMBOL(read_only)
-#endif
-
-#ifndef LI_SYMBOL_select
-#define LI_SYMBOL_select
-    LI_SYMBOL(select)
-#endif
-
-#ifndef LI_SYMBOL_server_thread
-#define LI_SYMBOL_server_thread
-    LI_SYMBOL(server_thread)
-#endif
-
-#ifndef LI_SYMBOL_session_id
-#define LI_SYMBOL_session_id
-    LI_SYMBOL(session_id)
-#endif
-
-#ifndef LI_SYMBOL_ssl_certificate
-#define LI_SYMBOL_ssl_certificate
-    LI_SYMBOL(ssl_certificate)
-#endif
-
-#ifndef LI_SYMBOL_ssl_key
-#define LI_SYMBOL_ssl_key
-    LI_SYMBOL(ssl_key)
-#endif
-
-#ifndef LI_SYMBOL_update_secret_key
-#define LI_SYMBOL_update_secret_key
-    LI_SYMBOL(update_secret_key)
-#endif
-
-#ifndef LI_SYMBOL_user_id
-#define LI_SYMBOL_user_id
-    LI_SYMBOL(user_id)
-#endif
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_CALLABLE_TRAITS_TUPLE_UTILS_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_CALLABLE_TRAITS_TUPLE_UTILS_HH
 
 
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SYMBOLS_HH
+namespace li {
 
+constexpr int count_first_falses() { return 0; }
+
+template <typename... B> constexpr int count_first_falses(bool b1, B... b) {
+  if (b1)
+    return 0;
+  else
+    return 1 + count_first_falses(b...);
+}
+
+template <typename E, typename... T> decltype(auto) arg_get_by_type_(void*, E* a1, T&&... args) {
+  return std::forward<E*>(a1);
+}
+
+template <typename E, typename... T>
+decltype(auto) arg_get_by_type_(void*, const E* a1, T&&... args) {
+  return std::forward<const E*>(a1);
+}
+
+template <typename E, typename... T> decltype(auto) arg_get_by_type_(void*, E& a1, T&&... args) {
+  return std::forward<E&>(a1);
+}
+
+template <typename E, typename... T>
+decltype(auto) arg_get_by_type_(void*, const E& a1, T&&... args) {
+  return std::forward<const E&>(a1);
+}
+
+template <typename E, typename T1, typename... T>
+decltype(auto) arg_get_by_type_(std::enable_if_t<!std::is_same<E, std::decay_t<T1>>::value>*,
+                                // void*,
+                                T1&&, T&&... args) {
+  return arg_get_by_type_<E>((void*)0, std::forward<T>(args)...);
+}
+
+template <typename E, typename... T> decltype(auto) arg_get_by_type(T&&... args) {
+  return arg_get_by_type_<std::decay_t<E>>(0, args...);
+}
+
+template <typename E, typename... T> decltype(auto) tuple_get_by_type(std::tuple<T...>& tuple) {
+  typedef std::decay_t<E> DE;
+  return std::get<count_first_falses((std::is_same<std::decay_t<T>, DE>::value)...)>(tuple);
+}
+
+template <typename E, typename... T> decltype(auto) tuple_get_by_type(std::tuple<T...>&& tuple) {
+  typedef std::decay_t<E> DE;
+  return std::get<count_first_falses((std::is_same<std::decay_t<T>, DE>::value)...)>(tuple);
+}
+
+template <typename T, typename U> struct tuple_embeds : public std::false_type {};
+
+template <typename... T, typename U>
+struct tuple_embeds<std::tuple<T...>, U>
+    : public std::integral_constant<bool, count_first_falses(std::is_same<T, U>::value...) !=
+                                              sizeof...(T)> {};
+
+template <typename U, typename... T> struct tuple_embeds_any_ref_of : public std::false_type {};
+template <typename U, typename... T>
+struct tuple_embeds_any_ref_of<std::tuple<T...>, U>
+    : public tuple_embeds<std::tuple<std::decay_t<T>...>, std::decay_t<U>> {};
+
+template <typename T> struct tuple_remove_references;
+template <typename... T> struct tuple_remove_references<std::tuple<T...>> {
+  typedef std::tuple<std::remove_reference_t<T>...> type;
+};
+
+template <typename T> using tuple_remove_references_t = typename tuple_remove_references<T>::type;
+
+template <typename T> struct tuple_remove_references_and_const;
+template <typename... T> struct tuple_remove_references_and_const<std::tuple<T...>> {
+  typedef std::tuple<std::remove_const_t<std::remove_reference_t<T>>...> type;
+};
+
+template <typename T>
+using tuple_remove_references_and_const_t = typename tuple_remove_references_and_const<T>::type;
+
+template <typename T, typename U, typename E> struct tuple_remove_element2;
+
+template <typename... T, typename... U, typename E1>
+struct tuple_remove_element2<std::tuple<E1, T...>, std::tuple<U...>, E1>
+    : public tuple_remove_element2<std::tuple<T...>, std::tuple<U...>, E1> {};
+
+template <typename... T, typename... U, typename T1, typename E1>
+struct tuple_remove_element2<std::tuple<T1, T...>, std::tuple<U...>, E1>
+    : public tuple_remove_element2<std::tuple<T...>, std::tuple<U..., T1>, E1> {};
+
+template <typename... U, typename E1>
+struct tuple_remove_element2<std::tuple<>, std::tuple<U...>, E1> {
+  typedef std::tuple<U...> type;
+};
+
+template <typename T, typename E>
+struct tuple_remove_element : public tuple_remove_element2<T, std::tuple<>, E> {};
+
+template <typename T, typename... E> struct tuple_remove_elements;
+
+template <typename... T, typename E1, typename... E>
+struct tuple_remove_elements<std::tuple<T...>, E1, E...> {
+  typedef typename tuple_remove_elements<typename tuple_remove_element<std::tuple<T...>, E1>::type,
+                                         E...>::type type;
+};
+
+template <typename... T> struct tuple_remove_elements<std::tuple<T...>> {
+  typedef std::tuple<T...> type;
+};
+
+template <typename A, typename B> struct tuple_minus;
+
+template <typename... T, typename... R> struct tuple_minus<std::tuple<T...>, std::tuple<R...>> {
+  typedef typename tuple_remove_elements<std::tuple<T...>, R...>::type type;
+};
+
+template <typename T, typename... E>
+using tuple_remove_elements_t = typename tuple_remove_elements<T, E...>::type;
+
+template <typename F, size_t... I, typename... T>
+inline F tuple_map(std::tuple<T...>& t, F f, std::index_sequence<I...>) {
+  return (void)std::initializer_list<int>{((void)f(std::get<I>(t)), 0)...}, f;
+}
+
+template <typename F, typename... T> inline void tuple_map(std::tuple<T...>& t, F f) {
+  tuple_map(t, f, std::index_sequence_for<T...>{});
+}
+
+template <typename F, size_t... I, typename T>
+inline decltype(auto) tuple_transform(T&& t, F f, std::index_sequence<I...>) {
+  return std::make_tuple(f(std::get<I>(std::forward<T>(t)))...);
+}
+
+template <typename F, typename T> inline decltype(auto) tuple_transform(T&& t, F f) {
+  return tuple_transform(std::forward<T>(t), f,
+                         std::make_index_sequence<std::tuple_size<std::decay_t<T>>{}>{});
+}
+
+template <template <class> class F, typename T, typename I, typename R, typename X = void>
+struct tuple_filter_sequence;
+
+template <template <class> class F, typename... T, typename R>
+struct tuple_filter_sequence<F, std::tuple<T...>, std::index_sequence<>, R> {
+  using ret = R;
+};
+
+template <template <class> class F, typename T1, typename... T, size_t I1, size_t... I, size_t... R>
+struct tuple_filter_sequence<F, std::tuple<T1, T...>, std::index_sequence<I1, I...>,
+                             std::index_sequence<R...>, std::enable_if_t<F<T1>::value>> {
+  using ret = typename tuple_filter_sequence<F, std::tuple<T...>, std::index_sequence<I...>,
+                                             std::index_sequence<R..., I1>>::ret;
+};
+
+template <template <class> class F, typename T1, typename... T, size_t I1, size_t... I, size_t... R>
+struct tuple_filter_sequence<F, std::tuple<T1, T...>, std::index_sequence<I1, I...>,
+                             std::index_sequence<R...>, std::enable_if_t<!F<T1>::value>> {
+  using ret = typename tuple_filter_sequence<F, std::tuple<T...>, std::index_sequence<I...>,
+                                             std::index_sequence<R...>>::ret;
+};
+
+template <std::size_t... I, typename T>
+decltype(auto) tuple_filter_impl(std::index_sequence<I...>, T&& t) {
+  return std::make_tuple(std::get<I>(t)...);
+}
+
+template <template <class> class F, typename T> decltype(auto) tuple_filter(T&& t) {
+  using seq = typename tuple_filter_sequence<
+      F, std::decay_t<T>, std::make_index_sequence<std::tuple_size<std::decay_t<T>>::value>,
+      std::index_sequence<>>::ret;
+  return tuple_filter_impl(seq{}, t);
+}
+} // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_CALLABLE_TRAITS_TUPLE_UTILS_HH
 
 
 namespace li {
@@ -2282,10 +2585,16 @@ template <typename SCHEMA, typename C> struct sql_orm {
         return ss.str();
     });
 
-    auto res = li::tuple_reduce(metamap_values(where), stmt).template read_optional<O>();
-    if (res)
-      call_callback(s::read_access, *res, cb_args...);
-    return res;
+    O result;
+    bool read_success = li::tuple_reduce(metamap_values(where), stmt).template read(metamap_values(result));
+    if (read_success)
+    {
+      call_callback(s::read_access, result, cb_args...);
+      return std::make_optional<O>(std::move(result));
+    }
+    else {
+      return std::optional<O>{};
+    }
   }
 
   template <typename A, typename B, typename... O, typename... W>
@@ -2397,7 +2706,11 @@ template <typename SCHEMA, typename C> struct sql_orm {
         ss << " FROM " << schema_.table_name();
         return ss.str();
     });
-    stmt().map([&](const O& o) { f(o); });
+    // stmt().map([&](const O& o) { f(o); });
+    using values_tuple = tuple_remove_references_and_const_t<decltype(metamap_values(std::declval<O>()))>;
+    using keys_tuple = decltype(metamap_keys(std::declval<O>()));
+    stmt().map([&](const values_tuple& values) { f(forward_tuple_as_metamap(keys_tuple{}, values)); });
+
   }
 
   // Update N's members except auto increment members.

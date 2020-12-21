@@ -12,7 +12,6 @@
 #include <mysql.h>
 #include <optional>
 #include <sstream>
-#include <sys/epoll.h>
 #include <thread>
 #include <unordered_map>
 
@@ -23,7 +22,7 @@
 #include <li/sql/mysql_statement_result.hh>
 #include <li/sql/sql_common.hh>
 #include <li/sql/symbols.hh>
-#include <li/sql/type_hashmap.hh>
+#include <li/sql/mysql_connection_data.hh>
 
 namespace li {
 
@@ -35,8 +34,8 @@ namespace li {
 template <typename B> struct mysql_result {
 
   B& mysql_wrapper_; // blocking or non blockin mysql functions wrapper.
-  MYSQL* con_; // Mysql connection
-  std::shared_ptr<int> connection_status_; // Status of the connection
+
+  std::shared_ptr<mysql_connection_data> connection_;
   MYSQL_RES* result_ = nullptr; // Mysql result.
 
   unsigned long* current_row_lengths_ = nullptr;

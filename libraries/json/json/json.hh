@@ -8,6 +8,8 @@
 
 namespace li {
 
+template <typename T> struct is_json_vector;
+
 template <typename T> struct json_object_base {
 
 public:
@@ -32,6 +34,16 @@ public:
     impl::json_encode(ss, obj, *downcast());
     return ss.str();
   }
+
+  template <typename C, typename G> void encode_generator(C& output, int size, G& generator) const {
+    static_assert(is_json_vector<T>::value, "encode_generator is only supported on json vector");
+      return this->encode(output, mmm(s::size = size, s::generator = generator));
+  }
+  template <typename G> std::string encode_generator(int size, G& generator) const {
+    static_assert(is_json_vector<T>::value, "encode_generator is only supported on json vector");
+      return this->encode(mmm(s::size = size, s::generator = generator));
+  }
+
 
   template <typename C, typename O> json_error decode(C& input, O& obj) const {
     return impl::json_decode(input, obj, *downcast());
@@ -62,10 +74,13 @@ template <typename V> struct json_value_ : public json_object_base<json_value_<V
 template <typename V> auto json_value(V&& v) { return json_value_<V>{}; }
 
 template <typename T> struct json_vector_ : public json_object_base<json_vector_<T>> {
+  enum { is_json_vector = true };
   json_vector_() = default;
   json_vector_(const T& s) : schema(s) {}
   T schema;
 };
+template <typename T> struct is_json_vector : std::false_type {};
+template <typename T> struct is_json_vector<json_vector_<T>> : std::true_type {};
 
 template <typename... S> auto json_vector(S&&... s) {
   auto obj = json_object(std::forward<S>(s)...);
@@ -102,7 +117,16 @@ template <typename C, typename M> decltype(auto) json_encode(C& output, const M&
 }
 
 template <typename M> auto json_encode(const M& obj) {
-  return std::move(impl::to_json_schema(obj).encode(obj));
+  return impl::to_json_schema(obj).encode(obj);
+}
+
+template <typename C, typename F> decltype(auto) json_encode_generator(C& output, int N, F generator) {
+  auto elt = impl::to_json_schema(decltype(generator()){});
+  json_vector_<decltype(elt)>(elt).encode_generator(output, N, generator);
+}
+template <typename F> decltype(auto) json_encode_generator(int N, F generator) {
+  auto elt = impl::to_json_schema(decltype(generator()){});
+  return json_vector_<decltype(elt)>(elt).encode_generator(N, generator);
 }
 
 template <typename A, typename B, typename... C>

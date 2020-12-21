@@ -22,11 +22,9 @@ template <typename Y> struct pgsql_statement {
 public:
   template <typename... T> sql_result<pgsql_result<Y>> operator()(T&&... args);
 
-  PGconn* connection_;
+  std::shared_ptr<pgsql_connection_data> connection_;
   Y& fiber_;
   pgsql_statement_data& data_;
-  std::shared_ptr<int> connection_status_;
-
 
 private:
 

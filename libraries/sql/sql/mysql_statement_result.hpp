@@ -12,7 +12,8 @@ template <typename B>
 template <typename T>
 void mysql_statement_result<B>::fetch_column(MYSQL_BIND* b, unsigned long, T&, int) {
   if (*b->error) {
-    throw std::runtime_error("Result could not fit in the provided types: loss of sign or significant digits or type mismatch.");
+    throw std::runtime_error("Result could not fit in the provided types: loss of sign or "
+                             "significant digits or type mismatch.");
   }
 }
 
@@ -28,15 +29,14 @@ void mysql_statement_result<B>::fetch_column(MYSQL_BIND* b, unsigned long real_l
 
   // Reserve enough space to fetch the string.
   v.resize(real_length);
-
   // Bind result.
-  b[i].buffer_length = real_length;
-  b[i].buffer = &v[0];
+  b[i].buffer_length = v.size();
+  b[i].buffer = v.data();
   mysql_stmt_bind_result(data_.stmt_, b);
   result_allocated_ = true;
 
   if (mysql_stmt_fetch_column(data_.stmt_, b + i, i, 0) != 0) {
-    *connection_status_ = 1;
+    connection_->error_ = 1;
     throw std::runtime_error(std::string("mysql_stmt_fetch_column error: ") +
                              mysql_stmt_error(data_.stmt_));
   }
@@ -49,28 +49,91 @@ void mysql_statement_result<B>::fetch_column(MYSQL_BIND& b, unsigned long real_l
   v.resize(real_length);
 }
 
-template <typename B> template <typename T> bool mysql_statement_result<B>::read(T&& output) {
-  // Todo: skip useless mysql_bind_output and mysql_stmt_bind_result if too costly.
-  // if (bound_ptr_ == (void*)output)...
+
+template <typename B>
+template <typename F>
+void mysql_statement_result<B>::map(F map_callback) {
+
+  typedef typename unconstref_tuple_elements<callable_arguments_tuple_t<F>>::ret TP;
+  typedef std::tuple_element_t<0, TP> TP0;
+
+  // std::cout << " specialized" << std::endl;
+  auto row_object = [] {
+    static_assert(std::tuple_size_v<TP> > 0, "sql_result map function must take at least 1 argument.");
+
+    if constexpr (is_tuple<TP0>::value || is_metamap<TP0>::value)
+      return TP0{};
+    else
+      return TP{};
+  }();
+
+  result_allocated_ = true;
+
+  // Bind output.
+  auto bind_data = mysql_bind_output(data_, row_object);
+  unsigned long* real_lengths = bind_data.real_lengths.data();
+  MYSQL_BIND* bind = bind_data.bind.data();
+
+  bool bind_ret = mysql_stmt_bind_result(data_.stmt_, bind_data.bind.data());
+  // std::cout << "bind_ret: " << bind_ret << std::endl;
+  if (bind_ret != 0) {
+    throw std::runtime_error(std::string("mysql_stmt_bind_result error: ") +
+                              mysql_stmt_error(data_.stmt_));
+  }
+
+
+  while (this->read(row_object, bind, real_lengths)) {
+    if constexpr (is_tuple<TP0>::value || is_metamap<TP0>::value)
+      map_callback(row_object);
+    else
+      std::apply(map_callback, row_object);
+
+    // restore string sizes to 100.
+    if constexpr (is_tuple<std::decay_t<decltype(row_object)>>::value)
+      tuple_map(row_object, [] (auto& v) { 
+        if constexpr (std::is_same_v<std::decay_t<decltype(v)>, std::string>)
+          v.resize(100);
+      });
+    if constexpr (is_metamap<std::decay_t<decltype(row_object)>>::value)
+      map(row_object, [] (auto& k, auto& v) { 
+        if constexpr (std::is_same_v<std::decay_t<decltype(v)>, std::string>)
+          v.resize(100);
+      });
+  }
+
+}
+
+
+template <typename B>
+template <typename T>
+bool mysql_statement_result<B>::read(T&& output) {
+
+  result_allocated_ = true;
+
+  // Bind output.
+  auto bind_data = mysql_bind_output(data_, std::forward<T>(output));
+  unsigned long* real_lengths = bind_data.real_lengths.data();
+  MYSQL_BIND* bind = bind_data.bind.data();
+
+  bool bind_ret = mysql_stmt_bind_result(data_.stmt_, bind_data.bind.data());
+  // std::cout << "bind_ret: " << bind_ret << std::endl;
+  if (bind_ret != 0) {
+    throw std::runtime_error(std::string("mysql_stmt_bind_result error: ") +
+                              mysql_stmt_error(data_.stmt_));
+  }
+
+
+  return this->read(std::forward<T>(output), bind, real_lengths);
+}
+
+template <typename B>
+template <typename T>
+bool mysql_statement_result<B>::read(T&& output, MYSQL_BIND* bind, unsigned long* real_lengths) {
   try {
-
-    // Bind output.
-    auto bind_data = mysql_bind_output(data_, std::forward<T>(output));
-    unsigned long* real_lengths = bind_data.real_lengths.data();
-    MYSQL_BIND* bind = bind_data.bind.data();
-
-    bool bind_ret = mysql_stmt_bind_result(data_.stmt_, bind_data.bind.data());
-    // std::cout << "bind_ret: " << bind_ret << std::endl;
-    if (bind_ret != 0)
-    {
-      throw std::runtime_error(std::string("mysql_stmt_bind_result error: ") + mysql_stmt_error(data_.stmt_));
-    }
-
-    result_allocated_ = true;
 
     // Fetch row.
     // Note: This also advance to the next row.
-    int res = mysql_wrapper_.mysql_stmt_fetch(connection_status_, data_.stmt_);
+    int res = mysql_wrapper_.mysql_stmt_fetch(connection_->error_, data_.stmt_);
     if (res == MYSQL_NO_DATA) // If end of result, return false.
       return false;
 
@@ -96,7 +159,6 @@ template <typename B> template <typename T> bool mysql_statement_result<B>::read
     mysql_stmt_reset(data_.stmt_);
     throw e;
   }
-
 }
 
 template <typename B> long long int mysql_statement_result<B>::last_insert_id() {

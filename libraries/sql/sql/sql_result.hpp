@@ -48,25 +48,42 @@ auto sql_result<B>::read_optional() {
     return std::optional<decltype(t)>{};
 }
 
+namespace internal {
+
+  template<typename T, typename F>
+  constexpr auto is_valid(F&& f) -> decltype(f(std::declval<T>()), true) { return true; }
+
+  template<typename>
+  constexpr bool is_valid(...) { return false; }
+
+}
+
+#define IS_VALID(T, EXPR) internal::is_valid<T>( [](auto&& obj)->decltype(obj.EXPR){} )
+
 template <typename B> template <typename F> void sql_result<B>::map(F map_function) {
 
+
+  if constexpr (IS_VALID(B, map(map_function)))
+    this->impl_.map(map_function);
+
   typedef typename unconstref_tuple_elements<callable_arguments_tuple_t<F>>::ret TP;
+  typedef std::tuple_element_t<0, TP> TP0;
 
   auto t = [] {
     static_assert(std::tuple_size_v<TP> > 0, "sql_result map function must take at least 1 argument.");
 
-    if constexpr (std::tuple_size_v<TP> == 1)
-      return std::tuple_element_t<0, TP>{};
-    else if constexpr (std::tuple_size_v<TP> > 1)
+    if constexpr (is_tuple<TP0>::value || is_metamap<TP0>::value)
+      return TP0{};
+    else
       return TP{};
   }();
 
-
-  while (auto res = this->read_optional<decltype(t)>()) {
-    if constexpr (std::tuple_size<TP>::value == 1)
-      map_function(res.value());
-    else if constexpr (std::tuple_size<TP>::value > 1)
-      std::apply(map_function, res.value());
+  while (this->read(t)) {
+    if constexpr (is_tuple<TP0>::value || is_metamap<TP0>::value)
+      map_function(t);
+    else
+      std::apply(map_function, t);
   }
+
 }
 } // namespace li

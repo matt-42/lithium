@@ -40,11 +40,9 @@ template <typename R, typename S> void test_result(R&& query, S&& new_query) {
   // std::cout << " STRING TO INT " << std::endl;
   // std::cout << "query(SELECT 'xxx';).template read<int>() == " << query("SELECT 'xxx';").template read<int>() << std::endl;
 
-  //query("SELECTT 1+2").template read<int>();
+  // new_query("SELECTT 1+2").template read<int>();
   // Invalid queries must throw.
-
-  EXPECT_THROW(new_query("SELECTT 1+2").template read<int>());
-
+  EXPECT_THROW(new_query("SELECTTT 1+2").template read<int>());
   // //   long long int affected_rows();
   // //   template <typename T> T read();
   EXPECT_EQUAL(3, query("SELECT 1+2").template read<int>());
@@ -100,6 +98,20 @@ template <typename R, typename S> void test_result(R&& query, S&& new_query) {
     EXPECT_EQUAL(name[0], 'a' + index - 1);
     index++;
   });
+
+
+  // map with growing string
+  init_test_table(query);
+  query("INSERT into users_test(id, name, age) values (1,'aaaaaaaaaaaaaaaaaaa',41);");
+  query("INSERT into users_test(id, name, age) values (2,'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',42);");
+  query("INSERT into users_test(id, name, age) values (3,'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',43);");
+  int sizes[] = {19, 57, 114};
+  index = 0;
+  query("SELECT name from users_test order by id;").map([&](std::string name) {
+    EXPECT_EQUAL(name.size(), sizes[index]);
+    index++;
+  });
+
 }
 
 template <typename D> std::string placeholder(int pos) {
@@ -137,9 +149,31 @@ template <typename D> void generic_sql_tests(D& database) {
 
   auto query = database.connect();
 
+  // try {
+  //   // database.connect();
+  //   auto fun = [&](std::string q) { return database.connect()(q); };
+  //   fun("SELECTT 1+2").template read<int>();
+  // } catch(...) {}
+
+  try {
+    // query.prepare("SELECT 2+2")().template read<int>();
+    // query.prepare()
+    // database.connect();
+    auto fun = [&](std::string q) { return database.connect().prepare(q)(); };
+    fun("SELECTT 1+2").template read<int>();
+  } catch(...) {}
+
+  // auto fun = [&](std::string q) { return database.connect().prepare(q)(); };
+    // fun("SELECTT 1+2").template read<int>();
+  // query.prepare("SELECT 1+2")().template read<int>();
+  // query.prepare("SELECT 2+2")().template read<int>();
+  // test_result([&](std::string q) { return query.prepare(q)(); }, [&](std::string q) { return database.connect().prepare(q)(); });
+  return;
+
+
+
   // test non prepared statement result.
   test_result(query, [&](std::string q) { return database.connect()(q); });
-
   // test prepared statement result.
   test_result([&](std::string q) { return query.prepare(q)(); }, [&](std::string q) { return database.connect().prepare(q)(); });
   test_long_strings_prepared_statement(query);

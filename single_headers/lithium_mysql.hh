@@ -14,7 +14,6 @@
 #include <cstring>
 #include <deque>
 #include <iostream>
-#include <lithium_symbol.hh>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -22,7 +21,12 @@
 #include <optional>
 #include <sstream>
 #include <string>
+#if __linux__
 #include <sys/epoll.h>
+#endif
+#if __APPLE__
+#include <sys/event.h>
+#endif
 #include <thread>
 #include <tuple>
 #include <unordered_map>
@@ -40,9 +44,101 @@
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_CALLABLE_TRAITS_CALLABLE_TRAITS_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_CALLABLE_TRAITS_CALLABLE_TRAITS_HH
 
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_CALLABLE_TRAITS_TYPELIST_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_CALLABLE_TRAITS_TYPELIST_HH
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS_HH
+
+
+namespace li {
+
+template <typename... E, typename F> constexpr void apply_each(F&& f, E&&... e) {
+  (void)std::initializer_list<int>{((void)f(std::forward<E>(e)), 0)...};
+}
+
+template <typename... E, typename F, typename R>
+constexpr auto tuple_map_reduce_impl(F&& f, R&& reduce, E&&... e) {
+  return reduce(f(std::forward<E>(e))...);
+}
+
+template <typename T, typename F> constexpr void tuple_map(T&& t, F&& f) {
+  return std::apply([&](auto&&... e) { apply_each(f, std::forward<decltype(e)>(e)...); },
+                    std::forward<T>(t));
+}
+
+template <typename T, typename F> constexpr auto tuple_reduce(T&& t, F&& f) {
+  return std::apply(std::forward<F>(f), std::forward<T>(t));
+}
+
+template <typename T, typename F, typename R>
+decltype(auto) tuple_map_reduce(T&& m, F map, R reduce) {
+  auto fun = [&](auto... e) { return tuple_map_reduce_impl(map, reduce, e...); };
+  return std::apply(fun, m);
+}
+
+template <typename F> constexpr inline std::tuple<> tuple_filter_impl() { return std::make_tuple(); }
+
+template <typename F, typename... M, typename M1> constexpr auto tuple_filter_impl(M1 m1, M... m) {
+  if constexpr (std::is_same<M1, F>::value)
+    return tuple_filter_impl<F>(m...);
+  else
+    return std::tuple_cat(std::make_tuple(m1), tuple_filter_impl<F>(m...));
+}
+
+template <typename F, typename... M> constexpr auto tuple_filter(const std::tuple<M...>& m) {
+
+  auto fun = [](auto... e) { return tuple_filter_impl<F>(e...); };
+  return std::apply(fun, m);
+}
+
+} // namespace li
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS_HH
+
+
 namespace li {
 
 template <typename... T> struct typelist {};
+
+template <typename... T1, typename... T2>
+constexpr auto typelist_cat(typelist<T1...> t1, typelist<T2...> t2) {
+  return typelist<T1..., T2...>();
+}
+
+template <typename T> struct typelist_to_tuple {};
+
+template <typename... T> struct typelist_to_tuple<typelist<T...>> {
+  typedef std::tuple<T...> type;
+};
+
+template <typename T> struct tuple_to_typelist {};
+
+template <typename... T> struct tuple_to_typelist<std::tuple<T...>> {
+  typedef typelist<T...> type;
+};
+
+template <typename T> using typelist_to_tuple_t = typename typelist_to_tuple<T>::type;
+template <typename T> using tuple_to_typelist_t = typename tuple_to_typelist<T>::type;
+
+template <typename T, typename U> struct typelist_embeds : public std::false_type {};
+
+template <typename... T, typename U>
+struct typelist_embeds<typelist<T...>, U>
+    : public std::integral_constant<bool, count_first_falses(std::is_same<T, U>::value...) !=
+                                              sizeof...(T)> {};
+
+template <typename T, typename E> struct typelist_embeds_any_ref_of : public std::false_type {};
+
+template <typename U, typename... T>
+struct typelist_embeds_any_ref_of<typelist<T...>, U>
+    : public typelist_embeds<typelist<std::decay_t<T>...>, std::decay_t<U>> {};
+
+} // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_CALLABLE_TRAITS_TYPELIST_HH
+
+
+namespace li {
 
 namespace internal {
 template <typename T> struct has_parenthesis_operator {
@@ -154,7 +250,7 @@ struct {
 
 template <typename... Ms> struct metamap;
 
-template <typename F, typename... M> decltype(auto) find_first(metamap<M...>&& map, F fun);
+template <typename F, typename... M> constexpr decltype(auto) find_first(metamap<M...>&& map, F fun);
 
 template <typename... Ms> struct metamap;
 
@@ -170,16 +266,16 @@ template <typename M1, typename... Ms> struct metamap<M1, Ms...> : public M1, pu
   // metamap(self& other)
   //  : metamap(const_cast<const self&>(other)) {}
 
-  inline metamap(typename M1::_iod_value_type&& m1, typename Ms::_iod_value_type&&... members) : M1{m1}, Ms{std::forward<typename Ms::_iod_value_type>(members)}... {}
-  inline metamap(M1&& m1, Ms&&... members) : M1(m1), Ms(std::forward<Ms>(members))... {}
-  inline metamap(const M1& m1, const Ms&... members) : M1(m1), Ms((members))... {}
+  constexpr inline metamap(typename M1::_iod_value_type&& m1, typename Ms::_iod_value_type&&... members) : M1{m1}, Ms{std::forward<typename Ms::_iod_value_type>(members)}... {}
+  constexpr inline metamap(M1&& m1, Ms&&... members) : M1(m1), Ms(std::forward<Ms>(members))... {}
+  constexpr inline metamap(const M1& m1, const Ms&... members) : M1(m1), Ms((members))... {}
 
   // Assignemnt ?
 
   // Retrive a value.
-  template <typename K> decltype(auto) operator[](K k) { return symbol_member_access(*this, k); }
+  template <typename K> constexpr decltype(auto) operator[](K k) { return symbol_member_access(*this, k); }
 
-  template <typename K> decltype(auto) operator[](K k) const {
+  template <typename K> constexpr decltype(auto) operator[](K k) const {
     return symbol_member_access(*this, k);
   }
 };
@@ -187,9 +283,9 @@ template <typename M1, typename... Ms> struct metamap<M1, Ms...> : public M1, pu
 template <> struct metamap<> {
   typedef metamap<> self;
   // Constructors.
-  inline metamap() = default;
+  constexpr inline metamap() = default;
   // inline metamap(self&&) = default;
-  inline metamap(const self&) = default;
+  constexpr inline metamap(const self&) = default;
   // self& operator=(const self&) = default;
 
   // metamap(self& other)
@@ -198,9 +294,9 @@ template <> struct metamap<> {
   // Assignemnt ?
 
   // Retrive a value.
-  template <typename K> decltype(auto) operator[](K k) { return symbol_member_access(*this, k); }
+  template <typename K> constexpr decltype(auto) operator[](K k) { return symbol_member_access(*this, k); }
 
-  template <typename K> decltype(auto) operator[](K k) const {
+  template <typename K> constexpr decltype(auto) operator[](K k) const {
     return symbol_member_access(*this, k);
   }
 };
@@ -215,8 +311,15 @@ template <typename M> constexpr int metamap_size() {
   return metamap_size_t<std::decay_t<M>>::value;
 }
 
-template <typename... Ks> decltype(auto) metamap_values(const metamap<Ks...>& map) {
+template <typename... Ks> constexpr decltype(auto) metamap_values(const metamap<Ks...>& map) {
   return std::forward_as_tuple(map[typename Ks::_iod_symbol_type()]...);
+}
+template <typename... Ks> constexpr decltype(auto) metamap_values(metamap<Ks...>& map) {
+  return std::forward_as_tuple(map[typename Ks::_iod_symbol_type()]...);
+}
+
+template <typename... Ks> constexpr decltype(auto) metamap_keys(const metamap<Ks...>& map) {
+  return std::make_tuple(typename Ks::_iod_symbol_type()...);
 }
 
 template <typename K, typename M> constexpr auto has_key(M&& map, K k) {
@@ -253,7 +356,7 @@ template <typename... M> struct is_metamap<metamap<M...>> {
 namespace li {
 
 template <typename... T, typename... U>
-inline decltype(auto) cat(const metamap<T...>& a, const metamap<U...>& b) {
+constexpr inline decltype(auto) cat(const metamap<T...>& a, const metamap<U...>& b) {
   return metamap<T..., U...>(*static_cast<const T*>(&a)..., *static_cast<const U*>(&b)...);
 }
 
@@ -452,6 +555,7 @@ class symbol : public assignable<S>,
     template <typename T> static constexpr auto has_member(long) { return std::false_type{}; }     \
                                                                                                    \
     static inline auto symbol_string() { return #NAME; }                                           \
+    static inline auto json_key_string() { return "\"" #NAME "\":"; }                              \
   };                                                                                               \
   static constexpr NAME##_t NAME;                                                                  \
   }
@@ -524,38 +628,61 @@ template <typename... Ms> struct metamap;
 
 namespace internal {
 
-template <typename S, typename V> decltype(auto) exp_to_variable_ref(const assign_exp<S, V>& e) {
+template <typename S, typename V> constexpr decltype(auto) exp_to_variable_ref(const assign_exp<S, V>& e) {
   return make_variable_reference(S{}, e.right);
 }
 
-template <typename S, typename V> decltype(auto) exp_to_variable(const assign_exp<S, V>& e) {
+template <typename S, typename V> constexpr decltype(auto) exp_to_variable(const assign_exp<S, V>& e) {
   typedef std::remove_const_t<std::remove_reference_t<V>> vtype;
   return make_variable(S{}, e.right);
 }
 
-template <typename S> decltype(auto) exp_to_variable(const symbol<S>& e) {
+template <typename S> decltype(auto) constexpr exp_to_variable(const symbol<S>& e) {
   return exp_to_variable(S() = int());
 }
 
-template <typename... T> inline decltype(auto) make_metamap_helper(T&&... args) {
+template <typename... T> constexpr inline decltype(auto) make_metamap_helper(T&&... args) {
   return metamap<T...>(std::forward<T>(args)...);
 }
 
 } // namespace internal
 
 // Store copies of values in the map
-static struct {
-  template <typename... T> inline decltype(auto) operator()(T&&... args) const {
-    // Copy values.
-    return internal::make_metamap_helper(internal::exp_to_variable(std::forward<T>(args))...);
-  }
-} mmm;
+template <typename... T> constexpr inline decltype(auto) mmm(T&&... args) {
+  // Copy values.
+  return internal::make_metamap_helper(internal::exp_to_variable(std::forward<T>(args))...);
+}
 
 // Store references of values in the map
-template <typename... T> inline decltype(auto) make_metamap_reference(T&&... args) {
+template <typename... T> constexpr inline decltype(auto) make_metamap_reference(T&&... args) {
   // Keep references.
   return internal::make_metamap_helper(internal::exp_to_variable_ref(std::forward<T>(args))...);
 }
+
+template <typename... Ks> constexpr decltype(auto) metamap_clone(const metamap<Ks...>& map) {
+  return mmm((typename Ks::_iod_symbol_type() = map[typename Ks::_iod_symbol_type()])...);
+}
+
+namespace internal {
+  
+  template <typename... V>
+  auto make_metamap_type(typelist<V...> variables) {
+    return mmm(V(*(typename V::left_t*)0, *(typename V::right_t*)0)...);
+  };
+
+  template <typename T1, typename T2, typename... V, typename... T>
+  auto make_metamap_type(typelist<V...> variables, T1, T2, T... args) {
+    return make_metamap_type(typelist<V..., assign_exp<T1, T2>>{},
+              args...);
+  };
+}
+
+// Helper to make a metamap type:
+//  metamap_t<s::name_t, string, s::age_t, int>
+//  instead of decltype(mmm(s::name = string(), s::age = int()));
+template <typename... T>
+using metamap_t = decltype(internal::make_metamap_type(typelist<>{}, std::declval<T>()...));
+
 
 } // namespace li
 
@@ -568,20 +695,20 @@ struct skip {};
 static struct {
 
   template <typename... M, typename... T>
-  inline decltype(auto) run(metamap<M...> map, skip, T&&... args) const {
+  constexpr inline decltype(auto) run(metamap<M...> map, skip, T&&... args) const {
     return run(map, std::forward<T>(args)...);
   }
 
   template <typename T1, typename... M, typename... T>
-  inline decltype(auto) run(metamap<M...> map, T1&& a, T&&... args) const {
+  constexpr inline decltype(auto) run(metamap<M...> map, T1&& a, T&&... args) const {
     return run(
         cat(map, internal::make_metamap_helper(internal::exp_to_variable(std::forward<T1>(a)))),
         std::forward<T>(args)...);
   }
 
-  template <typename... M> inline decltype(auto) run(metamap<M...> map) const { return map; }
+  template <typename... M> constexpr inline decltype(auto) run(metamap<M...> map) const { return map; }
 
-  template <typename... T> inline decltype(auto) operator()(T&&... args) const {
+  template <typename... T> constexpr inline decltype(auto) operator()(T&&... args) const {
     // Copy values.
     return run(metamap<>{}, std::forward<T>(args)...);
   }
@@ -595,59 +722,11 @@ static struct {
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_MAP_REDUCE_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_MAP_REDUCE_HH
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS_HH
-
-
-namespace li {
-
-template <typename... E, typename F> void apply_each(F&& f, E&&... e) {
-  (void)std::initializer_list<int>{((void)f(std::forward<E>(e)), 0)...};
-}
-
-template <typename... E, typename F, typename R>
-auto tuple_map_reduce_impl(F&& f, R&& reduce, E&&... e) {
-  return reduce(f(std::forward<E>(e))...);
-}
-
-template <typename T, typename F> void tuple_map(T&& t, F&& f) {
-  return std::apply([&](auto&&... e) { apply_each(f, std::forward<decltype(e)>(e)...); },
-                    std::forward<T>(t));
-}
-
-template <typename T, typename F> auto tuple_reduce(T&& t, F&& f) {
-  return std::apply(std::forward<F>(f), std::forward<T>(t));
-}
-
-template <typename T, typename F, typename R>
-decltype(auto) tuple_map_reduce(T&& m, F map, R reduce) {
-  auto fun = [&](auto... e) { return tuple_map_reduce_impl(map, reduce, e...); };
-  return std::apply(fun, m);
-}
-
-template <typename F> inline std::tuple<> tuple_filter_impl() { return std::make_tuple(); }
-
-template <typename F, typename... M, typename M1> auto tuple_filter_impl(M1 m1, M... m) {
-  if constexpr (std::is_same<M1, F>::value)
-    return tuple_filter_impl<F>(m...);
-  else
-    return std::tuple_cat(std::make_tuple(m1), tuple_filter_impl<F>(m...));
-}
-
-template <typename F, typename... M> auto tuple_filter(const std::tuple<M...>& m) {
-
-  auto fun = [](auto... e) { return tuple_filter_impl<F>(e...); };
-  return std::apply(fun, m);
-}
-
-} // namespace li
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_TUPLE_UTILS_HH
-
 
 namespace li {
 
 // Map a function(key, value) on all kv pair
-template <typename... M, typename F> void map(const metamap<M...>& m, F fun) {
+template <typename... M, typename F> constexpr void map(const metamap<M...>& m, F fun) {
   auto apply = [&](auto key) -> decltype(auto) { return fun(key, m[key]); };
 
   apply_each(apply, typename M::_iod_symbol_type{}...);
@@ -681,13 +760,13 @@ template <typename... M, typename F> void map(const metamap<M...>& m, F fun) {
 // }
 
 // Map a function(key, value) on all kv pair (non const).
-template <typename... M, typename F> void map(metamap<M...>& m, F fun) {
+template <typename... M, typename F> constexpr void map(metamap<M...>& m, F fun) {
   auto apply = [&](auto key) -> decltype(auto) { return fun(key, m[key]); };
 
   apply_each(apply, typename M::_iod_symbol_type{}...);
 }
 
-template <typename... E, typename F, typename R> auto apply_each2(F&& f, R&& r, E&&... e) {
+template <typename... E, typename F, typename R> constexpr auto apply_each2(F&& f, R&& r, E&&... e) {
   return r(f(std::forward<E>(e))...);
   //(void)std::initializer_list<int>{
   //  ((void)f(std::forward<E>(e)), 0)...};
@@ -696,7 +775,7 @@ template <typename... E, typename F, typename R> auto apply_each2(F&& f, R&& r, 
 // Map a function(key, value) on all kv pair an reduce
 // all the results value with the reduce(r1, r2, ...) function.
 template <typename... M, typename F, typename R>
-decltype(auto) map_reduce(const metamap<M...>& m, F map, R reduce) {
+constexpr decltype(auto) map_reduce(const metamap<M...>& m, F map, R reduce) {
   auto apply = [&](auto key) -> decltype(auto) {
     // return map(key, std::forward<decltype(m[key])>(m[key]));
     return map(key, m[key]);
@@ -708,7 +787,7 @@ decltype(auto) map_reduce(const metamap<M...>& m, F map, R reduce) {
 
 // Map a function(key, value) on all kv pair an reduce
 // all the results value with the reduce(r1, r2, ...) function.
-template <typename... M, typename R> decltype(auto) reduce(const metamap<M...>& m, R reduce) {
+template <typename... M, typename R> constexpr decltype(auto) reduce(const metamap<M...>& m, R reduce) {
   return reduce(m[typename M::_iod_symbol_type{}]...);
 }
 
@@ -721,7 +800,7 @@ template <typename... M, typename R> decltype(auto) reduce(const metamap<M...>& 
 namespace li {
 
 template <typename... T, typename... U>
-inline decltype(auto) intersection(const metamap<T...>& a, const metamap<U...>& b) {
+constexpr inline decltype(auto) intersection(const metamap<T...>& a, const metamap<U...>& b) {
   return map_reduce(a,
                     [&](auto k, auto&& v) -> decltype(auto) {
                       if constexpr (has_key<metamap<U...>, decltype(k)>()) {
@@ -743,7 +822,7 @@ inline decltype(auto) intersection(const metamap<T...>& a, const metamap<U...>& 
 namespace li {
 
 template <typename... T, typename... U>
-inline auto substract(const metamap<T...>& a, const metamap<U...>& b) {
+constexpr inline auto substract(const metamap<T...>& a, const metamap<U...>& b) {
   return map_reduce(a,
                     [&](auto k, auto&& v) {
                       if constexpr (!has_key<metamap<U...>, decltype(k)>()) {
@@ -757,6 +836,37 @@ inline auto substract(const metamap<T...>& a, const metamap<U...>& b) {
 } // namespace li
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_SUBSTRACT_HH
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_FORWARD_TUPLE_AS_METAMAP_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_FORWARD_TUPLE_AS_METAMAP_HH
+
+
+namespace li {
+
+namespace internal {
+
+template <typename... S, typename... V, typename T, T... I>
+constexpr auto forward_tuple_as_metamap_impl(std::tuple<S...> keys, std::tuple<V...>& values, std::integer_sequence<T, I...>) {
+  return make_metamap_reference((std::get<I>(keys) = std::get<I>(values))...);
+}
+template <typename... S, typename... V, typename T, T... I>
+constexpr auto forward_tuple_as_metamap_impl(std::tuple<S...> keys, const std::tuple<V...>& values, std::integer_sequence<T, I...>) {
+  return make_metamap_reference((std::get<I>(keys) = std::get<I>(values))...);
+}
+
+} // namespace internal
+
+template <typename... S, typename... V>
+constexpr auto forward_tuple_as_metamap(std::tuple<S...> keys, std::tuple<V...>& values) {
+  return internal::forward_tuple_as_metamap_impl(keys, values, std::make_index_sequence<sizeof...(V)>{});
+}
+template <typename... S, typename... V>
+constexpr auto forward_tuple_as_metamap(std::tuple<S...> keys, const std::tuple<V...>& values) {
+  return internal::forward_tuple_as_metamap_impl(keys, values, std::make_index_sequence<sizeof...(V)>{});
+}
+
+} // namespace li
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_ALGORITHMS_FORWARD_TUPLE_AS_METAMAP_HH
 
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_METAMAP_METAMAP_HH
@@ -922,6 +1032,11 @@ template <unsigned SIZE> struct sql_varchar : public std::string {
     LI_SYMBOL(validate)
 #endif
 
+#ifndef LI_SYMBOL_waiting_list
+#define LI_SYMBOL_waiting_list
+    LI_SYMBOL(waiting_list)
+#endif
+
 #ifndef LI_SYMBOL_write_access
 #define LI_SYMBOL_write_access
     LI_SYMBOL(write_access)
@@ -938,17 +1053,17 @@ struct mysql_functions_blocking {
   enum { is_blocking = true };
 
 #define LI_MYSQL_BLOCKING_WRAPPER(ERR, FN)                                                              \
-  template <typename A1, typename... A> auto FN(std::shared_ptr<int> connection_status, A1 a1, A&&... a) {\
+  template <typename A1, typename... A> auto FN(int& connection_status, A1 a1, A&&... a) {\
     int ret = ::FN(a1, std::forward<A>(a)...); \
     if (ret and ret != MYSQL_NO_DATA and ret != MYSQL_DATA_TRUNCATED) \
     { \
-      *connection_status = 1;\
+      connection_status = 1;\
       throw std::runtime_error(std::string("Mysql error: ") + ERR(a1));\
     } \
     return ret; }
 
-  MYSQL_ROW mysql_fetch_row(std::shared_ptr<int> connection_status, MYSQL_RES* res) { return ::mysql_fetch_row(res); }
-  int mysql_free_result(std::shared_ptr<int> connection_status, MYSQL_RES* res) { ::mysql_free_result(res); return 0; }
+  MYSQL_ROW mysql_fetch_row(int& connection_status, MYSQL_RES* res) { return ::mysql_fetch_row(res); }
+  int mysql_free_result(int& connection_status, MYSQL_RES* res) { ::mysql_free_result(res); return 0; }
   //LI_MYSQL_BLOCKING_WRAPPER(mysql_error, mysql_fetch_row)
   LI_MYSQL_BLOCKING_WRAPPER(mysql_error, mysql_real_query)
   LI_MYSQL_BLOCKING_WRAPPER(mysql_error, mysql_free_result)
@@ -963,12 +1078,16 @@ struct mysql_functions_blocking {
 
 };
 
+// ========================================================================
+// =================== MARIADB ASYNC WRAPPERS =============================
+// ========================================================================
+#ifdef LIBMARIADB
 // Non blocking version.
 template <typename Y> struct mysql_functions_non_blocking {
   enum { is_blocking = false };
 
   template <typename RT, typename A1, typename... A, typename B1, typename... B>
-  auto mysql_non_blocking_call(std::shared_ptr<int> connection_status,
+  auto mysql_non_blocking_call(int& connection_status,
                               const char* fn_name, 
                                const char *error_fun(B1),
                                int fn_start(RT*, B1, B...),
@@ -984,7 +1103,7 @@ template <typename Y> struct mysql_functions_non_blocking {
       } catch (typename Y::exception_type& e) {
         // Yield thrown a exception (probably because a closed connection).
         // Mark the connection as broken because it is left in a undefined state.
-        *connection_status = 1;
+        connection_status = 1;
         throw std::move(e);
       }
 
@@ -992,7 +1111,7 @@ template <typename Y> struct mysql_functions_non_blocking {
     }
     if (ret and ret != MYSQL_NO_DATA and ret != MYSQL_DATA_TRUNCATED)
     {
-      *connection_status = 1;
+      connection_status = 1;
       throw std::runtime_error(std::string("Mysql error in ") + fn_name + ": " + error_fun(a1));
     }
     return ret;
@@ -1000,7 +1119,7 @@ template <typename Y> struct mysql_functions_non_blocking {
 
 
 #define LI_MYSQL_NONBLOCKING_WRAPPER(ERR, FN)                                                           \
-  template <typename... A> auto FN(std::shared_ptr<int> connection_status, A&&... a) {                                                     \
+  template <typename... A> auto FN(int& connection_status, A&&... a) {                                                     \
     return mysql_non_blocking_call(connection_status, #FN, ERR, ::FN##_start, ::FN##_cont, std::forward<A>(a)...);              \
   }
 
@@ -1018,6 +1137,12 @@ template <typename Y> struct mysql_functions_non_blocking {
 
   Y& fiber_;
 };
+
+#else
+// MYSQL not supported yet because it does not have a
+// nonblocking API for prepared statements.
+#error Only the MariaDB libmysqlclient is supported.
+#endif
 
 } // namespace li
 
@@ -1049,6 +1174,7 @@ struct mysql_statement_data : std::enable_shared_from_this<mysql_statement_data>
   MYSQL_FIELD* fields_ = nullptr;
 
   mysql_statement_data(MYSQL_STMT* stmt) {
+    // std::cout << "create statement " << std::endl;
     stmt_ = stmt;
     metadata_ = mysql_stmt_result_metadata(stmt_);
     if (metadata_) {
@@ -1061,7 +1187,9 @@ struct mysql_statement_data : std::enable_shared_from_this<mysql_statement_data>
     if (metadata_)
       mysql_free_result(metadata_);
     mysql_stmt_free_result(stmt_);
-    mysql_stmt_close(stmt_);
+    if (mysql_stmt_close(stmt_))
+      std::cerr << "Error: could not free mysql statement" << std::endl;
+    // std::cout << "delete statement " << std::endl;
   }
 };
 
@@ -1071,22 +1199,22 @@ struct mysql_statement_data : std::enable_shared_from_this<mysql_statement_data>
 namespace li {
 
 // Convert C++ types to mysql types.
-auto type_to_mysql_statement_buffer_type(const char&) { return MYSQL_TYPE_TINY; }
-auto type_to_mysql_statement_buffer_type(const short int&) { return MYSQL_TYPE_SHORT; }
-auto type_to_mysql_statement_buffer_type(const int&) { return MYSQL_TYPE_LONG; }
-auto type_to_mysql_statement_buffer_type(const long long int&) { return MYSQL_TYPE_LONGLONG; }
-auto type_to_mysql_statement_buffer_type(const float&) { return MYSQL_TYPE_FLOAT; }
-auto type_to_mysql_statement_buffer_type(const double&) { return MYSQL_TYPE_DOUBLE; }
-auto type_to_mysql_statement_buffer_type(const sql_blob&) { return MYSQL_TYPE_BLOB; }
-auto type_to_mysql_statement_buffer_type(const char*) { return MYSQL_TYPE_STRING; }
-template <unsigned S> auto type_to_mysql_statement_buffer_type(const sql_varchar<S>) {
+inline auto type_to_mysql_statement_buffer_type(const char&) { return MYSQL_TYPE_TINY; }
+inline auto type_to_mysql_statement_buffer_type(const short int&) { return MYSQL_TYPE_SHORT; }
+inline auto type_to_mysql_statement_buffer_type(const int&) { return MYSQL_TYPE_LONG; }
+inline auto type_to_mysql_statement_buffer_type(const long long int&) { return MYSQL_TYPE_LONGLONG; }
+inline auto type_to_mysql_statement_buffer_type(const float&) { return MYSQL_TYPE_FLOAT; }
+inline auto type_to_mysql_statement_buffer_type(const double&) { return MYSQL_TYPE_DOUBLE; }
+inline auto type_to_mysql_statement_buffer_type(const sql_blob&) { return MYSQL_TYPE_BLOB; }
+inline auto type_to_mysql_statement_buffer_type(const char*) { return MYSQL_TYPE_STRING; }
+template <unsigned S> inline auto type_to_mysql_statement_buffer_type(const sql_varchar<S>) {
   return MYSQL_TYPE_STRING;
 }
 
-auto type_to_mysql_statement_buffer_type(const unsigned char&) { return MYSQL_TYPE_TINY; }
-auto type_to_mysql_statement_buffer_type(const unsigned short int&) { return MYSQL_TYPE_SHORT; }
-auto type_to_mysql_statement_buffer_type(const unsigned int&) { return MYSQL_TYPE_LONG; }
-auto type_to_mysql_statement_buffer_type(const unsigned long long int&) {
+inline auto type_to_mysql_statement_buffer_type(const unsigned char&) { return MYSQL_TYPE_TINY; }
+inline auto type_to_mysql_statement_buffer_type(const unsigned short int&) { return MYSQL_TYPE_SHORT; }
+inline auto type_to_mysql_statement_buffer_type(const unsigned int&) { return MYSQL_TYPE_LONG; }
+inline auto type_to_mysql_statement_buffer_type(const unsigned long long int&) {
   return MYSQL_TYPE_LONGLONG;
 }
 
@@ -1125,12 +1253,12 @@ template <typename V> void mysql_bind_param(MYSQL_BIND& b, V& v) {
   b.is_unsigned = std::is_unsigned<V>::value;
 }
 
-void mysql_bind_param(MYSQL_BIND& b, std::string& s) {
+inline void mysql_bind_param(MYSQL_BIND& b, std::string& s) {
   b.buffer = &s[0];
   b.buffer_type = MYSQL_TYPE_STRING;
   b.buffer_length = s.size();
 }
-void mysql_bind_param(MYSQL_BIND& b, const std::string& s) {
+inline void mysql_bind_param(MYSQL_BIND& b, const std::string& s) {
   mysql_bind_param(b, *const_cast<std::string*>(&s));
 }
 
@@ -1138,23 +1266,23 @@ template <unsigned SIZE> void mysql_bind_param(MYSQL_BIND& b, const sql_varchar<
   mysql_bind_param(b, *const_cast<std::string*>(static_cast<const std::string*>(&s)));
 }
 
-void mysql_bind_param(MYSQL_BIND& b, char* s) {
+inline void mysql_bind_param(MYSQL_BIND& b, char* s) {
   b.buffer = s;
   b.buffer_type = MYSQL_TYPE_STRING;
   b.buffer_length = strlen(s);
 }
-void mysql_bind_param(MYSQL_BIND& b, const char* s) { mysql_bind_param(b, const_cast<char*>(s)); }
+inline void mysql_bind_param(MYSQL_BIND& b, const char* s) { mysql_bind_param(b, const_cast<char*>(s)); }
 
-void mysql_bind_param(MYSQL_BIND& b, sql_blob& s) {
+inline void mysql_bind_param(MYSQL_BIND& b, sql_blob& s) {
   b.buffer = &s[0];
   b.buffer_type = MYSQL_TYPE_BLOB;
   b.buffer_length = s.size();
 }
-void mysql_bind_param(MYSQL_BIND& b, const sql_blob& s) {
+inline void mysql_bind_param(MYSQL_BIND& b, const sql_blob& s) {
   mysql_bind_param(b, *const_cast<sql_blob*>(&s));
 }
 
-void mysql_bind_param(MYSQL_BIND& b, sql_null_t n) { b.buffer_type = MYSQL_TYPE_NULL; }
+inline void mysql_bind_param(MYSQL_BIND& b, sql_null_t n) { b.buffer_type = MYSQL_TYPE_NULL; }
 
 //
 // Bind output function.
@@ -1165,11 +1293,11 @@ template <typename T> void mysql_bind_output(MYSQL_BIND& b, unsigned long* real_
   mysql_bind_param(b, v);
 }
 
-void mysql_bind_output(MYSQL_BIND& b, unsigned long* real_length, std::string& v) {
+inline void mysql_bind_output(MYSQL_BIND& b, unsigned long* real_length, std::string& v) {
   v.resize(100);
   b.buffer_type = MYSQL_TYPE_STRING;
   b.buffer_length = v.size();
-  b.buffer = &v[0];
+  b.buffer = v.data();
   b.length = real_length;
 }
 
@@ -1476,26 +1604,43 @@ auto sql_result<B>::read_optional() {
     return std::optional<decltype(t)>{};
 }
 
+namespace internal {
+
+  template<typename T, typename F>
+  constexpr auto is_valid(F&& f) -> decltype(f(std::declval<T>()), true) { return true; }
+
+  template<typename>
+  constexpr bool is_valid(...) { return false; }
+
+}
+
+#define IS_VALID(T, EXPR) internal::is_valid<T>( [](auto&& obj)->decltype(obj.EXPR){} )
+
 template <typename B> template <typename F> void sql_result<B>::map(F map_function) {
 
+
+  if constexpr (IS_VALID(B, map(map_function)))
+    this->impl_.map(map_function);
+
   typedef typename unconstref_tuple_elements<callable_arguments_tuple_t<F>>::ret TP;
+  typedef std::tuple_element_t<0, TP> TP0;
 
   auto t = [] {
     static_assert(std::tuple_size_v<TP> > 0, "sql_result map function must take at least 1 argument.");
 
-    if constexpr (std::tuple_size_v<TP> == 1)
-      return std::tuple_element_t<0, TP>{};
-    else if constexpr (std::tuple_size_v<TP> > 1)
+    if constexpr (is_tuple<TP0>::value || is_metamap<TP0>::value)
+      return TP0{};
+    else
       return TP{};
   }();
 
-
-  while (auto res = this->read_optional<decltype(t)>()) {
-    if constexpr (std::tuple_size<TP>::value == 1)
-      map_function(res.value());
-    else if constexpr (std::tuple_size<TP>::value > 1)
-      std::apply(map_function, res.value());
+  while (this->read(t)) {
+    if constexpr (is_tuple<TP0>::value || is_metamap<TP0>::value)
+      map_function(t);
+    else
+      std::apply(map_function, t);
   }
+
 }
 } // namespace li
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_RESULT_HPP
@@ -1507,6 +1652,31 @@ template <typename B> template <typename F> void sql_result<B>::map(F map_functi
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_STATEMENT_RESULT_HH
 
 
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_CONNECTION_DATA_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_CONNECTION_DATA_HH
+
+
+
+namespace li
+{
+
+/**
+ * @brief Data of a connection.
+ *
+ */
+struct mysql_connection_data {
+
+  ~mysql_connection_data() { mysql_close(connection_); }
+
+  MYSQL* connection_;
+  std::unordered_map<std::string, std::shared_ptr<mysql_statement_data>> statements_;
+  type_hashmap<std::shared_ptr<mysql_statement_data>> statements_hashmap_;
+  int error_ = 0;
+};
+
+}
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_CONNECTION_DATA_HH
 
 
 namespace li {
@@ -1527,13 +1697,18 @@ template <typename B> struct mysql_statement_result {
   inline ~mysql_statement_result() { flush_results(); }
 
   inline void flush_results() {
-    if (result_allocated_)
-      mysql_wrapper_.mysql_stmt_free_result(connection_status_, data_.stmt_);
-    result_allocated_ = false;
+    // if (result_allocated_)
+    mysql_wrapper_.mysql_stmt_free_result(connection_->error_, data_.stmt_);
+    // result_allocated_ = false;
   }
 
   // Read std::tuple and li::metamap.
   template <typename T> bool read(T&& output);
+
+  template <typename T>
+  bool read(T&& output, MYSQL_BIND* bind, unsigned long* real_lengths);
+
+  template <typename F> void map(F map_callback);
 
   /**
    * @return the number of rows affected by the request.
@@ -1563,7 +1738,7 @@ template <typename B> struct mysql_statement_result {
 
   B& mysql_wrapper_;
   mysql_statement_data& data_;
-  std::shared_ptr<int> connection_status_;
+  std::shared_ptr<mysql_connection_data> connection_;
   bool result_allocated_ = false;
 };
 
@@ -1583,7 +1758,8 @@ template <typename B>
 template <typename T>
 void mysql_statement_result<B>::fetch_column(MYSQL_BIND* b, unsigned long, T&, int) {
   if (*b->error) {
-    throw std::runtime_error("Result could not fit in the provided types: loss of sign or significant digits or type mismatch.");
+    throw std::runtime_error("Result could not fit in the provided types: loss of sign or "
+                             "significant digits or type mismatch.");
   }
 }
 
@@ -1599,15 +1775,14 @@ void mysql_statement_result<B>::fetch_column(MYSQL_BIND* b, unsigned long real_l
 
   // Reserve enough space to fetch the string.
   v.resize(real_length);
-
   // Bind result.
-  b[i].buffer_length = real_length;
-  b[i].buffer = &v[0];
+  b[i].buffer_length = v.size();
+  b[i].buffer = v.data();
   mysql_stmt_bind_result(data_.stmt_, b);
   result_allocated_ = true;
 
   if (mysql_stmt_fetch_column(data_.stmt_, b + i, i, 0) != 0) {
-    *connection_status_ = 1;
+    connection_->error_ = 1;
     throw std::runtime_error(std::string("mysql_stmt_fetch_column error: ") +
                              mysql_stmt_error(data_.stmt_));
   }
@@ -1620,28 +1795,91 @@ void mysql_statement_result<B>::fetch_column(MYSQL_BIND& b, unsigned long real_l
   v.resize(real_length);
 }
 
-template <typename B> template <typename T> bool mysql_statement_result<B>::read(T&& output) {
-  // Todo: skip useless mysql_bind_output and mysql_stmt_bind_result if too costly.
-  // if (bound_ptr_ == (void*)output)...
+
+template <typename B>
+template <typename F>
+void mysql_statement_result<B>::map(F map_callback) {
+
+  typedef typename unconstref_tuple_elements<callable_arguments_tuple_t<F>>::ret TP;
+  typedef std::tuple_element_t<0, TP> TP0;
+
+  // std::cout << " specialized" << std::endl;
+  auto row_object = [] {
+    static_assert(std::tuple_size_v<TP> > 0, "sql_result map function must take at least 1 argument.");
+
+    if constexpr (is_tuple<TP0>::value || is_metamap<TP0>::value)
+      return TP0{};
+    else
+      return TP{};
+  }();
+
+  result_allocated_ = true;
+
+  // Bind output.
+  auto bind_data = mysql_bind_output(data_, row_object);
+  unsigned long* real_lengths = bind_data.real_lengths.data();
+  MYSQL_BIND* bind = bind_data.bind.data();
+
+  bool bind_ret = mysql_stmt_bind_result(data_.stmt_, bind_data.bind.data());
+  // std::cout << "bind_ret: " << bind_ret << std::endl;
+  if (bind_ret != 0) {
+    throw std::runtime_error(std::string("mysql_stmt_bind_result error: ") +
+                              mysql_stmt_error(data_.stmt_));
+  }
+
+
+  while (this->read(row_object, bind, real_lengths)) {
+    if constexpr (is_tuple<TP0>::value || is_metamap<TP0>::value)
+      map_callback(row_object);
+    else
+      std::apply(map_callback, row_object);
+
+    // restore string sizes to 100.
+    if constexpr (is_tuple<std::decay_t<decltype(row_object)>>::value)
+      tuple_map(row_object, [] (auto& v) { 
+        if constexpr (std::is_same_v<std::decay_t<decltype(v)>, std::string>)
+          v.resize(100);
+      });
+    if constexpr (is_metamap<std::decay_t<decltype(row_object)>>::value)
+      map(row_object, [] (auto& k, auto& v) { 
+        if constexpr (std::is_same_v<std::decay_t<decltype(v)>, std::string>)
+          v.resize(100);
+      });
+  }
+
+}
+
+
+template <typename B>
+template <typename T>
+bool mysql_statement_result<B>::read(T&& output) {
+
+  result_allocated_ = true;
+
+  // Bind output.
+  auto bind_data = mysql_bind_output(data_, std::forward<T>(output));
+  unsigned long* real_lengths = bind_data.real_lengths.data();
+  MYSQL_BIND* bind = bind_data.bind.data();
+
+  bool bind_ret = mysql_stmt_bind_result(data_.stmt_, bind_data.bind.data());
+  // std::cout << "bind_ret: " << bind_ret << std::endl;
+  if (bind_ret != 0) {
+    throw std::runtime_error(std::string("mysql_stmt_bind_result error: ") +
+                              mysql_stmt_error(data_.stmt_));
+  }
+
+
+  return this->read(std::forward<T>(output), bind, real_lengths);
+}
+
+template <typename B>
+template <typename T>
+bool mysql_statement_result<B>::read(T&& output, MYSQL_BIND* bind, unsigned long* real_lengths) {
   try {
-
-    // Bind output.
-    auto bind_data = mysql_bind_output(data_, std::forward<T>(output));
-    unsigned long* real_lengths = bind_data.real_lengths.data();
-    MYSQL_BIND* bind = bind_data.bind.data();
-
-    bool bind_ret = mysql_stmt_bind_result(data_.stmt_, bind_data.bind.data());
-    // std::cout << "bind_ret: " << bind_ret << std::endl;
-    if (bind_ret != 0)
-    {
-      throw std::runtime_error(std::string("mysql_stmt_bind_result error: ") + mysql_stmt_error(data_.stmt_));
-    }
-
-    result_allocated_ = true;
 
     // Fetch row.
     // Note: This also advance to the next row.
-    int res = mysql_wrapper_.mysql_stmt_fetch(connection_status_, data_.stmt_);
+    int res = mysql_wrapper_.mysql_stmt_fetch(connection_->error_, data_.stmt_);
     if (res == MYSQL_NO_DATA) // If end of result, return false.
       return false;
 
@@ -1667,7 +1905,6 @@ template <typename B> template <typename T> bool mysql_statement_result<B>::read
     mysql_stmt_reset(data_.stmt_);
     throw e;
   }
-
 }
 
 template <typename B> long long int mysql_statement_result<B>::last_insert_id() {
@@ -1702,7 +1939,7 @@ template <typename B> struct mysql_statement {
 
   B& mysql_wrapper_;
   mysql_statement_data& data_;
-  std::shared_ptr<int> connection_status_;
+  std::shared_ptr<mysql_connection_data> connection_;
 };
 
 } // namespace li
@@ -1729,18 +1966,18 @@ sql_result<mysql_statement_result<B>> mysql_statement<B>::operator()(T&&... args
 
     // Pass MYSQL BIND to mysql.
     if (mysql_stmt_bind_param(data_.stmt_, bind) != 0) {
-      *connection_status_ = 1;
+      connection_->error_ = 1;
       throw std::runtime_error(std::string("mysql_stmt_bind_param error: ") +
                                mysql_stmt_error(data_.stmt_));
     }
   }
   
   // Execute the statement.
-  mysql_wrapper_.mysql_stmt_execute(connection_status_, data_.stmt_);
+  mysql_wrapper_.mysql_stmt_execute(connection_->error_, data_.stmt_);
 
   // Return the wrapped mysql result.
   return sql_result<mysql_statement_result<B>>{
-      mysql_statement_result<B>{mysql_wrapper_, data_, connection_status_}};
+      mysql_statement_result<B>{mysql_wrapper_, data_, connection_}};
 }
 
 } // namespace li
@@ -1769,8 +2006,8 @@ namespace li {
 template <typename B> struct mysql_result {
 
   B& mysql_wrapper_; // blocking or non blockin mysql functions wrapper.
-  MYSQL* con_; // Mysql connection
-  std::shared_ptr<int> connection_status_; // Status of the connection
+
+  std::shared_ptr<mysql_connection_data> connection_;
   MYSQL_RES* result_ = nullptr; // Mysql result.
 
   unsigned long* current_row_lengths_ = nullptr;
@@ -1814,8 +2051,8 @@ namespace li {
 template <typename B> void mysql_result<B>::next_row() {
 
   if (!result_)
-    result_ = mysql_use_result(con_);
-  current_row_ = mysql_wrapper_.mysql_fetch_row(connection_status_, result_);
+    result_ = mysql_use_result(connection_->connection_);
+  current_row_ = mysql_wrapper_.mysql_fetch_row(connection_->error_, result_);
   current_row_num_fields_ = mysql_num_fields(result_);
   if (!current_row_ || current_row_num_fields_ == 0) {
     end_of_result_ = true;
@@ -1864,11 +2101,11 @@ template <typename B> template <typename T> bool mysql_result<B>::read(T&& outpu
 }
 
 template <typename B> long long int mysql_result<B>::affected_rows() {
-  return mysql_affected_rows(con_);
+  return mysql_affected_rows(connection_->connection_);
 }
 
 template <typename B> long long int mysql_result<B>::last_insert_id() {
-  return mysql_insert_id(con_);
+  return mysql_insert_id(connection_->connection_);
 }
 
 } // namespace li
@@ -1898,9 +2135,7 @@ struct mysql_connection {
    * @param mysql_wrapper the [non]blocking mysql wrapper.
    * @param data the connection data.
    */
-  template <typename P>
-  inline mysql_connection(B mysql_wrapper, std::shared_ptr<li::mysql_connection_data> data,
-  P put_data_back_in_pool);
+  inline mysql_connection(B mysql_wrapper, std::shared_ptr<li::mysql_connection_data>& data);
 
   /**
    * @brief Last inserted row id.
@@ -1939,20 +2174,6 @@ struct mysql_connection {
 
   B mysql_wrapper_;
   std::shared_ptr<mysql_connection_data> data_;
-  std::shared_ptr<int> connection_status_;
-};
-
-/**
- * @brief Data of a connection.
- *
- */
-struct mysql_connection_data {
-
-  ~mysql_connection_data();
-
-  MYSQL* connection_;
-  std::unordered_map<std::string, std::shared_ptr<mysql_statement_data>> statements_;
-  type_hashmap<std::shared_ptr<mysql_statement_data>> statements_hashmap_;
 };
 
 } // namespace li
@@ -1964,17 +2185,10 @@ struct mysql_connection_data {
 
 namespace li {
 
-mysql_connection_data::~mysql_connection_data() { mysql_close(connection_); }
-
 template <typename B>
-template <typename P>
 inline mysql_connection<B>::mysql_connection(B mysql_wrapper,
-                                             std::shared_ptr<li::mysql_connection_data> data,
-                                             P put_data_back_in_pool)
-    : mysql_wrapper_(mysql_wrapper), data_(data) {
-
-  connection_status_ =
-      std::shared_ptr<int>(new int(0), [put_data_back_in_pool, data](int* p) mutable { put_data_back_in_pool(data, *p); });
+                                             std::shared_ptr<li::mysql_connection_data>& data)
+    : mysql_wrapper_(mysql_wrapper), data_(data) {    
 }
 
 template <typename B> long long int mysql_connection<B>::last_insert_rowid() {
@@ -1983,9 +2197,9 @@ template <typename B> long long int mysql_connection<B>::last_insert_rowid() {
 
 template <typename B>
 sql_result<mysql_result<B>> mysql_connection<B>::operator()(const std::string& rq) {
-  mysql_wrapper_.mysql_real_query(connection_status_, data_->connection_, rq.c_str(), rq.size());
+  mysql_wrapper_.mysql_real_query(data_->error_, data_->connection_, rq.c_str(), rq.size());
   return sql_result<mysql_result<B>>{
-      mysql_result<B>{mysql_wrapper_, data_->connection_, connection_status_}};
+      mysql_result<B>{mysql_wrapper_, data_}};
 }
 
 template <typename B>
@@ -1997,7 +2211,7 @@ mysql_statement<B> mysql_connection<B>::cached_statement(F f, K... keys) {
     return res;
   } else
     return mysql_statement<B>{mysql_wrapper_, *data_->statements_hashmap_(f, keys...),
-                              connection_status_};
+                              data_};
 }
 
 template <typename B> mysql_statement<B> mysql_connection<B>::prepare(const std::string& rq) {
@@ -2005,23 +2219,29 @@ template <typename B> mysql_statement<B> mysql_connection<B>::prepare(const std:
   if (it != data_->statements_.end()) {
     // mysql_wrapper_.mysql_stmt_free_result(it->second->stmt_);
     // mysql_wrapper_.mysql_stmt_reset(it->second->stmt_);
-    return mysql_statement<B>{mysql_wrapper_, *it->second, connection_status_};
+    return mysql_statement<B>{mysql_wrapper_, *it->second, data_};
   }
-  // std::cout << "prepare " << rq << std::endl;
+  //std::cout << "prepare " << rq << "  "  << data_->statements_.size() << std::endl;
   MYSQL_STMT* stmt = mysql_stmt_init(data_->connection_);
   if (!stmt) {
-    *connection_status_ = true;
+    data_->error_ = 1;
     throw std::runtime_error(std::string("mysql_stmt_init error: ") +
                              mysql_error(data_->connection_));
   }
-  if (mysql_wrapper_.mysql_stmt_prepare(connection_status_, stmt, rq.data(), rq.size())) {
-    *connection_status_ = true;
-    throw std::runtime_error(std::string("mysql_stmt_prepare error: ") +
-                             mysql_error(data_->connection_));
+
+  try {
+    if (mysql_wrapper_.mysql_stmt_prepare(data_->error_, stmt, rq.data(), rq.size())) {
+      data_->error_ = 1;
+      throw std::runtime_error(std::string("mysql_stmt_prepare error: ") +
+                              mysql_error(data_->connection_));
+    }
+  } catch (...) {
+    mysql_stmt_close(stmt);
+    throw;
   }
 
   auto pair = data_->statements_.emplace(rq, std::make_shared<mysql_statement_data>(stmt));
-  return mysql_statement<B>{mysql_wrapper_, *pair.first->second, connection_status_};
+  return mysql_statement<B>{mysql_wrapper_, *pair.first->second, data_};
 }
 
 } // namespace li
@@ -2037,26 +2257,33 @@ template <typename B> mysql_statement<B> mysql_connection<B>::prepare(const std:
 
 
 namespace li {
-// thread local map of sql_database<I> -> sql_database_thread_local_data<I>;
+// thread local map of sql_database<I>* -> sql_database_thread_local_data<I>*;
 // This is used to store the thread local async connection pool.
-thread_local std::unordered_map<int, void*> sql_thread_local_data;
-thread_local int database_id_counter = 0;
+// void* is used instead of concrete types to handle different I parameter.
+
+thread_local std::unordered_map<void*, void*> sql_thread_local_data [[gnu::weak]];
 
 template <typename I> struct sql_database_thread_local_data {
 
   typedef typename I::connection_data_type connection_data_type;
 
   // Async connection pools.
-  std::deque<std::shared_ptr<connection_data_type>> async_connections_;
+  std::deque<connection_data_type*> async_connections_;
 
   int n_connections_on_this_thread_ = 0;
+  std::deque<int> fibers_waiting_for_connections_;
 };
 
 struct active_yield {
   typedef std::runtime_error exception_type;
-  void epoll_add(int, int) {}
-  void epoll_mod(int, int) {}
-  void yield() {}
+  int fiber_id = 0;
+  inline void defer(std::function<void()>) {}
+  inline void defer_fiber_resume(int fiber_id) {}
+  inline void reassign_fd_to_this_fiber(int fd) {}
+
+  inline void epoll_add(int fd, int flags) {}
+  inline void epoll_mod(int fd, int flags) {}
+  inline void yield() {}
 };
 
 template <typename I> struct sql_database {
@@ -2066,38 +2293,49 @@ template <typename I> struct sql_database {
   typedef typename I::db_tag db_tag;
 
   // Sync connections pool.
-  std::deque<std::shared_ptr<connection_data_type>> sync_connections_;
+  std::deque<connection_data_type*> sync_connections_;
   // Sync connections mutex.
   std::mutex sync_connections_mutex_;
 
   int n_sync_connections_ = 0;
   int max_sync_connections_ = 0;
   int max_async_connections_per_thread_ = 0;
-  int database_id_ = 0;
 
   template <typename... O> sql_database(O&&... opts) : impl(std::forward<O>(opts)...) {
     auto options = mmm(opts...);
     max_async_connections_per_thread_ = get_or(options, s::max_async_connections_per_thread, 200);
     max_sync_connections_ = get_or(options, s::max_sync_connections, 2000);
 
-    this->database_id_ = database_id_counter++;
   }
 
   ~sql_database() {
-    auto it = sql_thread_local_data.find(this->database_id_);
+    clear_connections();
+  }
+
+  void clear_connections() {
+    auto it = sql_thread_local_data.find(this);
     if (it != sql_thread_local_data.end())
     {
-      delete (sql_database_thread_local_data<I>*) sql_thread_local_data[this->database_id_];
-      sql_thread_local_data.erase(this->database_id_);
+      auto store = (sql_database_thread_local_data<I>*) it->second;
+      for (auto ptr : store->async_connections_)
+        delete ptr;
+      delete store;
+      sql_thread_local_data.erase(this);
     }
+
+    std::lock_guard<std::mutex> lock(this->sync_connections_mutex_);
+    for (auto* ptr : this->sync_connections_)
+      delete ptr;
+    sync_connections_.clear();
+    n_sync_connections_ = 0;
   }
 
   auto& thread_local_data() {
-    auto it = sql_thread_local_data.find(this->database_id_);
+    auto it = sql_thread_local_data.find(this);
     if (it == sql_thread_local_data.end())
     {
       auto data = new sql_database_thread_local_data<I>;
-      sql_thread_local_data[this->database_id_] = data;
+      sql_thread_local_data[this] = data;
       return *data;
     }
     else
@@ -2119,7 +2357,8 @@ template <typename I> struct sql_database {
    */
   template <typename Y> inline auto connect(Y& fiber) {
 
-    auto pool = [this] {
+    auto& tldata = this->thread_local_data();
+    auto pool = [this, &tldata] {
 
       if constexpr (std::is_same_v<Y, active_yield>) // Synchonous mode
         return make_metamap_reference(
@@ -2128,12 +2367,14 @@ template <typename I> struct sql_database {
             s::max_connections = this->max_sync_connections_);
       else  // Asynchonous mode
         return make_metamap_reference(
-            s::connections = this->thread_local_data().async_connections_,
-            s::n_connections =  this->thread_local_data().n_connections_on_this_thread_,
-            s::max_connections = this->max_async_connections_per_thread_);
+            s::connections = tldata.async_connections_,
+            s::n_connections =  tldata.n_connections_on_this_thread_,
+            s::max_connections = this->max_async_connections_per_thread_,
+            s::waiting_list = tldata.fibers_waiting_for_connections_);
     }();
 
-    std::shared_ptr<connection_data_type> data = nullptr;
+    connection_data_type* data = nullptr;
+    bool reuse = false;
     while (!data) {
 
       if (!pool.connections.empty()) {
@@ -2144,20 +2385,22 @@ template <typename I> struct sql_database {
         }();
         data = pool.connections.back();
         pool.connections.pop_back();
-        fiber.epoll_add(impl.get_socket(data), EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
+        reuse = true;
       } else {
         if (pool.n_connections >= pool.max_connections) {
           if constexpr (std::is_same_v<Y, active_yield>)
             throw std::runtime_error("Maximum number of sql connection exeeded.");
           else
+          {
             // std::cout << "Waiting for a free sql connection..." << std::endl;
+            //  pool.waiting_list.push_back(fiber.fiber_id);
             fiber.yield();
+          }
           continue;
         }
         pool.n_connections++;
 
         try {
-
           data = impl.new_connection(fiber);
         } catch (typename Y::exception_type& e) {
           pool.n_connections--;
@@ -2168,10 +2411,12 @@ template <typename I> struct sql_database {
           pool.n_connections--;
       }
     }
+
     assert(data);
-    return impl.scoped_connection(
-        fiber, data, [pool, this](std::shared_ptr<connection_data_type> data, int error) {
-          if (!error && pool.connections.size() < pool.max_connections) {
+    assert(data->error_ == 0);
+    
+    auto sptr = std::shared_ptr<connection_data_type>(data, [pool, this, &fiber](connection_data_type* data) {
+          if (!data->error_ && pool.connections.size() < pool.max_connections) {
             auto lock = [&pool, this] {
               if constexpr (std::is_same_v<Y, active_yield>)
                 return std::lock_guard<std::mutex>(this->sync_connections_mutex_);
@@ -2179,14 +2424,27 @@ template <typename I> struct sql_database {
             }();
 
             pool.connections.push_back(data);
-            
+            if constexpr (!std::is_same_v<Y, active_yield>)
+             if (pool.waiting_list.size())
+             {
+               int next_fiber_id = pool.waiting_list.front();
+               pool.waiting_list.pop_front();
+               fiber.defer_fiber_resume(next_fiber_id);
+             }
+           
           } else {
-            if (pool.connections.size() > pool.max_connections)
+            if (pool.connections.size() >= pool.max_connections)
               std::cerr << "Error: connection pool size " << pool.connections.size()
                         << " exceed pool max_connections " << pool.max_connections << std::endl;
             pool.n_connections--;
+            delete data;
           }
         });
+
+    if (reuse) 
+      fiber.reassign_fd_to_this_fiber(impl.get_socket(sptr));
+
+    return impl.scoped_connection(fiber, sptr);
   }
 
   /**
@@ -2226,12 +2484,11 @@ struct mysql_database_impl {
 
   inline ~mysql_database_impl();
 
-  template <typename Y> inline std::shared_ptr<mysql_connection_data> new_connection(Y& fiber);
-  inline int get_socket(std::shared_ptr<mysql_connection_data> data);
+  template <typename Y> inline mysql_connection_data* new_connection(Y& fiber);
+  inline int get_socket(const std::shared_ptr<mysql_connection_data>& data);
 
-  template <typename Y, typename F>
-  inline auto scoped_connection(Y& fiber, std::shared_ptr<mysql_connection_data>& data,
-                                F put_back_in_pool);
+  template <typename Y>
+  inline auto scoped_connection(Y& fiber, std::shared_ptr<mysql_connection_data>& data);
 
   std::string host_, user_, passwd_, database_;
   unsigned int port_;
@@ -2244,6 +2501,11 @@ typedef sql_database<mysql_database_impl> mysql_database;
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_DATABASE_HPP
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_MYSQL_DATABASE_HPP
+
+
+#if __linux__
+#elif __APPLE__
+#endif
 
 
 
@@ -2274,20 +2536,19 @@ template <typename... O> inline mysql_database_impl::mysql_database_impl(O... op
 
 mysql_database_impl::~mysql_database_impl() { mysql_library_end(); }
 
-inline int mysql_database_impl::get_socket(std::shared_ptr<mysql_connection_data> data) {
+inline int mysql_database_impl::get_socket(const std::shared_ptr<mysql_connection_data>& data) {
   return mysql_get_socket(data->connection_);
 }
 
 template <typename Y>
-inline std::shared_ptr<mysql_connection_data> mysql_database_impl::new_connection(Y& fiber) {
+inline mysql_connection_data* mysql_database_impl::new_connection(Y& fiber) {
 
   MYSQL* mysql;
   int mysql_fd = -1;
   int status;
   MYSQL* connection;
 
-  mysql = new MYSQL;
-  mysql_init(mysql);
+  mysql = mysql_init(nullptr);
 
   if constexpr (std::is_same_v<Y, active_yield>) { // Synchronous connection
     connection = mysql;
@@ -2312,7 +2573,12 @@ inline std::shared_ptr<mysql_connection_data> mysql_database_impl::new_connectio
     }
 
     if (status)
+    #if __linux__
       fiber.epoll_add(mysql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
+    #elif __APPLE__
+      fiber.epoll_add(mysql_fd, EVFILT_READ | EVFILT_WRITE);
+    #endif
+      
     while (status)
       try {
         fiber.yield();
@@ -2330,19 +2596,20 @@ inline std::shared_ptr<mysql_connection_data> mysql_database_impl::new_connectio
     }
   }
 
+  char on = 1;
+  mysql_options(mysql, MYSQL_REPORT_DATA_TRUNCATION, &on);
   mysql_set_character_set(mysql, character_set_.c_str());
-  return std::shared_ptr<mysql_connection_data>(new mysql_connection_data{mysql});
+  return new mysql_connection_data{mysql};
 }
 
-template <typename Y, typename F>
+template <typename Y>
 inline auto mysql_database_impl::scoped_connection(Y& fiber,
-                                                   std::shared_ptr<mysql_connection_data>& data,
-                                                   F put_back_in_pool) {
+                                                   std::shared_ptr<mysql_connection_data>& data) {
   if constexpr (std::is_same_v<active_yield, Y>)
-    return mysql_connection(mysql_functions_blocking{}, data, put_back_in_pool);
+    return mysql_connection(mysql_functions_blocking{}, data);
 
   else
-    return mysql_connection(mysql_functions_non_blocking<Y>{fiber}, data, put_back_in_pool);
+    return mysql_connection(mysql_functions_non_blocking<Y>{fiber}, data);
 }
 
 } // namespace li
@@ -2357,122 +2624,182 @@ inline auto mysql_database_impl::scoped_connection(Y& fiber,
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_ORM_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_ORM_HH
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SYMBOLS_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SYMBOLS_HH
 
-#ifndef LI_SYMBOL_blocking
-#define LI_SYMBOL_blocking
-    LI_SYMBOL(blocking)
-#endif
-
-#ifndef LI_SYMBOL_create_secret_key
-#define LI_SYMBOL_create_secret_key
-    LI_SYMBOL(create_secret_key)
-#endif
-
-#ifndef LI_SYMBOL_date_thread
-#define LI_SYMBOL_date_thread
-    LI_SYMBOL(date_thread)
-#endif
-
-#ifndef LI_SYMBOL_hash_password
-#define LI_SYMBOL_hash_password
-    LI_SYMBOL(hash_password)
-#endif
-
-#ifndef LI_SYMBOL_https_cert
-#define LI_SYMBOL_https_cert
-    LI_SYMBOL(https_cert)
-#endif
-
-#ifndef LI_SYMBOL_https_key
-#define LI_SYMBOL_https_key
-    LI_SYMBOL(https_key)
-#endif
-
-#ifndef LI_SYMBOL_id
-#define LI_SYMBOL_id
-    LI_SYMBOL(id)
-#endif
-
-#ifndef LI_SYMBOL_linux_epoll
-#define LI_SYMBOL_linux_epoll
-    LI_SYMBOL(linux_epoll)
-#endif
-
-#ifndef LI_SYMBOL_name
-#define LI_SYMBOL_name
-    LI_SYMBOL(name)
-#endif
-
-#ifndef LI_SYMBOL_non_blocking
-#define LI_SYMBOL_non_blocking
-    LI_SYMBOL(non_blocking)
-#endif
-
-#ifndef LI_SYMBOL_nthreads
-#define LI_SYMBOL_nthreads
-    LI_SYMBOL(nthreads)
-#endif
-
-#ifndef LI_SYMBOL_one_thread_per_connection
-#define LI_SYMBOL_one_thread_per_connection
-    LI_SYMBOL(one_thread_per_connection)
-#endif
-
-#ifndef LI_SYMBOL_path
-#define LI_SYMBOL_path
-    LI_SYMBOL(path)
-#endif
-
-#ifndef LI_SYMBOL_primary_key
-#define LI_SYMBOL_primary_key
-    LI_SYMBOL(primary_key)
-#endif
-
-#ifndef LI_SYMBOL_read_only
-#define LI_SYMBOL_read_only
-    LI_SYMBOL(read_only)
-#endif
-
-#ifndef LI_SYMBOL_select
-#define LI_SYMBOL_select
-    LI_SYMBOL(select)
-#endif
-
-#ifndef LI_SYMBOL_server_thread
-#define LI_SYMBOL_server_thread
-    LI_SYMBOL(server_thread)
-#endif
-
-#ifndef LI_SYMBOL_session_id
-#define LI_SYMBOL_session_id
-    LI_SYMBOL(session_id)
-#endif
-
-#ifndef LI_SYMBOL_ssl_certificate
-#define LI_SYMBOL_ssl_certificate
-    LI_SYMBOL(ssl_certificate)
-#endif
-
-#ifndef LI_SYMBOL_ssl_key
-#define LI_SYMBOL_ssl_key
-    LI_SYMBOL(ssl_key)
-#endif
-
-#ifndef LI_SYMBOL_update_secret_key
-#define LI_SYMBOL_update_secret_key
-    LI_SYMBOL(update_secret_key)
-#endif
-
-#ifndef LI_SYMBOL_user_id
-#define LI_SYMBOL_user_id
-    LI_SYMBOL(user_id)
-#endif
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_CALLABLE_TRAITS_TUPLE_UTILS_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_CALLABLE_TRAITS_TUPLE_UTILS_HH
 
 
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_BACKEND_SYMBOLS_HH
+namespace li {
 
+constexpr int count_first_falses() { return 0; }
+
+template <typename... B> constexpr int count_first_falses(bool b1, B... b) {
+  if (b1)
+    return 0;
+  else
+    return 1 + count_first_falses(b...);
+}
+
+template <typename E, typename... T> decltype(auto) arg_get_by_type_(void*, E* a1, T&&... args) {
+  return std::forward<E*>(a1);
+}
+
+template <typename E, typename... T>
+decltype(auto) arg_get_by_type_(void*, const E* a1, T&&... args) {
+  return std::forward<const E*>(a1);
+}
+
+template <typename E, typename... T> decltype(auto) arg_get_by_type_(void*, E& a1, T&&... args) {
+  return std::forward<E&>(a1);
+}
+
+template <typename E, typename... T>
+decltype(auto) arg_get_by_type_(void*, const E& a1, T&&... args) {
+  return std::forward<const E&>(a1);
+}
+
+template <typename E, typename T1, typename... T>
+decltype(auto) arg_get_by_type_(std::enable_if_t<!std::is_same<E, std::decay_t<T1>>::value>*,
+                                // void*,
+                                T1&&, T&&... args) {
+  return arg_get_by_type_<E>((void*)0, std::forward<T>(args)...);
+}
+
+template <typename E, typename... T> decltype(auto) arg_get_by_type(T&&... args) {
+  return arg_get_by_type_<std::decay_t<E>>(0, args...);
+}
+
+template <typename E, typename... T> decltype(auto) tuple_get_by_type(std::tuple<T...>& tuple) {
+  typedef std::decay_t<E> DE;
+  return std::get<count_first_falses((std::is_same<std::decay_t<T>, DE>::value)...)>(tuple);
+}
+
+template <typename E, typename... T> decltype(auto) tuple_get_by_type(std::tuple<T...>&& tuple) {
+  typedef std::decay_t<E> DE;
+  return std::get<count_first_falses((std::is_same<std::decay_t<T>, DE>::value)...)>(tuple);
+}
+
+template <typename T, typename U> struct tuple_embeds : public std::false_type {};
+
+template <typename... T, typename U>
+struct tuple_embeds<std::tuple<T...>, U>
+    : public std::integral_constant<bool, count_first_falses(std::is_same<T, U>::value...) !=
+                                              sizeof...(T)> {};
+
+template <typename U, typename... T> struct tuple_embeds_any_ref_of : public std::false_type {};
+template <typename U, typename... T>
+struct tuple_embeds_any_ref_of<std::tuple<T...>, U>
+    : public tuple_embeds<std::tuple<std::decay_t<T>...>, std::decay_t<U>> {};
+
+template <typename T> struct tuple_remove_references;
+template <typename... T> struct tuple_remove_references<std::tuple<T...>> {
+  typedef std::tuple<std::remove_reference_t<T>...> type;
+};
+
+template <typename T> using tuple_remove_references_t = typename tuple_remove_references<T>::type;
+
+template <typename T> struct tuple_remove_references_and_const;
+template <typename... T> struct tuple_remove_references_and_const<std::tuple<T...>> {
+  typedef std::tuple<std::remove_const_t<std::remove_reference_t<T>>...> type;
+};
+
+template <typename T>
+using tuple_remove_references_and_const_t = typename tuple_remove_references_and_const<T>::type;
+
+template <typename T, typename U, typename E> struct tuple_remove_element2;
+
+template <typename... T, typename... U, typename E1>
+struct tuple_remove_element2<std::tuple<E1, T...>, std::tuple<U...>, E1>
+    : public tuple_remove_element2<std::tuple<T...>, std::tuple<U...>, E1> {};
+
+template <typename... T, typename... U, typename T1, typename E1>
+struct tuple_remove_element2<std::tuple<T1, T...>, std::tuple<U...>, E1>
+    : public tuple_remove_element2<std::tuple<T...>, std::tuple<U..., T1>, E1> {};
+
+template <typename... U, typename E1>
+struct tuple_remove_element2<std::tuple<>, std::tuple<U...>, E1> {
+  typedef std::tuple<U...> type;
+};
+
+template <typename T, typename E>
+struct tuple_remove_element : public tuple_remove_element2<T, std::tuple<>, E> {};
+
+template <typename T, typename... E> struct tuple_remove_elements;
+
+template <typename... T, typename E1, typename... E>
+struct tuple_remove_elements<std::tuple<T...>, E1, E...> {
+  typedef typename tuple_remove_elements<typename tuple_remove_element<std::tuple<T...>, E1>::type,
+                                         E...>::type type;
+};
+
+template <typename... T> struct tuple_remove_elements<std::tuple<T...>> {
+  typedef std::tuple<T...> type;
+};
+
+template <typename A, typename B> struct tuple_minus;
+
+template <typename... T, typename... R> struct tuple_minus<std::tuple<T...>, std::tuple<R...>> {
+  typedef typename tuple_remove_elements<std::tuple<T...>, R...>::type type;
+};
+
+template <typename T, typename... E>
+using tuple_remove_elements_t = typename tuple_remove_elements<T, E...>::type;
+
+template <typename F, size_t... I, typename... T>
+inline F tuple_map(std::tuple<T...>& t, F f, std::index_sequence<I...>) {
+  return (void)std::initializer_list<int>{((void)f(std::get<I>(t)), 0)...}, f;
+}
+
+template <typename F, typename... T> inline void tuple_map(std::tuple<T...>& t, F f) {
+  tuple_map(t, f, std::index_sequence_for<T...>{});
+}
+
+template <typename F, size_t... I, typename T>
+inline decltype(auto) tuple_transform(T&& t, F f, std::index_sequence<I...>) {
+  return std::make_tuple(f(std::get<I>(std::forward<T>(t)))...);
+}
+
+template <typename F, typename T> inline decltype(auto) tuple_transform(T&& t, F f) {
+  return tuple_transform(std::forward<T>(t), f,
+                         std::make_index_sequence<std::tuple_size<std::decay_t<T>>{}>{});
+}
+
+template <template <class> class F, typename T, typename I, typename R, typename X = void>
+struct tuple_filter_sequence;
+
+template <template <class> class F, typename... T, typename R>
+struct tuple_filter_sequence<F, std::tuple<T...>, std::index_sequence<>, R> {
+  using ret = R;
+};
+
+template <template <class> class F, typename T1, typename... T, size_t I1, size_t... I, size_t... R>
+struct tuple_filter_sequence<F, std::tuple<T1, T...>, std::index_sequence<I1, I...>,
+                             std::index_sequence<R...>, std::enable_if_t<F<T1>::value>> {
+  using ret = typename tuple_filter_sequence<F, std::tuple<T...>, std::index_sequence<I...>,
+                                             std::index_sequence<R..., I1>>::ret;
+};
+
+template <template <class> class F, typename T1, typename... T, size_t I1, size_t... I, size_t... R>
+struct tuple_filter_sequence<F, std::tuple<T1, T...>, std::index_sequence<I1, I...>,
+                             std::index_sequence<R...>, std::enable_if_t<!F<T1>::value>> {
+  using ret = typename tuple_filter_sequence<F, std::tuple<T...>, std::index_sequence<I...>,
+                                             std::index_sequence<R...>>::ret;
+};
+
+template <std::size_t... I, typename T>
+decltype(auto) tuple_filter_impl(std::index_sequence<I...>, T&& t) {
+  return std::make_tuple(std::get<I>(t)...);
+}
+
+template <template <class> class F, typename T> decltype(auto) tuple_filter(T&& t) {
+  using seq = typename tuple_filter_sequence<
+      F, std::decay_t<T>, std::make_index_sequence<std::tuple_size<std::decay_t<T>>::value>,
+      std::index_sequence<>>::ret;
+  return tuple_filter_impl(seq{}, t);
+}
+} // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_CALLABLE_TRAITS_TUPLE_UTILS_HH
 
 
 namespace li {
@@ -2609,10 +2936,16 @@ template <typename SCHEMA, typename C> struct sql_orm {
         return ss.str();
     });
 
-    auto res = li::tuple_reduce(metamap_values(where), stmt).template read_optional<O>();
-    if (res)
-      call_callback(s::read_access, *res, cb_args...);
-    return res;
+    O result;
+    bool read_success = li::tuple_reduce(metamap_values(where), stmt).template read(metamap_values(result));
+    if (read_success)
+    {
+      call_callback(s::read_access, result, cb_args...);
+      return std::make_optional<O>(std::move(result));
+    }
+    else {
+      return std::optional<O>{};
+    }
   }
 
   template <typename A, typename B, typename... O, typename... W>
@@ -2724,7 +3057,11 @@ template <typename SCHEMA, typename C> struct sql_orm {
         ss << " FROM " << schema_.table_name();
         return ss.str();
     });
-    stmt().map([&](const O& o) { f(o); });
+    // stmt().map([&](const O& o) { f(o); });
+    using values_tuple = tuple_remove_references_and_const_t<decltype(metamap_values(std::declval<O>()))>;
+    using keys_tuple = decltype(metamap_keys(std::declval<O>()));
+    stmt().map([&](const values_tuple& values) { f(forward_tuple_as_metamap(keys_tuple{}, values)); });
+
   }
 
   // Update N's members except auto increment members.

@@ -14,24 +14,30 @@
 #include <mutex>
 #include <optional>
 #include <sstream>
+
+#if __linux__
 #include <sys/epoll.h>
+#elif __APPLE__
+#include <sys/event.h>
+#endif
+
 #include <thread>
 #include <unordered_map>
 
 #include <li/callable_traits/callable_traits.hh>
 #include <li/metamap/metamap.hh>
+#include <li/sql/pgsql_connection.hh>
 #include <li/sql/pgsql_statement.hh>
 #include <li/sql/sql_common.hh>
+#include <li/sql/sql_database.hh>
 #include <li/sql/symbols.hh>
 #include <li/sql/type_hashmap.hh>
-#include <li/sql/pgsql_connection.hh>
-#include <li/sql/sql_database.hh>
 
 namespace li {
 
 struct pgsql_database_impl {
 
-  typedef pgsql_connection_data  connection_data_type;
+  typedef pgsql_connection_data connection_data_type;
 
   typedef pgsql_tag db_tag;
   std::string host_, user_, passwd_, database_;
@@ -59,11 +65,11 @@ struct pgsql_database_impl {
       throw std::runtime_error("LibPQ is not threadsafe.");
   }
 
-  inline int get_socket(std::shared_ptr<pgsql_connection_data> data) {
-    return PQsocket(data->connection);
+  inline int get_socket(const std::shared_ptr<pgsql_connection_data>& data) {
+    return PQsocket(data->pgconn_);
   }
 
-  template <typename Y> inline std::shared_ptr<pgsql_connection_data> new_connection(Y& fiber) {
+  template <typename Y> inline pgsql_connection_data* new_connection(Y& fiber) {
 
     PGconn* connection = nullptr;
     int pgsql_fd = -1;
@@ -92,14 +98,22 @@ struct pgsql_database_impl {
       PQfinish(connection);
       return nullptr;
     }
-    fiber.epoll_add(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP);
+    #if __linux__
+      fiber.epoll_add(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP);
+    #elif __APPLE__
+      fiber.epoll_add(pgsql_fd, EVFILT_READ | EVFILT_WRITE);
+    #endif
 
     try {
       while (status != PGRES_POLLING_FAILED and status != PGRES_POLLING_OK) {
         int new_pgsql_fd = PQsocket(connection);
         if (new_pgsql_fd != pgsql_fd) {
           pgsql_fd = new_pgsql_fd;
-          fiber.epoll_add(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP);
+          #if __linux__
+            fiber.epoll_add(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP);
+          #elif __APPLE__
+            fiber.epoll_add(pgsql_fd, EVFILT_READ | EVFILT_WRITE);
+          #endif
         }
         fiber.yield();
         status = PQconnectPoll(connection);
@@ -110,7 +124,11 @@ struct pgsql_database_impl {
       throw std::move(e);
     }
     // std::cout << "CONNECTED " << std::endl;
-    fiber.epoll_mod(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
+    #if __linux__
+      fiber.epoll_mod(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
+    #elif __APPLE__
+      fiber.epoll_mod(pgsql_fd, EVFILT_READ | EVFILT_WRITE);
+    #endif
     if (status != PGRES_POLLING_OK) {
       std::cerr << "Warning: cannot connect to the postgresql server " << host_ << ": "
                 << PQerrorMessage(connection) << std::endl;
@@ -119,13 +137,12 @@ struct pgsql_database_impl {
     }
 
     // pgsql_set_character_set(pgsql, character_set_.c_str());
-    return std::shared_ptr<pgsql_connection_data>(new pgsql_connection_data{connection, pgsql_fd});
+    return new pgsql_connection_data{connection, pgsql_fd};
   }
 
-  template <typename Y, typename F>
-  auto scoped_connection(Y& fiber, std::shared_ptr<pgsql_connection_data>& data,
-                         F put_back_in_pool) {
-    return pgsql_connection(fiber, data, put_back_in_pool);
+  template <typename Y>
+  auto scoped_connection(Y& fiber, std::shared_ptr<pgsql_connection_data>& data) {
+    return pgsql_connection<Y>(fiber, data);
   }
 };
 

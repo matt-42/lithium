@@ -22,13 +22,17 @@ namespace impl {
 // =============================================
 
 template <typename C, typename O, typename E>
-inline void json_encode(C& ss, O obj, const json_object_<E>& schema);
+inline std::enable_if_t<!std::is_pointer<O>::value, void> json_encode(C& ss, O obj, const json_object_<E>& schema);
 template <typename C, typename... E, typename... T>
 inline void json_encode(C& ss, const std::tuple<T...>& tu, const json_tuple_<E...>& schema);
 template <typename T, typename C, typename E>
 inline void json_encode(C& ss, const T& value, const E& schema);
 template <typename T, typename C, typename E>
 inline void json_encode(C& ss, const std::vector<T>& array, const json_vector_<E>& schema);
+template <typename C, typename O, typename S>
+inline void json_encode(C& ss, O* obj, const S& schema);
+template <typename C, typename O, typename S>
+inline void json_encode(C& ss, const O* obj, const S& schema);
 
 template <typename T, typename C> inline void json_encode_value(C& ss, const T& t) { ss << t; }
 
@@ -63,8 +67,6 @@ inline void json_encode_value(C& ss, const std::variant<T...>& t) {
   ss << '}';
 }
 
-template <typename C, typename O, typename E>
-inline void json_encode(C& ss, O obj, const json_object_<E>& schema);
 
 template <typename T, typename C, typename E>
 inline void json_encode(C& ss, const T& value, const E& schema) {
@@ -85,6 +87,25 @@ inline void json_encode(C& ss, const std::vector<T>& array, const json_vector_<E
   }
   ss << ']';
 }
+
+template <typename E, typename C, typename G>
+inline void json_encode(C& ss, 
+                        const metamap<typename s::size_t::variable_t<int>, 
+                                      typename s::generator_t::variable_t<G>>& generator, 
+                        const json_vector_<E>& schema) {
+  ss << '[';
+  for (int i = 0; i < generator.size; i++) {
+    if constexpr (decltype(json_is_vector(E{})){} or decltype(json_is_object(E{})){}) {
+      json_encode(ss, generator.generator(), schema.schema);
+    } else
+      json_encode_value(ss, generator.generator());
+
+    if (i != generator.size - 1)
+      ss << ',';
+  }
+  ss << ']';
+}
+
 
 template <typename V, typename C, typename M>
 inline void json_encode(C& ss, const M& map, const json_map_<V>& schema) {
@@ -134,7 +155,7 @@ inline void json_encode(C& ss, const std::tuple<T...>& tu, const json_tuple_<E..
 }
 
 template <typename C, typename O, typename E>
-inline void json_encode(C& ss, O obj, const json_object_<E>& schema) {
+inline std::enable_if_t<!std::is_pointer<O>::value, void> json_encode(C& ss, O obj, const json_object_<E>& schema) {
   ss << '{';
   bool first = true;
 
@@ -150,9 +171,9 @@ inline void json_encode(C& ss, O obj, const json_object_<E>& schema) {
     first = false;
     if constexpr (has_key(e, s::json_key)) {
       json_encode_value(ss, e.json_key);
+      ss << ':';
     } else
-      json_encode_value(ss, symbol_string(e.name));
-    ss << ':';
+      ss << e.name.json_key_string();
 
     if constexpr (has_key(e, s::type)) {
       if constexpr (decltype(json_is_vector(e.type)){} or decltype(json_is_object(e.type)){}) {
@@ -166,6 +187,24 @@ inline void json_encode(C& ss, O obj, const json_object_<E>& schema) {
   tuple_map(schema.schema, encode_one_entity);
   ss << '}';
 }
+
+template <typename C, typename O, typename S>
+inline void json_encode(C& ss, O* obj, const S& schema)
+{
+  json_encode(ss, *obj, schema);
+}
+template <typename C, typename O, typename S>
+inline void json_encode(C& ss, const O* obj, const S& schema)
+{
+  // Special case for pointers.
+
+  // const char* -> json_encode_value 
+  if constexpr(std::is_same_v<char, O>)
+    return json_encode_value(ss, obj);
+  // other pointers, dereference encode(*v);
+  json_encode(ss, *obj, schema);
+}
+
 } // namespace impl
 
 } // namespace li

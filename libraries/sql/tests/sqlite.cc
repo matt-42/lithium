@@ -1,5 +1,5 @@
 
-#include <lithium.hh>
+#include <lithium_sqlite.hh>
 #include "generic_sql_tests.hh"
 
 

@@ -12,7 +12,13 @@
 #include <mysql.h>
 #include <optional>
 #include <sstream>
+
+#if __linux__
 #include <sys/epoll.h>
+#elif __APPLE__
+#include <sys/event.h>
+#endif
+
 #include <thread>
 #include <unordered_map>
 
@@ -52,20 +58,19 @@ template <typename... O> inline mysql_database_impl::mysql_database_impl(O... op
 
 mysql_database_impl::~mysql_database_impl() { mysql_library_end(); }
 
-inline int mysql_database_impl::get_socket(std::shared_ptr<mysql_connection_data> data) {
+inline int mysql_database_impl::get_socket(const std::shared_ptr<mysql_connection_data>& data) {
   return mysql_get_socket(data->connection_);
 }
 
 template <typename Y>
-inline std::shared_ptr<mysql_connection_data> mysql_database_impl::new_connection(Y& fiber) {
+inline mysql_connection_data* mysql_database_impl::new_connection(Y& fiber) {
 
   MYSQL* mysql;
   int mysql_fd = -1;
   int status;
   MYSQL* connection;
 
-  mysql = new MYSQL;
-  mysql_init(mysql);
+  mysql = mysql_init(nullptr);
 
   if constexpr (std::is_same_v<Y, active_yield>) { // Synchronous connection
     connection = mysql;
@@ -90,7 +95,12 @@ inline std::shared_ptr<mysql_connection_data> mysql_database_impl::new_connectio
     }
 
     if (status)
+    #if __linux__
       fiber.epoll_add(mysql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
+    #elif __APPLE__
+      fiber.epoll_add(mysql_fd, EVFILT_READ | EVFILT_WRITE);
+    #endif
+      
     while (status)
       try {
         fiber.yield();
@@ -108,19 +118,20 @@ inline std::shared_ptr<mysql_connection_data> mysql_database_impl::new_connectio
     }
   }
 
+  char on = 1;
+  mysql_options(mysql, MYSQL_REPORT_DATA_TRUNCATION, &on);
   mysql_set_character_set(mysql, character_set_.c_str());
-  return std::shared_ptr<mysql_connection_data>(new mysql_connection_data{mysql});
+  return new mysql_connection_data{mysql};
 }
 
-template <typename Y, typename F>
+template <typename Y>
 inline auto mysql_database_impl::scoped_connection(Y& fiber,
-                                                   std::shared_ptr<mysql_connection_data>& data,
-                                                   F put_back_in_pool) {
+                                                   std::shared_ptr<mysql_connection_data>& data) {
   if constexpr (std::is_same_v<active_yield, Y>)
-    return mysql_connection(mysql_functions_blocking{}, data, put_back_in_pool);
+    return mysql_connection(mysql_functions_blocking{}, data);
 
   else
-    return mysql_connection(mysql_functions_non_blocking<Y>{fiber}, data, put_back_in_pool);
+    return mysql_connection(mysql_functions_non_blocking<Y>{fiber}, data);
 }
 
 } // namespace li

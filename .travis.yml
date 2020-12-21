@@ -1,9 +1,30 @@
 sudo: required
 dist: bionic
 language: cpp
+services:
+  - postgresql
 
 matrix:
   include:
+    - os: osx
+      osx_image: xcode12u
+      compiler: clang
+      env: 
+        - PLATFORM=APPLE
+        - COMPILER=clang++
+        - CMAKE_ARGS="-DCMAKE_PREFIX_PATH='/usr/local/opt/openssl;/usr/local/opt/curl;/usr/local/opt/postgresql'"
+
+      addons:
+        homebrew:
+          packages:
+            - boost
+            - sqlite
+            - mariadb
+            - cmake
+            - postgresql
+            - curl
+            - openssl
+
     - compiler: g++
       env:
         - LOCAL_CC=gcc-9
@@ -14,7 +35,7 @@ matrix:
         - sudo apt-add-repository -y 'deb https://apt.kitware.com/ubuntu/ bionic main'
         - sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test;
         - sudo apt-get install -qq gcc-9 g++-9;
-        - sudo apt-get install -qq libboost-all-dev libpq-dev  postgresql-server-dev-all libssl-dev lcov libsqlite3-dev libmicrohttpd-dev cmake libcurl4-openssl-dev
+        - sudo apt-get install -qq libboost-all-dev libpq-dev  postgresql-server-dev-all libssl-dev lcov libsqlite3-dev cmake libcurl4-openssl-dev
 
         - sudo apt-get install software-properties-common
         - sudo apt-key adv --recv-keys --keyserver hkp://keyserver.ubuntu.com:80 0xF1656F24C74CD1D8
@@ -37,7 +58,7 @@ matrix:
         - sudo echo deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-9 main >> /etc/apt/sources.list;
         - sudo apt-get update -qq;
         - sudo apt-get install -qq clang-9 libc++-9-dev libpq-dev  postgresql-server-dev-all libc++abi-9-dev libclang-9-dev;
-        - sudo apt-get install -qq libboost-all-dev libssl-dev lcov libsqlite3-dev libmicrohttpd-dev cmake libcurl4-openssl-dev
+        - sudo apt-get install -qq libboost-all-dev libssl-dev lcov libsqlite3-dev cmake libcurl4-openssl-dev
 
         - sudo apt-get install software-properties-common
         - sudo apt-key adv --recv-keys --keyserver hkp://keyserver.ubuntu.com:80 0xF1656F24C74CD1D8
@@ -46,20 +67,18 @@ matrix:
         - sudo apt-get remove libmysqlclient-dev mysql-server;
         - sudo apt-get install -qq libmariadb-dev mariadb-server;
 
-    # std::filesystem Need macos 10.15. Not yet on travis.
-    # - os: osx
-    #   osx_image: xcode11.2
-    #   compiler: clang
-    #   env: COMPILER=clang++
-    #   before_install:
-    #     - brew update
-    #     - brew install boost sqlite mariadb cmake libmicrohttpd
   
 before_script:
+    - if [ "$PLATFORM" == "APPLE" ]; then
+        rm -rf /usr/local/var/postgres;
+        initdb /usr/local/var/postgres; 
+        pg_ctl -D /usr/local/var/postgres -o "-p 32768" start;
+        psql -p 32768 -c "CREATE ROLE postgres LOGIN ENCRYPTED PASSWORD 'lithium_test';" postgres;
+      fi
     - cd $HOME/build/$TRAVIS_REPO_SLUG
     - mkdir -p build 
     - cd build 
-    - cmake .. -DCMAKE_CXX_COMPILER=${LOCAL_CXX} -DCMAKE_INSTALL_PREFIX=$HOME/local
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=${LOCAL_CXX} -DCMAKE_INSTALL_PREFIX=$HOME/local $CMAKE_ARGS
 
 script:
     - bash ../libraries/sql/tests/sql_test_servers.sh start

@@ -59,15 +59,16 @@ if( WIN32 )
 else()
 	find_path( MYSQL_INCLUDE_DIR
 		NAMES "mysql.h"
-		PATHS "/usr/include/mysql/" "/usr/include/mariadb" 
-		"/usr/local/include/mysql/"
+		PATHS "/usr/include/mariadb/" "/usr/include/mysql" 
 		"/usr/local/include/mariadb/"
+		"/usr/local/include/mysql/"
 		"/usr/mysql/include/mysql/" 
               "/usr/local/opt/mysql-client/include/mysql/")
 	
 	find_library( MYSQL_LIBRARY
 		NAMES "mariadbclient" "mysqlclient" "mysqlclient_r"
-		PATHS "/lib/mysql"
+		PATHS "/usr/local/opt/mariadb/lib"
+		  "/lib/mysql"
 			"/lib64/mysql"
 			"/usr/lib/mysql"
 			"/usr/lib64/mysql"
@@ -80,7 +81,7 @@ else()
 			)
 endif()
 
-
+#set(MYSQL_LIBRARY ${MYSQL_LIBRARY} openssl)
 # if( MYSQL_INCLUDE_DIR AND EXISTS "${MYSQL_INCLUDE_DIRS}/mysql_version.h" )
 # 	file( STRINGS "${MYSQL_INCLUDE_DIRS}/mysql_version.h"
 # 		MYSQL_VERSION_H REGEX "^#define[ \t]+MYSQL_SERVER_VERSION[ \t]+\"[^\"]+\".*$" )
@@ -96,5 +97,6 @@ find_package_handle_standard_args( MYSQL DEFAULT_MSG
 		MYSQL_LIBRARY MYSQL_INCLUDE_DIR)
 
 set( MYSQL_INCLUDE_DIRS ${MYSQL_INCLUDE_DIR} )
-
+message( MYSQL_INCLUDE_DIRS ${MYSQL_INCLUDE_DIR} )
+message( ${MYSQL_LIBRARY} )
 mark_as_advanced( MYSQL_INCLUDE_DIR MYSQL_LIBRARY )

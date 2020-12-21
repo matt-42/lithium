@@ -1,7 +1,9 @@
 #include <cassert>
-#include <lithium.hh>
+#include <lithium_mysql.hh>
+#include <lithium_pgsql.hh>
+#include <lithium_sqlite.hh>
 
-#include "../../http_backend/tests/test.hh"
+#include "../../http_server/tests/test.hh"
 
 #include "symbols.hh"
 
@@ -67,6 +69,18 @@ int main() {
     // Remove.
     orm.remove(*u2, 42, 51);
     assert(orm.count() == 0);
+
+    orm.insert(s::name = "a", s::login = "a", s::age = 1, 42);
+    orm.insert(s::name = "b", s::login = "b", s::age = 2, 42);
+    orm.insert(s::name = "c", s::login = "c", s::age = 3, 42);
+    assert(orm.count() == 3);
+
+    int index = 0;
+    orm.forall([&] (auto u) {
+      assert(u.age == index + 1);
+      assert(u.login[0] == 'a' + index);
+      index++;
+    });
   };
 
   auto sqlite_db = sqlite_database("iod_sqlite_test_orm.db");

@@ -1,10 +1,10 @@
 #pragma once
 
 #include <iostream>
-#include <li/http_backend/symbols.hh>
-#include <li/metamap/metamap.hh>
 #include <sstream>
 
+#include <li/metamap/metamap.hh>
+#include <li/callable_traits/tuple_utils.hh>
 #include <li/sql/symbols.hh>
 
 namespace li {
@@ -141,10 +141,16 @@ template <typename SCHEMA, typename C> struct sql_orm {
         return ss.str();
     });
 
-    auto res = li::tuple_reduce(metamap_values(where), stmt).template read_optional<O>();
-    if (res)
-      call_callback(s::read_access, *res, cb_args...);
-    return res;
+    O result;
+    bool read_success = li::tuple_reduce(metamap_values(where), stmt).template read(metamap_values(result));
+    if (read_success)
+    {
+      call_callback(s::read_access, result, cb_args...);
+      return std::make_optional<O>(std::move(result));
+    }
+    else {
+      return std::optional<O>{};
+    }
   }
 
   template <typename A, typename B, typename... O, typename... W>
@@ -256,7 +262,11 @@ template <typename SCHEMA, typename C> struct sql_orm {
         ss << " FROM " << schema_.table_name();
         return ss.str();
     });
-    stmt().map([&](const O& o) { f(o); });
+    // stmt().map([&](const O& o) { f(o); });
+    using values_tuple = tuple_remove_references_and_const_t<decltype(metamap_values(std::declval<O>()))>;
+    using keys_tuple = decltype(metamap_keys(std::declval<O>()));
+    stmt().map([&](const values_tuple& values) { f(forward_tuple_as_metamap(keys_tuple{}, values)); });
+
   }
 
   // Update N's members except auto increment members.

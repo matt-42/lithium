@@ -2,7 +2,7 @@
 #include "symbols.hh"
 #include <cassert>
 #include <iostream>
-#include <lithium.hh>
+#include <lithium_mysql.hh>
 
 #include "generic_sql_tests.hh"
 
@@ -14,4 +14,6 @@ int main() {
                      s::password = "lithium_test", s::port = 14550, s::charset = "utf8");
 
   generic_sql_tests(database);
+
+  database.clear_connections();
 }

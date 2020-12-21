@@ -5,6 +5,11 @@
     LI_SYMBOL(append)
 #endif
 
+#ifndef LI_SYMBOL_generator
+#define LI_SYMBOL_generator
+    LI_SYMBOL(generator)
+#endif
+
 #ifndef LI_SYMBOL_json_key
 #define LI_SYMBOL_json_key
     LI_SYMBOL(json_key)
@@ -13,6 +18,11 @@
 #ifndef LI_SYMBOL_name
 #define LI_SYMBOL_name
     LI_SYMBOL(name)
+#endif
+
+#ifndef LI_SYMBOL_size
+#define LI_SYMBOL_size
+    LI_SYMBOL(size)
 #endif
 
 #ifndef LI_SYMBOL_type

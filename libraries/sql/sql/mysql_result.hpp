@@ -12,7 +12,6 @@
 #include <mysql.h>
 #include <optional>
 #include <sstream>
-#include <sys/epoll.h>
 #include <thread>
 #include <tuple>
 #include <unordered_map>
@@ -31,8 +30,8 @@ namespace li {
 template <typename B> void mysql_result<B>::next_row() {
 
   if (!result_)
-    result_ = mysql_use_result(con_);
-  current_row_ = mysql_wrapper_.mysql_fetch_row(connection_status_, result_);
+    result_ = mysql_use_result(connection_->connection_);
+  current_row_ = mysql_wrapper_.mysql_fetch_row(connection_->error_, result_);
   current_row_num_fields_ = mysql_num_fields(result_);
   if (!current_row_ || current_row_num_fields_ == 0) {
     end_of_result_ = true;
@@ -81,11 +80,11 @@ template <typename B> template <typename T> bool mysql_result<B>::read(T&& outpu
 }
 
 template <typename B> long long int mysql_result<B>::affected_rows() {
-  return mysql_affected_rows(con_);
+  return mysql_affected_rows(connection_->connection_);
 }
 
 template <typename B> long long int mysql_result<B>::last_insert_id() {
-  return mysql_insert_id(con_);
+  return mysql_insert_id(connection_->connection_);
 }
 
 } // namespace li
