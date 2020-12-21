@@ -24,7 +24,7 @@ template <typename Req, typename Resp> struct api {
 
   typedef api<Req, Resp> self;
 
-  api(): is_global_handler(false), global_handler_(NULL) { }
+  api(): is_global_handler(false), global_handler_(nullptr) { }
 
   using H = std::function<void(Req&, Resp&)>;
   struct VH {

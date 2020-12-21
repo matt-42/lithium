@@ -256,11 +256,14 @@ struct generic_http_ctx {
     case 204:
       status_ = "204 No Content";
       break;
+    case 301:
+      status_ = "301 Moved Permanently";
+      break;
     case 302:
       status_ = "302 Object moved";
       break;
     case 303:
-      status_ = "303 Moved Permanently";
+      status_ = "303 See Other";
       break;
     case 304:
       status_ = "304 Not Modified";
