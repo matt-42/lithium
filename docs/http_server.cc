@@ -61,7 +61,7 @@ Available options are:
 For HTTPS, you must provide:
 - `s::ssl_key`: path of the SSL key.
 - `s::ssl_certificate`: path of the SSL certificate.
-- `s::ssl_cifers`: OpenSSL cifers.
+- `s::ssl_ciphers`: OpenSSL ciphers.
 
 
 ## Error handling
