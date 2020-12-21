@@ -9,7 +9,7 @@ Documentation: [https://matt-42.github.io/lithium](https://matt-42.github.io/lit
 
 # Need some help ?
 
-Please post a github issue if you need help with Lithium. Even the dumiest question are welcome.
+https://github.com/matt-42/lithium/discussions
 
 # Supported compilers:
     - Linux: G++ 9.2, Clang++ 9.0
