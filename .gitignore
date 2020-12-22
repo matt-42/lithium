@@ -1,4 +1,3 @@
-build
 .vscode
 *~
 *.db
@@ -8,4 +7,6 @@ todo
 *.out
 test.txt
 hello.txt
+build
 build_debug
+build_release_with_debug_info
