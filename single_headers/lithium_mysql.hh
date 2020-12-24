@@ -2399,7 +2399,6 @@ template <typename I> struct sql_database {
           continue;
         }
         pool.n_connections++;
-
         try {
           data = impl.new_connection(fiber);
         } catch (typename Y::exception_type& e) {
@@ -2433,9 +2432,11 @@ template <typename I> struct sql_database {
              }
            
           } else {
-            if (pool.connections.size() >= pool.max_connections)
-              std::cerr << "Error: connection pool size " << pool.connections.size()
-                        << " exceed pool max_connections " << pool.max_connections << std::endl;
+            // This is not an error since connection pool.max_connections can vary during execution.
+            // It is ok just to discard extraneous in order to reach a lower pool.max_connections.
+            // if (pool.connections.size() >= pool.max_connections)
+            //   std::cerr << "Error: connection pool size " << pool.connections.size()
+            //             << " exceed pool max_connections " << pool.max_connections << " " << pool.n_connections<< std::endl;
             pool.n_connections--;
             delete data;
           }
