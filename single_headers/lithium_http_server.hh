@@ -3455,6 +3455,8 @@ template <typename Req, typename Resp> struct api {
 
   typedef api<Req, Resp> self;
 
+  api(): is_global_handler(false), global_handler_(NULL) { }
+
   using H = std::function<void(Req&, Resp&)>;
   struct VH {
     int verb = ANY;
@@ -3503,11 +3505,20 @@ template <typename Req, typename Resp> struct api {
     });
   }
 
+  H& global_handler() {
+    is_global_handler = true;
+    return global_handler_;
+  }
   void print_routes() {
     routes_map_.for_all_routes([this](auto r, auto h) { std::cout << r << '\n'; });
     std::cout << std::endl;
   }
   auto call(std::string_view method, std::string_view route, Req& request, Resp& response) const {
+    if(is_global_handler)
+    {
+        global_handler_(request, response);
+        return;
+    }
     if (route == last_called_route_)
     {
       if (last_handler_.verb == ANY or parse_verb(method) == last_handler_.verb) {
@@ -3539,6 +3550,8 @@ template <typename Req, typename Resp> struct api {
   dynamic_routing_table<VH> routes_map_;
   std::string last_called_route_;
   VH last_handler_;
+  H global_handler_;
+  bool is_global_handler;
 };
 
 } // namespace li
@@ -5716,8 +5729,17 @@ struct generic_http_ctx {
     case 204:
       status_ = "204 No Content";
       break;
+    case 302:
+      status_ = "302 Object moved";
+      break;
+    case 303:
+      status_ = "303 Moved Permanently";
+      break;
     case 304:
       status_ = "304 Not Modified";
+      break;
+    case 307:
+      status_ = "307 Temporary redirect";
       break;
     case 400:
       status_ = "400 Bad Request";
@@ -5726,13 +5748,19 @@ struct generic_http_ctx {
       status_ = "401 Unauthorized";
       break;
     case 402:
-      status_ = "402 Not Found";
+      status_ = "402 Payment Required";
       break;
     case 403:
       status_ = "403 Forbidden";
       break;
     case 404:
       status_ = "404 Not Found";
+      break;
+    case 405:
+      status_ = "405 HTTP verb used to access this page is not allowed (method not allowed)";
+      break;
+    case 406:
+      status_ = "406 Client browser does not accept the MIME type of the requested page";
       break;
     case 409:
       status_ = "409 Conflict";
