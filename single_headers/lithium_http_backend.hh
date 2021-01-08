@@ -3988,13 +3988,13 @@ struct async_reactor {
     this->epoll_fd = epoll_create1(0);
     epoll_ctl(epoll_fd, listen_fd, EPOLL_CTL_ADD, EPOLLIN | EPOLLET);
 
-    const int MAXEVENTS = 128;
+    const int MAXEVENTS = 512;
     epoll_event events[MAXEVENTS];
 
     // Main loop.
     while (!quit_signal_catched) {
 
-      int n_events = epoll_wait(epoll_fd, events, MAXEVENTS, 1000);
+      int n_events = epoll_wait(epoll_fd, events, MAXEVENTS, 1);
       if (quit_signal_catched)
         break;
 
@@ -4334,11 +4334,11 @@ struct http_ctx {
     #ifdef LITHIUM_SERVER_NAME
       #define MACRO_TO_STR2(L) #L
       #define MACRO_TO_STR(L) MACRO_TO_STR2(L)
-      output_stream << "\r\nConnection: keep-alive\r\nServer: " MACRO_TO_STR(LITHIUM_SERVER_NAME) "\r\n";
+      output_stream << "\r\nServer: " MACRO_TO_STR(LITHIUM_SERVER_NAME) "\r\n";
       #undef MACRO_TO_STR
       #undef MACRO_TO_STR2
     #else
-      output_stream << "\r\nConnection: keep-alive\r\nServer: Lithium\r\n";
+      output_stream << "\r\nServer: Lithium\r\n";
     #endif
   }
 

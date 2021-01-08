@@ -254,7 +254,7 @@ struct async_reactor {
     // Main loop.
     while (!quit_signal_catched) {
 
-      int n_events = epoll_wait(epoll_fd, events, MAXEVENTS, 1000);
+      int n_events = epoll_wait(epoll_fd, events, MAXEVENTS, 1);
       if (quit_signal_catched)
         break;
 
