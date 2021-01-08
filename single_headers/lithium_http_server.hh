@@ -4171,8 +4171,8 @@ struct async_reactor {
     while (!quit_signal_catched) {
 
 #if __linux__
-      // Wakeup at least every seconds to check if any quit signal has been catched.
-      int n_events = epoll_wait(epoll_fd, events, MAXEVENTS, 1000);
+      // Wakeup to check if any quit signal has been catched.
+      int n_events = epoll_wait(epoll_fd, events, MAXEVENTS, 1);
 #elif __APPLE__
       // kevent is already listening to quit signals.
       int n_events = kevent(epoll_fd, NULL, 0, events, MAXEVENTS, &timeout);
