@@ -6493,6 +6493,8 @@ template <typename Req, typename Resp> struct api {
 
   typedef api<Req, Resp> self;
 
+  api(): is_global_handler(false), global_handler_(nullptr) { }
+
   using H = std::function<void(Req&, Resp&)>;
   struct VH {
     int verb = ANY;
@@ -6541,11 +6543,20 @@ template <typename Req, typename Resp> struct api {
     });
   }
 
+  H& global_handler() {
+    is_global_handler = true;
+    return global_handler_;
+  }
   void print_routes() {
     routes_map_.for_all_routes([this](auto r, auto h) { std::cout << r << '\n'; });
     std::cout << std::endl;
   }
   auto call(std::string_view method, std::string_view route, Req& request, Resp& response) const {
+    if(is_global_handler)
+    {
+        global_handler_(request, response);
+        return;
+    }
     if (route == last_called_route_)
     {
       if (last_handler_.verb == ANY or parse_verb(method) == last_handler_.verb) {
@@ -6577,6 +6588,8 @@ template <typename Req, typename Resp> struct api {
   dynamic_routing_table<VH> routes_map_;
   std::string last_called_route_;
   VH last_handler_;
+  H global_handler_;
+  bool is_global_handler;
 };
 
 } // namespace li
@@ -7469,17 +7482,42 @@ inline std::string_view url_unescape(std::string_view str) {
 //   #define LITHIUM_SERVER_NAME_HEADER "Server: Lithium\r\n"
 // #endif
 
+namespace internal {
+
+struct double_buffer {
+
+  double_buffer() {
+    this->p1 = this->b1;
+    this->p2 = this->b2;
+  }
+
+  void swap() {
+    std::swap(this->p1, this->p2);
+  }
+
+  char* current_buffer() { return this->p1; }
+  char* next_buffer() { return this->p2; }
+  int size() { return 150; }
+
+  char* p1;
+  char* p2;
+  char b1[150];
+  char b2[150];
+};
+
+}
+
 struct http_top_header_builder {
 
-  std::string_view top_header() { return std::string_view(tmp2, top_header_size); }; 
-  std::string_view top_header_200() { return std::string_view(tmp2_200, top_header_200_size); }; 
+  std::string_view top_header() { return std::string_view(tmp.current_buffer(), top_header_size); }; 
+  std::string_view top_header_200() { return std::string_view(tmp_200.current_buffer(), top_header_200_size); }; 
 
   void tick() {
     time_t t = time(NULL);
     struct tm tm;
     gmtime_r(&t, &tm);
 
-    top_header_size = strftime(tmp1, sizeof(tmp1), 
+    top_header_size = strftime(tmp.next_buffer(), tmp.size(),
 #ifdef LITHIUM_SERVER_NAME
   #define MACRO_TO_STR2(L) #L
   #define MACRO_TO_STR(L) MACRO_TO_STR2(L)
@@ -7491,9 +7529,9 @@ struct http_top_header_builder {
   "\r\nServer: Lithium\r\n"
 #endif
       "Date: %a, %d %b %Y %T GMT\r\n", &tm);
-    std::swap(tmp1, tmp2);
+    tmp.swap();
 
-    top_header_200_size = strftime(tmp1_200, sizeof(tmp1_200), 
+    top_header_200_size = strftime(tmp_200.next_buffer(), tmp_200.size(), 
       "HTTP/1.1 200 OK\r\n"
 #ifdef LITHIUM_SERVER_NAME
   #define MACRO_TO_STR2(L) #L
@@ -7509,16 +7547,13 @@ struct http_top_header_builder {
       // LITHIUM_SERVER_NAME_HEADER
       "Date: %a, %d %b %Y %T GMT\r\n", &tm);
 
-    std::swap(tmp1_200, tmp2_200);
+    tmp_200.swap();
   }
 
-
-  char tmp1[150];
-  char tmp2[150];
+  internal::double_buffer tmp;
   int top_header_size;
 
-  char tmp1_200[150];
-  char tmp2_200[150];
+  internal::double_buffer tmp_200;
   int top_header_200_size;
 };
 
@@ -8075,6 +8110,7 @@ static std::unordered_map<std::string_view, std::string_view> content_types = {
 {"opf","application/oebps-package+xml"},
 {"opml","text/x-opml"},
 {"oprc","application/vnd.palm"},
+{"opus","audio/ogg"},
 {"org","application/vnd.lotus-organizer"},
 {"osf","application/vnd.yamaha.openscoreformat"},
 {"osfpvg","application/vnd.yamaha.openscoreformat.osfpvg+xml"},
@@ -8754,11 +8790,14 @@ struct generic_http_ctx {
     case 204:
       status_ = "204 No Content";
       break;
+    case 301:
+      status_ = "301 Moved Permanently";
+      break;
     case 302:
       status_ = "302 Object moved";
       break;
     case 303:
-      status_ = "303 Moved Permanently";
+      status_ = "303 See Other";
       break;
     case 304:
       status_ = "304 Not Modified";
@@ -10074,74 +10113,82 @@ template <typename... A> http_api http_authentication_api(http_authentication<A.
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_SERVE_DIRECTORY_HH
 
 
+
+
 namespace li {
 
 namespace impl {
-inline int is_regular_file(const std::string& path) {
-  struct stat path_stat;
-  if (-1 == stat(path.c_str(), &path_stat))
-    return false;
-  return S_ISREG(path_stat.st_mode);
-}
-inline bool starts_with(const char *pre, const char *str)
-{
-    size_t lenpre = strlen(pre),
-           lenstr = strlen(str);
-    return lenstr < lenpre ? false : memcmp(pre, str, lenpre) == 0;
-}
+  inline bool is_regular_file(const std::string& path) {
+    struct stat path_stat;
+    if (-1 == stat(path.c_str(), &path_stat))
+      return false;
+    return S_ISREG(path_stat.st_mode);
+  }
+
+  inline bool is_directory(const std::string& path) {
+    struct stat path_stat;
+    if (-1 == stat(path.c_str(), &path_stat))
+      return false;
+    return S_ISDIR(path_stat.st_mode);
+  }
+
+  inline bool starts_with(const char *pre, const char *str)
+  {
+      size_t lenpre = strlen(pre),
+            lenstr = strlen(str);
+      return lenstr < lenpre ? false : memcmp(pre, str, lenpre) == 0;
+  }
 } // namespace impl
 
 inline auto serve_file(const std::string& root, std::string_view path, http_response& response) {
-
   static char dot = '.', slash = '/';
 
   // remove first slash if needed.
-  size_t len = path.size();
   if (!path.empty() && path[0] == slash) {
     path = std::string_view(path.data() + 1, path.size() - 1); // erase(0, 1);
   }
 
   // Directory listing not supported.
   std::string full_path(root + std::string(path));
-  // Check that path is within the root directory.
-  std::cout << root << " - " <<  full_path << std::endl;
-
   if (path.empty() || !impl::is_regular_file(full_path)) {
     throw http_error::not_found("file not found.");
   }
-
   
-  char realpath_out[PATH_MAX];
+  // Check if file exists by real file path.
+  char realpath_out[PATH_MAX]{0};
   if (nullptr == realpath(full_path.c_str(), realpath_out))
     throw http_error::not_found("file not found.");
 
-  std::cout << root << " - " <<  realpath_out << std::endl;
+  // Check that path is within the root directory.
   if (!impl::starts_with(root.c_str(), realpath_out))
     throw http_error::not_found("Access denied.");
 
   response.write_static_file(full_path);
 };
 
-inline auto serve_directory(std::string root) {
-  http_api api;
-
-  // Ensure the root ends with a /
-
+inline auto serve_directory(const std::string& root) {
   // extract root realpath. 
-  char realpath_out[PATH_MAX];
+  char realpath_out[PATH_MAX]{0};
   if (nullptr == realpath(root.c_str(), realpath_out))
     throw std::runtime_error(std::string("serve_directory error: Directory ") + root + " does not exists.");
 
-  root = std::string(realpath_out);
-
-  if (!root.empty() && root[root.size() - 1] != '/') {
-    root.push_back('/');
+  // Check if it is a directory.
+  if (!impl::is_directory(realpath_out))
+  {
+    throw std::runtime_error(std::string("serve_directory error: ") + root + " is not a directory.");
   }
 
+  // Ensure the root ends with a /
+  std::string real_root(realpath_out);
+  if (real_root.back() != '/')
+  {
+    real_root.push_back('/');
+  }
 
-  api.get("/{{path...}}") = [root](http_request& request, http_response& response) {
+  http_api api;
+  api.get("/{{path...}}") = [real_root](http_request& request, http_response& response) {
     auto path = request.url_parameters(s::path = std::string_view()).path;
-    return serve_file(root, path, response);
+    return serve_file(real_root, path, response);
   };
   return api;
 }
