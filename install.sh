@@ -4,6 +4,10 @@ if [ $# -eq 0 ]; then
   echo "Usage: install.sh INSTALL_PREFIX"
 fi
 
+realpath() {
+    [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"
+}
+
 PREFIX=$(realpath $1)
 
 DIR=`mktemp -d`
