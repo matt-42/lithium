@@ -1,11 +1,11 @@
 #! /usr/bin/env python3
 
 import argparse
-import sys, os, glob
-import signal, stat
-import subprocess
+import glob
 import hashlib
-import tempfile
+import os
+import subprocess
+
 
 def hash_string(to_hash):
   return hashlib.md5(to_hash.encode('utf-8')).hexdigest()
@@ -24,16 +24,9 @@ RUN cd /lithium/build && cmake .. -DCMAKE_BUILD_TYPE=Release; make install -j4;"
 
   print(f"Building lithium docker image.")
 
-  no_cache_flag = "--no-cache " if no_cache else ""   
-  print(f"> docker build {no_cache_flag} -t lithium_docker_image -")
+  no_cache_flag = "--no-cache " if no_cache else ""
 
-  #tmpfile = tempfile.NamedTemporaryFile()
-  #with open(tmpfile.name, 'w') as f:
-  #  f.write(dockerfile)
-  #  print(f"docker build {no_cache_flag}-t lithium_docker_image {tmpfile.name}")
-  #  subprocess.run(f"docker build {no_cache_flag}-t lithium_docker_image {tmpfile.name}".split(" "),check=True)
-
-  process = subprocess.run(f"docker build {no_cache_flag}-t lithium_docker_image -".split(" "), input=dockerfile.encode('utf-8'), check=True)
+  subprocess.run(f"docker build {no_cache_flag}-t lithium_docker_image -".split(" "), input=dockerfile.encode('utf-8'), check=True)
 
 def lithium_docker_image_exists():
   return subprocess.run("docker image inspect lithium_docker_image".split(" "), stdout=open(os.devnull, 'wb')).returncode == 0
