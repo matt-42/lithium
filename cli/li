@@ -102,7 +102,7 @@ endfunction(li_add_executable)
   with open(output_filepath, 'w') as f:
     f.write(script)
 
-def compile_and_run(source_files, run_args, build_dir = None, debug = False):
+def compile_and_run(source_files, run_args, publish_arg, build_dir = None, debug = False):
   # Get the common dir of all source files.
   source_dir = os.path.commonpath([os.path.split(f)[0] for f in source_files])
 
@@ -122,7 +122,12 @@ def compile_and_run(source_files, run_args, build_dir = None, debug = False):
   compile_run_script = f"cd /build && cmake . && make && ./lithium_server {' '.join(run_args)}"
   # Run the shell script in docker.
   # --rm delete the container after running.
-  subprocess.run(f"docker run --rm -ti --network host -v {source_dir}:/source -v {build_dir}:/build lithium_docker_image /bin/bash -c".split(" ") + [compile_run_script])
+  network = "--network host"
+  print(publish_arg)
+  if publish_arg:
+      network="-p " + publish_arg
+  print(network)
+  subprocess.run(f"docker run --rm -ti {network} -v {source_dir}:/source -v {build_dir}:/build lithium_docker_image /bin/bash -c".split(" ") + [compile_run_script])
 
 
 def is_cpp_file(f): 
@@ -150,7 +155,7 @@ def gather_source_files(args):
 def run_command(args):
   source_files, run_args = gather_source_files(args.args)
   build_docker_image_if_missing()
-  compile_and_run(source_files, run_args)
+  compile_and_run(source_files, run_args, args.publish)
 def upgrade_command(args):
   build_docker_image(no_cache=True)
 def help_command(args):
@@ -180,7 +185,15 @@ containing C++ files. #include "symbols.hh" is then required in order to
 use lithium symbols (e.g s::symbol_name).
 """,
 epilog="""
-examples:
+
+Publishing the server port on non Linux hosts:
+
+  On non linux hosts, you need to expose the server port using the -p local_machine_port:in_container_port option:
+    $ li run -p 1234:8080  ./main.cc 8080
+  This will make the server (running on port 8080 in the container) accessible to the local machine on port 1234.
+  If the -p option is not set, docker is run with --network host which only works on linux hosts. 
+
+Examples:
   Run the server written in file main.cc and taking as first argument the listening port
     $ li run ./main.cc 8080
 
@@ -189,8 +202,11 @@ examples:
 
   Run the server written in file main.cc and utils.cc and taking as no argument
     $ li run ./main.cc ./utils.cc 8080
+
 """,
 formatter_class=argparse.RawDescriptionHelpFormatter)
+run_argparser.add_argument('--publish', '-p', type=str, help="""Docker pushlish option [see bellow]
+""")
 run_argparser.add_argument('args', nargs="+", type=str, help='Source dir or files to compile followed by the server args.')
 run_argparser.set_defaults(func=run_command)
 
