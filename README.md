@@ -18,7 +18,7 @@ https://github.com/matt-42/lithium/discussions
 
 # Benchmarks
 
-Lithium HTTP server and SQL drivers are benchmarked by [TechEmpower](https://tfb-status.techempower.com/).
+Lithium HTTP server and SQL drivers rank #1 on the [TechEmpower](https://tfb-status.techempower.com/) benchmark (composite score).
 
 # Support the project
 
