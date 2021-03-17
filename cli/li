@@ -61,7 +61,7 @@ def create_cmake_script_if_needed(source_files, output_dir):
 
   script = """
 # {hash}
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.0)
 set(CMAKE_CXX_STANDARD 17)
 SET(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} /lithium/cmake)
 

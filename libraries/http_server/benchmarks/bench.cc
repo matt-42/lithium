@@ -3,6 +3,12 @@
 #include "symbols.hh"
 using namespace li;
 
+int g_seed = 0;
+inline int random_int() { 
+  // return 0;
+  g_seed = (214013*g_seed+2531011); 
+  return (g_seed>>16)&0x7FFF; 
+} 
 template< typename T, typename Pred >
 typename std::vector<T>::iterator
     insert_sorted( std::vector<T> & vec, T&& item, Pred&& pred )
@@ -178,6 +184,8 @@ struct cache {
 
 cache<decltype(mmm(s::id = int(), s::randomNumber = int()))> world_cache;
 
+int randomNumber = 0;
+
 auto make_api() {
 
   http_api my_api;
@@ -212,11 +220,11 @@ auto make_api() {
       // raw_c("START TRANSACTION");
       // auto stm = c.backend_connection().prepare("SELECT randomNumber from World where id=$1");
       for (int i = 0; i < N; i++)
-        numbers[i] = c.find_one(s::id = 1 + rand() % 9990).value();
-      // numbers[i] = stm(1 + rand() % 99).read<std::remove_reference_t<decltype(numbers[i])>>();
+        numbers[i] = c.find_one(s::id = 1 + random_int() % 9990).value();
+      // numbers[i] = stm(1 + random_int() % 99).read<std::remove_reference_t<decltype(numbers[i])>>();
     // {
-    //   numbers[i].id = 1 + rand() % 99;
-    //     numbers[i].randomNumber = stm(1 + rand() % 99).read<int>();
+    //   numbers[i].id = 1 + random_int() % 99;
+    //     numbers[i].randomNumber = stm(1 + random_int() % 99).read<int>();
     // }
       // raw_c("COMMIT");
     }
@@ -230,7 +238,7 @@ auto make_api() {
 
     N = std::max(1, std::min(N, 500));
     auto c = random_numbers.connect(request.fiber);
-    response.write_json_generator(N, [&] { return *c.find_one(s::id = 1 + rand() % 9990); });
+    response.write_json_generator(N, [&] { return *c.find_one(s::id = 1 + random_int() % 9990); });
   };
 
 
@@ -253,14 +261,15 @@ auto make_api() {
     // std::vector<decltype(random_numbers.all_fields())> numbers(N);
     // for (int i = 0; i < N; i++)
     // {
-    //   int id = 1 + rand() % 10000;
+    //   int id = 1 + random_int() % 10000;
     //   numbers[i] = world_cache(id);
     // }
 
 
     std::vector<int> ids(N);
     for (int i = 0; i < N; i++)
-      ids[i] = rand() % 9999;
+      // ids[i] = random_int() % 9999;
+      ids[i] = (randomNumber++) % 9999;
     response.write_json(world_cache.get_array(ids));
 
     // response.write_json(numbers);
@@ -271,7 +280,7 @@ auto make_api() {
     
     N = std::max(1, std::min(N, 500));
     
-    response.write_json_generator(N, [] { return world_cache.buffer[rand() % 9999]; });
+    response.write_json_generator(N, [] { return world_cache.buffer[random_int() % 9999]; });
   };
 
   my_api.get("/updates") = [&](http_request& request, http_response& response) {
@@ -297,10 +306,10 @@ auto make_api() {
         // #endif
 
         for (int i = 0; i < N; i++) {
-          numbers[i] = c.find_one(s::id = 1 + rand() % 9999).value();
-          // numbers[i].id = 1 + rand() % 9999;
+          numbers[i] = c.find_one(s::id = 1 + random_int() % 9999).value();
+          // numbers[i].id = 1 + random_int() % 9999;
           // numbers[i].randomNumber = raw_c.cached_statement([] { return "select randomNumber from world where id=?"; })(numbers[i].id).read<int>();
-          numbers[i].randomNumber = 1 + rand() % 9999;
+          numbers[i].randomNumber = 1 + random_int() % 9999;
         }
         // raw_c("COMMIT");
       }
