@@ -12,7 +12,7 @@
 namespace li {
 
 template <typename Y> PGresult* pgsql_result<Y>::wait_for_next_result() {
-  return connection_->wait_for_next_result(fiber_);
+  return connection_->wait_for_next_pgresult(fiber_);
 }
 
 template <typename Y> void pgsql_result<Y>::flush_results() {
@@ -30,7 +30,7 @@ template <typename Y> void pgsql_result<Y>::flush_results() {
   while (true)
   {
     if (connection_->error_ == 1) break;
-    PGresult* res = connection_->wait_for_next_result(fiber_, true);
+    PGresult* res = connection_->wait_for_next_pgresult(fiber_, true);
     if (res)
       PQclear(res);
     else break;
@@ -111,6 +111,7 @@ template <typename B> template <typename T> bool pgsql_result<B>::fetch_next_res
   // std::cout << "connection_->current_result_id_ " << connection_->current_result_id_ << " this->result_id_ " << this->result_id_ << std::endl;
 
   // if (!current_result_)
+  // First wait that the right result_id in the query result pipeline.
   connection_->wait_for_result(fiber_, this->result_id_);
 
   // std::cout << "GO read: fiber_.continuation_idx " << fiber_.continuation_idx << std::endl;

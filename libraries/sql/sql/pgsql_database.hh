@@ -109,7 +109,6 @@ struct pgsql_database_impl {
       PQfinish(connection);
       throw std::move(e);
     }
-    // std::cout << "CONNECTED " << std::endl;
     fiber.epoll_mod(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
     if (status != PGRES_POLLING_OK) {
       std::cerr << "Warning: cannot connect to the postgresql server " << host_ << ": "
@@ -120,12 +119,14 @@ struct pgsql_database_impl {
 
     // PQexec(connection, "SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED");
 
-    if (PQenterBatchMode(connection) == 0)
+    if (PQenterPipelineMode(connection) == 0)
     {
-      std::cerr << "PQenterBatchMode error: Is the connection idle?" << std::endl;
+      std::cerr << "PQenterPipelineMode error: Is the connection idle?" << std::endl;
       PQfinish(connection);
       return nullptr;      
     }
+
+    // std::cout << "CONNECTED " << std::endl;
 
     // pgsql_set_character_set(pgsql, character_set_.c_str());
     return new pgsql_connection_data{connection, pgsql_fd};

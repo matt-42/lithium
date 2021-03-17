@@ -13,6 +13,8 @@
 #include <cassert>
 #include <cstring>
 #include <deque>
+#include <exception>
+#include <functional>
 #include <iostream>
 #include <map>
 #include <memory>
@@ -2247,7 +2249,7 @@ template <typename I> struct sql_database {
   template <typename... O> sql_database(O&&... opts) : impl(std::forward<O>(opts)...) {
     auto options = mmm(opts...);
     max_async_connections_per_thread_ = get_or(options, s::max_async_connections_per_thread, 2);
-    max_sync_connections_ = get_or(options, s::max_sync_connections, 2000);
+    max_sync_connections_ = get_or(options, s::max_sync_connections, 50);
 
     this->database_id_ = database_id_counter++;
   }
@@ -2321,6 +2323,8 @@ template <typename I> struct sql_database {
     // std::cout << "Try CONNECT!" << std::endl;
     while (!data) {
 
+    // std::cout << "Try CONNECT! "<< pool.connections.size() << std::endl;
+
 #define SHARED_CONNECTION_BETWEEN_FIBER
 #ifdef SHARED_CONNECTION_BETWEEN_FIBER
 
@@ -2329,6 +2333,7 @@ template <typename I> struct sql_database {
         for (int i = pool.n_connections; pool.n_connections < pool.max_connections; i++) {
           try {
             pool.n_connections++;
+            // std::cout << "n_connections: " << pool.n_connections << " max: " << pool.max_connections << std::endl;
             data = impl.new_connection(fiber);
             if (data)
             {
@@ -2341,6 +2346,8 @@ template <typename I> struct sql_database {
             }
             else {
               pool.n_connections--;
+              fiber.yield();
+              // break;
             }
           } catch (typename Y::exception_type& e) {
             pool.n_connections--;

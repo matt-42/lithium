@@ -1,6 +1,8 @@
 #pragma once
 
 
+#include <unordered_map>
+#include <memory>
 
 #include <li/sql/type_hashmap.hh>
 #include <li/sql/internal/utils.hh>
@@ -63,7 +65,12 @@ struct pgsql_connection_data {
         // println("PQgetResult flushed", res);
         // std::cout << 
         if (res) PQclear(res);
-        else break;
+
+        // Break if:
+        //   res is null means end of the query result.
+        //   status is PGRES_PIPELINE_SYNC becaused it is not followed by a null PGresult.
+        if (!res || PQresultStatus(res) == PGRES_PIPELINE_SYNC) 
+          break;
       }
       // usleep(10);
     }
@@ -91,8 +98,8 @@ struct pgsql_connection_data {
   }
 
   template <typename Y>
-  PGresult* wait_for_next_result(Y& fiber, bool nothrow = false, bool async = true) {
-    // println("WAIT for next result    ======================");
+  PGresult* wait_for_next_pgresult(Y& fiber, bool nothrow = false, bool async = true) {
+    // println("WAIT for next PGresult    ====================== current result id is ", this->current_result_id_);
     while (true) {
       // println("PQconsumeInput");
       if (PQconsumeInput(pgconn_) == 0)
@@ -109,13 +116,14 @@ struct pgsql_connection_data {
       if (PQisBusy(pgconn_)) {
         // std::cout << "isbusy" << std::endl;
         try {
+          // In async mode, make sure the pq socket wakes up this fiber.
           if (async) {
             // println("         is busy => yield.  ======================");
             fiber.reassign_fd_to_fiber(PQsocket(pgconn_), fiber.continuation_idx);
             fiber.yield();
           }
         } catch (typename Y::exception_type& e) {
-          // println("   wait for next result ERROR WITH fiber", fiber.continuation_idx);
+          // println("   wait for next PGresult ERROR WITH fiber", fiber.continuation_idx);
 
           // Free results.
           // Yield thrown a exception (probably because a closed connection).
@@ -152,10 +160,16 @@ struct pgsql_connection_data {
           PQclear(res);
           std::cerr << "Postgresql non fatal error: " << PQerrorMessage(pgconn_) << std::endl;
         }        
-        else if (status == PGRES_BATCH_ABORTED) {
+        else if (status == PGRES_PIPELINE_ABORTED) {
           PQclear(res);
           std::cerr << "Postgresql batch aborted: " << PQerrorMessage(pgconn_) << std::endl;        
         }
+
+        // if (res == nullptr)
+        //   println("   PQgetResult returned NULL");
+
+        // if (status == PGRES_PIPELINE_SYNC)
+        //   println("   PQgetResult returned PGRES_PIPELINE_SYNC");
         // println("    wait for next result OK.");
         return res;
       }
@@ -166,10 +180,10 @@ struct pgsql_connection_data {
   void send_end_batch() {
     // if (batched_queries.size() && batched_queries.back().result_id == last_batch_end_id_) return;
 
-    // println(" batch size: ", batched_queries.back().result_id - last_batch_end_id_);
+    // println("send_end_batch: batch size: ", batched_queries.back().result_id - last_batch_end_id_);
     // println("PQsendEndBatch"); 
-    if (0 == PQbatchSendQueue(this->pgconn_))
-      std::cerr << "PQsendEndBatch error"  << std::endl; 
+    if (0 == PQpipelineSync(this->pgconn_))
+      std::cerr << "PQpipelineSync error"  << std::endl; 
     int result_id = this->next_result_id++;// batched_queries.size() == 0 ? 1 : batched_queries.back().result_id + 1;
     last_batch_end_id_ = result_id;
     batched_queries.push_back(batch_query_info{0, result_id, true, true});
@@ -198,6 +212,9 @@ struct pgsql_connection_data {
     return result_id;
   }
 
+  // Get the next query for reading the results.
+  // call send_end_batch if the query is in the batch currently
+  // being accumulated.
   inline auto pq_get_next_query() {
 
     auto query = batched_queries.front();
@@ -232,23 +249,30 @@ struct pgsql_connection_data {
 
     while (batched_queries.size() > 0 && batched_queries.front().ignore_result) {
 
-      // println(" ignore ", query.result_id);
 
       // std::cout << "PQgetNextQuery" << std::endl; 
       auto query = this->pq_get_next_query();
+      // println(" ignore ", query.result_id);
       assert(query.ignore_result);
 
       // println("ignore result ", query.result_id);
       while (true)
       {
         // println("wait one result");
-        PGresult* res = this->wait_for_next_result(fiber, false, async);
+        PGresult* res = this->wait_for_next_pgresult(fiber, false, async);
         // println("one result ok");
         if (res)
         {
           // if (query.is_batch_end) println("got PGRES_BATCH_END");
-          assert(!query.is_batch_end || PQresultStatus(res) == PGRES_BATCH_END);
+          int status = PQresultStatus(res);
+          if (query.is_batch_end && status != PGRES_PIPELINE_SYNC)
+          {
+            std::cerr << " got batch end but PQresultStatus(res) == " << status << ". It should be PGRES_PIPELINE_SYNC: " << PGRES_PIPELINE_SYNC << std::endl;
+          }
+          assert(!query.is_batch_end || status == PGRES_PIPELINE_SYNC);
           PQclear(res);
+          if (query.is_batch_end)
+            break; // PGRES_PIPELINE_SYNC is not followed by a null PGresult.
         }
         else break;
       }
@@ -268,9 +292,10 @@ struct pgsql_connection_data {
   }
 
   // The current result is totally consumed. Go to the next one.
+  // If another fiber is waiting for the next one, defer the wake up of this fiber. 
   template <typename Y>
   void end_of_current_result(Y& fiber, bool async = true) {
-    // println("end_of_current_result");
+    // println("end_of_current_result: ", this->current_result_id_);
     // assert(result_processing_in_progress_);
     result_processing_in_progress_ = false;
 
@@ -293,6 +318,7 @@ struct pgsql_connection_data {
     }
     else
     {
+      // println("   end_of_current_result: queue is now empty");
       // std::cout << "current_result_id_ = -1" << std::endl; 
       current_result_id_ = -1;        
     }
@@ -306,7 +332,7 @@ struct pgsql_connection_data {
 
   template <typename Y>
   void wait_for_result(Y& fiber, int result_id) {
-    // println("wait for result", result_id, current_result_id_);
+    // println("wait for result", result_id, " current is: ", current_result_id_);
     if (current_result_id_ == result_id) return;
 
         

@@ -14,9 +14,9 @@ find_package(OpenSSL REQUIRED)
 include_directories(${SQLite3_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS} ${MYSQL_INCLUDE_DIR} ${OPENSSL_INCLUDE_DIR})
 
 # include_directories(${PostgreSQL_INCLUDE_DIRS})
-include_directories($ENV{HOME}/local/libpq-pipelining/include)
+include_directories($ENV{HOME}/local/libpq-pipelining-master/include)
 
-link_directories($ENV{HOME}/local/libpq-pipelining/lib)
+link_directories($ENV{HOME}/local/libpq-pipelining-master/lib)
 
 #SET(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} -lgcov --coverage -fprofile-generate")
 #add_definitions(-fprofile-generate)

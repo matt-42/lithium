@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 #include <li/sql/sql_common.hh>
 #include <li/sql/pgsql_connection_data.hh>
 
