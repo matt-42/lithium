@@ -18,6 +18,8 @@ $ wget https://raw.githubusercontent.com/matt-42/lithium/master/cli/li
 Once installed, you can compile and run servers in one command:
 ```bash
 $ li run [source files...] [program arguments]
+$ # on non-linux hosts, use the -p option to expose the port
+$ li run -p 8080:80 [source files...] [program arguments]
 ```
 
 When run the first time, `li run` will take 1-2 minutes to build the lithium docker image.
