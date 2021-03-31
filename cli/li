@@ -5,7 +5,11 @@ import glob
 import hashlib
 import os
 import subprocess
+import sys
 
+if sys.version_info < (3, 6):
+  print("Error: Python >= 3.6 is required, current version is ", sys.version)
+  exit(1)
 
 def hash_string(to_hash):
   return hashlib.md5(to_hash.encode('utf-8')).hexdigest()
