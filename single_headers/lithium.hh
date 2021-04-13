@@ -481,7 +481,10 @@ template <typename M1, typename... Ms> struct metamap<M1, Ms...> : public M1, pu
   // metamap(self& other)
   //  : metamap(const_cast<const self&>(other)) {}
 
-  constexpr inline metamap(typename M1::_iod_value_type&& m1, typename Ms::_iod_value_type&&... members) : M1{m1}, Ms{std::forward<typename Ms::_iod_value_type>(members)}... {}
+  template <typename M>
+  using get_value_type = typename M::_iod_value_type;
+
+  constexpr inline metamap(get_value_type<M1>&& m1, get_value_type<Ms>&&... members) : M1{m1}, Ms{std::forward<get_value_type<Ms>>(members)}... {}
   constexpr inline metamap(M1&& m1, Ms&&... members) : M1(m1), Ms(std::forward<Ms>(members))... {}
   constexpr inline metamap(const M1& m1, const Ms&... members) : M1(m1), Ms((members))... {}
 
@@ -7469,19 +7472,6 @@ inline std::string_view url_unescape(std::string_view str) {
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_HTTP_TOP_HEADER_BUILDER_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_HTTP_TOP_HEADER_BUILDER_HH
 
-
-// #ifdef LITHIUM_SERVER_NAME
-//   #define MACRO_TO_STR2(L) #L
-//   #define MACRO_TO_STR(L) MACRO_TO_STR2(L)
-
-//   #define LITHIUM_SERVER_NAME_HEADER "Server: " MACRO_TO_STR(LITHIUM_SERVER_NAME) "\r\n"
-
-//   #undef MACRO_TO_STR
-//   #undef MACRO_TO_STR2
-// #else
-//   #define LITHIUM_SERVER_NAME_HEADER "Server: Lithium\r\n"
-// #endif
-
 namespace internal {
 
 struct double_buffer {
@@ -8676,17 +8666,6 @@ struct generic_http_ctx {
       output_stream << http_top_header.top_header_200();
     else
       output_stream << "HTTP/1.1 " << status_ << http_top_header.top_header();
-    // output_stream << "HTTP/1.1 " << status_;
-    // output_stream << "\r\nDate: " << std::string_view(date_buf, date_buf_size);
-    // #ifdef LITHIUM_SERVER_NAME
-    //   #define MACRO_TO_STR2(L) #L
-    //   #define MACRO_TO_STR(L) MACRO_TO_STR2(L)
-    //   output_stream << "\r\nConnection: keep-alive\r\nServer: " MACRO_TO_STR(LITHIUM_SERVER_NAME) "\r\n";
-    //   #undef MACRO_TO_STR
-    //   #undef MACRO_TO_STR2
-    // #else
-    //   output_stream << "\r\nConnection: keep-alive\r\nServer: Lithium\r\n";
-    // #endif
   }
 
   void prepare_request() {

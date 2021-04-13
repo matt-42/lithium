@@ -1,16 +1,4 @@
-
-
-// #ifdef LITHIUM_SERVER_NAME
-//   #define MACRO_TO_STR2(L) #L
-//   #define MACRO_TO_STR(L) MACRO_TO_STR2(L)
-
-//   #define LITHIUM_SERVER_NAME_HEADER "Server: " MACRO_TO_STR(LITHIUM_SERVER_NAME) "\r\n"
-
-//   #undef MACRO_TO_STR
-//   #undef MACRO_TO_STR2
-// #else
-//   #define LITHIUM_SERVER_NAME_HEADER "Server: Lithium\r\n"
-// #endif
+#pragma once
 
 namespace internal {
 

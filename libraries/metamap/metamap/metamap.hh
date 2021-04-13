@@ -35,7 +35,10 @@ template <typename M1, typename... Ms> struct metamap<M1, Ms...> : public M1, pu
   // metamap(self& other)
   //  : metamap(const_cast<const self&>(other)) {}
 
-  constexpr inline metamap(typename M1::_iod_value_type&& m1, typename Ms::_iod_value_type&&... members) : M1{m1}, Ms{std::forward<typename Ms::_iod_value_type>(members)}... {}
+  template <typename M>
+  using get_value_type = typename M::_iod_value_type;
+
+  constexpr inline metamap(get_value_type<M1>&& m1, get_value_type<Ms>&&... members) : M1{m1}, Ms{std::forward<get_value_type<Ms>>(members)}... {}
   constexpr inline metamap(M1&& m1, Ms&&... members) : M1(m1), Ms(std::forward<Ms>(members))... {}
   constexpr inline metamap(const M1& m1, const Ms&... members) : M1(m1), Ms((members))... {}
 
