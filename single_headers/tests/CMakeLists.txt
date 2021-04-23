@@ -31,7 +31,10 @@ function(add_sh_executable target_name)
 endfunction(add_sh_executable)
 
 #set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -march=native -mtune=native -flto") 
-add_definitions(-Wno-ignored-attributes) # to skip postgresql warnings.
+
+IF (NOT WIN32)
+  add_definitions(-Wno-ignored-attributes) # to skip postgresql warnings.
+ENDIF ()
 
 add_sh_executable(json json.cc)
 add_sh_executable(http_server http_server.cc)

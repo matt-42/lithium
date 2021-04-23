@@ -4,7 +4,6 @@ SET(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH}
 
 project(lithium)
 
-
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
 # On MacOS use -DCMAKE_PREFIX_PATH='/usr/local/opt/openssl/;/usr/local/opt/curl;/usr/local/opt/libpq
@@ -39,19 +38,20 @@ file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/include/li)
 file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/single_headers)
 
 function (link_build_include lib_name target_dir)
-IF (WIN32)
-    STRING(REGEX REPLACE "/" "\\\\"  CMAKE_SOURCE_DIR_BACKSLASH ${CMAKE_SOURCE_DIR}) 
-    STRING(REGEX REPLACE "/" "\\\\"  TARGET_BS ${target_dir}) 
-    execute_process(COMMAND cmd.exe /c mklink /J ${lib_name}
-    "${CMAKE_SOURCE_DIR_BACKSLASH}${TARGET_BS}"
-    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/include/li/)
-ELSE()
-  if(NOT EXISTS "${CMAKE_BINARY_DIR}/include/li/${lib_name}")
-  execute_process(COMMAND ln -s
-                  "${CMAKE_SOURCE_DIR}${target_dir}" ${lib_name}
-                  WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/include/li/)
+  IF (WIN32)
+      STRING(REGEX REPLACE "/" "\\\\"  CMAKE_SOURCE_DIR_BACKSLASH ${CMAKE_SOURCE_DIR}) 
+      STRING(REGEX REPLACE "/" "\\\\"  TARGET_BS ${target_dir}) 
+      message("CREATE INCLUDE DIRECTORY " ${target_dir})
+      execute_process(COMMAND cmd.exe /c mklink /J ${lib_name}
+      "${CMAKE_SOURCE_DIR_BACKSLASH}${TARGET_BS}"
+      WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/include/li/)
+  ELSE()
+    if(NOT EXISTS "${CMAKE_BINARY_DIR}/include/li/${lib_name}")
+    execute_process(COMMAND ln -s
+                    "${CMAKE_SOURCE_DIR}${target_dir}" ${lib_name}
+                    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/include/li/)
+    ENDIF()
   ENDIF()
-ENDIF()
 endfunction()
 
 # Create the li/{lib}/header tree to build the tests.
@@ -68,9 +68,13 @@ include_directories(${CMAKE_BINARY_DIR}/single_headers) # tests include there he
 include_directories(${CMAKE_BINARY_DIR}/include) # just to enable vscode intellisense.
 
 #set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -march=native -mtune=native -flto") 
+if(NOT WIN32)
 add_definitions(-Wno-ignored-attributes) # to skip postgresql warnings.
+endif()
 
+########
 # Generate content type definition header file
+########
 set(GENERATED_CONTENT_TYPES
 "${CMAKE_SOURCE_DIR}\
 /libraries/http_server/http_server\
@@ -95,11 +99,14 @@ add_custom_command(
       | awk '{for(i=2\; i<=NF\; i++) {print \"{\\\"\"$$i"\\\",\\\""$$1\"\\\"},\"}}' | sort >> ${GENERATED_CONTENT_TYPES}
     COMMAND echo \"}\;}\" >> ${GENERATED_CONTENT_TYPES}
 )
+########
+# End of type definition header file
+########
 
 # Automatic symbol generation
 add_custom_target(
     symbols_generation DEPENDS li_symbol_generator
-    COMMAND ${CMAKE_BINARY_DIR}/libraries/symbol/li_symbol_generator ${CMAKE_CURRENT_SOURCE_DIR}/libraries ${CMAKE_CURRENT_SOURCE_DIR}/single_headers ${CMAKE_CURRENT_SOURCE_DIR}/docs)
+    COMMAND $<TARGET_FILE:li_symbol_generator> ${CMAKE_CURRENT_SOURCE_DIR}/libraries ${CMAKE_CURRENT_SOURCE_DIR}/single_headers ${CMAKE_CURRENT_SOURCE_DIR}/docs)
 
 
 # Automatic single header generation for release (without line directives)
