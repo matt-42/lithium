@@ -6,7 +6,8 @@ project(lithium)
 
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
-# On MacOS use -DCMAKE_PREFIX_PATH='/usr/local/opt/openssl/;/usr/local/opt/curl;/usr/local/opt/libpq
+# On MacOS use -DCMAKE_PREFIX_PATH='/usr/local/opt/openssl/;/usr/local/opt/curl;/usr/local/opt/libpq'
+
 # to have find_package look into brew installed locations first.
 find_package(MYSQL REQUIRED)
 find_package(Boost REQUIRED context)
@@ -93,7 +94,7 @@ add_custom_target(
 add_custom_command(
     OUTPUT ${GENERATED_CONTENT_TYPES}
     COMMAND touch ${GENERATED_CONTENT_TYPES}
-    COMMAND echo \"// This file is generated do not edit it.\" >> ${GENERATED_CONTENT_TYPES}
+    COMMAND echo \"// This file is generated do not edit it.\" > ${GENERATED_CONTENT_TYPES}
     COMMAND echo \"\#pragma once\" >> ${GENERATED_CONTENT_TYPES}
     COMMAND echo \"\#include <unordered_map>\" >> ${GENERATED_CONTENT_TYPES}
     COMMAND echo \"\#include <string_view>\" >> ${GENERATED_CONTENT_TYPES}

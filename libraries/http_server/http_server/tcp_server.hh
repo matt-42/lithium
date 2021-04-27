@@ -52,11 +52,11 @@ typedef SOCKET socket_type;
 typedef int socket_type;
 #endif
 
-void close_socket(socket_type sock) {
+inline int close_socket(socket_type sock) {
 #if defined _WIN32
-  closesocket(sock);
+  return closesocket(sock);
 #else
-  close(sock);
+  return close(sock);
 #endif
 }
 
@@ -435,9 +435,9 @@ struct async_reactor {
             // ============================================
             // Simply utility to close fd at the end of a scope.
             struct scoped_fd {
-              socket_type fd;
+              impl::socket_type fd;
               ~scoped_fd() {
-                if (0 != close_socket(fd))
+                if (0 != impl::close_socket(fd))
                   std::cerr << "Error when closing file descriptor " << fd << ": "
                             << strerror(errno) << std::endl;
               }
@@ -500,7 +500,7 @@ struct async_reactor {
       }
     }
     std::cout << "END OF EVENT LOOP" << std::endl;
-    close_socket(epoll_fd);
+    impl::close_socket(epoll_fd);
   }
 };
 
