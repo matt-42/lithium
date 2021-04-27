@@ -53,7 +53,7 @@ struct output_buffer {
 
   std::size_t size() { return cursor_ - buffer_; }
   void flush() {
-    flush_(buffer_, size());
+    flush_(buffer_, int(size()));
     reset();
   }
 

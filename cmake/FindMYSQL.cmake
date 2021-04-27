@@ -50,11 +50,11 @@ if( WIN32 )
 	
 	find_library( MYSQLCLIENT_LIBRARY
 	NAMES "mariadbclient" "mysqlclient" "mysqlclient_r"
-	PATHS ${MARIADB_LIB_DIR} "C:/Users/User/Documents/vcpkg/installed/x86-windows/lib")
+	PATHS ${MARIADB_LIB_DIR} )
 
 	find_library( MYSQL_LIBRARY
 		NAMES "libmariadb" "libmysql"
-		PATHS ${MYSQLDB_LIB_DIR} "C:/Users/User/Documents/vcpkg/installed/x86-windows/lib"
+		PATHS ${MYSQLDB_LIB_DIR}
 		)
 
 	message("INCLUDE PATH:" ${CMAKE_INCLUDE_PATH} ${CMAKE_PREFIX_PATH} ${CMAKE_FRAMEWORK_PATH} 

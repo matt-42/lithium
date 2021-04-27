@@ -1,5 +1,7 @@
 #pragma once
 
+#include <time.h>
+
 namespace internal {
 
 struct double_buffer {
@@ -9,9 +11,7 @@ struct double_buffer {
     this->p2 = this->b2;
   }
 
-  void swap() {
-    std::swap(this->p1, this->p2);
-  }
+  void swap() { std::swap(this->p1, this->p2); }
 
   char* current_buffer() { return this->p1; }
   char* next_buffer() { return this->p2; }
@@ -23,47 +23,57 @@ struct double_buffer {
   char b2[150];
 };
 
-}
+} // namespace internal
 
 struct http_top_header_builder {
 
-  std::string_view top_header() { return std::string_view(tmp.current_buffer(), top_header_size); }; 
-  std::string_view top_header_200() { return std::string_view(tmp_200.current_buffer(), top_header_200_size); }; 
+  std::string_view top_header() { return std::string_view(tmp.current_buffer(), top_header_size); };
+  std::string_view top_header_200() {
+    return std::string_view(tmp_200.current_buffer(), top_header_200_size);
+  };
 
   void tick() {
     time_t t = time(NULL);
     struct tm tm;
-    gmtime_r(&t, &tm);
-
-    top_header_size = strftime(tmp.next_buffer(), tmp.size(),
-#ifdef LITHIUM_SERVER_NAME
-  #define MACRO_TO_STR2(L) #L
-  #define MACRO_TO_STR(L) MACRO_TO_STR2(L)
-  "\r\nServer: " MACRO_TO_STR(LITHIUM_SERVER_NAME) "\r\n"
-
-  #undef MACRO_TO_STR
-  #undef MACRO_TO_STR2
+#if defined _WIN32
+    gmtime_s(&tm, &t);
 #else
-  "\r\nServer: Lithium\r\n"
+    gmtime_r(&t, &tm);
 #endif
-      "Date: %a, %d %b %Y %T GMT\r\n", &tm);
+
+    top_header_size =
+        int(strftime(tmp.next_buffer(), tmp.size(),
+#ifdef LITHIUM_SERVER_NAME
+#define MACRO_TO_STR2(L) #L
+#define MACRO_TO_STR(L) MACRO_TO_STR2(L)
+                 "\r\nServer: " MACRO_TO_STR(LITHIUM_SERVER_NAME) "\r\n"
+
+#undef MACRO_TO_STR
+#undef MACRO_TO_STR2
+#else
+                 "\r\nServer: Lithium\r\n"
+#endif
+                                                                  "Date: %a, %d %b %Y %T GMT\r\n",
+                 &tm));
     tmp.swap();
 
-    top_header_200_size = strftime(tmp_200.next_buffer(), tmp_200.size(), 
-      "HTTP/1.1 200 OK\r\n"
+    top_header_200_size =
+        int(strftime(tmp_200.next_buffer(), tmp_200.size(),
+                 "HTTP/1.1 200 OK\r\n"
 #ifdef LITHIUM_SERVER_NAME
-  #define MACRO_TO_STR2(L) #L
-  #define MACRO_TO_STR(L) MACRO_TO_STR2(L)
-  "Server: " MACRO_TO_STR(LITHIUM_SERVER_NAME) "\r\n"
+#define MACRO_TO_STR2(L) #L
+#define MACRO_TO_STR(L) MACRO_TO_STR2(L)
+                 "Server: " MACRO_TO_STR(LITHIUM_SERVER_NAME) "\r\n"
 
-  #undef MACRO_TO_STR
-  #undef MACRO_TO_STR2
+#undef MACRO_TO_STR
+#undef MACRO_TO_STR2
 #else
-  "Server: Lithium\r\n"
+                 "Server: Lithium\r\n"
 #endif
 
-      // LITHIUM_SERVER_NAME_HEADER
-      "Date: %a, %d %b %Y %T GMT\r\n", &tm);
+                                                              // LITHIUM_SERVER_NAME_HEADER
+                                                              "Date: %a, %d %b %Y %T GMT\r\n",
+                 &tm));
 
     tmp_200.swap();
   }

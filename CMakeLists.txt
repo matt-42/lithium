@@ -16,13 +16,18 @@ find_package(PostgreSQL REQUIRED)
 find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
 
+IF (WIN32)
+find_package(Wepoll REQUIRED)
+ENDIF()
+
 include_directories(${SQLite3_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS} ${MYSQL_INCLUDE_DIR})
 include_directories(${PostgreSQL_INCLUDE_DIRS})
 include_directories(${Boost_INCLUDE_DIRS})
 include_directories(${OPENSSL_INCLUDE_DIR})
+include_directories(${Wepoll_INCLUDE_DIR})
 
 set(LIBS ${OPENSSL_LIBRARIES} ${SQLite3_LIBRARIES} ${CURL_LIBRARIES} ${MYSQL_LIBRARY} ${PostgreSQL_LIBRARIES} 
-          ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
+          ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} ${Wepoll_LIBRARY})
 
 if (APPLE)
   # needed by mariadbclient on macos:

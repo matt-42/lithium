@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.0)
 
-project(li::sql)
+project(sql)
 
 li_add_executable(sqlite_test tests/sqlite.cc)
 add_test(sqlite_test sqlite_test)
