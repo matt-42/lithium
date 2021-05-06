@@ -15,6 +15,7 @@
 
 #include <li/http_server/error.hh>
 #include <li/http_server/url_decode.hh>
+#include <li/http_server/http_ctx.hh>
 
 #include <li/metamap/metamap.hh>
 

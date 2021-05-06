@@ -11,6 +11,7 @@
 #endif
 
 //#include <sys/stat.h>
+#include <li/http_server/http_ctx.hh>
 
 namespace li {
 using namespace li;

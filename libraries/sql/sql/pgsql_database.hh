@@ -1,6 +1,8 @@
 #pragma once
 
+#if not defined _WIN32
 #include <unistd.h>
+#endif
 
 #include "libpq-fe.h"
 #include <atomic>

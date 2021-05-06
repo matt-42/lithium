@@ -319,7 +319,13 @@ struct async_reactor {
 
 #if __linux__ || _WIN32
     this->epoll_fd = epoll_create1(0);
+#ifdef _WIN32
+    // epollet is not implemented by wepoll.
+    epoll_ctl(epoll_fd, listen_fd, EPOLL_CTL_ADD, EPOLLIN);
+#else
     epoll_ctl(epoll_fd, listen_fd, EPOLL_CTL_ADD, EPOLLIN | EPOLLET);
+#endif
+
     epoll_event events[MAXEVENTS];
 
 #elif __APPLE__
@@ -424,10 +430,12 @@ struct async_reactor {
             // FIXME Duplicate ??
             // if (-1 == fcntl(socket_fd, F_SETFL, fcntl(socket_fd, F_GETFL, 0) | O_NONBLOCK))
             //   continue;
-#if __linux__ || _WIN32
+#if __linux__
             this->epoll_add(socket_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET, fiber_idx);
+#elif _WIN32
+            this->epoll_add(socket_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP, fiber_idx);
 #elif __APPLE__
-            this->epoll_add(socket_fd, EVFILT_READ | EVFILT_WRITE, fiber_idx);
+          this->epoll_add(socket_fd, EVFILT_READ | EVFILT_WRITE, fiber_idx);
 #endif
 
             // ============================================
@@ -500,7 +508,11 @@ struct async_reactor {
       }
     }
     std::cout << "END OF EVENT LOOP" << std::endl;
+#if _WIN32
+    epoll_close(epoll_fd);
+#else
     impl::close_socket(epoll_fd);
+#endif
   }
 };
 
@@ -529,14 +541,34 @@ void start_tcp_server(int port, int socktype, int nthreads, H conn_handler,
                       std::string ssl_key_path = "", std::string ssl_cert_path = "",
                       std::string ssl_ciphers = "") {
 
+// Start the winsock DLL
+#ifdef _WIN32
+  WORD wVersionRequested;
+  WSADATA wsaData;
+  int err;
+  wVersionRequested = MAKEWORD(2, 2);
+  err = WSAStartup(wVersionRequested, &wsaData);
+  if (err != 0) {
+    std::cerr << "WSAStartup failed with error: " << err << std::endl;
+    return;
+  }
+#endif
+
+// Setup quit signals
+#ifdef _WIN32
+  signal(SIGINT, shutdown_handler);
+  signal(SIGTERM, shutdown_handler);
+  signal(SIGABRT, shutdown_handler);
+#else
   struct sigaction act;
   memset(&act, 0, sizeof(act));
   act.sa_handler = shutdown_handler;
-
   sigaction(SIGINT, &act, 0);
   sigaction(SIGTERM, &act, 0);
   sigaction(SIGQUIT, &act, 0);
+#endif
 
+  // Start the server threads.
   int server_fd = impl::create_and_bind(port, socktype);
   std::vector<std::thread> ths;
   for (int i = 0; i < nthreads; i++)
@@ -550,7 +582,7 @@ void start_tcp_server(int port, int socktype, int nthreads, H conn_handler,
   for (auto& t : ths)
     t.join();
 
-  close(server_fd);
+  impl::close_socket(server_fd);
 }
 
 } // namespace li

@@ -1,6 +1,10 @@
 #pragma once
 
+
+#if not defined(_WIN32)
 #include <arpa/inet.h>
+#endif
+
 #include "libpq-fe.h"
 #include <li/sql/internal/utils.hh>
 #if __APPLE__

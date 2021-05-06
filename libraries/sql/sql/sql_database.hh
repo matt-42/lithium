@@ -4,11 +4,15 @@
 #include <unordered_map>
 
 namespace li {
+  
 // thread local map of sql_database<I>* -> sql_database_thread_local_data<I>*;
 // This is used to store the thread local async connection pool.
 // void* is used instead of concrete types to handle different I parameter.
-
+#ifndef _WIN32
 thread_local std::unordered_map<void*, void*> sql_thread_local_data [[gnu::weak]];
+#else
+__declspec(selectany) thread_local std::unordered_map<void*, void*> sql_thread_local_data; 
+#endif
 
 template <typename I> struct sql_database_thread_local_data {
 

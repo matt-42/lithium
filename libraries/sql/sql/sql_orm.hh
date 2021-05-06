@@ -33,8 +33,9 @@ template <typename SCHEMA, typename C> struct sql_orm {
   sql_orm(SCHEMA& schema, C&& con) : schema_(schema), con_(std::forward<C>(con)) {}
 
   template <typename S, typename... A> void call_callback(S s, A&&... args) {
-    if constexpr (has_key<decltype(schema_.get_callbacks())>(S{}))
-      return schema_.get_callbacks()[s](args...);
+    get_or(schema_.get_callbacks(), s, [] (A... args) {})(args...);
+    // if constexpr (has_key<decltype(schema_.get_callbacks())>(S{}))
+    //   return schema_.get_callbacks().template operator[]<S>(s)(args...);
   }
 
   inline auto& drop_table_if_exists() {
@@ -122,7 +123,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
   template <typename... W, typename... A> auto find_one(metamap<W...> where, A&&... cb_args) {
 
-    auto stmt = con_.cached_statement([&] (){ 
+    auto stmt = con_.cached_statement([&] { 
         std::ostringstream ss;
         placeholder_pos_ = 0;
         ss << "SELECT ";
@@ -142,7 +143,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     });
 
     O result;
-    bool read_success = li::tuple_reduce(metamap_values(where), stmt).template read(metamap_values(result));
+    bool read_success = li::tuple_reduce(metamap_values(where), stmt).read(metamap_values(result));
     if (read_success)
     {
       call_callback(s::read_access, result, cb_args...);

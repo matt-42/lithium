@@ -7,8 +7,12 @@ project(lithium)
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
 # On MacOS use -DCMAKE_PREFIX_PATH='/usr/local/opt/openssl/;/usr/local/opt/curl;/usr/local/opt/libpq'
-
 # to have find_package look into brew installed locations first.
+
+# On windows with vcpkg, use
+# cmake ..\lithium -DCMAKE_TOOLCHAIN_FILE="C:\vcpkg\scripts\buildsystems\vcpkg.cmake" -DCMAKE_PREFIX_PATH="C:\vcpkg\installed\x86-windows"
+
+
 find_package(MYSQL REQUIRED)
 find_package(Boost REQUIRED context)
 find_package(SQLite3 REQUIRED)
@@ -19,6 +23,7 @@ find_package(OpenSSL REQUIRED)
 
 IF (WIN32)
 find_package(Wepoll REQUIRED)
+set(WINDOWS_LIBS wsock32 ws2_32)
 ENDIF()
 
 include_directories(${SQLite3_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS} ${MYSQL_INCLUDE_DIR})
@@ -27,15 +32,16 @@ include_directories(${Boost_INCLUDE_DIRS})
 include_directories(${OPENSSL_INCLUDE_DIR})
 include_directories(${Wepoll_INCLUDE_DIR})
 
+message("WINDOWS LIBS: " ${Wepoll_LIBRARY} " -- " ${WINDOWS_LIBS})
 set(LIBS ${OPENSSL_LIBRARIES} ${SQLite3_LIBRARIES} ${CURL_LIBRARIES} ${MYSQL_LIBRARY} ${PostgreSQL_LIBRARIES} 
-          ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} ${Wepoll_LIBRARY})
+          ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} ${Wepoll_LIBRARY} ${WINDOWS_LIBS})
 
 if (APPLE)
   # needed by mariadbclient on macos:
   set(LIBS ${LIBS} z iconv)
 endif()
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 
 enable_testing()
 
