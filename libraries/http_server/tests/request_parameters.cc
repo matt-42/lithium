@@ -1,9 +1,6 @@
 #include "test.hh"
 #include <lithium_http_server.hh>
 
-#include <sched.h>
-#include <sys/resource.h>
-
 #include "symbols.hh"
 
 using namespace li;

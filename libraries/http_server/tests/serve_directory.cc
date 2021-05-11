@@ -11,10 +11,14 @@ using namespace li;
 int main() {
   namespace fs = std::filesystem;
 
-  char root_tmp[] = "/tmp/webroot_XXXXXX";
-  fs::path root(::mkdtemp(root_tmp));
+  fs::path root(fs::temp_directory_path() / "lithium_test_webroot");
+
+  if (!fs::exists(root))
+    fs::create_directories(root);
+
   fs::create_directories(root / "subdir");
-  std::unique_ptr<char, void (*)(char*)> tmp_remover(root_tmp, [](char* tfp){ fs::remove_all(tfp); });
+  auto root_deleter = [](fs::path* root){ fs::remove_all(*root); };
+  std::unique_ptr<fs::path, decltype(root_deleter)> tmp_remover(&root, root_deleter);
 
   {
     std::cout << (root / "subdir" / "hello.txt").string() << std::endl;

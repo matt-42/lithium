@@ -24,6 +24,7 @@ find_package(OpenSSL REQUIRED)
 IF (WIN32)
 find_package(Wepoll REQUIRED)
 set(WINDOWS_LIBS wsock32 ws2_32)
+add_definitions(-DNOMINMAX)
 ENDIF()
 
 include_directories(${SQLite3_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS} ${MYSQL_INCLUDE_DIR})

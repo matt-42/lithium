@@ -7,6 +7,8 @@
 
 #pragma once
 
+#include <WS2tcpip.h>
+#include <WinSock2.h>
 #include <any>
 #include <arpa/inet.h>
 #include <atomic>
@@ -60,12 +62,15 @@
 #include <sys/types.h>
 #include <sys/uio.h>
 #include <thread>
+#include <time.h>
 #include <tuple>
 #include <unistd.h>
 #include <unordered_map>
 #include <utility>
 #include <variant>
 #include <vector>
+#include <wepoll.h>
+#include <winsock2.h>
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -452,14 +457,19 @@ template <template <class> class F, typename T> decltype(auto) tuple_filter(T&& 
 namespace li {
 
 namespace internal {
-struct {
+struct reduce_add_type {
   template <typename A, typename... B> constexpr auto operator()(A&& a, B&&... b) {
     auto result = a;
     using expand_variadic_pack = int[];
     (void)expand_variadic_pack{0, ((result += b), 0)...};
     return result;
   }
-} reduce_add;
+};
+#ifdef _WIN32
+__declspec(selectany) reduce_add_type reduce_add;
+#else
+reduce_add_type reduce_add [[gnu::weak]];
+#endif
 
 } // namespace internal
 
@@ -1332,7 +1342,8 @@ template <typename I> struct sql_result {
   sql_result() = delete;
   sql_result& operator=(sql_result&) = delete;
   sql_result(const sql_result&) = delete;
-
+  sql_result(I&& impl) : impl_(std::forward<I>(impl)) {}
+  
   inline ~sql_result() { this->flush_results(); }
 
   inline void flush_results() { impl_.flush_results(); }
@@ -1655,8 +1666,7 @@ struct sqlite_statement {
     if (last_step_ret != SQLITE_ROW and last_step_ret != SQLITE_DONE)
       throw std::runtime_error(sqlite3_errstr(last_step_ret));
 
-    return sql_result<sqlite_statement_result>{
-        sqlite_statement_result{this->db_, this->stmt_, last_step_ret}};
+    return sql_result<sqlite_statement_result>(sqlite_statement_result{this->db_, this->stmt_, last_step_ret});
   }
 
   inline int bind(sqlite3_stmt* stmt, int pos, double d) const {
@@ -2854,14 +2864,14 @@ json_error_code json_decode2(P& p, O& obj, json_object_<S> schema) {
     int name_len;
     std::function<json_error_code(P&)> parse_value;
   };
-  constexpr int n_members = std::tuple_size<decltype(schema.schema)>();
+  constexpr int n_members = int(std::tuple_size<decltype(schema.schema)>());
   attr_info A[n_members];
   int i = 0;
   auto prepare = [&](auto m) {
     A[i].filled = false;
     A[i].required = true;
     A[i].name = symbol_string(m.name);
-    A[i].name_len = strlen(symbol_string(m.name));
+    A[i].name_len = int(strlen(symbol_string(m.name)));
 
     if constexpr (has_key(m, s::json_key)) {
       A[i].name = m.json_key;
@@ -3549,8 +3559,9 @@ template <typename SCHEMA, typename C> struct sql_orm {
   sql_orm(SCHEMA& schema, C&& con) : schema_(schema), con_(std::forward<C>(con)) {}
 
   template <typename S, typename... A> void call_callback(S s, A&&... args) {
-    if constexpr (has_key<decltype(schema_.get_callbacks())>(S{}))
-      return schema_.get_callbacks()[s](args...);
+    get_or(schema_.get_callbacks(), s, [] (A... args) {})(args...);
+    // if constexpr (has_key<decltype(schema_.get_callbacks())>(S{}))
+    //   return schema_.get_callbacks().template operator[]<S>(s)(args...);
   }
 
   inline auto& drop_table_if_exists() {
@@ -3638,7 +3649,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
   template <typename... W, typename... A> auto find_one(metamap<W...> where, A&&... cb_args) {
 
-    auto stmt = con_.cached_statement([&] (){ 
+    auto stmt = con_.cached_statement([&] { 
         std::ostringstream ss;
         placeholder_pos_ = 0;
         ss << "SELECT ";
@@ -3658,7 +3669,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     });
 
     O result;
-    bool read_success = li::tuple_reduce(metamap_values(where), stmt).template read(metamap_values(result));
+    bool read_success = li::tuple_reduce(metamap_values(where), stmt).read(metamap_values(result));
     if (read_success)
     {
       call_callback(s::read_access, result, cb_args...);
@@ -4460,8 +4471,13 @@ namespace li {
  */
 template <typename B> struct mysql_statement_result {
 
+  mysql_statement_result(B& mysql_wrapper_, mysql_statement_data& data_,
+                         std::shared_ptr<mysql_connection_data> connection_)
+      : mysql_wrapper_(mysql_wrapper_), data_(data_), connection_(connection_) {}
+
   mysql_statement_result& operator=(mysql_statement_result&) = delete;
   mysql_statement_result(const mysql_statement_result&) = delete;
+  mysql_statement_result(mysql_statement_result&&) = default;
 
   /**
    * @brief Destructor. Free the result if needed.
@@ -4477,8 +4493,7 @@ template <typename B> struct mysql_statement_result {
   // Read std::tuple and li::metamap.
   template <typename T> bool read(T&& output);
 
-  template <typename T>
-  bool read(T&& output, MYSQL_BIND* bind, unsigned long* real_lengths);
+  template <typename T> bool read(T&& output, MYSQL_BIND* bind, unsigned long* real_lengths);
 
   template <typename F> void map(F map_callback);
 
@@ -4726,10 +4741,10 @@ template <typename B>
 template <typename... T>
 sql_result<mysql_statement_result<B>> mysql_statement<B>::operator()(T&&... args) {
 
-  if (sizeof...(T) > 0) {
+  if constexpr (sizeof...(T) > 0) {
     // Bind the ...args in the MYSQL BIND structure.
     MYSQL_BIND bind[sizeof...(T)];
-    memset(bind, 0, sizeof(bind));
+    memset(bind, 0, sizeof...(T) * sizeof(MYSQL_BIND));
     int i = 0;
     tuple_map(std::forward_as_tuple(args...), [&](auto& m) {
       mysql_bind_param(bind[i], m);
@@ -4748,8 +4763,7 @@ sql_result<mysql_statement_result<B>> mysql_statement<B>::operator()(T&&... args
   mysql_wrapper_.mysql_stmt_execute(connection_->error_, data_.stmt_);
 
   // Return the wrapped mysql result.
-  return sql_result<mysql_statement_result<B>>{
-      mysql_statement_result<B>{mysql_wrapper_, data_, connection_}};
+  return sql_result<mysql_statement_result<B>>(mysql_statement_result<B>(mysql_wrapper_, data_, connection_));
 }
 
 } // namespace li
@@ -4786,13 +4800,21 @@ template <typename B> struct mysql_result {
   MYSQL_ROW current_row_ = nullptr;
   bool end_of_result_ = false;
   int current_row_num_fields_ = 0;
-  
+
+  mysql_result(B& mysql_wrapper_, std::shared_ptr<mysql_connection_data> connection_)
+      : mysql_wrapper_(mysql_wrapper_), connection_(connection_){}
   mysql_result& operator=(mysql_result&) = delete;
   mysql_result(const mysql_result&) = delete;
+  mysql_result(mysql_result&&) = default;
 
   inline ~mysql_result() { flush(); }
 
-  inline void flush() { if (result_) { mysql_free_result(result_); result_ = nullptr; } } 
+  inline void flush() {
+    if (result_) {
+      mysql_free_result(result_);
+      result_ = nullptr;
+    }
+  }
   inline void flush_results() { this->flush(); }
   inline void next_row();
   template <typename T> bool read(T&& output);
@@ -4808,7 +4830,6 @@ template <typename B> struct mysql_result {
    * @return the last inserted id.
    */
   long long int last_insert_id();
-
 };
 
 } // namespace li
@@ -4970,8 +4991,7 @@ template <typename B> long long int mysql_connection<B>::last_insert_rowid() {
 template <typename B>
 sql_result<mysql_result<B>> mysql_connection<B>::operator()(const std::string& rq) {
   mysql_wrapper_.mysql_real_query(data_->error_, data_->connection_, rq.c_str(), rq.size());
-  return sql_result<mysql_result<B>>{
-      mysql_result<B>{mysql_wrapper_, data_}};
+  return sql_result<mysql_result<B>>(mysql_result<B>{mysql_wrapper_, data_});
 }
 
 template <typename B>
@@ -5029,11 +5049,15 @@ template <typename B> mysql_statement<B> mysql_connection<B>::prepare(const std:
 
 
 namespace li {
+  
 // thread local map of sql_database<I>* -> sql_database_thread_local_data<I>*;
 // This is used to store the thread local async connection pool.
 // void* is used instead of concrete types to handle different I parameter.
-
+#ifndef _WIN32
 thread_local std::unordered_map<void*, void*> sql_thread_local_data [[gnu::weak]];
+#else
+__declspec(selectany) thread_local std::unordered_map<void*, void*> sql_thread_local_data; 
+#endif
 
 template <typename I> struct sql_database_thread_local_data {
 
@@ -5400,6 +5424,8 @@ inline auto mysql_database_impl::scoped_connection(Y& fiber,
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_DATABASE_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_DATABASE_HH
 
+#if not defined _WIN32
+#endif
 
 #include "libpq-fe.h"
 
@@ -5411,6 +5437,8 @@ inline auto mysql_database_impl::scoped_connection(Y& fiber,
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_CONNECTION_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_CONNECTION_HH
 
+#if not defined(_WIN32)
+#endif
 
 #include "libpq-fe.h"
 
@@ -5512,13 +5540,24 @@ private:
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_RESULT_HPP
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_RESULT_HPP
 
+
+#ifdef _WIN32
+#else
+#endif
+
 #include "libpq-fe.h"
 #if __APPLE__
 #endif
 //#include <catalog/pg_type_d.h>
 
 #if __APPLE__ // from https://gist.github.com/yinyin/2027912
+
 #define be64toh(x) OSSwapBigToHostInt64(x)
+
+#elif _WIN32 // from https://gist.github.com/PkmX/63dd23f28ba885be53a5
+
+#define be64toh(x) _byteswap_uint64(x)
+
 #endif
 
 #define INT8OID 20
@@ -5808,6 +5847,9 @@ private:
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_STATEMENT_HPP
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_STATEMENT_HPP
 
+#ifdef _WIN32
+#endif
+
 
 
 namespace li {
@@ -5915,13 +5957,22 @@ sql_result<pgsql_result<Y>> pgsql_statement<Y>::operator()(T&&... args) {
   unsigned int nparams = 0;
   if constexpr (sizeof...(T) > 0)
     nparams = (bind_compute_nparam(std::forward<T>(args)) + ...);
-  const char* values_[nparams];
+
+#ifdef _WIN32 // MSVC does not support variable sized arrays.
+  std::vector<const char*> values_(nparams);
+  std::vector<int> lengths_(nparams);
+  std::vector<int> binary_(nparams);
+  const char** values = values_.data();
+  int* lengths = lengths_.data();
+  int* binary = binary_.data();
+#else
+  const char*> values_[nparams];
   int lengths_[nparams];
   int binary_[nparams];
-
   const char** values = values_;
   int* lengths = lengths_;
   int* binary = binary_;
+#endif
 
   int i = 0;
   tuple_map(std::forward_as_tuple(args...), [&](const auto& a) {
@@ -6166,6 +6217,546 @@ typedef sql_database<pgsql_database_impl> pgsql_database;
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_HTTP_SERVER_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_HTTP_SERVER_HH
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_ORM_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_ORM_HH
+
+
+
+namespace li {
+
+struct sqlite_tag;
+struct mysql_tag;
+struct pgsql_tag;
+
+using s::auto_increment;
+using s::primary_key;
+using s::read_only;
+
+template <typename SCHEMA, typename C> struct sql_orm {
+
+  typedef decltype(std::declval<SCHEMA>().all_fields()) O;
+  typedef O object_type;
+
+  ~sql_orm() {
+
+    //assert(0);
+  }
+  sql_orm(sql_orm&&) = default;
+  sql_orm(const sql_orm&) = delete;
+  sql_orm& operator=(const sql_orm&) = delete;
+
+  sql_orm(SCHEMA& schema, C&& con) : schema_(schema), con_(std::forward<C>(con)) {}
+
+  template <typename S, typename... A> void call_callback(S s, A&&... args) {
+    get_or(schema_.get_callbacks(), s, [] (A... args) {})(args...);
+    // if constexpr (has_key<decltype(schema_.get_callbacks())>(S{}))
+    //   return schema_.get_callbacks().template operator[]<S>(s)(args...);
+  }
+
+  inline auto& drop_table_if_exists() {
+    con_(std::string("DROP TABLE IF EXISTS ") + schema_.table_name()).flush_results();
+    return *this;
+  }
+
+  inline auto& create_table_if_not_exists() {
+    std::ostringstream ss;
+    ss << "CREATE TABLE if not exists " << schema_.table_name() << " (";
+
+    bool first = true;
+    li::tuple_map(schema_.all_info(), [&](auto f) {
+      auto f2 = schema_.get_field(f);
+      typedef decltype(f) F;
+      typedef decltype(f2) F2;
+      typedef typename F2::left_t K;
+      typedef typename F2::right_t V;
+
+      bool auto_increment = SCHEMA::template is_auto_increment<F>::value;
+      bool primary_key = SCHEMA::template is_primary_key<F>::value;
+      K k{};
+      V v{};
+
+      if (!first)
+        ss << ", ";
+      ss << li::symbol_string(k) << " ";
+      
+      if (!std::is_same<typename C::db_tag, pgsql_tag>::value or !auto_increment)
+        ss << con_.type_to_string(v);
+
+      if (std::is_same<typename C::db_tag, sqlite_tag>::value) {
+        if (auto_increment || primary_key)
+          ss << " PRIMARY KEY ";
+      }
+
+      if (std::is_same<typename C::db_tag, mysql_tag>::value) {
+        if (auto_increment)
+          ss << " AUTO_INCREMENT NOT NULL";
+        if (primary_key)
+          ss << " PRIMARY KEY ";
+      }
+
+      if (std::is_same<typename C::db_tag, pgsql_tag>::value) {
+        if (auto_increment)
+          ss << " SERIAL PRIMARY KEY ";
+      }
+
+      first = false;
+    });
+    ss << ");";
+    try {
+      con_(ss.str()).flush_results();
+    } catch (std::runtime_error e) {
+      std::cerr << "Warning: Lithium::sql could not create the " << schema_.table_name() << " sql table."
+                << std::endl
+                << "You can ignore this message if the table already exists."
+                << "The sql error is: " << e.what() << std::endl;
+    }
+    return *this;
+  }
+
+  std::string placeholder_string() {
+
+    if (std::is_same<typename C::db_tag, pgsql_tag>::value) {
+      placeholder_pos_++;
+      std::stringstream ss;
+      ss << '$' << placeholder_pos_;
+      return ss.str();
+    }
+    else return "?";
+  }
+
+  template <typename W> void where_clause(W&& cond, std::ostringstream& ss) {
+    ss << " WHERE ";
+    bool first = true;
+    map(cond, [&](auto k, auto v) {
+      if (!first)
+        ss << " and ";
+      first = false;
+      ss << li::symbol_string(k) << " = " << placeholder_string();
+    });
+    ss << " ";
+  }
+
+  template <typename... W, typename... A> auto find_one(metamap<W...> where, A&&... cb_args) {
+
+    auto stmt = con_.cached_statement([&] { 
+        std::ostringstream ss;
+        placeholder_pos_ = 0;
+        ss << "SELECT ";
+        bool first = true;
+        O o;
+        li::map(o, [&](auto k, auto v) {
+          if (!first)
+            ss << ",";
+          first = false;
+          ss << li::symbol_string(k);
+        });
+
+        ss << " FROM " << schema_.table_name();
+        where_clause(where, ss);
+        ss << "LIMIT 1";
+        return ss.str();
+    });
+
+    O result;
+    bool read_success = li::tuple_reduce(metamap_values(where), stmt).read(metamap_values(result));
+    if (read_success)
+    {
+      call_callback(s::read_access, result, cb_args...);
+      return std::make_optional<O>(std::move(result));
+    }
+    else {
+      return std::optional<O>{};
+    }
+  }
+
+  template <typename A, typename B, typename... O, typename... W>
+  auto find_one(metamap<O...>&& o, assign_exp<A, B>&& w1, W... ws) {
+    return find_one(cat(o, mmm(w1)), std::forward<W>(ws)...);
+  }
+  template <typename A, typename B, typename... W> auto find_one(assign_exp<A, B>&& w1, W&&... ws) {
+    return find_one(mmm(w1), std::forward<W>(ws)...);
+  }
+
+  template <typename W> bool exists(W&& cond) {
+
+    O o;
+    auto stmt = con_.cached_statement([&] { 
+        std::ostringstream ss;
+        placeholder_pos_ = 0;
+        ss << "SELECT count(*) FROM " << schema_.table_name();
+        where_clause(cond, ss);
+        ss << "LIMIT 1";
+        return ss.str();
+    });
+
+    return li::tuple_reduce(metamap_values(cond), stmt).template read<int>();
+  }
+
+  template <typename A, typename B, typename... W> auto exists(assign_exp<A, B> w1, W... ws) {
+    return exists(mmm(w1, ws...));
+  }
+  // Save a ll fields except auto increment.
+  // The db will automatically fill auto increment keys.
+  template <typename N, typename... A> auto insert(N&& o, A&&... cb_args) {
+
+    auto values = schema_.without_auto_increment();
+    map(o, [&](auto k, auto& v) { values[k] = o[k]; });
+
+    call_callback(s::validate, values, cb_args...);
+    call_callback(s::before_insert, values, cb_args...);
+
+
+    auto stmt = con_.cached_statement([&] { 
+        std::ostringstream ss;
+        std::ostringstream vs;
+
+        placeholder_pos_ = 0;
+        ss << "INSERT into " << schema_.table_name() << "(";
+
+        bool first = true;
+        li::map(values, [&](auto k, auto v) {
+          if (!first) {
+            ss << ",";
+            vs << ",";
+          }
+          first = false;
+          ss << li::symbol_string(k);
+          vs << placeholder_string();
+        });
+
+        ss << ") VALUES (" << vs.str() << ")";
+
+        if (std::is_same<typename C::db_tag, pgsql_tag>::value &&
+            has_key(schema_.all_fields(), s::id))
+          ss << " returning id;";
+        return ss.str();
+    });
+
+    auto request_res = li::reduce(values, stmt);
+
+    call_callback(s::after_insert, o, cb_args...);
+
+    if constexpr(has_key<decltype(schema_.all_fields())>(s::id))
+      return request_res.last_insert_id();
+    else return request_res.flush_results();
+  };
+
+  template <typename A, typename B, typename... O, typename... W>
+  auto insert(metamap<O...>&& o, assign_exp<A, B> w1, W... ws) {
+    return insert(cat(o, mmm(w1)), ws...);
+  }
+  template <typename A, typename B, typename... W>
+  auto insert(assign_exp<A, B> w1, W... ws) {
+    return insert(mmm(w1), ws...);
+  }
+
+  // template <typename S, typename V, typename... A>
+  // long long int insert(const assign_exp<S, V>& a, A&&... tail) {
+  //   auto m = mmm(a, tail...);
+  //   return insert(m);
+  // }
+
+  // Iterate on all the rows of the table.
+  template <typename F> void forall(F f) {
+
+    typedef decltype(schema_.all_fields()) O;
+
+    auto stmt = con_.cached_statement([&] { 
+        std::ostringstream ss;
+        placeholder_pos_ = 0;
+      
+        ss << "SELECT ";
+        bool first = true;
+        O o;
+        li::map(o, [&](auto k, auto v) {
+          if (!first)
+            ss << ",";
+          first = false;
+          ss << li::symbol_string(k);
+        });
+      
+        ss << " FROM " << schema_.table_name();
+        return ss.str();
+    });
+    // stmt().map([&](const O& o) { f(o); });
+    using values_tuple = tuple_remove_references_and_const_t<decltype(metamap_values(std::declval<O>()))>;
+    using keys_tuple = decltype(metamap_keys(std::declval<O>()));
+    stmt().map([&](const values_tuple& values) { f(forward_tuple_as_metamap(keys_tuple{}, values)); });
+
+  }
+
+  // Update N's members except auto increment members.
+  // N must have at least one primary key named id.
+  // Only postgres is supported for now.
+  template <typename N, typename... CB> void bulk_update(const N& elements, CB&&... args) {
+
+    if constexpr(!std::is_same<typename C::db_tag, pgsql_tag>::value)
+      for (const auto& o : elements)
+        this->update(o);
+    else
+    {
+      
+      auto stmt = con_.cached_statement([&] { 
+        std::ostringstream ss;
+        ss << "UPDATE " << schema_.table_name() << " SET ";
+
+        int nfields = metamap_size<decltype(elements[0])>();
+        bool first = true;
+        map(elements[0], [&](auto k, auto v) {
+          if (!first)
+            ss << ",";
+          if (not li::has_key(schema_.primary_key(), k))
+          {
+            ss << li::symbol_string(k) << " = tmp." << li::symbol_string(k);
+            first = false;
+          }
+        });
+
+        ss << " FROM (VALUES ";
+        for (int i = 0; i < elements.size(); i++)
+        {
+          if (i != 0) ss << ',';
+          ss << "(";
+          for (int j = 0; j < nfields; j++)
+          {
+            if (j != 0) ss << ",";
+            ss << "$" <<  1+i*nfields+j << "::int";
+          }
+          ss << ")";
+        }
+      
+        ss << ") AS tmp(";
+        first = true;
+        map(elements[0], [&](auto k, auto v) {
+          if (!first)
+            ss << ",";
+          first = false;
+          ss << li::symbol_string(k);
+        });
+        ss << ") WHERE tmp.id = " << schema_.table_name() << ".id";      
+        // std::cout << ss.str() << std::endl;
+        return ss.str();
+      }, elements.size());
+
+      for (const auto& o : elements)
+      {
+        call_callback(s::validate, o, args...);
+        call_callback(s::write_access, o, args...);
+        call_callback(s::before_update, o, args...);
+      }
+
+      stmt(elements).flush_results();
+    }
+  }
+
+  // Update N's members except auto increment members.
+  // N must have at least one primary key.
+  template <typename N, typename... CB> void update(const N& o, CB&&... args) {
+    // check if N has at least one member of PKS.
+
+    call_callback(s::validate, o, args...);
+    call_callback(s::write_access, o, args...);
+    call_callback(s::before_update, o, args...);
+
+    // static_assert(metamap_size<decltype(intersect(o, schema_.read_only()))>(),
+    //"You cannot give read only fields to the orm update method.");
+
+    auto to_update = substract(o, schema_.read_only());
+    auto pk = intersection(o, schema_.primary_key());
+
+    auto stmt = con_.cached_statement([&] { 
+        static_assert(metamap_size<decltype(pk)>() > 0,
+                      "You must provide at least one primary key to update an object.");
+        std::ostringstream ss;
+        placeholder_pos_ = 0;
+        ss << "UPDATE " << schema_.table_name() << " SET ";
+
+        bool first = true;
+
+        map(to_update, [&](auto k, auto v) {
+          if (!first)
+            ss << ",";
+          first = false;
+          ss << li::symbol_string(k) << " = " << placeholder_string();
+        });
+
+        where_clause(pk, ss);
+        return ss.str();
+    });
+
+    li::tuple_reduce(std::tuple_cat(metamap_values(to_update), metamap_values(pk)), stmt);
+
+    call_callback(s::after_update, o, args...);
+  }
+
+  template <typename A, typename B, typename... O, typename... W>
+  void update(metamap<O...>&& o, assign_exp<A, B> w1, W... ws) {
+    return update(cat(o, mmm(w1)), ws...);
+  }
+  template <typename A, typename B, typename... W> void update(assign_exp<A, B> w1, W... ws) {
+    return update(mmm(w1), ws...);
+  }
+
+  inline int count() {
+    return con_.prepare(std::string("SELECT count(*) from ") + schema_.table_name())().template read<int>();
+  }
+
+  template <typename N, typename... CB> void remove(const N& o, CB&&... args) {
+
+    call_callback(s::before_remove, o, args...);
+
+    auto stmt = con_.cached_statement([&] { 
+      std::ostringstream ss;
+      placeholder_pos_ = 0;
+      ss << "DELETE from " << schema_.table_name() << " WHERE ";
+
+      bool first = true;
+      map(schema_.primary_key(), [&](auto k, auto v) {
+        if (!first)
+          ss << " and ";
+        first = false;
+        ss << li::symbol_string(k) << " = " << placeholder_string();
+      });
+      return ss.str();
+    });
+
+    auto pks = intersection(o, schema_.primary_key());
+    li::reduce(pks, stmt);
+
+    call_callback(s::after_remove, o, args...);
+  }
+  template <typename A, typename B, typename... O, typename... W>
+  void remove(metamap<O...>&& o, assign_exp<A, B> w1, W... ws) {
+    return remove(cat(o, mmm(w1)), ws...);
+  }
+  template <typename A, typename B, typename... W> void remove(assign_exp<A, B> w1, W... ws) {
+    return remove(mmm(w1), ws...);
+  }
+
+  auto& schema() { return schema_; }
+
+  C& backend_connection() { return con_; }
+
+  SCHEMA schema_;
+  C con_;
+  int placeholder_pos_ = 0;
+};
+
+template <typename... F> struct orm_fields {
+
+  orm_fields(F... fields) : fields_(fields...) {
+    static_assert(sizeof...(F) == 0 || metamap_size<decltype(this->primary_key())>() != 0,
+                  "You must give at least one primary key to the ORM. Use "
+                  "s::your_field_name(s::primary_key) to add a primary_key");
+  }
+
+  // Field extractor.
+  template <typename M> auto get_field(M m) { return m; }
+  template <typename M, typename T> auto get_field(assign_exp<M, T> e) { return e; }
+  template <typename M, typename T, typename... A>
+  auto get_field(assign_exp<function_call_exp<M, A...>, T> e) {
+    return assign_exp<M, T>{M{}, e.right};
+  }
+
+  // template <typename M> struct get_field { typedef M ret; };
+  // template <typename M, typename T> struct get_field<assign_exp<M, T>> {
+  //   typedef assign_exp<M, T> ret;
+  //   static auto ctor() { return assign_exp<M, T>{M{}, T()}; }
+  // };
+  // template <typename M, typename T, typename... A>
+  // struct get_field<assign_exp<function_call_exp<M, A...>, T>> : public get_field<assign_exp<M,
+  // T>> {
+  // };
+
+// get_field<E>::ctor();
+// field attributes checks.
+#define CHECK_FIELD_ATTR(ATTR)                                                                     \
+  template <typename M> struct is_##ATTR : std::false_type {};                                     \
+  template <typename M, typename T, typename... A>                                                 \
+  struct is_##ATTR<assign_exp<function_call_exp<M, A...>, T>>                                      \
+      : std::disjunction<std::is_same<std::decay_t<A>, s::ATTR##_t>...> {};                        \
+                                                                                                   \
+  auto ATTR() {                                                                                    \
+    return tuple_map_reduce(fields_,                                                               \
+                            [this](auto e) {                                                       \
+                              typedef std::remove_reference_t<decltype(e)> E;                      \
+                              if constexpr (is_##ATTR<E>::value)                                   \
+                                return get_field(e);                                               \
+                              else                                                                 \
+                                return skip{};                                                     \
+                            },                                                                     \
+                            make_metamap_skip);                                                    \
+  }
+
+  CHECK_FIELD_ATTR(primary_key);
+  CHECK_FIELD_ATTR(read_only);
+  CHECK_FIELD_ATTR(auto_increment);
+  CHECK_FIELD_ATTR(computed);
+#undef CHECK_FIELD_ATTR
+
+  // Do not remove this comment, this is used by the symbol generation.
+  // s::primary_key s::read_only s::auto_increment s::computed
+
+  auto all_info() { return fields_; }
+
+  auto all_fields() {
+
+    return tuple_map_reduce(fields_,
+                            [this](auto e) {
+                              // typedef std::remove_reference_t<decltype(e)> E;
+                              return get_field(e);
+                            },
+                            [](auto... e) { return mmm(e...); });
+  }
+
+  auto without_auto_increment() { return substract(all_fields(), auto_increment()); }
+  auto all_fields_except_computed() {
+    return substract(substract(all_fields(), computed()), auto_increment());
+  }
+
+  std::tuple<F...> fields_;
+};
+
+template <typename DB, typename MD = orm_fields<>, typename CB = decltype(mmm())>
+struct sql_orm_schema : public MD {
+
+  sql_orm_schema(DB& db, const std::string& table_name, CB cb = CB(), MD md = MD())
+      : MD(md), database_(db), table_name_(table_name), callbacks_(cb) {}
+
+  inline auto connect() { return sql_orm{*this, database_.connect()}; }
+  template <typename Y>
+  inline auto connect(Y& y) { return sql_orm{*this, database_.connect(y)}; }
+
+  const std::string& table_name() const { return table_name_; }
+  auto get_callbacks() const { return callbacks_; }
+
+  template <typename... P> auto callbacks(P... params_list) const {
+    auto cbs = mmm(params_list...);
+    auto allowed_callbacks = mmm(s::before_insert, s::before_remove, s::before_update,
+                                 s::after_insert, s::after_remove, s::after_update, s::validate);
+
+    static_assert(
+        metamap_size<decltype(substract(cbs, allowed_callbacks))>() == 0,
+        "The only supported callbacks are: s::before_insert, s::before_remove, s::before_update,"
+        " s::after_insert, s::after_remove, s::after_update, s::validate");
+    return sql_orm_schema<DB, MD, decltype(cbs)>(database_, table_name_, cbs,
+                                                 *static_cast<const MD*>(this));
+  }
+
+  template <typename... P> auto fields(P... p) const {
+    return sql_orm_schema<DB, orm_fields<P...>, CB>(database_, table_name_, callbacks_,
+                                                    orm_fields<P...>(p...));
+  }
+
+  DB& database_;
+  std::string table_name_;
+  CB callbacks_;
+};
+
+}; // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_ORM_HH
 
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_API_HH
@@ -6602,127 +7193,101 @@ template <typename Req, typename Resp> struct api {
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_HTTP_SERVE_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_HTTP_SERVE_HH
 
-
-
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_OUTPUT_BUFFER_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_OUTPUT_BUFFER_HH
+#if not defined(_WIN32)
+#endif
 
 
 
-namespace li {
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_HTTP_TOP_HEADER_BUILDER_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_HTTP_TOP_HEADER_BUILDER_HH
 
-struct output_buffer {
 
-  output_buffer() : buffer_(nullptr), own_buffer_(false), cursor_(nullptr), end_(nullptr), flush_([] (const char*, int) constexpr {}) {}
+namespace internal {
 
-  output_buffer(output_buffer&& o)
-      : buffer_(o.buffer_), own_buffer_(o.own_buffer_), cursor_(o.cursor_), end_(o.end_),
-        flush_(o.flush_) {
-    o.buffer_ = nullptr;
-    o.own_buffer_ = false;
+struct double_buffer {
+
+  double_buffer() {
+    this->p1 = this->b1;
+    this->p2 = this->b2;
   }
 
-  output_buffer(
-      int capacity, std::function<void(const char*, int)> flush_ = [](const char*, int) {})
-      : buffer_(new char[capacity]), own_buffer_(true), cursor_(buffer_), end_(buffer_ + capacity),
-        flush_(flush_) {
-    assert(buffer_);
-  }
+  void swap() { std::swap(this->p1, this->p2); }
 
-  output_buffer(
-      void* buffer, int capacity,
-      std::function<void(const char*, int)> flush_ = [](const char*, int) {})
-      : buffer_((char*)buffer), own_buffer_(false), cursor_(buffer_), end_(buffer_ + capacity),
-        flush_(flush_) {
-    assert(buffer_);
-  }
+  char* current_buffer() { return this->p1; }
+  char* next_buffer() { return this->p2; }
+  int size() { return 150; }
 
-  ~output_buffer() {
-    if (own_buffer_)
-      delete[] buffer_;
-  }
-
-  output_buffer& operator=(output_buffer&& o) {
-    buffer_ = o.buffer_;
-    own_buffer_ = o.own_buffer_;
-    cursor_ = o.cursor_;
-    end_ = o.end_;
-    flush_ = o.flush_;
-    o.buffer_ = nullptr;
-    o.own_buffer_ = false;
-    return *this;
-  }
-
-  void reset() { cursor_ = buffer_; }
-
-  std::size_t size() { return cursor_ - buffer_; }
-  void flush() {
-    flush_(buffer_, size());
-    reset();
-  }
-
-  output_buffer& operator<<(std::string_view s) {
-    if (cursor_ + s.size() >= end_)
-      flush();
-
-    assert(cursor_ + s.size() < end_);
-    memcpy(cursor_, s.data(), s.size());
-    cursor_ += s.size();
-    return *this;
-  }
-
-  output_buffer& operator<<(const char* s) { return operator<<(std::string_view(s, strlen(s))); }
-  output_buffer& operator<<(char v) {
-    cursor_[0] = v;
-    cursor_++;
-    return *this;
-  }
-
-  inline output_buffer& append(const char c) { return (*this) << c; }
-  
-  output_buffer& operator<<(std::size_t v) {
-    if (v == 0)
-      operator<<('0');
-
-    char buffer[10];
-    char* str_start = buffer;
-    for (int i = 0; i < 10; i++) {
-      if (v > 0)
-        str_start = buffer + 9 - i;
-      buffer[9 - i] = (v % 10) + '0';
-      v /= 10;
-    }
-    operator<<(std::string_view(str_start, buffer + 10 - str_start));
-    return *this;
-  }
-  // template <typename I>
-  // output_buffer& operator<<(unsigned long s)
-  // {
-  //   typedef std::array<char, 150> buf_t;
-  //   buf_t b = boost::lexical_cast<buf_t>(v);
-  //   return operator<<(std::string_view(b.begin(), strlen(b.begin())));
-  // }
-
-  template <typename I>
-  output_buffer& operator<<(I v) {
-    typedef std::array<char, 150> buf_t;
-    buf_t b = boost::lexical_cast<buf_t>(v);
-    return operator<<(std::string_view(b.begin(), strlen(b.begin())));
-  }
-
-  
-  std::string_view to_string_view() { return std::string_view(buffer_, cursor_ - buffer_); }
-
-  char* buffer_;
-  bool own_buffer_;
-  char* cursor_;
-  char* end_;
-  std::function<void(const char* s, int d)> flush_;
+  char* p1;
+  char* p2;
+  char b1[150];
+  char b2[150];
 };
 
-} // namespace li
+} // namespace internal
 
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_OUTPUT_BUFFER_HH
+struct http_top_header_builder {
+
+  std::string_view top_header() { return std::string_view(tmp.current_buffer(), top_header_size); };
+  std::string_view top_header_200() {
+    return std::string_view(tmp_200.current_buffer(), top_header_200_size);
+  };
+
+  void tick() {
+    time_t t = time(NULL);
+    struct tm tm;
+#if defined _WIN32
+    gmtime_s(&tm, &t);
+#else
+    gmtime_r(&t, &tm);
+#endif
+
+    top_header_size =
+        int(strftime(tmp.next_buffer(), tmp.size(),
+#ifdef LITHIUM_SERVER_NAME
+#define MACRO_TO_STR2(L) #L
+#define MACRO_TO_STR(L) MACRO_TO_STR2(L)
+                 "\r\nServer: " MACRO_TO_STR(LITHIUM_SERVER_NAME) "\r\n"
+
+#undef MACRO_TO_STR
+#undef MACRO_TO_STR2
+#else
+                 "\r\nServer: Lithium\r\n"
+#endif
+                                                                  "Date: %a, %d %b %Y %T GMT\r\n",
+                 &tm));
+    tmp.swap();
+
+    top_header_200_size =
+        int(strftime(tmp_200.next_buffer(), tmp_200.size(),
+                 "HTTP/1.1 200 OK\r\n"
+#ifdef LITHIUM_SERVER_NAME
+#define MACRO_TO_STR2(L) #L
+#define MACRO_TO_STR(L) MACRO_TO_STR2(L)
+                 "Server: " MACRO_TO_STR(LITHIUM_SERVER_NAME) "\r\n"
+
+#undef MACRO_TO_STR
+#undef MACRO_TO_STR2
+#else
+                 "Server: Lithium\r\n"
+#endif
+
+                                                              // LITHIUM_SERVER_NAME_HEADER
+                                                              "Date: %a, %d %b %Y %T GMT\r\n",
+                 &tm));
+
+    tmp_200.swap();
+  }
+
+  internal::double_buffer tmp;
+  int top_header_size;
+
+  internal::double_buffer tmp_200;
+  int top_header_200_size;
+};
+
+#undef LITHIUM_SERVER_NAME_HEADER
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_HTTP_TOP_HEADER_BUILDER_HH
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_INPUT_BUFFER_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_INPUT_BUFFER_HH
@@ -6768,7 +7333,7 @@ struct input_buffer {
     assert(i1 <= &buffer_.back());
     // std::cout << (i2 - &buffer_.front()) << " " << buffer_.size() <<  << std::endl;
     assert(i2 >= buffer_.data() and i2 <= &buffer_.back() + 1);
-    free(i1 - buffer_.data(), i2 - buffer_.data());
+    free(int(i1 - buffer_.data()), int(i2 - buffer_.data()));
   }
   void free(const std::string_view& str) { free(str.data(), str.data() + str.size()); }
 
@@ -6866,13 +7431,142 @@ struct input_buffer {
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_INPUT_BUFFER_HH
 
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_OUTPUT_BUFFER_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_OUTPUT_BUFFER_HH
+
+
+
+namespace li {
+
+struct output_buffer {
+
+  output_buffer() : buffer_(nullptr), own_buffer_(false), cursor_(nullptr), end_(nullptr), flush_([] (const char*, int) constexpr {}) {}
+
+  output_buffer(output_buffer&& o)
+      : buffer_(o.buffer_), own_buffer_(o.own_buffer_), cursor_(o.cursor_), end_(o.end_),
+        flush_(o.flush_) {
+    o.buffer_ = nullptr;
+    o.own_buffer_ = false;
+  }
+
+  output_buffer(
+      int capacity, std::function<void(const char*, int)> flush_ = [](const char*, int) {})
+      : buffer_(new char[capacity]), own_buffer_(true), cursor_(buffer_), end_(buffer_ + capacity),
+        flush_(flush_) {
+    assert(buffer_);
+  }
+
+  output_buffer(
+      void* buffer, int capacity,
+      std::function<void(const char*, int)> flush_ = [](const char*, int) {})
+      : buffer_((char*)buffer), own_buffer_(false), cursor_(buffer_), end_(buffer_ + capacity),
+        flush_(flush_) {
+    assert(buffer_);
+  }
+
+  ~output_buffer() {
+    if (own_buffer_)
+      delete[] buffer_;
+  }
+
+  output_buffer& operator=(output_buffer&& o) {
+    buffer_ = o.buffer_;
+    own_buffer_ = o.own_buffer_;
+    cursor_ = o.cursor_;
+    end_ = o.end_;
+    flush_ = o.flush_;
+    o.buffer_ = nullptr;
+    o.own_buffer_ = false;
+    return *this;
+  }
+
+  void reset() { cursor_ = buffer_; }
+
+  std::size_t size() { return cursor_ - buffer_; }
+  void flush() {
+    flush_(buffer_, int(size()));
+    reset();
+  }
+
+  output_buffer& operator<<(std::string_view s) {
+    if (cursor_ + s.size() >= end_)
+      flush();
+
+    assert(cursor_ + s.size() < end_);
+    memcpy(cursor_, s.data(), s.size());
+    cursor_ += s.size();
+    return *this;
+  }
+
+  output_buffer& operator<<(const char* s) { return operator<<(std::string_view(s, strlen(s))); }
+  output_buffer& operator<<(char v) {
+    cursor_[0] = v;
+    cursor_++;
+    return *this;
+  }
+
+  inline output_buffer& append(const char c) { return (*this) << c; }
+  
+  output_buffer& operator<<(std::size_t v) {
+    if (v == 0)
+      operator<<('0');
+
+    char buffer[10];
+    char* str_start = buffer;
+    for (int i = 0; i < 10; i++) {
+      if (v > 0)
+        str_start = buffer + 9 - i;
+      buffer[9 - i] = (v % 10) + '0';
+      v /= 10;
+    }
+    operator<<(std::string_view(str_start, buffer + 10 - str_start));
+    return *this;
+  }
+  // template <typename I>
+  // output_buffer& operator<<(unsigned long s)
+  // {
+  //   typedef std::array<char, 150> buf_t;
+  //   buf_t b = boost::lexical_cast<buf_t>(v);
+  //   return operator<<(std::string_view(b.begin(), strlen(b.begin())));
+  // }
+
+  template <typename I>
+  output_buffer& operator<<(I v) {
+    typedef std::array<char, 150> buf_t;
+    buf_t b = boost::lexical_cast<buf_t>(v);
+    return operator<<(std::string_view(b.data(), strlen(b.data())));
+  }
+
+  
+  std::string_view to_string_view() { return std::string_view(buffer_, cursor_ - buffer_); }
+
+  char* buffer_;
+  bool own_buffer_;
+  char* cursor_;
+  char* end_;
+  std::function<void(const char* s, int d)> flush_;
+};
+
+} // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_OUTPUT_BUFFER_HH
+
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_TCP_SERVER_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_TCP_SERVER_HH
 
 
+#if not defined(_WIN32)
+#endif
+
 
 #if __linux__
 #elif __APPLE__
+#endif
+
+#if defined__linux__ || defined __APPLE__
+#endif
+
+#if defined _WIN32
 #endif
 
 
@@ -6946,11 +7640,27 @@ namespace li {
 
 namespace impl {
 
+#if defined _WIN32
+typedef SOCKET socket_type;
+#else
+typedef int socket_type;
+#endif
+
+inline int close_socket(socket_type sock) {
+#if defined _WIN32
+  return closesocket(sock);
+#else
+  return close(sock);
+#endif
+}
+
 // Helper to create a TCP/UDP server socket.
-static int create_and_bind(int port, int socktype) {
+static socket_type create_and_bind(int port, int socktype) {
   struct addrinfo hints;
   struct addrinfo *result, *rp;
-  int s, sfd;
+  int s;
+
+  socket_type sfd;
 
   char port_str[20];
   snprintf(port_str, sizeof(port_str), "%d", port);
@@ -6970,13 +7680,13 @@ static int create_and_bind(int port, int socktype) {
     if (sfd == -1)
       continue;
 
-    s = bind(sfd, rp->ai_addr, rp->ai_addrlen);
+    s = bind(sfd, rp->ai_addr, int(rp->ai_addrlen));
     if (s == 0) {
       /* We managed to bind successfully! */
       break;
     }
 
-    close(sfd);
+    close_socket(sfd);
   }
 
   if (rp == NULL) {
@@ -6986,9 +7696,18 @@ static int create_and_bind(int port, int socktype) {
 
   freeaddrinfo(result);
 
+#if _WIN32
+  u_long set_on = 1;
+  auto ret = ioctlsocket(sfd, (long)FIONBIO, &set_on);
+  if (ret) {
+    std::cerr << "FATAL ERROR: Cannot set socket to non blocking mode with ioctlsocket"
+              << std::endl;
+  }
+#else
   int flags = fcntl(sfd, F_GETFL, 0);
   fcntl(sfd, F_SETFL, flags | O_NONBLOCK);
   ::listen(sfd, SOMAXCONN);
+#endif
 
   return sfd;
 }
@@ -7031,27 +7750,27 @@ struct async_fiber_context {
   inline async_fiber_context(const async_fiber_context&) = delete;
 
   inline async_fiber_context(async_reactor* reactor, boost::context::continuation&& sink,
-                      int fiber_id, int socket_fd, sockaddr in_addr)
+                             int fiber_id, int socket_fd, sockaddr in_addr)
       : reactor(reactor), sink(std::forward<boost::context::continuation&&>(sink)),
-        fiber_id(fiber_id), socket_fd(socket_fd),
-        in_addr(in_addr) {}
+        fiber_id(fiber_id), socket_fd(socket_fd), in_addr(in_addr) {}
 
   inline void yield() { sink = sink.resume(); }
-       
+
   inline bool ssl_handshake(std::unique_ptr<ssl_context>& ssl_ctx) {
-    if (!ssl_ctx) return false;
+    if (!ssl_ctx)
+      return false;
 
     ssl = SSL_new(ssl_ctx->ctx);
     SSL_set_fd(ssl, socket_fd);
 
     while (int ret = SSL_accept(ssl)) {
-      if (ret == 1) return true;
+      if (ret == 1)
+        return true;
 
       int err = SSL_get_error(ssl, ret);
       if (err == SSL_ERROR_WANT_WRITE || err == SSL_ERROR_WANT_READ)
         this->yield();
-      else
-      {
+      else {
         ERR_print_errors_fp(stderr);
         return false;
         // throw std::runtime_error("Error during https handshake.");
@@ -7061,8 +7780,7 @@ struct async_fiber_context {
   }
 
   inline ~async_fiber_context() {
-    if (ssl)
-    {
+    if (ssl) {
       SSL_shutdown(ssl);
       SSL_free(ssl);
     }
@@ -7089,10 +7807,10 @@ struct async_fiber_context {
   }
 
   inline int read(char* buf, int max_size) {
-    ssize_t count = read_impl(buf, max_size);
+    int count = read_impl(buf, max_size);
     while (count <= 0) {
       if ((count < 0 and errno != EAGAIN) or count == 0)
-        return ssize_t(0);
+        return int(0);
       sink = sink.resume();
       count = read_impl(buf, max_size);
     }
@@ -7106,14 +7824,14 @@ struct async_fiber_context {
       return true;
     }
     const char* end = buf + size;
-    ssize_t count = write_impl(buf, end - buf);
+    int count = write_impl(buf, end - buf);
     if (count > 0)
       buf += count;
     while (buf != end) {
       if ((count < 0 and errno != EAGAIN) or count == 0)
         return false;
       sink = sink.resume();
-      count = write_impl(buf, end - buf);
+      count = write_impl(buf, int(end - buf));
       if (count > 0)
         buf += count;
     }
@@ -7125,7 +7843,13 @@ struct async_reactor {
 
   typedef boost::context::continuation continuation;
 
-  int epoll_fd;
+#if defined _WIN32
+  typedef HANDLE epoll_handle_t;
+#else
+  typedef int epoll_handle_t;
+#endif
+
+  epoll_handle_t epoll_fd;
   std::vector<continuation> fibers;
   std::vector<int> fd_to_fiber_idx;
   std::unique_ptr<ssl_context> ssl_ctx = nullptr;
@@ -7140,13 +7864,11 @@ struct async_reactor {
     return fibers[fiber_idx];
   }
 
-  inline void reassign_fd_to_fiber(int fd, int fiber_idx) {
-    fd_to_fiber_idx[fd] = fiber_idx;
-  }
+  inline void reassign_fd_to_fiber(int fd, int fiber_idx) { fd_to_fiber_idx[fd] = fiber_idx; }
 
-  inline void epoll_ctl(int epoll_fd, int fd, int action, uint32_t flags) {
+  inline void epoll_ctl(epoll_handle_t epoll_fd, int fd, int action, uint32_t flags) {
 
-    #if __linux__
+#if __linux__ || _WIN32
     {
       epoll_event event;
       memset(&event, 0, sizeof(event));
@@ -7155,21 +7877,21 @@ struct async_reactor {
       if (-1 == ::epoll_ctl(epoll_fd, action, fd, &event) and errno != EEXIST)
         std::cout << "epoll_ctl error: " << strerror(errno) << std::endl;
     }
-    #elif __APPLE__
+#elif __APPLE__
     {
       struct kevent ev_set;
       EV_SET(&ev_set, fd, flags, action, 0, 0, NULL);
       kevent(epoll_fd, &ev_set, 1, NULL, 0, NULL);
     }
-    #endif
+#endif
   };
 
   inline void epoll_add(int new_fd, int flags, int fiber_idx = -1) {
-    #if __linux__
+#if __linux__ || _WIN32
     epoll_ctl(epoll_fd, new_fd, EPOLL_CTL_ADD, flags);
-    #elif __APPLE__
+#elif __APPLE__
     epoll_ctl(epoll_fd, new_fd, EV_ADD, flags);
-    #endif
+#endif
 
     // Associate new_fd to the fiber.
     if (int(fd_to_fiber_idx.size()) < new_fd + 1)
@@ -7177,21 +7899,27 @@ struct async_reactor {
     fd_to_fiber_idx[new_fd] = fiber_idx;
   }
 
-  inline void epoll_mod(int fd, int flags) { 
-    #if __linux__
-    epoll_ctl(epoll_fd, fd, EPOLL_CTL_MOD, flags); 
-    #elif __APPLE__
-    epoll_ctl(epoll_fd, fd, EV_ADD, flags); 
-    #endif
-    }
+  inline void epoll_mod(int fd, int flags) {
+#if __linux__ || _WIN32
+    epoll_ctl(epoll_fd, fd, EPOLL_CTL_MOD, flags);
+#elif __APPLE__
+    epoll_ctl(epoll_fd, fd, EV_ADD, flags);
+#endif
+  }
 
   template <typename H> void event_loop(int listen_fd, H handler) {
 
     const int MAXEVENTS = 64;
 
-#if __linux__
+#if __linux__ || _WIN32
     this->epoll_fd = epoll_create1(0);
+#ifdef _WIN32
+    // epollet is not implemented by wepoll.
+    epoll_ctl(epoll_fd, listen_fd, EPOLL_CTL_ADD, EPOLLIN);
+#else
     epoll_ctl(epoll_fd, listen_fd, EPOLL_CTL_ADD, EPOLLIN | EPOLLET);
+#endif
+
     epoll_event events[MAXEVENTS];
 
 #elif __APPLE__
@@ -7207,11 +7935,10 @@ struct async_reactor {
     timeout.tv_nsec = 10000;
 #endif
 
-
     // Main loop.
     while (!quit_signal_catched) {
 
-#if __linux__
+#if __linux__ || _WIN32
       // Wakeup to check if any quit signal has been catched.
       int n_events = epoll_wait(epoll_fd, events, MAXEVENTS, 1);
 #elif __APPLE__
@@ -7222,35 +7949,35 @@ struct async_reactor {
       if (quit_signal_catched)
         break;
 
-      if (n_events == 0 )
+      if (n_events == 0)
         for (int i = 0; i < fibers.size(); i++)
           if (fibers[i])
             fibers[i] = fibers[i].resume();
 
       for (int i = 0; i < n_events; i++) {
 
-
 #if __APPLE__
         int event_flags = events[i].flags;
         int event_fd = events[i].ident;
 
-        if (events[i].filter == EVFILT_SIGNAL)
-        {
-          if (event_fd == SIGINT) std::cout << "SIGINT" << std::endl; 
-          if (event_fd == SIGTERM) std::cout << "SIGTERM" << std::endl; 
-          if (event_fd == SIGKILL) std::cout << "SIGKILL" << std::endl; 
+        if (events[i].filter == EVFILT_SIGNAL) {
+          if (event_fd == SIGINT)
+            std::cout << "SIGINT" << std::endl;
+          if (event_fd == SIGTERM)
+            std::cout << "SIGTERM" << std::endl;
+          if (event_fd == SIGKILL)
+            std::cout << "SIGKILL" << std::endl;
           quit_signal_catched = true;
           break;
         }
 
-#elif __linux__
+#elif __linux__ || _WIN32
         int event_flags = events[i].events;
         int event_fd = events[i].data.fd;
 #endif
 
-
         // Handle errors on sockets.
-#if __linux__
+#if __linux__ || _WIN32
         if (event_flags & (EPOLLERR | EPOLLHUP | EPOLLRDHUP)) {
 #elif __APPLE__
         if (event_flags & EV_ERROR) {
@@ -7294,12 +8021,15 @@ struct async_reactor {
 
             // ============================================
             // Subscribe epoll to the socket file descriptor.
-            if (-1 == fcntl(socket_fd, F_SETFL, fcntl(socket_fd, F_GETFL, 0) | O_NONBLOCK))
-              continue;
+            // FIXME Duplicate ??
+            // if (-1 == fcntl(socket_fd, F_SETFL, fcntl(socket_fd, F_GETFL, 0) | O_NONBLOCK))
+            //   continue;
 #if __linux__
             this->epoll_add(socket_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET, fiber_idx);
+#elif _WIN32
+            this->epoll_add(socket_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP, fiber_idx);
 #elif __APPLE__
-            this->epoll_add(socket_fd, EVFILT_READ | EVFILT_WRITE, fiber_idx);
+          this->epoll_add(socket_fd, EVFILT_READ | EVFILT_WRITE, fiber_idx);
 #endif
 
             // ============================================
@@ -7307,9 +8037,9 @@ struct async_reactor {
             // ============================================
             // Simply utility to close fd at the end of a scope.
             struct scoped_fd {
-              int fd;
+              impl::socket_type fd;
               ~scoped_fd() {
-                if (0 != close(fd))
+                if (0 != impl::close_socket(fd))
                   std::cerr << "Error when closing file descriptor " << fd << ": "
                             << strerror(errno) << std::endl;
               }
@@ -7323,8 +8053,7 @@ struct async_reactor {
               scoped_fd sfd{socket_fd}; // Will finally close the fd.
               auto ctx = async_fiber_context(this, std::move(sink), fiber_idx, socket_fd, in_addr);
               try {
-                if (ssl_ctx && !ctx.ssl_handshake(this->ssl_ctx))
-                {
+                if (ssl_ctx && !ctx.ssl_handshake(this->ssl_ctx)) {
                   std::cerr << "Error during SSL handshake" << std::endl;
                   return std::move(ctx.sink);
                 }
@@ -7353,33 +8082,31 @@ struct async_reactor {
         }
 
         // Wakeup fibers if needed.
-        while (defered_resume.size())
-        {
+        while (defered_resume.size()) {
           int fiber_id = defered_resume.front();
           defered_resume.pop_front();
           assert(fiber_id < fibers.size());
           auto& fiber = fibers[fiber_id];
-          if (fiber)
-          {
-            // std::cout << "wakeup " << fiber_id << std::endl; 
+          if (fiber) {
+            // std::cout << "wakeup " << fiber_id << std::endl;
             fiber = fiber.resume();
           }
         }
-
-
       }
 
       // Call and Flush the defered functions.
-      if (defered_functions.size())
-      {
+      if (defered_functions.size()) {
         for (auto& f : defered_functions)
           f();
         defered_functions.clear();
       }
-
     }
     std::cout << "END OF EVENT LOOP" << std::endl;
-    close(epoll_fd);
+#if _WIN32
+    epoll_close(epoll_fd);
+#else
+    impl::close_socket(epoll_fd);
+#endif
   }
 };
 
@@ -7388,18 +8115,14 @@ static void shutdown_handler(int sig) {
   std::cout << "The server will shutdown..." << std::endl;
 }
 
-void async_fiber_context::epoll_add(int fd, int flags) {
-  reactor->epoll_add(fd, flags, fiber_id);
-}
+void async_fiber_context::epoll_add(int fd, int flags) { reactor->epoll_add(fd, flags, fiber_id); }
 void async_fiber_context::epoll_mod(int fd, int flags) { reactor->epoll_mod(fd, flags); }
 
-void async_fiber_context::defer(const std::function<void()>& fun)
-{
+void async_fiber_context::defer(const std::function<void()>& fun) {
   this->reactor->defered_functions.push_back(fun);
 }
 
-void async_fiber_context::defer_fiber_resume(int fiber_id)
-{
+void async_fiber_context::defer_fiber_resume(int fiber_id) {
   this->reactor->defered_resume.push_back(fiber_id);
 }
 
@@ -7412,14 +8135,34 @@ void start_tcp_server(int port, int socktype, int nthreads, H conn_handler,
                       std::string ssl_key_path = "", std::string ssl_cert_path = "",
                       std::string ssl_ciphers = "") {
 
+// Start the winsock DLL
+#ifdef _WIN32
+  WORD wVersionRequested;
+  WSADATA wsaData;
+  int err;
+  wVersionRequested = MAKEWORD(2, 2);
+  err = WSAStartup(wVersionRequested, &wsaData);
+  if (err != 0) {
+    std::cerr << "WSAStartup failed with error: " << err << std::endl;
+    return;
+  }
+#endif
+
+// Setup quit signals
+#ifdef _WIN32
+  signal(SIGINT, shutdown_handler);
+  signal(SIGTERM, shutdown_handler);
+  signal(SIGABRT, shutdown_handler);
+#else
   struct sigaction act;
   memset(&act, 0, sizeof(act));
   act.sa_handler = shutdown_handler;
-
   sigaction(SIGINT, &act, 0);
   sigaction(SIGTERM, &act, 0);
   sigaction(SIGQUIT, &act, 0);
+#endif
 
+  // Start the server threads.
   int server_fd = impl::create_and_bind(port, socktype);
   std::vector<std::thread> ths;
   for (int i = 0; i < nthreads; i++)
@@ -7433,7 +8176,7 @@ void start_tcp_server(int port, int socktype, int nthreads, H conn_handler,
   for (auto& t : ths)
     t.join();
 
-  close(server_fd);
+  impl::close_socket(server_fd);
 }
 
 } // namespace li
@@ -7468,88 +8211,6 @@ inline std::string_view url_unescape(std::string_view str) {
 } // namespace li
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_URL_UNESCAPE_HH
-
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_HTTP_TOP_HEADER_BUILDER_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_HTTP_TOP_HEADER_BUILDER_HH
-
-namespace internal {
-
-struct double_buffer {
-
-  double_buffer() {
-    this->p1 = this->b1;
-    this->p2 = this->b2;
-  }
-
-  void swap() {
-    std::swap(this->p1, this->p2);
-  }
-
-  char* current_buffer() { return this->p1; }
-  char* next_buffer() { return this->p2; }
-  int size() { return 150; }
-
-  char* p1;
-  char* p2;
-  char b1[150];
-  char b2[150];
-};
-
-}
-
-struct http_top_header_builder {
-
-  std::string_view top_header() { return std::string_view(tmp.current_buffer(), top_header_size); }; 
-  std::string_view top_header_200() { return std::string_view(tmp_200.current_buffer(), top_header_200_size); }; 
-
-  void tick() {
-    time_t t = time(NULL);
-    struct tm tm;
-    gmtime_r(&t, &tm);
-
-    top_header_size = strftime(tmp.next_buffer(), tmp.size(),
-#ifdef LITHIUM_SERVER_NAME
-  #define MACRO_TO_STR2(L) #L
-  #define MACRO_TO_STR(L) MACRO_TO_STR2(L)
-  "\r\nServer: " MACRO_TO_STR(LITHIUM_SERVER_NAME) "\r\n"
-
-  #undef MACRO_TO_STR
-  #undef MACRO_TO_STR2
-#else
-  "\r\nServer: Lithium\r\n"
-#endif
-      "Date: %a, %d %b %Y %T GMT\r\n", &tm);
-    tmp.swap();
-
-    top_header_200_size = strftime(tmp_200.next_buffer(), tmp_200.size(), 
-      "HTTP/1.1 200 OK\r\n"
-#ifdef LITHIUM_SERVER_NAME
-  #define MACRO_TO_STR2(L) #L
-  #define MACRO_TO_STR(L) MACRO_TO_STR2(L)
-  "Server: " MACRO_TO_STR(LITHIUM_SERVER_NAME) "\r\n"
-
-  #undef MACRO_TO_STR
-  #undef MACRO_TO_STR2
-#else
-  "Server: Lithium\r\n"
-#endif
-
-      // LITHIUM_SERVER_NAME_HEADER
-      "Date: %a, %d %b %Y %T GMT\r\n", &tm);
-
-    tmp_200.swap();
-  }
-
-  internal::double_buffer tmp;
-  int top_header_size;
-
-  internal::double_buffer tmp_200;
-  int top_header_200_size;
-};
-
-#undef LITHIUM_SERVER_NAME_HEADER
-
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_HTTP_TOP_HEADER_BUILDER_HH
 
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_CONTENT_TYPES_HH
@@ -8547,6 +9208,15 @@ static std::unordered_map<std::string_view, std::string_view> content_types = {
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_CONTENT_TYPES_HH
 
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_HTTP_CTX_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_HTTP_CTX_HH
+
+#if not defined(_WIN32)
+#endif
+
+
+
+
 
 namespace li {
 
@@ -8555,20 +9225,25 @@ namespace http_async_impl {
 static char* date_buf = nullptr;
 static int date_buf_size = 0;
 
-using ::li::content_types; // static std::unordered_map<std::string_view, std::string_view> content_types
+using ::li::content_types; // static std::unordered_map<std::string_view, std::string_view>
+                           // content_types
 
-static thread_local std::unordered_map<std::string, std::pair<std::string_view, std::string_view>> static_files;
+static thread_local std::unordered_map<std::string, std::pair<std::string_view, std::string_view>>
+    static_files;
 
+#ifndef _WIN32
 http_top_header_builder http_top_header [[gnu::weak]];
+#else
+__declspec(selectany) http_top_header_builder http_top_header;
+#endif
 
-template <typename FIBER>
-struct generic_http_ctx {
+template <typename FIBER> struct generic_http_ctx {
 
   generic_http_ctx(input_buffer& _rb, FIBER& _fiber) : rb(_rb), fiber(_fiber) {
     get_parameters_map.reserve(10);
     response_headers.reserve(20);
 
-    output_stream = output_buffer(50*1024, [&](const char* d, int s) { fiber.write(d, s); });
+    output_stream = output_buffer(50 * 1024, [&](const char* d, int s) { fiber.write(d, s); });
 
     headers_stream =
         output_buffer(1000, [&](const char* d, int s) { output_stream << std::string_view(d, s); });
@@ -8696,7 +9371,6 @@ struct generic_http_ctx {
         content_type_ = get_value();
         chunked_ = (content_type_ == "chunked");
       }
-
     }
   }
 
@@ -8734,9 +9408,7 @@ struct generic_http_ctx {
     headers_stream.flush(); // flushes to output_stream.
     output_stream << "Content-Length: " << json_stream.to_string_view().size() << "\r\n\r\n";
     json_stream.flush(); // flushes to output_stream.
-    
   }
-
 
   void respond_if_needed() {
     if (!response_written_) {
@@ -8820,32 +9492,33 @@ struct generic_http_ctx {
   void send_static_file(const char* path) {
     auto it = static_files.find(path);
     if (static_files.end() == it or !it->second.first.size()) {
-      int fd = open(path, O_RDONLY);
-      if (fd == -1)
-        throw http_error::not_found("File not found.");
+      // FIXME windows implementation.
 
-      int file_size = lseek(fd, (size_t)0, SEEK_END);
-      auto content =
-          std::string_view((char*)mmap(0, file_size, PROT_READ, MAP_SHARED, fd, 0), file_size);
-      if (!content.data()) throw http_error::not_found("File not found.");
-      close(fd);
+      // int fd = open(path, O_RDONLY);
+      // if (fd == -1)
+      //   throw http_error::not_found("File not found.");
 
-      size_t ext_pos = std::string_view(path).rfind('.');
-      std::string_view content_type("");
-      if (ext_pos != std::string::npos)
-      {
-        auto type_itr = content_types.find(std::string_view(path).substr(ext_pos + 1).data());
-        if (type_itr != content_types.end())
-        {
-          content_type = type_itr->second;
-          set_header("Content-Type", content_type);
-        }
-      }
-      static_files.insert({path, {content, content_type}});
+      // int file_size = lseek(fd, (size_t)0, SEEK_END);
+      auto content = "";
+      //     std::string_view((char*)mmap(0, file_size, PROT_READ, MAP_SHARED, fd, 0), file_size);
+      // if (!content.data())
+      //   throw http_error::not_found("File not found.");
+      // close(fd);
+
+      // size_t ext_pos = std::string_view(path).rfind('.');
+      // std::string_view content_type("");
+      // if (ext_pos != std::string::npos) {
+      //   auto type_itr = content_types.find(std::string_view(path).substr(ext_pos + 1).data());
+      //   if (type_itr != content_types.end()) {
+      //     content_type = type_itr->second;
+      //     set_header("Content-Type", content_type);
+      //   }
+      // }
+      // static_files.insert({path, {content, content_type}});
+
       respond(content);
     } else {
-      if (it->second.second.size())
-      {
+      if (it->second.second.size()) {
         set_header("Content-Type", it->second.second);
       }
       respond(it->second.first);
@@ -8868,7 +9541,7 @@ struct generic_http_ctx {
 #if 0
     const char* end = (const char*)memchr(start + 1, split_char, line_end - start - 2);
     if (!end) end = line_end - 1;
-#else    
+#else
     const char* end = start + 1;
     while (end < (line_end - 1) and *end != split_char)
       end++;
@@ -8974,23 +9647,24 @@ struct generic_http_ctx {
 
     } else if (chunked_) {
       // Chunked decoding.
-      const char* cur = body_start.data();
-      int chunked_size = strtol(rb.read_until(read, cur, '\r').data(), nullptr, 16);
-      cur++; // skip \n
-      while (chunked_size > 0) {
-        // Read chunk.
-        std::string_view chunk = rb.read_n(read, cur, chunked_size);
-        callback(chunk);
-        rb.free(chunk);
-        cur += chunked_size + 2; // skip \r\n.
+      assert(0);
+      // const char* cur = body_start.data();
+      // int chunked_size = strtol(rb.read_until(read, cur, '\r').data(), nullptr, 16);
+      // cur++; // skip \n
+      // while (chunked_size > 0) {
+      //   // Read chunk.
+      //   std::string_view chunk = rb.read_n(read, cur, chunked_size);
+      //   callback(chunk);
+      //   rb.free(chunk);
+      //   cur += chunked_size + 2; // skip \r\n.
 
-        // Read next chunk size.
-        chunked_size = strtol(rb.read_until(read, cur, '\r').data(), nullptr, 16);
-        cur++; // skip \n
-      }
-      cur += 2; // skip the terminaison chunk.
-      body_end_ = cur;
-      body_ = std::string_view(body_start.data(), cur - body_start.data());
+      //   // Read next chunk size.
+      //   chunked_size = strtol(rb.read_until(read, cur, '\r').data(), nullptr, 16);
+      //   cur++; // skip \n
+      // }
+      // cur += 2; // skip the terminaison chunk.
+      // body_end_ = cur;
+      // body_ = std::string_view(body_start.data(), cur - body_start.data());
     }
   }
 
@@ -9135,7 +9809,7 @@ template <typename F> auto make_http_processor(F handler) {
 
       auto ctx = generic_http_ctx(rb, fiber);
       ctx.socket_fd = fiber.socket_fd;
-      
+
       while (true) {
         ctx.is_body_read_ = false;
         ctx.header_lines.clear();
@@ -9167,55 +9841,61 @@ template <typename F> auto make_http_processor(F handler) {
              cur = rbend + 1;
              break;
            }
-           if (cur[1] == '\n') { // \n already checked by memchr. 
-#else          
+           if (cur[1] == '\n') { // \n already checked by memchr.
+#else
           while ((cur - rb.data()) < rb.end - 3) {
-           if (cur[0] == '\r' and cur[1] == '\n') {
+            if (cur[0] == '\r' and cur[1] == '\n') {
 #endif
-              cur += 2;// skip \r\n
-              ctx.add_header_line(cur);
-              // If we read \r\n twice the header is complete.
-              if (cur[0] == '\r' and cur[1] == '\n')
-              {
-                complete_header = true;
-                cur += 2; // skip \r\n
-                header_end = cur - rb.data();
-                break;
-              }
-            } else
-              cur++;
+          cur += 2; // skip \r\n
+          ctx.add_header_line(cur);
+          // If we read \r\n twice the header is complete.
+          if (cur[0] == '\r' and cur[1] == '\n') {
+            complete_header = true;
+            cur += 2; // skip \r\n
+            header_end = cur - rb.data();
+            break;
           }
-
-          // Read more data from the socket if the headers are not complete.
-          if (!complete_header && 0 == rb.read_more(fiber)) return;
         }
-
-        // Header is complete. Process it.
-        // Run the handler.
-        assert(rb.cursor <= rb.end);
-        ctx.body_start = std::string_view(rb.data() + header_end, rb.end - header_end);
-        ctx.prepare_request();
-        handler(ctx);
-        assert(rb.cursor <= rb.end);
-
-        // Update the cursor the beginning of the next request.
-        ctx.prepare_next_request();
-        // if read buffer is empty, we can flush the output buffer.
-        if (rb.empty())
-          ctx.flush_responses();
+        else cur++;
       }
-    } catch (const std::runtime_error& e) {
-      std::cerr << "Error: " << e.what() << std::endl;
-      return;
+
+      // Read more data from the socket if the headers are not complete.
+      if (!complete_header && 0 == rb.read_more(fiber))
+        return;
     }
-  };
+
+    // Header is complete. Process it.
+    // Run the handler.
+    assert(rb.cursor <= rb.end);
+    ctx.body_start = std::string_view(rb.data() + header_end, rb.end - header_end);
+    ctx.prepare_request();
+    handler(ctx);
+    assert(rb.cursor <= rb.end);
+
+    // Update the cursor the beginning of the next request.
+    ctx.prepare_next_request();
+    // if read buffer is empty, we can flush the output buffer.
+    if (rb.empty())
+      ctx.flush_responses();
+  }
+}
+catch (const std::runtime_error& e) {
+  std::cerr << "Error: " << e.what() << std::endl;
+  return;
+}
+};
 }
 
 } // namespace http_async_impl
 } // namespace li
 
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_HTTP_CTX_HH
+
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_REQUEST_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_REQUEST_HH
+
+#if not defined _WIN32
+#endif
 
 
 
@@ -9493,7 +10173,7 @@ inline auto make_url_parser_info(const std::string_view url) {
         param_name_end++;
 
       if (param_name_end != param_name_start and check_pattern(param_name_end, '}')) {
-        int size = param_name_end - param_name_start;
+        int size = int(param_name_end - param_name_start);
         bool is_path = false;
         if (size > 3 and param_name_end[-1] == '.' and param_name_end[-2] == '.' and
             param_name_end[-3] == '.') {
@@ -9733,9 +10413,8 @@ struct http_response {
 
 namespace li {
 
-
 template <typename... O>
-auto http_serve(api<http_request, http_response> api, int port, O... opts) {
+void http_serve(api<http_request, http_response> api, int port, O... opts) {
 
   auto options = mmm(opts...);
 
@@ -9760,41 +10439,39 @@ auto http_serve(api<http_request, http_response> api, int port, O... opts) {
   auto date_thread = std::make_shared<std::thread>([&]() {
     while (!quit_signal_catched) {
       li::http_async_impl::http_top_header.tick();
-      usleep(1e6);
+      std::this_thread::sleep_for(std::chrono::seconds(1));
     }
   });
 
-  auto server_thread = std::make_shared<std::thread>([=]() {
+  auto server_thread = std::make_shared<std::thread>([=] {
     std::cout << "Starting lithium::http_server on port " << port << std::endl;
 
-    if constexpr (has_key(options, s::ssl_key))
-    {
-      static_assert(has_key(options, s::ssl_certificate), "You need to provide both the ssl_certificate option and the ssl_key option.");
+    if constexpr (has_key<decltype(options)>(s::ssl_key)) {
+      static_assert(has_key<decltype(options)>(s::ssl_certificate),
+                    "You need to provide both the ssl_certificate option and the ssl_key option.");
       std::string ssl_key = options.ssl_key;
       std::string ssl_cert = options.ssl_certificate;
-      std::string ssl_ciphers = "";
-      if constexpr (has_key(options, s::ssl_ciphers))
-      {
-        ssl_ciphers = options.ssl_ciphers;
-      }
+      std::string ssl_ciphers = get_or(options, s::ssl_ciphers, "");
       start_tcp_server(port, SOCK_STREAM, nthreads,
-                       http_async_impl::make_http_processor(std::move(handler)),
-                       ssl_key, ssl_cert, ssl_ciphers);
-    }
-    else
+                       http_async_impl::make_http_processor(std::move(handler)), ssl_key,
+                       ssl_cert, ssl_ciphers);
+    } else {
       start_tcp_server(port, SOCK_STREAM, nthreads,
                        http_async_impl::make_http_processor(std::move(handler)));
+    }
     date_thread->join();
   });
 
-  if constexpr (has_key<decltype(options), s::non_blocking_t>()) {
-    usleep(0.1e6);
+  if (has_key<decltype(options), s::non_blocking_t>()) {
+    std::this_thread::sleep_for(std::chrono::microseconds(100));
+
     date_thread->detach();
     server_thread->detach();
     // return mmm(s::server_thread = server_thread, s::date_thread = date_thread);
   } else
     server_thread->join();
 }
+
 } // namespace li
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_HTTP_SERVE_HH
@@ -10097,27 +10774,40 @@ template <typename... A> http_api http_authentication_api(http_authentication<A.
 namespace li {
 
 namespace impl {
-  inline bool is_regular_file(const std::string& path) {
-    struct stat path_stat;
-    if (-1 == stat(path.c_str(), &path_stat))
-      return false;
-    return S_ISREG(path_stat.st_mode);
-  }
+inline bool is_regular_file(const std::string& path) {
+  struct stat path_stat;
+  if (-1 == stat(path.c_str(), &path_stat))
+    return false;
+  return path_stat.st_mode & S_IFREG;
+}
 
-  inline bool is_directory(const std::string& path) {
-    struct stat path_stat;
-    if (-1 == stat(path.c_str(), &path_stat))
-      return false;
-    return S_ISDIR(path_stat.st_mode);
-  }
+inline bool is_directory(const std::string& path) {
+  struct stat path_stat;
+  if (-1 == stat(path.c_str(), &path_stat))
+    return false;
+  return path_stat.st_mode & S_IFDIR;
+}
 
-  inline bool starts_with(const char *pre, const char *str)
-  {
-      size_t lenpre = strlen(pre),
-            lenstr = strlen(str);
-      return lenstr < lenpre ? false : memcmp(pre, str, lenpre) == 0;
-  }
+inline bool starts_with(const char* pre, const char* str) {
+  size_t lenpre = strlen(pre), lenstr = strlen(str);
+  return lenstr < lenpre ? false : memcmp(pre, str, lenpre) == 0;
+}
 } // namespace impl
+
+#if defined _WIN32
+#define CROSSPLATFORM_MAX_PATH MAX_PATH
+#else
+#define CROSSPLATFORM_MAX_PATH PATH_MAX
+#endif
+
+template <unsigned S> bool crossplatform_realpath(const std::string& path, char out_buffer[S]) {
+  // Check if file exists by real file path.
+#if defined _WIN32
+  return 0 != GetFullPathNameA(path.c_str(), S, out_buffer, nullptr);
+#else
+  return nullptr != realpath(path.c_str(), out_buffer);
+#endif
+}
 
 inline auto serve_file(const std::string& root, std::string_view path, http_response& response) {
   static char dot = '.', slash = '/';
@@ -10132,10 +10822,10 @@ inline auto serve_file(const std::string& root, std::string_view path, http_resp
   if (path.empty() || !impl::is_regular_file(full_path)) {
     throw http_error::not_found("file not found.");
   }
-  
+
   // Check if file exists by real file path.
-  char realpath_out[PATH_MAX]{0};
-  if (nullptr == realpath(full_path.c_str(), realpath_out))
+  char realpath_out[CROSSPLATFORM_MAX_PATH]{0};
+  if (!crossplatform_realpath<CROSSPLATFORM_MAX_PATH>(full_path, realpath_out))
     throw http_error::not_found("file not found.");
 
   // Check that path is within the root directory.
@@ -10146,21 +10836,22 @@ inline auto serve_file(const std::string& root, std::string_view path, http_resp
 };
 
 inline auto serve_directory(const std::string& root) {
-  // extract root realpath. 
-  char realpath_out[PATH_MAX]{0};
-  if (nullptr == realpath(root.c_str(), realpath_out))
-    throw std::runtime_error(std::string("serve_directory error: Directory ") + root + " does not exists.");
+  // extract root realpath.
+
+  char realpath_out[CROSSPLATFORM_MAX_PATH]{0};
+  if (!crossplatform_realpath<CROSSPLATFORM_MAX_PATH>(root, realpath_out))
+    throw std::runtime_error(std::string("serve_directory error: Directory ") + root +
+                             " does not exists.");
 
   // Check if it is a directory.
-  if (!impl::is_directory(realpath_out))
-  {
-    throw std::runtime_error(std::string("serve_directory error: ") + root + " is not a directory.");
+  if (!impl::is_directory(realpath_out)) {
+    throw std::runtime_error(std::string("serve_directory error: ") + root +
+                             " is not a directory.");
   }
 
   // Ensure the root ends with a /
   std::string real_root(realpath_out);
-  if (real_root.back() != '/')
-  {
+  if (real_root.back() != '/') {
     real_root.push_back('/');
   }
 

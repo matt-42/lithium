@@ -8,10 +8,10 @@ template <typename B>
 template <typename... T>
 sql_result<mysql_statement_result<B>> mysql_statement<B>::operator()(T&&... args) {
 
-  if (sizeof...(T) > 0) {
+  if constexpr (sizeof...(T) > 0) {
     // Bind the ...args in the MYSQL BIND structure.
     MYSQL_BIND bind[sizeof...(T)];
-    memset(bind, 0, sizeof(bind));
+    memset(bind, 0, sizeof...(T) * sizeof(MYSQL_BIND));
     int i = 0;
     tuple_map(std::forward_as_tuple(args...), [&](auto& m) {
       mysql_bind_param(bind[i], m);
@@ -30,8 +30,7 @@ sql_result<mysql_statement_result<B>> mysql_statement<B>::operator()(T&&... args
   mysql_wrapper_.mysql_stmt_execute(connection_->error_, data_.stmt_);
 
   // Return the wrapped mysql result.
-  return sql_result<mysql_statement_result<B>>{
-      mysql_statement_result<B>{mysql_wrapper_, data_, connection_}};
+  return sql_result<mysql_statement_result<B>>(mysql_statement_result<B>(mysql_wrapper_, data_, connection_));
 }
 
 } // namespace li

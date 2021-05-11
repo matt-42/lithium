@@ -32,7 +32,7 @@ template <typename I> struct sql_result {
   sql_result() = delete;
   sql_result& operator=(sql_result&) = delete;
   sql_result(const sql_result&) = delete;
-  sql_result(I impl) : impl_(impl) {}
+  sql_result(I&& impl) : impl_(std::forward<I>(impl)) {}
   
   inline ~sql_result() { this->flush_results(); }
 

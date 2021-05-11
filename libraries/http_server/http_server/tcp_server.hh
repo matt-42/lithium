@@ -27,11 +27,9 @@
 #endif
 
 #if defined _WIN32
-extern "C" {
 #include <WS2tcpip.h>
 #include <WinSock2.h>
 #include <wepoll.h>
-}
 #endif
 
 #include <deque>

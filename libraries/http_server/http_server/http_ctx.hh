@@ -43,7 +43,7 @@ static thread_local std::unordered_map<std::string, std::pair<std::string_view, 
 #ifndef _WIN32
 http_top_header_builder http_top_header [[gnu::weak]];
 #else
-__declspec(selectany) http_top_header_builder http_top_header [[gnu::weak]];
+__declspec(selectany) http_top_header_builder http_top_header;
 #endif
 
 template <typename FIBER> struct generic_http_ctx {
@@ -456,23 +456,24 @@ template <typename FIBER> struct generic_http_ctx {
 
     } else if (chunked_) {
       // Chunked decoding.
-      const char* cur = body_start.data();
-      int chunked_size = strtol(rb.read_until(read, cur, '\r').data(), nullptr, 16);
-      cur++; // skip \n
-      while (chunked_size > 0) {
-        // Read chunk.
-        std::string_view chunk = rb.read_n(read, cur, chunked_size);
-        callback(chunk);
-        rb.free(chunk);
-        cur += chunked_size + 2; // skip \r\n.
+      assert(0);
+      // const char* cur = body_start.data();
+      // int chunked_size = strtol(rb.read_until(read, cur, '\r').data(), nullptr, 16);
+      // cur++; // skip \n
+      // while (chunked_size > 0) {
+      //   // Read chunk.
+      //   std::string_view chunk = rb.read_n(read, cur, chunked_size);
+      //   callback(chunk);
+      //   rb.free(chunk);
+      //   cur += chunked_size + 2; // skip \r\n.
 
-        // Read next chunk size.
-        chunked_size = strtol(rb.read_until(read, cur, '\r').data(), nullptr, 16);
-        cur++; // skip \n
-      }
-      cur += 2; // skip the terminaison chunk.
-      body_end_ = cur;
-      body_ = std::string_view(body_start.data(), cur - body_start.data());
+      //   // Read next chunk size.
+      //   chunked_size = strtol(rb.read_until(read, cur, '\r').data(), nullptr, 16);
+      //   cur++; // skip \n
+      // }
+      // cur += 2; // skip the terminaison chunk.
+      // body_end_ = cur;
+      // body_ = std::string_view(body_start.data(), cur - body_start.data());
     }
   }
 

@@ -10,7 +10,7 @@ li_add_executable(bench bench.cc)
 target_link_libraries(bench ${LIBS})
 
 
-if (NOT APPLE)
+if (NOT APPLE AND NOT WIN32)
   li_add_executable(bench_hello_world hello_world.cc)
   target_link_libraries(bench_hello_world ${LIBS})
 endif()

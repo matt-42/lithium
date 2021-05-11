@@ -40,6 +40,7 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include <winsock2.h>
 
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_HH
@@ -48,6 +49,8 @@
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_DATABASE_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_DATABASE_HH
 
+#if not defined _WIN32
+#endif
 
 #include "libpq-fe.h"
 
@@ -252,14 +255,19 @@ template <typename F, typename... A> struct callable_with {
 namespace li {
 
 namespace internal {
-struct {
+struct reduce_add_type {
   template <typename A, typename... B> constexpr auto operator()(A&& a, B&&... b) {
     auto result = a;
     using expand_variadic_pack = int[];
     (void)expand_variadic_pack{0, ((result += b), 0)...};
     return result;
   }
-} reduce_add;
+};
+#ifdef _WIN32
+__declspec(selectany) reduce_add_type reduce_add;
+#else
+reduce_add_type reduce_add [[gnu::weak]];
+#endif
 
 } // namespace internal
 
@@ -892,6 +900,8 @@ constexpr auto forward_tuple_as_metamap(std::tuple<S...> keys, const std::tuple<
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_CONNECTION_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_CONNECTION_HH
 
+#if not defined(_WIN32)
+#endif
 
 #include "libpq-fe.h"
 
@@ -1073,6 +1083,11 @@ private:
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_RESULT_HPP
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_RESULT_HPP
 
+
+#ifdef _WIN32
+#else
+#endif
+
 #include "libpq-fe.h"
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_INTERNAL_UTILS_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_INTERNAL_UTILS_HH
@@ -1096,7 +1111,13 @@ template <typename... T> struct unconstref_tuple_elements<std::tuple<T...>> {
 //#include <catalog/pg_type_d.h>
 
 #if __APPLE__ // from https://gist.github.com/yinyin/2027912
+
 #define be64toh(x) OSSwapBigToHostInt64(x)
+
+#elif _WIN32 // from https://gist.github.com/PkmX/63dd23f28ba885be53a5
+
+#define be64toh(x) _byteswap_uint64(x)
+
 #endif
 
 #define INT8OID 20
@@ -1508,7 +1529,8 @@ template <typename I> struct sql_result {
   sql_result() = delete;
   sql_result& operator=(sql_result&) = delete;
   sql_result(const sql_result&) = delete;
-
+  sql_result(I&& impl) : impl_(std::forward<I>(impl)) {}
+  
   inline ~sql_result() { this->flush_results(); }
 
   inline void flush_results() { impl_.flush_results(); }
@@ -1710,6 +1732,9 @@ private:
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_STATEMENT_HPP
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_STATEMENT_HPP
 
+#ifdef _WIN32
+#endif
+
 
 
 namespace li {
@@ -1817,13 +1842,22 @@ sql_result<pgsql_result<Y>> pgsql_statement<Y>::operator()(T&&... args) {
   unsigned int nparams = 0;
   if constexpr (sizeof...(T) > 0)
     nparams = (bind_compute_nparam(std::forward<T>(args)) + ...);
-  const char* values_[nparams];
+
+#ifdef _WIN32 // MSVC does not support variable sized arrays.
+  std::vector<const char*> values_(nparams);
+  std::vector<int> lengths_(nparams);
+  std::vector<int> binary_(nparams);
+  const char** values = values_.data();
+  int* lengths = lengths_.data();
+  int* binary = binary_.data();
+#else
+  const char*> values_[nparams];
   int lengths_[nparams];
   int binary_[nparams];
-
   const char** values = values_;
   int* lengths = lengths_;
   int* binary = binary_;
+#endif
 
   int i = 0;
   tuple_map(std::forward_as_tuple(args...), [&](const auto& a) {
@@ -1948,11 +1982,15 @@ template <typename Y> struct pgsql_connection {
 
 
 namespace li {
+  
 // thread local map of sql_database<I>* -> sql_database_thread_local_data<I>*;
 // This is used to store the thread local async connection pool.
 // void* is used instead of concrete types to handle different I parameter.
-
+#ifndef _WIN32
 thread_local std::unordered_map<void*, void*> sql_thread_local_data [[gnu::weak]];
+#else
+__declspec(selectany) thread_local std::unordered_map<void*, void*> sql_thread_local_data; 
+#endif
 
 template <typename I> struct sql_database_thread_local_data {
 
@@ -2481,8 +2519,9 @@ template <typename SCHEMA, typename C> struct sql_orm {
   sql_orm(SCHEMA& schema, C&& con) : schema_(schema), con_(std::forward<C>(con)) {}
 
   template <typename S, typename... A> void call_callback(S s, A&&... args) {
-    if constexpr (has_key<decltype(schema_.get_callbacks())>(S{}))
-      return schema_.get_callbacks()[s](args...);
+    get_or(schema_.get_callbacks(), s, [] (A... args) {})(args...);
+    // if constexpr (has_key<decltype(schema_.get_callbacks())>(S{}))
+    //   return schema_.get_callbacks().template operator[]<S>(s)(args...);
   }
 
   inline auto& drop_table_if_exists() {
@@ -2570,7 +2609,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
   template <typename... W, typename... A> auto find_one(metamap<W...> where, A&&... cb_args) {
 
-    auto stmt = con_.cached_statement([&] (){ 
+    auto stmt = con_.cached_statement([&] { 
         std::ostringstream ss;
         placeholder_pos_ = 0;
         ss << "SELECT ";
@@ -2590,7 +2629,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     });
 
     O result;
-    bool read_success = li::tuple_reduce(metamap_values(where), stmt).template read(metamap_values(result));
+    bool read_success = li::tuple_reduce(metamap_values(where), stmt).read(metamap_values(result));
     if (read_success)
     {
       call_callback(s::read_access, result, cb_args...);
