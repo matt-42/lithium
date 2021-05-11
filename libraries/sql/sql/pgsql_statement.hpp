@@ -126,7 +126,7 @@ sql_result<pgsql_result<Y>> pgsql_statement<Y>::operator()(T&&... args) {
   int* lengths = lengths_.data();
   int* binary = binary_.data();
 #else
-  const char*> values_[nparams];
+  const char* values_[nparams];
   int lengths_[nparams];
   int binary_[nparams];
   const char** values = values_;
