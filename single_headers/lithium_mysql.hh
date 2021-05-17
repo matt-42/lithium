@@ -1590,7 +1590,7 @@ template <typename B> template <typename T1, typename... T> auto sql_result<B>::
       return std::tuple<T1, T...>{};
   }();
   if (!this->read(t))
-    throw std::runtime_error("Trying to read a request that did not return any data.");
+    throw std::runtime_error("sql_result::read: error: Trying to read a request that did not return any data.");
   return t;
 }
 
@@ -1698,7 +1698,7 @@ namespace li {
 template <typename B> struct mysql_statement_result {
 
   mysql_statement_result(B& mysql_wrapper_, mysql_statement_data& data_,
-                         std::shared_ptr<mysql_connection_data> connection_)
+                         const std::shared_ptr<mysql_connection_data>& connection_)
       : mysql_wrapper_(mysql_wrapper_), data_(data_), connection_(connection_) {}
 
   mysql_statement_result& operator=(mysql_statement_result&) = delete;
@@ -1712,7 +1712,8 @@ template <typename B> struct mysql_statement_result {
 
   inline void flush_results() {
     // if (result_allocated_)
-    mysql_wrapper_.mysql_stmt_free_result(connection_->error_, data_.stmt_);
+    if (connection_) // connection is null if this has been moved in another instance.
+      mysql_wrapper_.mysql_stmt_free_result(connection_->error_, data_.stmt_);
     // result_allocated_ = false;
   }
 
@@ -1968,9 +1969,11 @@ template <typename... T>
 sql_result<mysql_statement_result<B>> mysql_statement<B>::operator()(T&&... args) {
 
   if constexpr (sizeof...(T) > 0) {
+  // if (sizeof...(T) > 0) {
     // Bind the ...args in the MYSQL BIND structure.
     MYSQL_BIND bind[sizeof...(T)];
-    memset(bind, 0, sizeof...(T) * sizeof(MYSQL_BIND));
+    //memset(bind, 0, sizeof...(T) * sizeof(MYSQL_BIND));
+    memset(bind, 0, sizeof(bind)); // does not work compile on windows ? 
     int i = 0;
     tuple_map(std::forward_as_tuple(args...), [&](auto& m) {
       mysql_bind_param(bind[i], m);
@@ -2217,7 +2220,8 @@ template <typename B> long long int mysql_connection<B>::last_insert_rowid() {
 template <typename B>
 sql_result<mysql_result<B>> mysql_connection<B>::operator()(const std::string& rq) {
   mysql_wrapper_.mysql_real_query(data_->error_, data_->connection_, rq.c_str(), rq.size());
-  return sql_result<mysql_result<B>>(mysql_result<B>{mysql_wrapper_, data_});
+ return sql_result<mysql_result<B>>(
+      mysql_result<B>(mysql_wrapper_, data_));
 }
 
 template <typename B>

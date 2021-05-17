@@ -2422,6 +2422,7 @@ struct http_client {
     if (curl_easy_perform(curl_) != CURLE_OK) {
       std::ostringstream errss;
       errss << "Libcurl error when sending request: " << errbuf;
+      std::cerr << errss.str() << std::endl;
       throw std::runtime_error(errss.str());
     }
     curl_slist_free_all(headers_list);

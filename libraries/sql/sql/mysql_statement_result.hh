@@ -22,7 +22,7 @@ namespace li {
 template <typename B> struct mysql_statement_result {
 
   mysql_statement_result(B& mysql_wrapper_, mysql_statement_data& data_,
-                         std::shared_ptr<mysql_connection_data> connection_)
+                         const std::shared_ptr<mysql_connection_data>& connection_)
       : mysql_wrapper_(mysql_wrapper_), data_(data_), connection_(connection_) {}
 
   mysql_statement_result& operator=(mysql_statement_result&) = delete;
@@ -36,7 +36,8 @@ template <typename B> struct mysql_statement_result {
 
   inline void flush_results() {
     // if (result_allocated_)
-    mysql_wrapper_.mysql_stmt_free_result(connection_->error_, data_.stmt_);
+    if (connection_) // connection is null if this has been moved in another instance.
+      mysql_wrapper_.mysql_stmt_free_result(connection_->error_, data_.stmt_);
     // result_allocated_ = false;
   }
 

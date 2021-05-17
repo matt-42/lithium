@@ -1408,7 +1408,7 @@ template <typename B> template <typename T1, typename... T> auto sql_result<B>::
       return std::tuple<T1, T...>{};
   }();
   if (!this->read(t))
-    throw std::runtime_error("Trying to read a request that did not return any data.");
+    throw std::runtime_error("sql_result::read: error: Trying to read a request that did not return any data.");
   return t;
 }
 

@@ -1454,7 +1454,7 @@ template <typename B> template <typename T1, typename... T> auto sql_result<B>::
       return std::tuple<T1, T...>{};
   }();
   if (!this->read(t))
-    throw std::runtime_error("Trying to read a request that did not return any data.");
+    throw std::runtime_error("sql_result::read: error: Trying to read a request that did not return any data.");
   return t;
 }
 
@@ -3458,6 +3458,7 @@ struct http_client {
     if (curl_easy_perform(curl_) != CURLE_OK) {
       std::ostringstream errss;
       errss << "Libcurl error when sending request: " << errbuf;
+      std::cerr << errss.str() << std::endl;
       throw std::runtime_error(errss.str());
     }
     curl_slist_free_all(headers_list);
@@ -4472,7 +4473,7 @@ namespace li {
 template <typename B> struct mysql_statement_result {
 
   mysql_statement_result(B& mysql_wrapper_, mysql_statement_data& data_,
-                         std::shared_ptr<mysql_connection_data> connection_)
+                         const std::shared_ptr<mysql_connection_data>& connection_)
       : mysql_wrapper_(mysql_wrapper_), data_(data_), connection_(connection_) {}
 
   mysql_statement_result& operator=(mysql_statement_result&) = delete;
@@ -4486,7 +4487,8 @@ template <typename B> struct mysql_statement_result {
 
   inline void flush_results() {
     // if (result_allocated_)
-    mysql_wrapper_.mysql_stmt_free_result(connection_->error_, data_.stmt_);
+    if (connection_) // connection is null if this has been moved in another instance.
+      mysql_wrapper_.mysql_stmt_free_result(connection_->error_, data_.stmt_);
     // result_allocated_ = false;
   }
 
@@ -4742,9 +4744,11 @@ template <typename... T>
 sql_result<mysql_statement_result<B>> mysql_statement<B>::operator()(T&&... args) {
 
   if constexpr (sizeof...(T) > 0) {
+  // if (sizeof...(T) > 0) {
     // Bind the ...args in the MYSQL BIND structure.
     MYSQL_BIND bind[sizeof...(T)];
-    memset(bind, 0, sizeof...(T) * sizeof(MYSQL_BIND));
+    //memset(bind, 0, sizeof...(T) * sizeof(MYSQL_BIND));
+    memset(bind, 0, sizeof(bind)); // does not work compile on windows ? 
     int i = 0;
     tuple_map(std::forward_as_tuple(args...), [&](auto& m) {
       mysql_bind_param(bind[i], m);
@@ -4991,7 +4995,8 @@ template <typename B> long long int mysql_connection<B>::last_insert_rowid() {
 template <typename B>
 sql_result<mysql_result<B>> mysql_connection<B>::operator()(const std::string& rq) {
   mysql_wrapper_.mysql_real_query(data_->error_, data_->connection_, rq.c_str(), rq.size());
-  return sql_result<mysql_result<B>>(mysql_result<B>{mysql_wrapper_, data_});
+ return sql_result<mysql_result<B>>(
+      mysql_result<B>(mysql_wrapper_, data_));
 }
 
 template <typename B>
@@ -8954,27 +8959,26 @@ template <typename FIBER> struct generic_http_ctx {
     if (static_files.end() == it or !it->second.first.size()) {
       // FIXME windows implementation.
 
-      // int fd = open(path, O_RDONLY);
-      // if (fd == -1)
-      //   throw http_error::not_found("File not found.");
+      int fd = open(path, O_RDONLY);
+      if (fd == -1)
+        throw http_error::not_found("File not found.");
 
-      // int file_size = lseek(fd, (size_t)0, SEEK_END);
-      auto content = "";
-      //     std::string_view((char*)mmap(0, file_size, PROT_READ, MAP_SHARED, fd, 0), file_size);
-      // if (!content.data())
-      //   throw http_error::not_found("File not found.");
-      // close(fd);
+      int file_size = lseek(fd, (size_t)0, SEEK_END);
+      auto content = std::string_view((char*)mmap(0, file_size, PROT_READ, MAP_SHARED, fd, 0), file_size);
+      if (!content.data())
+        throw http_error::not_found("File not found.");
+      close(fd);
 
-      // size_t ext_pos = std::string_view(path).rfind('.');
-      // std::string_view content_type("");
-      // if (ext_pos != std::string::npos) {
-      //   auto type_itr = content_types.find(std::string_view(path).substr(ext_pos + 1).data());
-      //   if (type_itr != content_types.end()) {
-      //     content_type = type_itr->second;
-      //     set_header("Content-Type", content_type);
-      //   }
-      // }
-      // static_files.insert({path, {content, content_type}});
+      size_t ext_pos = std::string_view(path).rfind('.');
+      std::string_view content_type("");
+      if (ext_pos != std::string::npos) {
+        auto type_itr = content_types.find(std::string_view(path).substr(ext_pos + 1).data());
+        if (type_itr != content_types.end()) {
+          content_type = type_itr->second;
+          set_header("Content-Type", content_type);
+        }
+      }
+      static_files.insert({path, {content, content_type}});
 
       respond(content);
     } else {
