@@ -56,8 +56,11 @@ struct http_response {
     http_ctx.respond(a1); 
   }
 
+  inline void write_file(const std::string path) {
+    http_ctx.send_file(path.c_str());
+  }
   inline void write_static_file(const std::string path) {
-    http_ctx.send_static_file(path.c_str());
+    http_ctx.send_static_file(path.c_str(), 0);
   }
 
   http_async_impl::http_ctx& http_ctx;

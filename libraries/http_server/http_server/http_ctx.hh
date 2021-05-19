@@ -11,6 +11,7 @@
 #include <sys/socket.h>
 #include <sys/uio.h>
 #include <unistd.h>
+#include <sys/sendfile.h>
 #endif
 
 #include <unordered_map>
@@ -298,7 +299,90 @@ template <typename FIBER> struct generic_http_ctx {
     }
   }
 
-  void send_static_file(const char* path) {
+  // Send a file.
+  void send_file(const char* path) {
+
+    // Open the file in non blocking mode.
+    int fd = open(path, O_RDONLY);
+    if (fd == -1)
+      throw http_error::not_found("File not found.");
+
+#ifndef _WIN32 // Linux / Macos version with sendfile
+
+    // int flags = fcntl(fd, F_GETFL, 0);
+    // if (-1 == fcntl(fd, F_SETFL, flags | O_NONBLOCK))
+    //   throw http_error::not_found("Internal error: fcntl returned -1.");
+
+    // Get file size
+    size_t file_size = lseek(fd, (size_t)0, SEEK_END);
+
+    // Set content type header.
+    size_t ext_pos = std::string_view(path).rfind('.');
+    std::string_view content_type("");
+    if (ext_pos != std::string::npos) {
+      auto type_itr = content_types.find(std::string_view(path).substr(ext_pos + 1).data());
+      if (type_itr != content_types.end()) {
+        content_type = type_itr->second;
+        set_header("Content-Type", content_type);
+      }
+    }
+
+    // Writing the http headers.
+    response_written_ = true;
+    format_top_headers(output_stream);
+    headers_stream.flush(); // flushes headers to output_stream.
+    output_stream << "Content-Length: " << file_size << "\r\n\r\n";
+    output_stream.flush();
+
+    // this->fiber.epoll_add(fd, EPOLLIN | EPOLLET);
+
+    off_t offset = 0;
+    while (offset < file_size) {
+      int ret = ::sendfile(socket_fd, fd, &offset, file_size - offset);
+      if (ret != -1) {
+        if (offset < file_size) {
+          continue;//this->fiber.yield();
+        }
+      } else if (errno == EAGAIN) {
+        this->fiber.yield();
+      } else {
+        close(fd);
+        throw http_error::not_found("Internal error: sendfile failed.");
+      }
+    }
+
+    close(fd);
+
+#else // Windows impl with basic read write.
+
+    // Open file.
+    FILE* fd = fopen(path, "r");
+    if (fd == nullptr)
+      throw http_error::not_found("File not found.");
+
+    // Writing the http headers.
+    response_written_ = true;
+    format_top_headers(output_stream);
+    headers_stream.flush(); // flushes to output_stream.
+    output_stream << "Content-Length: " << file_size << "\r\n\r\n" << s; // Add body
+    output_stream.flush();
+    
+    // Read the file and write it to the socket.
+    size_t nread = 1;
+    while (nread != 0) {
+      char buffer[4096];
+      nread = _fread_nolock(buffer, sizeof(buffer), fd);
+      this->fiber.write(buffer, nread);
+    }
+    if (!feof(fd))
+      throw http_error::not_found("File not found.");
+
+#endif
+  }
+
+  // Send a static file.
+  // Several strategies:If you want to avoid opening the file
+  void send_static_file(const char* path, int cache_duration_second) {
     auto it = static_files.find(path);
     if (static_files.end() == it or !it->second.first.size()) {
       // FIXME windows implementation.
@@ -308,7 +392,8 @@ template <typename FIBER> struct generic_http_ctx {
         throw http_error::not_found("File not found.");
 
       int file_size = lseek(fd, (size_t)0, SEEK_END);
-      auto content = std::string_view((char*)mmap(0, file_size, PROT_READ, MAP_SHARED, fd, 0), file_size);
+      auto content =
+          std::string_view((char*)mmap(0, file_size, PROT_READ, MAP_SHARED, fd, 0), file_size);
       if (!content.data())
         throw http_error::not_found("File not found.");
       close(fd);

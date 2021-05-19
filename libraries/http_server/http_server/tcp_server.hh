@@ -564,6 +564,9 @@ void start_tcp_server(int port, int socktype, int nthreads, H conn_handler,
   sigaction(SIGINT, &act, 0);
   sigaction(SIGTERM, &act, 0);
   sigaction(SIGQUIT, &act, 0);
+  // Ignore sigpipe signal. Otherwise sendfile causes crashes if the
+  // client closes the connection during the response transfer.
+  signal(SIGPIPE, SIG_IGN);
 #endif
 
   // Start the server threads.

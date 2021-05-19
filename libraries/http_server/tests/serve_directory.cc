@@ -46,4 +46,16 @@ int main() {
   CHECK_EQUAL("serve_file with ..", http_get("http://localhost:12357/test/subdir/../subdir/hello.txt").status, 200);
   CHECK_EQUAL("serve_file with ..", http_get("http://localhost:12357/test/subdir/../subdir/hello.txt").body,
               "hello world.");
+
+  // Test with 1MB file.
+  {
+    std::ofstream o((root / "subdir" / "big_file.txt").string());
+    for (int i = 0; i < 1024*1024; i++) 
+      o << "xxxxxxxxxx";
+  }
+
+  CHECK_EQUAL("10MB file", http_get("http://localhost:12357/test/subdir/../subdir/big_file.txt").status, 200);
+  std::cout << http_get("http://localhost:12357/test/subdir/../subdir/big_file.txt").body.size() << std::endl;
+  CHECK_EQUAL("10MB file", http_get("http://localhost:12357/test/subdir/../subdir/big_file.txt").body.size(), 10*1024 * 1024);
+
 }

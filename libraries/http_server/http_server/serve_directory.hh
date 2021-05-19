@@ -68,7 +68,7 @@ inline auto serve_file(const std::string& root, std::string_view path, http_resp
   if (!impl::starts_with(root.c_str(), realpath_out))
     throw http_error::not_found("Access denied.");
 
-  response.write_static_file(full_path);
+  response.write_file(full_path);
 };
 
 inline auto serve_directory(const std::string& root) {
