@@ -8968,10 +8968,6 @@ template <typename FIBER> struct generic_http_ctx {
 
 #ifndef _WIN32 // Linux / Macos version with sendfile
 
-    // int flags = fcntl(fd, F_GETFL, 0);
-    // if (-1 == fcntl(fd, F_SETFL, flags | O_NONBLOCK))
-    //   throw http_error::not_found("Internal error: fcntl returned -1.");
-
     // Get file size
     size_t file_size = lseek(fd, (size_t)0, SEEK_END);
 
@@ -8992,8 +8988,6 @@ template <typename FIBER> struct generic_http_ctx {
     headers_stream.flush(); // flushes headers to output_stream.
     output_stream << "Content-Length: " << file_size << "\r\n\r\n";
     output_stream.flush();
-
-    // this->fiber.epoll_add(fd, EPOLLIN | EPOLLET);
 
     off_t offset = 0;
     while (offset < file_size) {

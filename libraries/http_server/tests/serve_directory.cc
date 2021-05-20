@@ -30,21 +30,21 @@ int main() {
 
   std::cout << "Server root is " << root.string() << std::endl;
   my_api.add_subapi("/test", serve_directory(root.string()));
-  http_serve(my_api, 12357, s::non_blocking);
-  //http_serve(my_api, 12357);
+  http_serve(my_api, 12157, s::non_blocking);
+  //http_serve(my_api, 12157);
 
-  CHECK_EQUAL("serve_file not found if requesting root serve path", http_get("http://localhost:12357/test").status, 404);
-  CHECK_EQUAL("serve_file not found if requesting directory even it exists", http_get("http://localhost:12357/test/subdir").status, 404);
-  CHECK_EQUAL("serve_file access denied if out of root", http_get("http://localhost:12357/test/..").status, 404);
-  CHECK_EQUAL("serve_file not found", http_get("http://localhost:12357/test/subdir/..").status, 404);
-  CHECK_EQUAL("serve_file not found", http_get("http://localhost:12357/test/subdir/xxx").status, 404);
+  CHECK_EQUAL("serve_file not found if requesting root serve path", http_get("http://localhost:12157/test").status, 404);
+  CHECK_EQUAL("serve_file not found if requesting directory even it exists", http_get("http://localhost:12157/test/subdir").status, 404);
+  CHECK_EQUAL("serve_file access denied if out of root", http_get("http://localhost:12157/test/..").status, 404);
+  CHECK_EQUAL("serve_file not found", http_get("http://localhost:12157/test/subdir/..").status, 404);
+  CHECK_EQUAL("serve_file not found", http_get("http://localhost:12157/test/subdir/xxx").status, 404);
 
-  CHECK_EQUAL("serve_file status 200", http_get("http://localhost:12357/test/subdir/hello.txt").status, 200);
-  CHECK_EQUAL("serve_file", http_get("http://localhost:12357/test/subdir/hello.txt").body,
+  CHECK_EQUAL("serve_file status 200", http_get("http://localhost:12157/test/subdir/hello.txt").status, 200);
+  CHECK_EQUAL("serve_file", http_get("http://localhost:12157/test/subdir/hello.txt").body,
               "hello world.");
 
-  CHECK_EQUAL("serve_file with ..", http_get("http://localhost:12357/test/subdir/../subdir/hello.txt").status, 200);
-  CHECK_EQUAL("serve_file with ..", http_get("http://localhost:12357/test/subdir/../subdir/hello.txt").body,
+  CHECK_EQUAL("serve_file with ..", http_get("http://localhost:12157/test/subdir/../subdir/hello.txt").status, 200);
+  CHECK_EQUAL("serve_file with ..", http_get("http://localhost:12157/test/subdir/../subdir/hello.txt").body,
               "hello world.");
 
   // Test with 1MB file.
