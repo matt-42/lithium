@@ -11,6 +11,9 @@
 #include <sys/socket.h>
 #include <sys/uio.h>
 #include <unistd.h>
+#endif
+
+#if __linux__ // the sendfile header does not exists on macos.
 #include <sys/sendfile.h>
 #endif
 
@@ -332,10 +335,16 @@ template <typename FIBER> struct generic_http_ctx {
 
     off_t offset = 0;
     while (offset < file_size) {
+#if __APPLE__ // sendfile on macos is slightly different...
+      off_t nwritten = 0;
+      int ret = ::sendfile(socket_fd, fd, offset, &nwritten, nullptr, 0);
+      offset += nwritten;
+#else
       int ret = ::sendfile(socket_fd, fd, &offset, file_size - offset);
+#endif
       if (ret != -1) {
         if (offset < file_size) {
-          continue;//this->fiber.yield();
+          continue; // this->fiber.yield();
         }
       } else if (errno == EAGAIN) {
         this->fiber.yield();
@@ -360,7 +369,7 @@ template <typename FIBER> struct generic_http_ctx {
     headers_stream.flush(); // flushes to output_stream.
     output_stream << "Content-Length: " << file_size << "\r\n\r\n" << s; // Add body
     output_stream.flush();
-    
+
     // Read the file and write it to the socket.
     size_t nread = 1;
     while (nread != 0) {
