@@ -8993,11 +8993,13 @@ template <typename FIBER> struct generic_http_ctx {
     output_stream.flush();
 
     off_t offset = 0;
+    lseek(fd, (size_t)0, 0);
     while (offset < file_size) {
 #if __APPLE__ // sendfile on macos is slightly different...
       off_t nwritten = 0;
-      int ret = ::sendfile(socket_fd, fd, offset, &nwritten, nullptr, 0);
+      int ret = ::sendfile(fd, socket_fd, offset, &nwritten, nullptr, 0);
       offset += nwritten;
+      if (ret == 0 && nwritten == 0) break; // end of file.
 #else
       int ret = ::sendfile(socket_fd, fd, &offset, file_size - offset);
 #endif
@@ -9009,6 +9011,7 @@ template <typename FIBER> struct generic_http_ctx {
         this->fiber.yield();
       } else {
         close(fd);
+        std::cerr << "Internal error: sendfile failed: " << strerror(errno) << std::endl;
         throw http_error::not_found("Internal error: sendfile failed.");
       }
     }
