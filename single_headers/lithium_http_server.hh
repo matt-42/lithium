@@ -5880,12 +5880,13 @@ template <typename FIBER> struct generic_http_ctx {
   // Send a file.
   void send_file(const char* path) {
 
+
+#ifndef _WIN32 // Linux / Macos version with sendfile
+
     // Open the file in non blocking mode.
     int fd = open(path, O_RDONLY);
     if (fd == -1)
       throw http_error::not_found("File not found.");
-
-#ifndef _WIN32 // Linux / Macos version with sendfile
 
     // Get file size
     size_t file_size = lseek(fd, (size_t)0, SEEK_END);
@@ -5941,32 +5942,38 @@ template <typename FIBER> struct generic_http_ctx {
     if (fd == nullptr)
       throw http_error::not_found("File not found.");
 
+    // Get file size.
+    DWORD file_size = 0;
+    GetFileSize(fd, &file_size);
     // Writing the http headers.
     response_written_ = true;
     format_top_headers(output_stream);
     headers_stream.flush(); // flushes to output_stream.
-    output_stream << "Content-Length: " << file_size << "\r\n\r\n" << s; // Add body
+    output_stream << "Content-Length: " << file_size << "\r\n\r\n"; // Add body
     output_stream.flush();
 
     // Read the file and write it to the socket.
     size_t nread = 1;
+    size_t offset = 0;
     while (nread != 0) {
       char buffer[4096];
-      nread = _fread_nolock(buffer, sizeof(buffer), fd);
+      nread = _fread_nolock(buffer, sizeof(buffer), file_size - offset, fd);
+      offset += nread;
       this->fiber.write(buffer, nread);
     }
     if (!feof(fd))
-      throw http_error::not_found("File not found.");
+      throw http_error::not_found("Internal error: Could not reach the end of file.");
 
 #endif
   }
 
-  // Send a static file.
-  // Several strategies:If you want to avoid opening the file
+  // Send a static file. Not used anymore, todo if we want beter performances: implement 
+  // a multiplatform file cache.
   void send_static_file(const char* path, int cache_duration_second) {
+    // FIXME windows implementation.
+#ifndef _WIN32
     auto it = static_files.find(path);
     if (static_files.end() == it or !it->second.first.size()) {
-      // FIXME windows implementation.
 
       int fd = open(path, O_RDONLY);
       if (fd == -1)
@@ -5997,6 +6004,7 @@ template <typename FIBER> struct generic_http_ctx {
       }
       respond(it->second.first);
     }
+#endif
   }
 
   // private:
