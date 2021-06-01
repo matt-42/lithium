@@ -1470,7 +1470,8 @@ template <typename I> struct sql_result {
   sql_result() = delete;
   sql_result& operator=(sql_result&) = delete;
   sql_result(const sql_result&) = delete;
-
+  sql_result(I&& impl) : impl_(std::forward<I>(impl)) {}
+  
   inline ~sql_result() { this->flush_results(); }
 
   inline void flush_results() { impl_.flush_results(); }
@@ -1581,7 +1582,7 @@ template <typename B> template <typename T1, typename... T> auto sql_result<B>::
       return std::tuple<T1, T...>{};
   }();
   if (!this->read(t))
-    throw std::runtime_error("Trying to read a request that did not return any data.");
+    throw std::runtime_error("sql_result::read: error: Trying to read a request that did not return any data.");
   return t;
 }
 
@@ -1688,8 +1689,13 @@ namespace li {
  */
 template <typename B> struct mysql_statement_result {
 
+  mysql_statement_result(B& mysql_wrapper, mysql_statement_data& data,
+                         const std::shared_ptr<mysql_connection_data>& connection)
+      : mysql_wrapper_(mysql_wrapper), data_(data), connection_(connection) {}
+
   mysql_statement_result& operator=(mysql_statement_result&) = delete;
   mysql_statement_result(const mysql_statement_result&) = delete;
+  mysql_statement_result(mysql_statement_result&& other) = default;
 
   /**
    * @brief Destructor. Free the result if needed.
@@ -1698,15 +1704,15 @@ template <typename B> struct mysql_statement_result {
 
   inline void flush_results() {
     // if (result_allocated_)
-    mysql_wrapper_.mysql_stmt_free_result(connection_->error_, data_.stmt_);
+    if (connection_)
+      mysql_wrapper_.mysql_stmt_free_result(connection_->error_, data_.stmt_);
     // result_allocated_ = false;
   }
 
   // Read std::tuple and li::metamap.
   template <typename T> bool read(T&& output);
 
-  template <typename T>
-  bool read(T&& output, MYSQL_BIND* bind, unsigned long* real_lengths);
+  template <typename T> bool read(T&& output, MYSQL_BIND* bind, unsigned long* real_lengths);
 
   template <typename F> void map(F map_callback);
 
@@ -1778,7 +1784,6 @@ void mysql_statement_result<B>::fetch_column(MYSQL_BIND* b, unsigned long real_l
   // Bind result.
   b[i].buffer_length = v.size();
   b[i].buffer = v.data();
-  mysql_stmt_bind_result(data_.stmt_, b);
   result_allocated_ = true;
 
   if (mysql_stmt_fetch_column(data_.stmt_, b + i, i, 0) != 0) {
@@ -2014,13 +2019,21 @@ template <typename B> struct mysql_result {
   MYSQL_ROW current_row_ = nullptr;
   bool end_of_result_ = false;
   int current_row_num_fields_ = 0;
-  
+
+  mysql_result(B& mysql_wrapper_, std::shared_ptr<mysql_connection_data> connection_)
+      : mysql_wrapper_(mysql_wrapper_), connection_(connection_){}
   mysql_result& operator=(mysql_result&) = delete;
   mysql_result(const mysql_result&) = delete;
+  mysql_result(mysql_result&&) = default;
 
   inline ~mysql_result() { flush(); }
 
-  inline void flush() { if (result_) { mysql_free_result(result_); result_ = nullptr; } } 
+  inline void flush() {
+    if (result_) {
+      mysql_free_result(result_);
+      result_ = nullptr;
+    }
+  }
   inline void flush_results() { this->flush(); }
   inline void next_row();
   template <typename T> bool read(T&& output);
@@ -2036,7 +2049,6 @@ template <typename B> struct mysql_result {
    * @return the last inserted id.
    */
   long long int last_insert_id();
-
 };
 
 } // namespace li

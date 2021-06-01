@@ -30,15 +30,20 @@ template <typename... T> std::ostream& operator<<(std::ostream& os, std::tuple<T
     assert(0);                                                                                     \
   }
 
-template <typename C> void init_test_table(C&& query) {
+template <typename DB, typename C> void init_test_table(C&& query) {
   query("DROP table if exists users_test;");
-  query("CREATE TABLE users_test (id int,name TEXT,age int);");
+
+  if constexpr (std::is_same_v<typename DB::db_tag, li::pgsql_tag>)
+    query("CREATE TABLE users_test (id int,name TEXT,age int);");
+  else
+    query("CREATE TABLE users_test (id int,name LONGTEXT,age int);");
 }
 
-template <typename R, typename S> void test_result(R&& query, S&& new_query) {
+template <typename DB, typename R, typename S> void test_result(R&& query, S&& new_query) {
 
   // std::cout << " STRING TO INT " << std::endl;
-  // std::cout << "query(SELECT 'xxx';).template read<int>() == " << query("SELECT 'xxx';").template read<int>() << std::endl;
+  // std::cout << "query(SELECT 'xxx';).template read<int>() == " << query("SELECT 'xxx';").template
+  // read<int>() << std::endl;
 
   // new_query("SELECTT 1+2").template read<int>();
   // Invalid queries must throw.
@@ -48,7 +53,7 @@ template <typename R, typename S> void test_result(R&& query, S&& new_query) {
   EXPECT_EQUAL(3, query("SELECT 1+2").template read<int>());
   EXPECT_EQUAL(-1, query("SELECT 1-2").template read<int>());
   EXPECT_EQUAL(query("SELECT 'xxx'").template read<std::string>(), "xxx");
-  init_test_table(query);
+  init_test_table<DB>(query);
   // Reading empty sets must throw.
   EXPECT_THROW(query("SELECT age from users_test;").template read<int>());
   // Invalid read types must throw.
@@ -99,19 +104,21 @@ template <typename R, typename S> void test_result(R&& query, S&& new_query) {
     index++;
   });
 
-
   // map with growing string
-  init_test_table(query);
+  init_test_table<DB>(query);
   query("INSERT into users_test(id, name, age) values (1,'aaaaaaaaaaaaaaaaaaa',41);");
-  query("INSERT into users_test(id, name, age) values (2,'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',42);");
-  query("INSERT into users_test(id, name, age) values (3,'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',43);");
+  query("INSERT into users_test(id, name, age) values "
+        "(2,'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',42);");
+  query("INSERT into users_test(id, name, age) values "
+        "(3,'"
+        "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        "cccccccccccccccccccccccc',43);");
   int sizes[] = {19, 57, 114};
   index = 0;
   query("SELECT name from users_test order by id;").map([&](std::string name) {
     EXPECT_EQUAL(name.size(), sizes[index]);
     index++;
   });
-
 }
 
 template <typename D> std::string placeholder(int pos) {
@@ -123,8 +130,8 @@ template <typename D> std::string placeholder(int pos) {
     return "?";
 }
 
-template <typename Q> void test_long_strings_prepared_statement(Q& query) {
-  init_test_table(query);
+template <typename DB, typename Q> void test_long_strings_prepared_statement(Q& query) {
+  init_test_table<DB>(query);
 
   auto insert_user =
       query.prepare(std::string("INSERT into users_test(id, name, age) values (") +
@@ -134,14 +141,28 @@ template <typename Q> void test_long_strings_prepared_statement(Q& query) {
                                 "347fyj08yg034f78yj047yh078fy0fyj40";
   std::string test_str = "";
   for (int k = 0; k < 10; k++) {
-    test_str += test_str_patern;
-    insert_user(k, test_str, 42);
+    for (int l = 0; l < 100; l++)
+      test_str += test_str_patern;
+    insert_user(k+1, test_str, 42);
   }
 
-  int i = 1;
+  test_str = "";
   query.prepare("Select id,name from users_test;")().map([&](int id, std::string name) {
-    EXPECT_EQUAL(name.size(), 100 * i);
-    i++;
+    // std::cout << "SQL TEST PREPARED LONG STRING id:" << id << " " << 10000 * id << " " << name.size() << std::endl;
+    EXPECT_EQUAL(name.size(), 10000 * id);
+    for (int l = 0; l < 100; l++)
+      test_str += test_str_patern;
+    EXPECT_EQUAL(name, test_str);
+  });
+
+  test_str = "";
+  query("Select id,name from users_test;").map([&](int id, std::string name) {
+    // std::cout << "SQL TEST LONG STRING " << 10000 * id << std::endl;
+    EXPECT_EQUAL(name.size(), 10000 * id);
+
+    for (int l = 0; l < 100; l++)
+      test_str += test_str_patern;
+    EXPECT_EQUAL(name, test_str);
   });
 }
 
@@ -161,24 +182,24 @@ template <typename D> void generic_sql_tests(D& database) {
     // database.connect();
     auto fun = [&](std::string q) { return database.connect().prepare(q)(); };
     fun("SELECTT 1+2").template read<int>();
-  } catch(...) {}
+  } catch (...) {
+  }
 
   // auto fun = [&](std::string q) { return database.connect().prepare(q)(); };
-    // fun("SELECTT 1+2").template read<int>();
+  // fun("SELECTT 1+2").template read<int>();
   // query.prepare("SELECT 1+2")().template read<int>();
   // query.prepare("SELECT 2+2")().template read<int>();
-  // test_result([&](std::string q) { return query.prepare(q)(); }, [&](std::string q) { return database.connect().prepare(q)(); });
-  return;
-
-
+  // test_result([&](std::string q) { return query.prepare(q)(); }, [&](std::string q) { return
+  // database.connect().prepare(q)(); }); return;
 
   // test non prepared statement result.
-  test_result(query, [&](std::string q) { return database.connect()(q); });
+  test_result<D>(query, [&](std::string q) { return database.connect()(q); });
   // test prepared statement result.
-  test_result([&](std::string q) { return query.prepare(q)(); }, [&](std::string q) { return database.connect().prepare(q)(); });
-  test_long_strings_prepared_statement(query);
+  test_result<D>([&](std::string q) { return query.prepare(q)(); },
+                 [&](std::string q) { return database.connect().prepare(q)(); });
+  test_long_strings_prepared_statement<D>(query);
 
-  init_test_table(query);
+  init_test_table<D>(query);
 
   // Prepared statement.
   auto insert_user =
@@ -193,4 +214,12 @@ template <typename D> void generic_sql_tests(D& database) {
   EXPECT_EQUAL(
       (std::make_tuple("Bob", 24)),
       (query("select name, age from users_test where id = 2").template read<std::string, int>()));
+
+  // Large string
+  // std::string large(1000000, 'x');
+  // query("INSERT into users_test(id, name, age) values (4,'" + large + "',43);");
+
+  //   std::string large_out = query("SELECT name from users_test where id = 4").template
+  //   read<std::string>(); std::cout << large_out << std::endl; EXPECT_EQUAL(large_out.size(),
+  //   1000000); EXPECT_EQUAL(large_out, large);
 }

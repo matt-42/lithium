@@ -32,7 +32,6 @@ void mysql_statement_result<B>::fetch_column(MYSQL_BIND* b, unsigned long real_l
   // Bind result.
   b[i].buffer_length = v.size();
   b[i].buffer = v.data();
-  mysql_stmt_bind_result(data_.stmt_, b);
   result_allocated_ = true;
 
   if (mysql_stmt_fetch_column(data_.stmt_, b + i, i, 0) != 0) {

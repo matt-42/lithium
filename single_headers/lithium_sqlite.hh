@@ -1288,7 +1288,8 @@ template <typename I> struct sql_result {
   sql_result() = delete;
   sql_result& operator=(sql_result&) = delete;
   sql_result(const sql_result&) = delete;
-
+  sql_result(I&& impl) : impl_(std::forward<I>(impl)) {}
+  
   inline ~sql_result() { this->flush_results(); }
 
   inline void flush_results() { impl_.flush_results(); }
@@ -1399,7 +1400,7 @@ template <typename B> template <typename T1, typename... T> auto sql_result<B>::
       return std::tuple<T1, T...>{};
   }();
   if (!this->read(t))
-    throw std::runtime_error("Trying to read a request that did not return any data.");
+    throw std::runtime_error("sql_result::read: error: Trying to read a request that did not return any data.");
   return t;
 }
 

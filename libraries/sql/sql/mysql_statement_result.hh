@@ -21,8 +21,13 @@ namespace li {
  */
 template <typename B> struct mysql_statement_result {
 
+  mysql_statement_result(B& mysql_wrapper, mysql_statement_data& data,
+                         const std::shared_ptr<mysql_connection_data>& connection)
+      : mysql_wrapper_(mysql_wrapper), data_(data), connection_(connection) {}
+
   mysql_statement_result& operator=(mysql_statement_result&) = delete;
   mysql_statement_result(const mysql_statement_result&) = delete;
+  mysql_statement_result(mysql_statement_result&& other) = default;
 
   /**
    * @brief Destructor. Free the result if needed.
@@ -31,15 +36,15 @@ template <typename B> struct mysql_statement_result {
 
   inline void flush_results() {
     // if (result_allocated_)
-    mysql_wrapper_.mysql_stmt_free_result(connection_->error_, data_.stmt_);
+    if (connection_)
+      mysql_wrapper_.mysql_stmt_free_result(connection_->error_, data_.stmt_);
     // result_allocated_ = false;
   }
 
   // Read std::tuple and li::metamap.
   template <typename T> bool read(T&& output);
 
-  template <typename T>
-  bool read(T&& output, MYSQL_BIND* bind, unsigned long* real_lengths);
+  template <typename T> bool read(T&& output, MYSQL_BIND* bind, unsigned long* real_lengths);
 
   template <typename F> void map(F map_callback);
 
