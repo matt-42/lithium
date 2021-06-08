@@ -392,11 +392,10 @@ template <typename FIBER> struct generic_http_ctx {
 #endif
   }
 
+#if 0
   // Send a static file. Not used anymore, todo if we want beter performances: implement 
   // a multiplatform file cache.
   void send_static_file(const char* path, int cache_duration_second) {
-    // FIXME windows implementation.
-#ifndef _WIN32
     auto it = static_files.find(path);
     if (static_files.end() == it or !it->second.first.size()) {
 
@@ -429,10 +428,8 @@ template <typename FIBER> struct generic_http_ctx {
       }
       respond(it->second.first);
     }
-#endif
   }
-
-  // private:
+#endif
 
   void add_header_line(const char* l) { header_lines.push_back(l); }
   const char* last_header_line() { return header_lines.back(); }

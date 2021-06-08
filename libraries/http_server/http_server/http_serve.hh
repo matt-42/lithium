@@ -82,7 +82,7 @@ void http_serve(api<http_request, http_response> api, int port, O... opts) {
   });
 
   if (has_key<decltype(options), s::non_blocking_t>()) {
-    std::this_thread::sleep_for(std::chrono::microseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
     date_thread->detach();
     server_thread->detach();

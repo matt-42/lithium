@@ -69,7 +69,10 @@ static socket_type create_and_bind(int port, int socktype) {
   char port_str[20];
   snprintf(port_str, sizeof(port_str), "%d", port);
   memset(&hints, 0, sizeof(struct addrinfo));
-  hints.ai_family = AF_UNSPEC;  /* Return IPv4 and IPv6 choices */
+  
+  // On windows, setting up the dual-stack mode (ipv4/ipv6 on the same socket).
+  // https://docs.microsoft.com/en-us/windows/win32/winsock/dual-stack-sockets
+  hints.ai_family = AF_INET6;
   hints.ai_socktype = socktype; /* We want a TCP socket */
   hints.ai_flags = AI_PASSIVE;  /* All interfaces */
 
@@ -84,13 +87,23 @@ static socket_type create_and_bind(int port, int socktype) {
     if (sfd == -1)
       continue;
 
+    // Turn of IPV6_V6ONLY to accept ipv4.
+    // https://stackoverflow.com/questions/1618240/how-to-support-both-ipv4-and-ipv6-connections
+    int ipv6only = 0;
+    if(setsockopt(sfd, IPPROTO_IPV6, IPV6_V6ONLY, (char*)&ipv6only, sizeof(ipv6only)) != 0)
+    {
+      std::cerr << "FATAL ERROR: setsockopt error when setting IPV6_V6ONLY to 0: " << strerror(errno)
+                << std::endl;
+    }
+
     s = bind(sfd, rp->ai_addr, int(rp->ai_addrlen));
     if (s == 0) {
       /* We managed to bind successfully! */
       break;
     }
-
-    close_socket(sfd);
+    else {
+      close_socket(sfd);
+    }
   }
 
   if (rp == NULL) {
@@ -107,11 +120,14 @@ static socket_type create_and_bind(int port, int socktype) {
     std::cerr << "FATAL ERROR: Cannot set socket to non blocking mode with ioctlsocket"
               << std::endl;
   }
+
 #else
   int flags = fcntl(sfd, F_GETFL, 0);
   fcntl(sfd, F_SETFL, flags | O_NONBLOCK);
-  ::listen(sfd, SOMAXCONN);
+
 #endif
+  
+  ::listen(sfd, SOMAXCONN);
 
   return sfd;
 }
@@ -303,6 +319,10 @@ struct async_reactor {
     fd_to_fiber_idx[new_fd] = fiber_idx;
   }
 
+  inline void epoll_del(int fd) {
+    epoll_ctl(epoll_fd, fd, EPOLL_CTL_DEL, 0);
+  }
+
   inline void epoll_mod(int fd, int flags) {
 #if __linux__ || _WIN32
     epoll_ctl(epoll_fd, fd, EPOLL_CTL_MOD, flags);
@@ -345,6 +365,7 @@ struct async_reactor {
 #if __linux__ || _WIN32
       // Wakeup to check if any quit signal has been catched.
       int n_events = epoll_wait(epoll_fd, events, MAXEVENTS, 1);
+      // std::cout << "got " << n_events << " epoll events." << std::endl;
 #elif __APPLE__
       // kevent is already listening to quit signals.
       int n_events = kevent(epoll_fd, NULL, 0, events, MAXEVENTS, &timeout);
@@ -404,13 +425,21 @@ struct async_reactor {
 
             // ============================================
             // ACCEPT INCOMMING CONNECTION
-            struct sockaddr in_addr;
+            sockaddr_storage in_addr_storage;
+            sockaddr* in_addr = (sockaddr*) &in_addr_storage;
             socklen_t in_len;
             int socket_fd;
-            in_len = sizeof in_addr;
-            socket_fd = accept(listen_fd, &in_addr, &in_len);
+            in_len = sizeof(sockaddr_storage);
+            socket_fd = accept(listen_fd, in_addr, &in_len);
+            //socket_fd = accept(listen_fd, nullptr, nullptr);
             if (socket_fd == -1)
+            {
+              // if (errno != EAGAIN && errno != EWOULDBLOCK) {
+              //   std::cerr << "accept error: " << strerror(errno) << std::endl;
+              //   std::cerr << "accept error: " << WSAGetLastError() << std::endl;
+              // }
               break;
+            }   
             // ============================================
 
             // ============================================
@@ -455,16 +484,19 @@ struct async_reactor {
             fibers[fiber_idx] = boost::context::callcc([this, socket_fd, fiber_idx, in_addr,
                                                         &handler](continuation&& sink) {
               scoped_fd sfd{socket_fd}; // Will finally close the fd.
-              auto ctx = async_fiber_context(this, std::move(sink), fiber_idx, socket_fd, in_addr);
+              auto ctx = async_fiber_context(this, std::move(sink), fiber_idx, socket_fd, *in_addr);
               try {
                 if (ssl_ctx && !ctx.ssl_handshake(this->ssl_ctx)) {
                   std::cerr << "Error during SSL handshake" << std::endl;
                   return std::move(ctx.sink);
                 }
                 handler(ctx);
+                epoll_del(socket_fd);
               } catch (fiber_exception& ex) {
+                epoll_del(socket_fd);
                 return std::move(ex.c);
               } catch (const std::runtime_error& e) {
+                epoll_del(socket_fd);
                 std::cerr << "FATAL ERRROR: exception in fiber: " << e.what() << std::endl;
                 assert(0);
                 return std::move(ctx.sink);
