@@ -37,10 +37,10 @@ git clone https://github.com/matt-42/lithium.git
 cd lithium;
 
 # Global install:
-mkdir build && cd build && && cmake .. && make -j4 install;
+mkdir build && cd build && cmake .. && make -j4 install;
 
 # Local install (replace $HOME/local with your prefered location)
-mkdir build && cd build && && cmake .. -DCMAKE_INSTALL_PREFIX=$HOME/local && make -j4 install;
+mkdir build && cd build && cmake .. -DCMAKE_INSTALL_PREFIX=$HOME/local && make -j4 install;
 ```
 
 The Lithium paradigm relies on compile time symbols (in the `s::` namespace) to bring introspection
