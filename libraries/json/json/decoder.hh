@@ -139,7 +139,7 @@ template <typename S> struct json_parser {
   }
 
   S& ss;
-  std::ostringstream* error_stream = nullptr;
+  std::unique_ptr<std::ostringstream> error_stream = nullptr;
 };
 
 template <typename P, typename O, typename S> json_error_code json_decode2(P& p, O& obj, S) {
