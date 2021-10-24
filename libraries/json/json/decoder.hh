@@ -65,7 +65,7 @@ template <typename S> struct json_parser {
 
   template <typename... T> inline json_error_code make_json_error(T&&... t) {
     if (!error_stream)
-      error_stream = new std::ostringstream();
+      error_stream = std::make_unique<std::ostringstream>();
     *error_stream << "json error: ";
     auto add = [this](auto w) { *error_stream << w; };
     apply_each(add, t...);
