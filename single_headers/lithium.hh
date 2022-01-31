@@ -1844,6 +1844,11 @@ struct sqlite_database {
     LI_SYMBOL(post_parameters)
 #endif
 
+#ifndef LI_SYMBOL_request_headers
+#define LI_SYMBOL_request_headers
+    LI_SYMBOL(request_headers)
+#endif
+
 #ifndef LI_SYMBOL_status
 #define LI_SYMBOL_status
     LI_SYMBOL(status)
@@ -3361,6 +3366,12 @@ struct http_client {
       curl_free(escaped);
     });
 
+    // Additional request headers
+    auto request_headers = li::get_or(arguments, s::request_headers, mmm());
+    li::map(request_headers, [&headers_list](auto k, auto v) {
+      headers_list = curl_slist_append(headers_list, k + ": " + v);
+    });
+
     // std::cout << url_ss.str() << std::endl;
     // Pass the url to libcurl.
     curl_easy_setopt(curl_, CURLOPT_URL, url_ss.str().c_str());
@@ -3432,7 +3443,7 @@ struct http_client {
 
     if (li::has_key(arguments, s::disable_check_certificate))
       curl_easy_setopt(curl_, CURLOPT_SSL_VERIFYPEER, 0);
-    
+
     // Setup response header parsing.
     std::unordered_map<std::string, std::string> response_headers_map;
     if (fetch_headers) {

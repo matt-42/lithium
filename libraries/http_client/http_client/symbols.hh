@@ -35,6 +35,11 @@
     LI_SYMBOL(post_parameters)
 #endif
 
+#ifndef LI_SYMBOL_request_headers
+#define LI_SYMBOL_request_headers
+    LI_SYMBOL(request_headers)
+#endif
+
 #ifndef LI_SYMBOL_status
 #define LI_SYMBOL_status
     LI_SYMBOL(status)
