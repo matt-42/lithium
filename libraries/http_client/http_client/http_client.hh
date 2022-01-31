@@ -86,7 +86,7 @@ struct http_client {
     auto request_headers = li::get_or(arguments, s::request_headers, mmm());
     li::map(request_headers, [&headers_list](auto k, auto v) {
       std::ostringstream header_ss;
-      header_ss << li::symbol_string(k) << ": " << li::symbol_string(v);
+      header_ss << li::symbol_string(k) << ": " << v;
       header_ss << k << ": " << v;
       headers_list = curl_slist_append(headers_list, header_ss.str().c_str());
     });
