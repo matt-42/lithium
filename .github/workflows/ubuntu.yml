@@ -33,6 +33,10 @@ jobs:
   macos-clang:
     runs-on: macos-11
     steps: 
+      - run: |
+          brew update
+          brew install boost sqlite mariadb libpq curl openssl@1.1
+
       - uses: ikalnytskyi/action-setup-postgres@v1
         with:
           username: root
@@ -46,11 +50,7 @@ jobs:
           root-password: 'lithium_test'
           auto-start: true
           my-cnf: port  = 14550
-      - run: mysqladmin -uroot -h127.0.0.1 -P 14550 --password=lithium_test create mysql_test 
-      - run: |
-          brew update
-          brew install boost sqlite mariadb libpq curl openssl@1.1
-  
+      - run: mysqladmin -uroot -h127.0.0.1 -P 14550 --password=lithium_test create mysql_test   
       - run: |
           cd $GITHUB_WORKSPACE
           cmake . -DCMAKE_PREFIX_PATH='/usr/local/opt/openssl/;/usr/local/opt/curl;/usr/local/opt/libpq'
