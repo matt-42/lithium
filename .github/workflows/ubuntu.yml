@@ -39,11 +39,14 @@ jobs:
           password: lithium_test
           database: postgres
       - uses: actions/checkout@v2
-      - uses: getong/mariadb-action@v1.1
+      - uses: shogo82148/actions-setup-mysql@v1
         with:
-          host port: 14550
-          mysql root password: lithium_test
-          mysql database: mysql_test
+          distribution: 'mariadb'
+          mysql-version: '10.6'
+          root-password: 'lithium_test'
+          auto-start: true
+          my-cnf: port  = 14550
+      - run: mysql mysqladmin -uroot --password=lithium_test create mysql_test 
       - run: >
           brew install boost sqlite mariadb cmake postgresql curl openssl
   
