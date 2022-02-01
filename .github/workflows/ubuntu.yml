@@ -1,7 +1,25 @@
-ubuntu-gcc:
+name: ubuntu-gcc
 on: [push]
 jobs:
   lithium_test:
     runs-on: ubuntu-20.04
+    services:
+      postgres:
+        image: postgres
+        env:
+          POSTGRES_PASSWORD: lithium_test
+        ports:
+          - 32768:5432
+        # Set health checks to wait until postgres has started
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps: 
       - uses: actions/checkout@v2
+      - uses: ankane/setup-mariadb@v1
+      - uses: ashutoshvarma/action-cmake-build@v1
+        with:
+          cxx: g++
+          run-test: true
