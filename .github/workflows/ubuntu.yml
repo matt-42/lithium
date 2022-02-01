@@ -32,20 +32,12 @@ jobs:
       - run: cd $GITHUB_WORKSPACE && cmake . -DCMAKE_CXX_COMPILER=clang++ && make -j3 && ctest  
   macos-clang:
     runs-on: macos-11
-    services:
-      postgres:
-        image: postgres
-        env:
-          POSTGRES_PASSWORD: lithium_test
-        ports:
-          - 32768:5432
-        # Set health checks to wait until postgres has started
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     steps: 
+      - uses: ikalnytskyi/action-setup-postgres@v1
+        with:
+          username: root
+          password: lithium_test
+          database: postgres
       - uses: actions/checkout@v2
       - uses: getong/mariadb-action@v1.1
         with:
