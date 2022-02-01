@@ -77,7 +77,9 @@
 #if _WIN32
 #include <wepoll.h>
 #endif
+#if _WIN32
 #include <winsock2.h>
+#endif
 
 #if defined(_MSC_VER)
 #include <ciso646>

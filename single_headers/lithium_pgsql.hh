@@ -40,7 +40,9 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#if _WIN32
 #include <winsock2.h>
+#endif
 
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_HH
