@@ -1,7 +1,54 @@
-ubuntu-gcc:
+name: lithium_testsuite
 on: [push]
 jobs:
-  lithium_test:
+  ubuntu-gcc-clang:
     runs-on: ubuntu-20.04
+    services:
+      postgres:
+        image: postgres
+        env:
+          POSTGRES_PASSWORD: lithium_test
+        ports:
+          - 32768:5432
+        # Set health checks to wait until postgres has started
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps: 
       - uses: actions/checkout@v2
+      - uses: getong/mariadb-action@v1.1
+        with:
+          host port: 14550
+          mysql root password: lithium_test
+          mysql database: mysql_test
+      - run: >
+          sudo apt-get update && 
+          sudo apt-get install -yq libboost-context-dev clang-9 
+          libboost-dev wget libmariadb-dev libpq-dev libcurl4-openssl-dev 
+  
+      - run: cd $GITHUB_WORKSPACE && cmake . -DCMAKE_CXX_COMPILER=g++ && make -j3 && ctest  
+      - run: cd $GITHUB_WORKSPACE && cmake . -DCMAKE_CXX_COMPILER=clang++ && make -j3 && ctest  
+  macos-clang:
+    runs-on: macos-11
+    steps: 
+      - uses: ikalnytskyi/action-setup-postgres@v1
+        with:
+          username: root
+          password: lithium_test
+          database: postgres
+      - uses: actions/checkout@v2
+      - uses: shogo82148/actions-setup-mysql@v1
+        with:
+          distribution: 'mariadb'
+          mysql-version: '10.6'
+          root-password: 'lithium_test'
+          auto-start: true
+          my-cnf: port  = 14550
+      - run: mysql mysqladmin -uroot --password=lithium_test create mysql_test 
+      - run: |
+          brew update
+          brew install boost sqlite mariadb cmake postgresql curl openssl
+  
+      - run: cd $GITHUB_WORKSPACE && cmake . && make -j3 && ctest
