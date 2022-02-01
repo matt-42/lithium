@@ -2,7 +2,7 @@
 #! /bin/bash
 
 if [ ! -d "./libraries" -o ! -f "README.md" ]; then
-  echo "This must be run from the iod base directory."
+  echo "This must be run from the lithium root directory."
 fi
 
 
@@ -44,35 +44,12 @@ if [ $1 == "start" ]; then
 
   rm -fr $TMPDIR
   mkdir -p $TMPDIR/data
-  CONF=$TMPDIR/my.cnf
+  CONF=$PWD/libraries/sql/tests/test_mariadb.cnf
 
   if [[ "$OSTYPE" == "msys" ]]; then
     TMPDIR=$(echo $TMPDIR | sed 's/\/c\//C:\//')
     echo $TMPDIR
   fi
-
-  cat > $CONF <<- EOF
-[Service]
-LimitNOFILE=8000
-[client]
-port                           = 14550
-socket                           = $TMPDIR/mysqld.sock
-[mysql]
-default_character_set          = utf8                                
-[mysqld_safe]
-log-error                      = $TMPDIR/error.log
-socket                           = $TMPDIR/mysqld.sock
-port                           = 14550
-[mysqld]
-open_files_limit =        4294967295
-socket                           = $TMPDIR/mysqld.sock
-port                           = 14550
-datadir                        = $TMPDIR/data
-log_error                      = $TMPDIR/error.log
-max_connections                = 99999
-max_allowed_packet            = 512M
-EOF
-
 
   if [[ "$OSTYPE" == "msys" ]]; then
     TMPDIR=$(echo $TMPDIR | sed 's/\/c\//C:\//')

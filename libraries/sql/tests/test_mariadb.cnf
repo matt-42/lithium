@@ -1,0 +1,19 @@
+[Service]
+LimitNOFILE=8000
+[client]
+port                           = 14550
+socket                           = /tmp/lithium_mariadb_test/mysqld.sock
+[mysql]
+default_character_set          = utf8                                
+[mysqld_safe]
+log-error                      = /tmp/lithium_mariadb_test/error.log
+socket                           = /tmp/lithium_mariadb_test/mysqld.sock
+port                           = 14550
+[mysqld]
+open_files_limit =        4294967295
+socket                           = /tmp/lithium_mariadb_test/mysqld.sock
+port                           = 14550
+datadir                        = /tmp/lithium_mariadb_test/data
+log_error                      = /tmp/lithium_mariadb_test/error.log
+max_connections                = 99999
+max_allowed_packet            = 512M
