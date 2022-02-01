@@ -59,6 +59,7 @@ jobs:
         uses: lukka/run-vcpkg@v4
         with:
           vcpkgArguments: 'boost curl libmariadb libpq wepoll'
+          vcpkgGitCommitId: https://github.com/microsoft/vcpkg.git
       - uses: ikalnytskyi/action-setup-postgres@v1
         with:
           username: root
