@@ -23,6 +23,4 @@ jobs:
           host port: 14550
           mysql root password: lithium_test
           mysql database: mysql_test
-      - uses: ashutoshvarma/action-cmake-build@v1
-        with:
-          run-test: true
+      - run: cd $GITHUB_WORKSPACE && cmake .. && make -j3 && ctest 
