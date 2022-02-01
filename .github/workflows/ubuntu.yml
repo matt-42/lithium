@@ -49,7 +49,7 @@ jobs:
       - run: mysqladmin -uroot -h127.0.0.1 -P 14550 --password=lithium_test create mysql_test 
       - run: |
           brew update
-          brew install boost sqlite mariadb mariadb-connector-c libpq curl openssl@1.1
+          brew install boost sqlite mariadb libpq curl openssl@1.1
   
       - run: cd $GITHUB_WORKSPACE && cmake . && make -j3 && ctest
   windows-msvc:
