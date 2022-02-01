@@ -23,5 +23,5 @@ jobs:
           host port: 14550
           mysql root password: lithium_test
           mysql database: mysql_test
-      - run: sudo apt-get update && sudo apt-get install -yq libboost-all-dev
-      - run: cd $GITHUB_WORKSPACE && cmake . && make -j3 && ctest 
+      - run: sudo apt-get update && sudo apt-get install -yq libboost-context-dev libboost-dev wget libmariadb-dev libpq-dev 
+      - run: cd $GITHUB_WORKSPACE && cmake . && make -j3 && ctest  
