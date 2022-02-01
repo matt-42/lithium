@@ -51,7 +51,12 @@ jobs:
           brew update
           brew install boost sqlite mariadb libpq curl openssl@1.1
   
-      - run: cd $GITHUB_WORKSPACE && cmake . && make -j3 && ctest
+      - run: |
+          cd $GITHUB_WORKSPACE
+          cmake . -DCMAKE_PREFIX_PATH='/usr/local/opt/openssl/;/usr/local/opt/curl;/usr/local/opt/libpq'
+          make -j3
+          ctest
+
   windows-msvc:
     runs-on: windows-2022
     steps: 
