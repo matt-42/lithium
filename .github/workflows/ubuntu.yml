@@ -55,6 +55,11 @@ jobs:
   windows-msvc:
     runs-on: windows-2022
     steps: 
+      - name: Run vcpkg
+        uses: lukka/run-vcpkg@v4
+        with:
+          vcpkgArguments: ' boost curl libmariadb libpq wepoll '
+          vcpkgDirectory: '${{ github.workspace }}/vcpkg'
       - uses: ikalnytskyi/action-setup-postgres@v1
         with:
           username: root
@@ -69,14 +74,6 @@ jobs:
           auto-start: true
           my-cnf: port = 14550
       - run: mysqladmin -uroot -h'127.0.0.1' -P 14550 --password=lithium_test create mysql_test 
-      - name: Installing vcpkg (windows)
-        run: |
-          cd ..
-          git clone https://github.com/Microsoft/vcpkg.git
-          cd vcpkg
-          git checkout --force 2020.01
-          .\bootstrap-vcpkg.bat
-          .\vcpkg.exe install boost curl libmariadb libpq wepoll --triplet x64-windows
       - run: |
           cd $GITHUB_WORKSPACE
           cmake -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/../vcpkg/scripts/buildsystems/vcpkg.cmake -DCMAKE_PREFIX_PATH="${{ github.workspace }}/../vcpkg/installed/x86-windows" .
