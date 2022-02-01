@@ -46,7 +46,7 @@ jobs:
           root-password: 'lithium_test'
           auto-start: true
           my-cnf: port  = 14550
-      - run: mysqladmin -uroot --password=lithium_test create mysql_test 
+      - run: mysqladmin -uroot -h127.0.0.1 -P 14550 --password=lithium_test create mysql_test 
       - run: |
           brew update
           brew install boost sqlite mariadb cmake postgresql curl openssl
