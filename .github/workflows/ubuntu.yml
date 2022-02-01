@@ -28,5 +28,5 @@ jobs:
           sudo apt-get install -yq libboost-context-dev clang-9 
           libboost-dev wget libmariadb-dev libpq-dev libcurl4-openssl-dev 
   
-      - run: cd $GITHUB_WORKSPACE && cmake . -DCMAKE_CXX_COMPILE=g++ && make -j3 && ctest  
-      - run: cd $GITHUB_WORKSPACE && cmake . -DCMAKE_CXX_COMPILE=clang++ && make -j3 && ctest  
+      - run: cd $GITHUB_WORKSPACE && cmake . -DCMAKE_CXX_COMPILER=g++ && make -j3 && ctest  
+      - run: cd $GITHUB_WORKSPACE && cmake . -DCMAKE_CXX_COMPILER=clang++ && make -j3 && ctest  
