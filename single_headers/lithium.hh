@@ -74,7 +74,9 @@
 #include <utility>
 #include <variant>
 #include <vector>
+#if _WIN32
 #include <wepoll.h>
+#endif
 #include <winsock2.h>
 
 #if defined(_MSC_VER)
@@ -7033,7 +7035,7 @@ struct output_buffer {
 #elif __APPLE__
 #endif
 
-#if defined__linux__ || defined __APPLE__
+#if defined __linux__ || defined __APPLE__
 #endif
 
 #if defined _WIN32

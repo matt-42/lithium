@@ -63,7 +63,9 @@
 #include <utility>
 #include <variant>
 #include <vector>
+#if _WIN32
 #include <wepoll.h>
+#endif
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -3949,7 +3951,7 @@ struct output_buffer {
 #elif __APPLE__
 #endif
 
-#if defined__linux__ || defined __APPLE__
+#if defined __linux__ || defined __APPLE__
 #endif
 
 #if defined _WIN32
