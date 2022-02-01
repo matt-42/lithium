@@ -58,8 +58,7 @@ jobs:
       - name: Run vcpkg
         uses: lukka/run-vcpkg@v4
         with:
-          vcpkgArguments: ' boost curl libmariadb libpq wepoll '
-          vcpkgDirectory: '${{ github.workspace }}/vcpkg'
+          vcpkgArguments: 'boost curl libmariadb libpq wepoll'
       - uses: ikalnytskyi/action-setup-postgres@v1
         with:
           username: root
