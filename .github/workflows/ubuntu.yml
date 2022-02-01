@@ -23,4 +23,4 @@ jobs:
           host port: 14550
           mysql root password: lithium_test
           mysql database: mysql_test
-      - run: cd $GITHUB_WORKSPACE && cmake .. && make -j3 && ctest 
+      - run: cd $GITHUB_WORKSPACE/lithium && cmake .. && make -j3 && ctest 
