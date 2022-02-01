@@ -55,7 +55,6 @@ jobs:
   windows-msvc:
     runs-on: windows-2022
     steps: 
-      - uses: richardo2016/Setup-MSBuild@releases/clangcl_x_2017/v1
       - uses: ikalnytskyi/action-setup-postgres@v1
         with:
           username: root
