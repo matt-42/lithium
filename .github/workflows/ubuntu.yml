@@ -49,12 +49,13 @@ jobs:
       - run: mysqladmin -uroot -h127.0.0.1 -P 14550 --password=lithium_test create mysql_test 
       - run: |
           brew update
-          brew install boost sqlite mariadb-connector-c libpq curl openssl@1.1
+          brew install boost sqlite mariadb mariadb-connector-c libpq curl openssl@1.1
   
       - run: cd $GITHUB_WORKSPACE && cmake . && make -j3 && ctest
   windows-msvc:
     runs-on: windows-2022
     steps: 
+      - uses: richardo2016/Setup-MSBuild@releases/clangcl_x_2017/v1
       - uses: ikalnytskyi/action-setup-postgres@v1
         with:
           username: root
@@ -67,7 +68,7 @@ jobs:
           mysql-version: '10.6'
           root-password: 'lithium_test'
           auto-start: true
-          my-cnf: port  = 14550
+          my-cnf: port = 14550
       - run: mysqladmin -uroot -h'127.0.0.1' -P 14550 --password=lithium_test create mysql_test 
       - name: Installing vcpkg (windows)
         run: |
