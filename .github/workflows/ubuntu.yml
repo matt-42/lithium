@@ -18,8 +18,11 @@ jobs:
           --health-retries 5
     steps: 
       - uses: actions/checkout@v2
-      - uses: ankane/setup-mariadb@v1
+      - uses: getong/mariadb-action@v1.1
+        with:
+          host port: 14550
+          mysql root password: lithium_test
+          mysql database: mysql_test
       - uses: ashutoshvarma/action-cmake-build@v1
         with:
-          cxx: g++
           run-test: true
