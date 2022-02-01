@@ -95,11 +95,6 @@
     LI_SYMBOL(non_blocking)
 #endif
 
-#ifndef LI_SYMBOL_nthreads
-#define LI_SYMBOL_nthreads
-    LI_SYMBOL(nthreads)
-#endif
-
 #ifndef LI_SYMBOL_password
 #define LI_SYMBOL_password
     LI_SYMBOL(password)

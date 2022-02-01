@@ -36,7 +36,7 @@ int main() {
 
   std::string file_path = (root / "subdir" / "file_10K.txt").string();
   my_api.get("/test_static") = [&] (http_request& request, http_response& response) {
-    response.write_static_file(file_path.c_str());
+    response.write_file(file_path.c_str());
   };
   my_api.get("/test_sendfile") = [&] (http_request& request, http_response& response) {
     response.write_file(file_path.c_str());

@@ -4298,7 +4298,11 @@ struct async_reactor {
   }
 
   inline void epoll_del(int fd) {
+#if __linux__ || _WIN32
     epoll_ctl(epoll_fd, fd, EPOLL_CTL_DEL, 0);
+#elif __APPLE__
+    epoll_ctl(epoll_fd, fd, EV_DELETE, 0);
+#endif
   }
 
   inline void epoll_mod(int fd, int flags) {
