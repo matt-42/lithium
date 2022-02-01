@@ -20,7 +20,7 @@
 #include <sys/event.h>
 #endif
 
-#if defined__linux__ || defined __APPLE__
+#if defined __linux__ || defined __APPLE__
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>

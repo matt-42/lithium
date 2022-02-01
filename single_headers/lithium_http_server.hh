@@ -7,8 +7,12 @@
 
 #pragma once
 
+#if _WIN32
 #include <WS2tcpip.h>
+#endif
+#if _WIN32
 #include <WinSock2.h>
+#endif
 #include <arpa/inet.h>
 #include <atomic>
 #include <boost/context/continuation.hpp>
