@@ -52,9 +52,9 @@ jobs:
           my-cnf: port  = 14550
       - run: mysqladmin -uroot -h127.0.0.1 -P 14550 --password=lithium_test create mysql_test   
       - run: |
-          cd $GITHUB_WORKSPACE
-          cmake . -DCMAKE_PREFIX_PATH='/usr/local/opt/openssl/;/usr/local/opt/curl;/usr/local/opt/libpq'
-          make -j3
+          cd $GITHUB_WORKSPACE &&
+          cmake . -DCMAKE_PREFIX_PATH='/usr/local/opt/openssl/;/usr/local/opt/curl;/usr/local/opt/libpq' &&
+          make -j3 &&
           ctest
 
   windows-msvc:
@@ -80,7 +80,7 @@ jobs:
           my-cnf: port = 14550
       - run: mysqladmin -uroot -h'127.0.0.1' -P 14550 --password=lithium_test create mysql_test 
       - run: |
-          cd $GITHUB_WORKSPACE
-          cmake -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/../vcpkg/scripts/buildsystems/vcpkg.cmake -DCMAKE_PREFIX_PATH="${{ github.workspace }}/../vcpkg/installed/x86-windows" .
-          make -j3
+          cd $GITHUB_WORKSPACE &&
+          cmake -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/../vcpkg/scripts/buildsystems/vcpkg.cmake -DCMAKE_PREFIX_PATH="${{ github.workspace }}/../vcpkg/installed/x86-windows" . &&
+          make -j3 &&
           ctest
