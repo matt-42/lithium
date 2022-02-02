@@ -15,7 +15,7 @@ set(CMAKE_VERBOSE_MAKEFILE ON)
 
 
 
-find_package(Boost REQUIRED context)
+find_package(Boost REQUIRED context lexical_cast)
 #find_package(SQLite3 REQUIRED)
 find_package(CURL REQUIRED)
 find_package(PostgreSQL REQUIRED)
@@ -30,21 +30,23 @@ set(WINDOWS_LIBS wsock32 ws2_32)
 add_definitions(-DNOMINMAX)
 ENDIF()
 
-include_directories(${SQLite3_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS} ${MYSQL_INCLUDE_DIR})
-include_directories(${PostgreSQL_INCLUDE_DIRS})
-include_directories(${Boost_INCLUDE_DIRS})
-include_directories(${OPENSSL_INCLUDE_DIR})
 include_directories(${Wepoll_INCLUDE_DIR})
 
 message("WINDOWS LIBS: " ${Wepoll_LIBRARY} " -- " ${WINDOWS_LIBS})
-set(LIBS ${OPENSSL_LIBRARIES} ${SQLite3_LIBRARIES} ${CURL_LIBRARIES} ${PostgreSQL_LIBRARIES} 
-          ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} ${Wepoll_LIBRARY} ${WINDOWS_LIBS})
-set(LIBS ${LIBS} unofficial::libmariadb unofficial::sqlite3::sqlite3)
+set(LIBS ${CMAKE_THREAD_LIBS_INIT} ${Wepoll_LIBRARY} ${WINDOWS_LIBS})
+set(LIBS ${LIBS} CURL::libcurl
+        OpenSSL::SSL OpenSSL::Crypto 
+        unofficial::libmariadb 
+        unofficial::sqlite3::sqlite3
+        PostgreSQL::PostgreSQL
+        Boost::boost
+        Boost::context 
+        Boost::lexical_cast)
 
 
 if (APPLE)
   # needed by mariadbclient on macos:
-  set(LIBS ${LIBS} z iconv)
+#  set(LIBS ${LIBS} z iconv)
 endif()
 
 set(CMAKE_CXX_STANDARD 20)
