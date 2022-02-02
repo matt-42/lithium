@@ -44,12 +44,10 @@ jobs:
 
       - uses: ikalnytskyi/action-setup-postgres@v1
         with:
-          username: root
+          username: postgres
           password: lithium_test
           database: postgres
           port: 32768
-        id: postgres
-      - run: echo "${{ steps.postgres.outputs.connection-uri }"
       - name: test-postgres
         run: psql -U postgres --port=32768 -d postgres -c 'SELECT version()'
         env:
@@ -80,7 +78,7 @@ jobs:
           vcpkgGitCommitId: 0a9e204dadc20054aafe2d7151136f08ad5637fa
       - uses: ikalnytskyi/action-setup-postgres@v1
         with:
-          username: root
+          username: postgres
           password: lithium_test
           database: postgres
           port: 32768
