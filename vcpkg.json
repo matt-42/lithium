@@ -10,6 +10,7 @@
     "libmariadb",
     "libpq",
     "openssl",
+    "sqlite3",
     {
       "name": "wepoll",
       "platform": "windows"
