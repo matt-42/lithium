@@ -13,7 +13,8 @@ set(CMAKE_VERBOSE_MAKEFILE ON)
 # cmake ..\lithium -DCMAKE_TOOLCHAIN_FILE="C:\vcpkg\scripts\buildsystems\vcpkg.cmake" -DCMAKE_PREFIX_PATH="C:\vcpkg\installed\x86-windows"
 
 
-find_package(MYSQL REQUIRED)
+
+
 find_package(Boost REQUIRED context)
 find_package(SQLite3 REQUIRED)
 find_package(CURL REQUIRED)
@@ -34,8 +35,16 @@ include_directories(${OPENSSL_INCLUDE_DIR})
 include_directories(${Wepoll_INCLUDE_DIR})
 
 message("WINDOWS LIBS: " ${Wepoll_LIBRARY} " -- " ${WINDOWS_LIBS})
-set(LIBS ${OPENSSL_LIBRARIES} ${SQLite3_LIBRARIES} ${CURL_LIBRARIES} ${MYSQL_LIBRARY} ${PostgreSQL_LIBRARIES} 
+set(LIBS ${OPENSSL_LIBRARIES} ${SQLite3_LIBRARIES} ${CURL_LIBRARIES} ${PostgreSQL_LIBRARIES} 
           ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} ${Wepoll_LIBRARY} ${WINDOWS_LIBS})
+
+if ($ENV{VCPKG_ROOT})
+  find_package(unofficial-libmariadb CONFIG REQUIRED)
+  set(LIBS ${LIBS} unofficial::libmariadb)
+ELSE()
+  find_package(MYSQL REQUIRED)
+  set(LIBS ${LIBS} ${MYSQL_LIBRARY})
+ENDIF()
 
 if (APPLE)
   # needed by mariadbclient on macos:
