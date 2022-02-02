@@ -15,7 +15,7 @@ set(CMAKE_VERBOSE_MAKEFILE ON)
 
 
 
-find_package(Boost REQUIRED context lexical_cast)
+find_package(Boost REQUIRED context lexical-cast)
 #find_package(SQLite3 REQUIRED)
 find_package(CURL REQUIRED)
 find_package(PostgreSQL REQUIRED)
@@ -41,7 +41,7 @@ set(LIBS ${LIBS} CURL::libcurl
         PostgreSQL::PostgreSQL
         Boost::boost
         Boost::context 
-        Boost::lexical_cast)
+        Boost::lexical-cast)
 
 
 if (APPLE)
