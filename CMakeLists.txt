@@ -39,7 +39,7 @@ include_directories(${Wepoll_INCLUDE_DIR})
 message("WINDOWS LIBS: " ${Wepoll_LIBRARY} " -- " ${WINDOWS_LIBS})
 set(LIBS ${OPENSSL_LIBRARIES} ${SQLite3_LIBRARIES} ${CURL_LIBRARIES} ${PostgreSQL_LIBRARIES} 
           ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} ${Wepoll_LIBRARY} ${WINDOWS_LIBS})
-set(LIBS ${LIBS} unofficial::libmariadb unofficial::sqlite3)
+set(LIBS ${LIBS} unofficial::libmariadb unofficial::sqlite3::sqlite3)
 
 
 if (APPLE)
