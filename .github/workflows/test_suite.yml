@@ -51,7 +51,7 @@ jobs:
         id: postgres
       - run: echo "${{ steps.postgres.outputs.connection-uri }"
       - name: test-postgres
-        run: psql -U postgres -h'127.0.0.1' --port=32768 -d postgres -c 'SELECT version()'
+        run: psql -U postgres --port=32768 -d postgres -c 'SELECT version()'
         env:
           PGPASSWORD: lithium_test
       - uses: actions/checkout@v2
