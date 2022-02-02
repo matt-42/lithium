@@ -24,7 +24,7 @@ jobs:
           mysql root password: lithium_test
           mysql database: mysql_test
       - name: test-postgres
-        run: psql -U root -h localhose --port=32768 -d postgres -c 'SELECT version()'
+        run: psql -U root -h localhost --port=32768 -d postgres -c 'SELECT version()'
         env:
           PGPASSWORD: lithium_test
 
