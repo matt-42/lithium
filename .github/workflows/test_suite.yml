@@ -42,7 +42,7 @@ jobs:
           brew update
           brew install boost sqlite mariadb libpq curl openssl@1.1
 
-      - uses: ikalnytskyi/action-setup-postgres@v1
+      - uses: matt-42/action-setup-postgres@v1
         with:
           username: postgres
           password: lithium_test
@@ -76,7 +76,7 @@ jobs:
         with:
           vcpkgArguments: 'boost curl libmariadb libpq wepoll'
           vcpkgGitCommitId: 0a9e204dadc20054aafe2d7151136f08ad5637fa
-      - uses: ikalnytskyi/action-setup-postgres@v1
+      - uses: matt-42/action-setup-postgres@v1
         with:
           username: postgres
           password: lithium_test
