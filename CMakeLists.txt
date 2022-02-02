@@ -102,7 +102,10 @@ set(GENERATED_CONTENT_TYPES "${CMAKE_SOURCE_DIR}/libraries/http_server/http_serv
 
 file(DOWNLOAD http://svn.apache.org/repos/asf/httpd/httpd/trunk/docs/conf/mime.types /tmp/lithium_mime.types)
 file(READ  /tmp/lithium_mime.types mimeTypes)
-string(REGEX REPLACE "([^\t\n]+)[\t]+([^\n]+)" "{\"\\1\", \"\\2\"}," mimeTypes "${mimeTypes}")
+foreach(X  RANGE 1 20)
+  string(REGEX REPLACE "([^\t\n]+)[\t]+([^\n ]+) ([^\n]+)\n" "\\1\t\\2\n\\1\t\\3\n" mimeTypes "${mimeTypes}")
+endforeach()
+string(REGEX REPLACE "([^\t\n]+)[\t]+([^\n]+)" "{\"\\2\", \"\\1\"}," mimeTypes "${mimeTypes}")
 string(REGEX REPLACE "[^\n]*#[^\n]*\n" "" mimeTypes "${mimeTypes}")
 set(mimeTypes "// This file is generated do not edit it.\n"
 "#pragma once\n"
