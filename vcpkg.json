@@ -1,0 +1,17 @@
+{
+  "name": "lithium",
+  "version-string": "0.1",
+  "homepage": "https://matt-42.github.io/lithium",
+  "description": "High performance C++ HTTP servers.",
+  "dependencies": [
+    "boost-context",
+    "boost-lexical_cast",
+    "curl",
+    "libmariadb",
+    "libpq",
+    {
+      "name": "wepoll",
+      "platform": "windows"
+    }
+  ]
+}
