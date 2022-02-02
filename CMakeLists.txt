@@ -97,35 +97,24 @@ endif()
 ########
 # Generate content type definition header file
 ########
-set(GENERATED_CONTENT_TYPES
-"${CMAKE_SOURCE_DIR}\
-/libraries/http_server/http_server\
-/content_types.hh")
+set(GENERATED_CONTENT_TYPES "${CMAKE_SOURCE_DIR}/libraries/http_server/http_server/content_types.hh")
 
-add_custom_target(
-    content_types ALL
-    DEPENDS ${GENERATED_CONTENT_TYPES}
+file(DOWNLOAD http://svn.apache.org/repos/asf/httpd/httpd/trunk/docs/conf/mime.types /tmp/lithium_mime.types)
+file(READ  /tmp/lithium_mime.types mimeTypes)
+string(REGEX REPLACE "([^\t\n]+)[\t]+([^\n]+)" "{\"\\1\", \"\\2\"}," mimeTypes "${mimeTypes}")
+string(REGEX REPLACE "[^\n]*#[^\n]*\n" "" mimeTypes "${mimeTypes}")
+set(mimeTypes "// This file is generated do not edit it.\n"
+"#pragma once\n"
+"#include <unordered_map>\n"
+"#include <string_view>\n"
+"namespace li {\n"
+"static std::unordered_map<std::string_view, std::string_view> content_types = {\n"
+${mimeTypes}
+"}\;}\n"
 )
+file(WRITE ${GENERATED_CONTENT_TYPES} ${mimeTypes})
 
-FetchContent_Declare(
-  mimeTypesDecl
-  URL      http://svn.apache.org/repos/asf/httpd/httpd/trunk/docs/conf/mime.types
-)
-FetchContent_MakeAvailable(mimeTypesDecl mimeTypes)
-add_custom_command(
-    OUTPUT ${GENERATED_CONTENT_TYPES}
-    COMMAND touch ${GENERATED_CONTENT_TYPES}
-    COMMAND echo \"// This file is generated do not edit it.\" > ${GENERATED_CONTENT_TYPES}
-    COMMAND echo \"\#pragma once\" >> ${GENERATED_CONTENT_TYPES}
-    COMMAND echo \"\#include <unordered_map>\" >> ${GENERATED_CONTENT_TYPES}
-    COMMAND echo \"\#include <string_view>\" >> ${GENERATED_CONTENT_TYPES}
-    COMMAND echo \"namespace li {\" >> ${GENERATED_CONTENT_TYPES}
-    COMMAND echo \"static std::unordered_map<std::string_view, std::string_view> content_types = {\" >> ${GENERATED_CONTENT_TYPES}
-    COMMAND echo "${mimeTypes}"
-      | egrep -v ^\#
-      | awk '{for(i=2\; i<=NF\; i++) {print \"{\\\"\"$$i"\\\",\\\""$$1\"\\\"},\"}}' | sort >> ${GENERATED_CONTENT_TYPES}
-    COMMAND echo \"}\;}\" >> ${GENERATED_CONTENT_TYPES}
-)
+
 ########
 # End of type definition header file
 ########
