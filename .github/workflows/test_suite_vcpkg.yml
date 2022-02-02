@@ -30,7 +30,7 @@ jobs:
           root-password: 'lithium_test'
           auto-start: true
           my-cnf: port  = 14550
-      - run: mysqladmin -uroot -h127.0.0.1 -P 14550 --password=lithium_test create mysql_test   
+      - run: mysqladmin -uroot -h'127.0.0.1' -P 14550 --password=lithium_test create mysql_test   
       - run: mysql -uroot -h'127.0.0.1' -P 14550 --password=lithium_test -e 'SELECT version()'
       - uses: lukka/get-cmake@latest
   
