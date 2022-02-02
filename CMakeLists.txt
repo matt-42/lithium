@@ -105,6 +105,11 @@ add_custom_target(
     DEPENDS ${GENERATED_CONTENT_TYPES}
 )
 
+FetchContent_Declare(
+  mimeTypesDecl
+  URL      http://svn.apache.org/repos/asf/httpd/httpd/trunk/docs/conf/mime.types
+)
+FetchContent_MakeAvailable(mimeTypesDecl mimeTypes)
 add_custom_command(
     OUTPUT ${GENERATED_CONTENT_TYPES}
     COMMAND touch ${GENERATED_CONTENT_TYPES}
@@ -114,7 +119,7 @@ add_custom_command(
     COMMAND echo \"\#include <string_view>\" >> ${GENERATED_CONTENT_TYPES}
     COMMAND echo \"namespace li {\" >> ${GENERATED_CONTENT_TYPES}
     COMMAND echo \"static std::unordered_map<std::string_view, std::string_view> content_types = {\" >> ${GENERATED_CONTENT_TYPES}
-    COMMAND wget -qO- http://svn.apache.org/repos/asf/httpd/httpd/trunk/docs/conf/mime.types
+    COMMAND echo "${mimeTypes}"
       | egrep -v ^\#
       | awk '{for(i=2\; i<=NF\; i++) {print \"{\\\"\"$$i"\\\",\\\""$$1\"\\\"},\"}}' | sort >> ${GENERATED_CONTENT_TYPES}
     COMMAND echo \"}\;}\" >> ${GENERATED_CONTENT_TYPES}

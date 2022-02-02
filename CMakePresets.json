@@ -40,12 +40,14 @@
     {
       "name": "ninja-multi-vcpkg-debug",
       "configurePreset": "ninja-multi-vcpkg",
-      "configuration": "Debug"
+      "configuration": "Debug",
+      "output": {"outputOnFailure": true}
     },
     {
       "name": "ninja-multi-vcpkg-release",
       "configurePreset": "ninja-multi-vcpkg",
-      "configuration": "RelWithDebInfo"
+      "configuration": "RelWithDebInfo",
+      "output": {"outputOnFailure": true}
     }
   ]
 }
