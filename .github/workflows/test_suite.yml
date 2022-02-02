@@ -23,6 +23,11 @@ jobs:
           host port: 14550
           mysql root password: lithium_test
           mysql database: mysql_test
+      - name: test-postgres
+        run: psql -U root -h'127.0.0.1' -p 32768 --password=lithium_test -d postgres -c 'SELECT version()'
+        env:
+          PGPASSWORD: lithium_test
+
       - run: >
           sudo apt-get update && 
           sudo apt-get install -yq libboost-context-dev clang-9 
@@ -42,6 +47,11 @@ jobs:
           username: root
           password: lithium_test
           database: postgres
+          port: 32768
+      - name: test-postgres
+        run: psql -U root -h'127.0.0.1' -p 32768 --password=lithium_test -d postgres -c 'SELECT version()'
+        env:
+          PGPASSWORD: lithium_test
       - uses: actions/checkout@v2
       - uses: shogo82148/actions-setup-mysql@v1
         with:
@@ -51,6 +61,7 @@ jobs:
           auto-start: true
           my-cnf: port  = 14550
       - run: mysqladmin -uroot -h127.0.0.1 -P 14550 --password=lithium_test create mysql_test   
+      - run: mysql -uroot -h'127.0.0.1' -P 14550 --password=lithium_test -e 'SELECT version()'
       - run: |
           cd $GITHUB_WORKSPACE &&
           cmake . -DCMAKE_PREFIX_PATH='/usr/local/opt/openssl/;/usr/local/opt/curl;/usr/local/opt/libpq' &&
@@ -70,6 +81,12 @@ jobs:
           username: root
           password: lithium_test
           database: postgres
+          port: 32768
+      - name: test-postgres
+        run: psql -U root -h'127.0.0.1' -p 32768 --password=lithium_test -d postgres -c 'SELECT version()'
+        env:
+          PGPASSWORD: lithium_test
+
       - uses: actions/checkout@v2
       - uses: shogo82148/actions-setup-mysql@v1
         with:
@@ -79,6 +96,7 @@ jobs:
           auto-start: true
           my-cnf: port = 14550
       - run: mysqladmin -uroot -h'127.0.0.1' -P 14550 --password=lithium_test create mysql_test 
+      - run: mysql -uroot -h'127.0.0.1' -P 14550 --password=lithium_test -e 'SELECT version()'
       - run: |
           cd $GITHUB_WORKSPACE &&
           cmake -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/../vcpkg/scripts/buildsystems/vcpkg.cmake -DCMAKE_PREFIX_PATH="${{ github.workspace }}/../vcpkg/installed/x86-windows" . &&
