@@ -24,7 +24,7 @@ jobs:
           mysql root password: lithium_test
           mysql database: mysql_test
       - name: test-postgres
-        run: psql -U root -h localhost --port=32768 -d postgres -c 'SELECT version()'
+        run: psql -U postgres -h localhost --port=32768 -d postgres -c 'SELECT version()'
         env:
           PGPASSWORD: lithium_test
 
@@ -49,7 +49,7 @@ jobs:
           database: postgres
           port: 32768
       - name: test-postgres
-        run: psql -U root -h'127.0.0.1' --port=32768 -d postgres -c 'SELECT version()'
+        run: psql -U postgres -h'127.0.0.1' --port=32768 -d postgres -c 'SELECT version()'
         env:
           PGPASSWORD: lithium_test
       - uses: actions/checkout@v2
@@ -83,7 +83,7 @@ jobs:
           database: postgres
           port: 32768
       - name: test-postgres
-        run: psql -U root -h'127.0.0.1' --port=32768 -d postgres -c 'SELECT version()'
+        run: psql -U postgres -h'127.0.0.1' --port=32768 -d postgres -c 'SELECT version()'
         env:
           PGPASSWORD: lithium_test
 
