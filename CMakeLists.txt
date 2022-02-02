@@ -16,12 +16,13 @@ set(CMAKE_VERBOSE_MAKEFILE ON)
 
 
 find_package(Boost REQUIRED context)
-find_package(SQLite3 REQUIRED)
+#find_package(SQLite3 REQUIRED)
 find_package(CURL REQUIRED)
 find_package(PostgreSQL REQUIRED)
 find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(unofficial-libmariadb CONFIG REQUIRED)
+find_package(unofficial-sqlite3 CONFIG REQUIRED)
 
 IF (WIN32)
 find_package(Wepoll REQUIRED)
@@ -38,7 +39,7 @@ include_directories(${Wepoll_INCLUDE_DIR})
 message("WINDOWS LIBS: " ${Wepoll_LIBRARY} " -- " ${WINDOWS_LIBS})
 set(LIBS ${OPENSSL_LIBRARIES} ${SQLite3_LIBRARIES} ${CURL_LIBRARIES} ${PostgreSQL_LIBRARIES} 
           ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} ${Wepoll_LIBRARY} ${WINDOWS_LIBS})
-set(LIBS ${LIBS} unofficial::libmariadb)
+set(LIBS ${LIBS} unofficial::libmariadb unofficial::sqlite3)
 
 
 if (APPLE)
