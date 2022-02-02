@@ -45,6 +45,7 @@ endif()
 set(CMAKE_CXX_STANDARD 20)
 
 enable_testing()
+list(APPEND CMAKE_CTEST_ARGUMENTS "--output-on-failure")
 
 # Create the include dir in the build directory.
 file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/include/li)
