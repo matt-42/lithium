@@ -9,6 +9,7 @@
     "curl",
     "libmariadb",
     "libpq",
+    "openssl",
     {
       "name": "wepoll",
       "platform": "windows"
