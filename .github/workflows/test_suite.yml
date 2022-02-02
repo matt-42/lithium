@@ -99,6 +99,6 @@ jobs:
       - run: mysql -uroot -h'127.0.0.1' -P 14550 --password=lithium_test -e 'SELECT version()'
       - run: |
           cd $GITHUB_WORKSPACE &&
-          cmake -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/../vcpkg/scripts/buildsystems/vcpkg.cmake -DCMAKE_PREFIX_PATH="${{ github.workspace }}/../vcpkg/installed/x86-windows" . &&
+          cmake -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/../vcpkg/scripts/buildsystems/vcpkg.cmake -DCMAKE_PREFIX_PATH="${{ github.workspace }}/../vcpkg/installed/x86-windows" $GITHUB_WORKSPACE &&
           make -j3 &&
           ctest
