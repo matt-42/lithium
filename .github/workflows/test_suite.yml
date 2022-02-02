@@ -72,7 +72,7 @@ jobs:
     runs-on: windows-2022
     steps: 
       - name: Run vcpkg
-        uses: lukka/run-vcpkg@v4
+        uses: lukka/run-vcpkg@v10.1
         with:
           vcpkgArguments: 'boost curl libmariadb libpq wepoll'
           vcpkgGitCommitId: 0a9e204dadc20054aafe2d7151136f08ad5637fa
