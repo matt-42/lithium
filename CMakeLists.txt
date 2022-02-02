@@ -4,6 +4,8 @@ SET(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH}
 
 project(lithium)
 
+include(FetchContent)
+
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
 # On MacOS use -DCMAKE_PREFIX_PATH='/usr/local/opt/openssl/;/usr/local/opt/curl;/usr/local/opt/libpq'
