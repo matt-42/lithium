@@ -21,6 +21,7 @@ find_package(CURL REQUIRED)
 find_package(PostgreSQL REQUIRED)
 find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
+find_package(unofficial-libmariadb CONFIG REQUIRED)
 
 IF (WIN32)
 find_package(Wepoll REQUIRED)
@@ -37,14 +38,8 @@ include_directories(${Wepoll_INCLUDE_DIR})
 message("WINDOWS LIBS: " ${Wepoll_LIBRARY} " -- " ${WINDOWS_LIBS})
 set(LIBS ${OPENSSL_LIBRARIES} ${SQLite3_LIBRARIES} ${CURL_LIBRARIES} ${PostgreSQL_LIBRARIES} 
           ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} ${Wepoll_LIBRARY} ${WINDOWS_LIBS})
+set(LIBS ${LIBS} unofficial::libmariadb)
 
-if ($ENV{VCPKG_ROOT})
-  find_package(unofficial-libmariadb CONFIG REQUIRED)
-  set(LIBS ${LIBS} unofficial::libmariadb)
-ELSE()
-  find_package(MYSQL REQUIRED)
-  set(LIBS ${LIBS} ${MYSQL_LIBRARY})
-ENDIF()
 
 if (APPLE)
   # needed by mariadbclient on macos:
