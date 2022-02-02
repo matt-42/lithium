@@ -39,7 +39,7 @@ jobs:
     runs-on: macos-11
     steps: 
 
-      - uses: matt-42/action-setup-postgres@v1.3
+      - uses: matt-42/action-setup-postgres@v1.4
         with:
           username: postgres
           password: lithium_test
@@ -76,7 +76,7 @@ jobs:
         with:
           vcpkgArguments: 'boost curl libmariadb libpq wepoll'
           vcpkgGitCommitId: 0a9e204dadc20054aafe2d7151136f08ad5637fa
-      - uses: matt-42/action-setup-postgres@v1.3
+      - uses: matt-42/action-setup-postgres@v1.4
         with:
           username: postgres
           password: lithium_test
