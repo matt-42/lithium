@@ -165,8 +165,7 @@ struct sqlite_statement {
     if (last_step_ret != SQLITE_ROW and last_step_ret != SQLITE_DONE)
       throw std::runtime_error(sqlite3_errstr(last_step_ret));
 
-    return sql_result<sqlite_statement_result>{
-        sqlite_statement_result{this->db_, this->stmt_, last_step_ret}};
+    return sql_result<sqlite_statement_result>(sqlite_statement_result{this->db_, this->stmt_, last_step_ret});
   }
 
   inline int bind(sqlite3_stmt* stmt, int pos, double d) const {

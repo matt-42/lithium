@@ -7,6 +7,12 @@
 
 #pragma once
 
+#if _WIN32
+#include <WS2tcpip.h>
+#endif
+#if _WIN32
+#include <WinSock2.h>
+#endif
 #include <arpa/inet.h>
 #include <atomic>
 #include <boost/context/continuation.hpp>
@@ -44,17 +50,22 @@
 #include <sys/event.h>
 #endif
 #include <sys/mman.h>
+#include <sys/sendfile.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/uio.h>
 #include <thread>
+#include <time.h>
 #include <tuple>
 #include <unistd.h>
 #include <unordered_map>
 #include <utility>
 #include <variant>
 #include <vector>
+#if _WIN32
+#include <wepoll.h>
+#endif
 
 #if defined(_MSC_VER)
 #include <ciso646>
@@ -307,14 +318,19 @@ static int json_ok = json_no_error();
 namespace li {
 
 namespace internal {
-struct {
+struct reduce_add_type {
   template <typename A, typename... B> constexpr auto operator()(A&& a, B&&... b) {
     auto result = a;
     using expand_variadic_pack = int[];
     (void)expand_variadic_pack{0, ((result += b), 0)...};
     return result;
   }
-} reduce_add;
+};
+#ifdef _WIN32
+__declspec(selectany) reduce_add_type reduce_add;
+#else
+reduce_add_type reduce_add [[gnu::weak]];
+#endif
 
 } // namespace internal
 
@@ -336,7 +352,10 @@ template <typename M1, typename... Ms> struct metamap<M1, Ms...> : public M1, pu
   // metamap(self& other)
   //  : metamap(const_cast<const self&>(other)) {}
 
-  constexpr inline metamap(typename M1::_iod_value_type&& m1, typename Ms::_iod_value_type&&... members) : M1{m1}, Ms{std::forward<typename Ms::_iod_value_type>(members)}... {}
+  template <typename M>
+  using get_value_type = typename M::_iod_value_type;
+
+  constexpr inline metamap(get_value_type<M1>&& m1, get_value_type<Ms>&&... members) : M1{m1}, Ms{std::forward<get_value_type<Ms>>(members)}... {}
   constexpr inline metamap(M1&& m1, Ms&&... members) : M1(m1), Ms(std::forward<Ms>(members))... {}
   constexpr inline metamap(const M1& m1, const Ms&... members) : M1(m1), Ms((members))... {}
 
@@ -1799,14 +1818,14 @@ json_error_code json_decode2(P& p, O& obj, json_object_<S> schema) {
     int name_len;
     std::function<json_error_code(P&)> parse_value;
   };
-  constexpr int n_members = std::tuple_size<decltype(schema.schema)>();
+  constexpr int n_members = int(std::tuple_size<decltype(schema.schema)>());
   attr_info A[n_members];
   int i = 0;
   auto prepare = [&](auto m) {
     A[i].filled = false;
     A[i].required = true;
     A[i].name = symbol_string(m.name);
-    A[i].name_len = strlen(symbol_string(m.name));
+    A[i].name_len = int(strlen(symbol_string(m.name)));
 
     if constexpr (has_key(m, s::json_key)) {
       A[i].name = m.json_key;
@@ -2618,8 +2637,9 @@ template <typename SCHEMA, typename C> struct sql_orm {
   sql_orm(SCHEMA& schema, C&& con) : schema_(schema), con_(std::forward<C>(con)) {}
 
   template <typename S, typename... A> void call_callback(S s, A&&... args) {
-    if constexpr (has_key<decltype(schema_.get_callbacks())>(S{}))
-      return schema_.get_callbacks()[s](args...);
+    get_or(schema_.get_callbacks(), s, [] (A... args) {})(args...);
+    // if constexpr (has_key<decltype(schema_.get_callbacks())>(S{}))
+    //   return schema_.get_callbacks().template operator[]<S>(s)(args...);
   }
 
   inline auto& drop_table_if_exists() {
@@ -2707,7 +2727,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
   template <typename... W, typename... A> auto find_one(metamap<W...> where, A&&... cb_args) {
 
-    auto stmt = con_.cached_statement([&] (){ 
+    auto stmt = con_.cached_statement([&] { 
         std::ostringstream ss;
         placeholder_pos_ = 0;
         ss << "SELECT ";
@@ -2727,7 +2747,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     });
 
     O result;
-    bool read_success = li::tuple_reduce(metamap_values(where), stmt).template read(metamap_values(result));
+    bool read_success = li::tuple_reduce(metamap_values(where), stmt).read(metamap_values(result));
     if (read_success)
     {
       call_callback(s::read_access, result, cb_args...);
@@ -3561,127 +3581,101 @@ template <typename Req, typename Resp> struct api {
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_HTTP_SERVE_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_HTTP_SERVE_HH
 
-
-
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_OUTPUT_BUFFER_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_OUTPUT_BUFFER_HH
+#if not defined(_WIN32)
+#endif
 
 
 
-namespace li {
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_HTTP_TOP_HEADER_BUILDER_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_HTTP_TOP_HEADER_BUILDER_HH
 
-struct output_buffer {
 
-  output_buffer() : buffer_(nullptr), own_buffer_(false), cursor_(nullptr), end_(nullptr), flush_([] (const char*, int) constexpr {}) {}
+namespace internal {
 
-  output_buffer(output_buffer&& o)
-      : buffer_(o.buffer_), own_buffer_(o.own_buffer_), cursor_(o.cursor_), end_(o.end_),
-        flush_(o.flush_) {
-    o.buffer_ = nullptr;
-    o.own_buffer_ = false;
+struct double_buffer {
+
+  double_buffer() {
+    this->p1 = this->b1;
+    this->p2 = this->b2;
   }
 
-  output_buffer(
-      int capacity, std::function<void(const char*, int)> flush_ = [](const char*, int) {})
-      : buffer_(new char[capacity]), own_buffer_(true), cursor_(buffer_), end_(buffer_ + capacity),
-        flush_(flush_) {
-    assert(buffer_);
-  }
+  void swap() { std::swap(this->p1, this->p2); }
 
-  output_buffer(
-      void* buffer, int capacity,
-      std::function<void(const char*, int)> flush_ = [](const char*, int) {})
-      : buffer_((char*)buffer), own_buffer_(false), cursor_(buffer_), end_(buffer_ + capacity),
-        flush_(flush_) {
-    assert(buffer_);
-  }
+  char* current_buffer() { return this->p1; }
+  char* next_buffer() { return this->p2; }
+  int size() { return 150; }
 
-  ~output_buffer() {
-    if (own_buffer_)
-      delete[] buffer_;
-  }
-
-  output_buffer& operator=(output_buffer&& o) {
-    buffer_ = o.buffer_;
-    own_buffer_ = o.own_buffer_;
-    cursor_ = o.cursor_;
-    end_ = o.end_;
-    flush_ = o.flush_;
-    o.buffer_ = nullptr;
-    o.own_buffer_ = false;
-    return *this;
-  }
-
-  void reset() { cursor_ = buffer_; }
-
-  std::size_t size() { return cursor_ - buffer_; }
-  void flush() {
-    flush_(buffer_, size());
-    reset();
-  }
-
-  output_buffer& operator<<(std::string_view s) {
-    if (cursor_ + s.size() >= end_)
-      flush();
-
-    assert(cursor_ + s.size() < end_);
-    memcpy(cursor_, s.data(), s.size());
-    cursor_ += s.size();
-    return *this;
-  }
-
-  output_buffer& operator<<(const char* s) { return operator<<(std::string_view(s, strlen(s))); }
-  output_buffer& operator<<(char v) {
-    cursor_[0] = v;
-    cursor_++;
-    return *this;
-  }
-
-  inline output_buffer& append(const char c) { return (*this) << c; }
-  
-  output_buffer& operator<<(std::size_t v) {
-    if (v == 0)
-      operator<<('0');
-
-    char buffer[10];
-    char* str_start = buffer;
-    for (int i = 0; i < 10; i++) {
-      if (v > 0)
-        str_start = buffer + 9 - i;
-      buffer[9 - i] = (v % 10) + '0';
-      v /= 10;
-    }
-    operator<<(std::string_view(str_start, buffer + 10 - str_start));
-    return *this;
-  }
-  // template <typename I>
-  // output_buffer& operator<<(unsigned long s)
-  // {
-  //   typedef std::array<char, 150> buf_t;
-  //   buf_t b = boost::lexical_cast<buf_t>(v);
-  //   return operator<<(std::string_view(b.begin(), strlen(b.begin())));
-  // }
-
-  template <typename I>
-  output_buffer& operator<<(I v) {
-    typedef std::array<char, 150> buf_t;
-    buf_t b = boost::lexical_cast<buf_t>(v);
-    return operator<<(std::string_view(b.begin(), strlen(b.begin())));
-  }
-
-  
-  std::string_view to_string_view() { return std::string_view(buffer_, cursor_ - buffer_); }
-
-  char* buffer_;
-  bool own_buffer_;
-  char* cursor_;
-  char* end_;
-  std::function<void(const char* s, int d)> flush_;
+  char* p1;
+  char* p2;
+  char b1[150];
+  char b2[150];
 };
 
-} // namespace li
+} // namespace internal
 
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_OUTPUT_BUFFER_HH
+struct http_top_header_builder {
+
+  std::string_view top_header() { return std::string_view(tmp.current_buffer(), top_header_size); };
+  std::string_view top_header_200() {
+    return std::string_view(tmp_200.current_buffer(), top_header_200_size);
+  };
+
+  void tick() {
+    time_t t = time(NULL);
+    struct tm tm;
+#if defined _WIN32
+    gmtime_s(&tm, &t);
+#else
+    gmtime_r(&t, &tm);
+#endif
+
+    top_header_size =
+        int(strftime(tmp.next_buffer(), tmp.size(),
+#ifdef LITHIUM_SERVER_NAME
+#define MACRO_TO_STR2(L) #L
+#define MACRO_TO_STR(L) MACRO_TO_STR2(L)
+                 "\r\nServer: " MACRO_TO_STR(LITHIUM_SERVER_NAME) "\r\n"
+
+#undef MACRO_TO_STR
+#undef MACRO_TO_STR2
+#else
+                 "\r\nServer: Lithium\r\n"
+#endif
+                                                                  "Date: %a, %d %b %Y %T GMT\r\n",
+                 &tm));
+    tmp.swap();
+
+    top_header_200_size =
+        int(strftime(tmp_200.next_buffer(), tmp_200.size(),
+                 "HTTP/1.1 200 OK\r\n"
+#ifdef LITHIUM_SERVER_NAME
+#define MACRO_TO_STR2(L) #L
+#define MACRO_TO_STR(L) MACRO_TO_STR2(L)
+                 "Server: " MACRO_TO_STR(LITHIUM_SERVER_NAME) "\r\n"
+
+#undef MACRO_TO_STR
+#undef MACRO_TO_STR2
+#else
+                 "Server: Lithium\r\n"
+#endif
+
+                                                              // LITHIUM_SERVER_NAME_HEADER
+                                                              "Date: %a, %d %b %Y %T GMT\r\n",
+                 &tm));
+
+    tmp_200.swap();
+  }
+
+  internal::double_buffer tmp;
+  int top_header_size;
+
+  internal::double_buffer tmp_200;
+  int top_header_200_size;
+};
+
+#undef LITHIUM_SERVER_NAME_HEADER
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_HTTP_TOP_HEADER_BUILDER_HH
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_INPUT_BUFFER_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_INPUT_BUFFER_HH
@@ -3727,7 +3721,7 @@ struct input_buffer {
     assert(i1 <= &buffer_.back());
     // std::cout << (i2 - &buffer_.front()) << " " << buffer_.size() <<  << std::endl;
     assert(i2 >= buffer_.data() and i2 <= &buffer_.back() + 1);
-    free(i1 - buffer_.data(), i2 - buffer_.data());
+    free(int(i1 - buffer_.data()), int(i2 - buffer_.data()));
   }
   void free(const std::string_view& str) { free(str.data(), str.data() + str.size()); }
 
@@ -3825,13 +3819,142 @@ struct input_buffer {
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_INPUT_BUFFER_HH
 
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_OUTPUT_BUFFER_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_OUTPUT_BUFFER_HH
+
+
+
+namespace li {
+
+struct output_buffer {
+
+  output_buffer() : buffer_(nullptr), own_buffer_(false), cursor_(nullptr), end_(nullptr), flush_([] (const char*, int) constexpr {}) {}
+
+  output_buffer(output_buffer&& o)
+      : buffer_(o.buffer_), own_buffer_(o.own_buffer_), cursor_(o.cursor_), end_(o.end_),
+        flush_(o.flush_) {
+    o.buffer_ = nullptr;
+    o.own_buffer_ = false;
+  }
+
+  output_buffer(
+      int capacity, std::function<void(const char*, int)> flush_ = [](const char*, int) {})
+      : buffer_(new char[capacity]), own_buffer_(true), cursor_(buffer_), end_(buffer_ + capacity),
+        flush_(flush_) {
+    assert(buffer_);
+  }
+
+  output_buffer(
+      void* buffer, int capacity,
+      std::function<void(const char*, int)> flush_ = [](const char*, int) {})
+      : buffer_((char*)buffer), own_buffer_(false), cursor_(buffer_), end_(buffer_ + capacity),
+        flush_(flush_) {
+    assert(buffer_);
+  }
+
+  ~output_buffer() {
+    if (own_buffer_)
+      delete[] buffer_;
+  }
+
+  output_buffer& operator=(output_buffer&& o) {
+    buffer_ = o.buffer_;
+    own_buffer_ = o.own_buffer_;
+    cursor_ = o.cursor_;
+    end_ = o.end_;
+    flush_ = o.flush_;
+    o.buffer_ = nullptr;
+    o.own_buffer_ = false;
+    return *this;
+  }
+
+  void reset() { cursor_ = buffer_; }
+
+  std::size_t size() { return cursor_ - buffer_; }
+  void flush() {
+    flush_(buffer_, int(size()));
+    reset();
+  }
+
+  output_buffer& operator<<(std::string_view s) {
+    if (cursor_ + s.size() >= end_)
+      flush();
+
+    assert(cursor_ + s.size() < end_);
+    memcpy(cursor_, s.data(), s.size());
+    cursor_ += s.size();
+    return *this;
+  }
+
+  output_buffer& operator<<(const char* s) { return operator<<(std::string_view(s, strlen(s))); }
+  output_buffer& operator<<(char v) {
+    cursor_[0] = v;
+    cursor_++;
+    return *this;
+  }
+
+  inline output_buffer& append(const char c) { return (*this) << c; }
+  
+  output_buffer& operator<<(std::size_t v) {
+    if (v == 0)
+      operator<<('0');
+
+    char buffer[10];
+    char* str_start = buffer;
+    for (int i = 0; i < 10; i++) {
+      if (v > 0)
+        str_start = buffer + 9 - i;
+      buffer[9 - i] = (v % 10) + '0';
+      v /= 10;
+    }
+    operator<<(std::string_view(str_start, buffer + 10 - str_start));
+    return *this;
+  }
+  // template <typename I>
+  // output_buffer& operator<<(unsigned long s)
+  // {
+  //   typedef std::array<char, 150> buf_t;
+  //   buf_t b = boost::lexical_cast<buf_t>(v);
+  //   return operator<<(std::string_view(b.begin(), strlen(b.begin())));
+  // }
+
+  template <typename I>
+  output_buffer& operator<<(I v) {
+    typedef std::array<char, 150> buf_t;
+    buf_t b = boost::lexical_cast<buf_t>(v);
+    return operator<<(std::string_view(b.data(), strlen(b.data())));
+  }
+
+  
+  std::string_view to_string_view() { return std::string_view(buffer_, cursor_ - buffer_); }
+
+  char* buffer_;
+  bool own_buffer_;
+  char* cursor_;
+  char* end_;
+  std::function<void(const char* s, int d)> flush_;
+};
+
+} // namespace li
+
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_OUTPUT_BUFFER_HH
+
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_TCP_SERVER_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_TCP_SERVER_HH
 
 
+#if not defined(_WIN32)
+#endif
+
 
 #if __linux__
 #elif __APPLE__
+#endif
+
+#if defined __linux__ || defined __APPLE__
+#endif
+
+#if defined _WIN32
 #endif
 
 
@@ -3905,16 +4028,35 @@ namespace li {
 
 namespace impl {
 
+#if defined _WIN32
+typedef SOCKET socket_type;
+#else
+typedef int socket_type;
+#endif
+
+inline int close_socket(socket_type sock) {
+#if defined _WIN32
+  return closesocket(sock);
+#else
+  return close(sock);
+#endif
+}
+
 // Helper to create a TCP/UDP server socket.
-static int create_and_bind(int port, int socktype) {
+static socket_type create_and_bind(int port, int socktype) {
   struct addrinfo hints;
   struct addrinfo *result, *rp;
-  int s, sfd;
+  int s;
+
+  socket_type sfd;
 
   char port_str[20];
   snprintf(port_str, sizeof(port_str), "%d", port);
   memset(&hints, 0, sizeof(struct addrinfo));
-  hints.ai_family = AF_UNSPEC;  /* Return IPv4 and IPv6 choices */
+  
+  // On windows, setting up the dual-stack mode (ipv4/ipv6 on the same socket).
+  // https://docs.microsoft.com/en-us/windows/win32/winsock/dual-stack-sockets
+  hints.ai_family = AF_INET6;
   hints.ai_socktype = socktype; /* We want a TCP socket */
   hints.ai_flags = AI_PASSIVE;  /* All interfaces */
 
@@ -3929,13 +4071,23 @@ static int create_and_bind(int port, int socktype) {
     if (sfd == -1)
       continue;
 
-    s = bind(sfd, rp->ai_addr, rp->ai_addrlen);
+    // Turn of IPV6_V6ONLY to accept ipv4.
+    // https://stackoverflow.com/questions/1618240/how-to-support-both-ipv4-and-ipv6-connections
+    int ipv6only = 0;
+    if(setsockopt(sfd, IPPROTO_IPV6, IPV6_V6ONLY, (char*)&ipv6only, sizeof(ipv6only)) != 0)
+    {
+      std::cerr << "FATAL ERROR: setsockopt error when setting IPV6_V6ONLY to 0: " << strerror(errno)
+                << std::endl;
+    }
+
+    s = bind(sfd, rp->ai_addr, int(rp->ai_addrlen));
     if (s == 0) {
       /* We managed to bind successfully! */
       break;
     }
-
-    close(sfd);
+    else {
+      close_socket(sfd);
+    }
   }
 
   if (rp == NULL) {
@@ -3945,8 +4097,20 @@ static int create_and_bind(int port, int socktype) {
 
   freeaddrinfo(result);
 
+#if _WIN32
+  u_long set_on = 1;
+  auto ret = ioctlsocket(sfd, (long)FIONBIO, &set_on);
+  if (ret) {
+    std::cerr << "FATAL ERROR: Cannot set socket to non blocking mode with ioctlsocket"
+              << std::endl;
+  }
+
+#else
   int flags = fcntl(sfd, F_GETFL, 0);
   fcntl(sfd, F_SETFL, flags | O_NONBLOCK);
+
+#endif
+  
   ::listen(sfd, SOMAXCONN);
 
   return sfd;
@@ -3990,27 +4154,27 @@ struct async_fiber_context {
   inline async_fiber_context(const async_fiber_context&) = delete;
 
   inline async_fiber_context(async_reactor* reactor, boost::context::continuation&& sink,
-                      int fiber_id, int socket_fd, sockaddr in_addr)
+                             int fiber_id, int socket_fd, sockaddr in_addr)
       : reactor(reactor), sink(std::forward<boost::context::continuation&&>(sink)),
-        fiber_id(fiber_id), socket_fd(socket_fd),
-        in_addr(in_addr) {}
+        fiber_id(fiber_id), socket_fd(socket_fd), in_addr(in_addr) {}
 
   inline void yield() { sink = sink.resume(); }
-       
+
   inline bool ssl_handshake(std::unique_ptr<ssl_context>& ssl_ctx) {
-    if (!ssl_ctx) return false;
+    if (!ssl_ctx)
+      return false;
 
     ssl = SSL_new(ssl_ctx->ctx);
     SSL_set_fd(ssl, socket_fd);
 
     while (int ret = SSL_accept(ssl)) {
-      if (ret == 1) return true;
+      if (ret == 1)
+        return true;
 
       int err = SSL_get_error(ssl, ret);
       if (err == SSL_ERROR_WANT_WRITE || err == SSL_ERROR_WANT_READ)
         this->yield();
-      else
-      {
+      else {
         ERR_print_errors_fp(stderr);
         return false;
         // throw std::runtime_error("Error during https handshake.");
@@ -4020,8 +4184,7 @@ struct async_fiber_context {
   }
 
   inline ~async_fiber_context() {
-    if (ssl)
-    {
+    if (ssl) {
       SSL_shutdown(ssl);
       SSL_free(ssl);
     }
@@ -4048,10 +4211,10 @@ struct async_fiber_context {
   }
 
   inline int read(char* buf, int max_size) {
-    ssize_t count = read_impl(buf, max_size);
+    int count = read_impl(buf, max_size);
     while (count <= 0) {
       if ((count < 0 and errno != EAGAIN) or count == 0)
-        return ssize_t(0);
+        return int(0);
       sink = sink.resume();
       count = read_impl(buf, max_size);
     }
@@ -4065,14 +4228,14 @@ struct async_fiber_context {
       return true;
     }
     const char* end = buf + size;
-    ssize_t count = write_impl(buf, end - buf);
+    int count = write_impl(buf, end - buf);
     if (count > 0)
       buf += count;
     while (buf != end) {
       if ((count < 0 and errno != EAGAIN) or count == 0)
         return false;
       sink = sink.resume();
-      count = write_impl(buf, end - buf);
+      count = write_impl(buf, int(end - buf));
       if (count > 0)
         buf += count;
     }
@@ -4084,7 +4247,13 @@ struct async_reactor {
 
   typedef boost::context::continuation continuation;
 
-  int epoll_fd;
+#if defined _WIN32
+  typedef HANDLE epoll_handle_t;
+#else
+  typedef int epoll_handle_t;
+#endif
+
+  epoll_handle_t epoll_fd;
   std::vector<continuation> fibers;
   std::vector<int> fd_to_fiber_idx;
   std::unique_ptr<ssl_context> ssl_ctx = nullptr;
@@ -4099,13 +4268,11 @@ struct async_reactor {
     return fibers[fiber_idx];
   }
 
-  inline void reassign_fd_to_fiber(int fd, int fiber_idx) {
-    fd_to_fiber_idx[fd] = fiber_idx;
-  }
+  inline void reassign_fd_to_fiber(int fd, int fiber_idx) { fd_to_fiber_idx[fd] = fiber_idx; }
 
-  inline void epoll_ctl(int epoll_fd, int fd, int action, uint32_t flags) {
+  inline void epoll_ctl(epoll_handle_t epoll_fd, int fd, int action, uint32_t flags) {
 
-    #if __linux__
+#if __linux__ || _WIN32
     {
       epoll_event event;
       memset(&event, 0, sizeof(event));
@@ -4114,21 +4281,21 @@ struct async_reactor {
       if (-1 == ::epoll_ctl(epoll_fd, action, fd, &event) and errno != EEXIST)
         std::cout << "epoll_ctl error: " << strerror(errno) << std::endl;
     }
-    #elif __APPLE__
+#elif __APPLE__
     {
       struct kevent ev_set;
       EV_SET(&ev_set, fd, flags, action, 0, 0, NULL);
       kevent(epoll_fd, &ev_set, 1, NULL, 0, NULL);
     }
-    #endif
+#endif
   };
 
   inline void epoll_add(int new_fd, int flags, int fiber_idx = -1) {
-    #if __linux__
+#if __linux__ || _WIN32
     epoll_ctl(epoll_fd, new_fd, EPOLL_CTL_ADD, flags);
-    #elif __APPLE__
+#elif __APPLE__
     epoll_ctl(epoll_fd, new_fd, EV_ADD, flags);
-    #endif
+#endif
 
     // Associate new_fd to the fiber.
     if (int(fd_to_fiber_idx.size()) < new_fd + 1)
@@ -4136,21 +4303,35 @@ struct async_reactor {
     fd_to_fiber_idx[new_fd] = fiber_idx;
   }
 
-  inline void epoll_mod(int fd, int flags) { 
-    #if __linux__
-    epoll_ctl(epoll_fd, fd, EPOLL_CTL_MOD, flags); 
-    #elif __APPLE__
-    epoll_ctl(epoll_fd, fd, EV_ADD, flags); 
-    #endif
-    }
+  inline void epoll_del(int fd) {
+#if __linux__ || _WIN32
+    epoll_ctl(epoll_fd, fd, EPOLL_CTL_DEL, 0);
+#elif __APPLE__
+    epoll_ctl(epoll_fd, fd, EV_DELETE, 0);
+#endif
+  }
+
+  inline void epoll_mod(int fd, int flags) {
+#if __linux__ || _WIN32
+    epoll_ctl(epoll_fd, fd, EPOLL_CTL_MOD, flags);
+#elif __APPLE__
+    epoll_ctl(epoll_fd, fd, EV_ADD, flags);
+#endif
+  }
 
   template <typename H> void event_loop(int listen_fd, H handler) {
 
     const int MAXEVENTS = 64;
 
-#if __linux__
+#if __linux__ || _WIN32
     this->epoll_fd = epoll_create1(0);
+#ifdef _WIN32
+    // epollet is not implemented by wepoll.
+    epoll_ctl(epoll_fd, listen_fd, EPOLL_CTL_ADD, EPOLLIN);
+#else
     epoll_ctl(epoll_fd, listen_fd, EPOLL_CTL_ADD, EPOLLIN | EPOLLET);
+#endif
+
     epoll_event events[MAXEVENTS];
 
 #elif __APPLE__
@@ -4166,13 +4347,13 @@ struct async_reactor {
     timeout.tv_nsec = 10000;
 #endif
 
-
     // Main loop.
     while (!quit_signal_catched) {
 
-#if __linux__
+#if __linux__ || _WIN32
       // Wakeup to check if any quit signal has been catched.
       int n_events = epoll_wait(epoll_fd, events, MAXEVENTS, 1);
+      // std::cout << "got " << n_events << " epoll events." << std::endl;
 #elif __APPLE__
       // kevent is already listening to quit signals.
       int n_events = kevent(epoll_fd, NULL, 0, events, MAXEVENTS, &timeout);
@@ -4181,35 +4362,35 @@ struct async_reactor {
       if (quit_signal_catched)
         break;
 
-      if (n_events == 0 )
+      if (n_events == 0)
         for (int i = 0; i < fibers.size(); i++)
           if (fibers[i])
             fibers[i] = fibers[i].resume();
 
       for (int i = 0; i < n_events; i++) {
 
-
 #if __APPLE__
         int event_flags = events[i].flags;
         int event_fd = events[i].ident;
 
-        if (events[i].filter == EVFILT_SIGNAL)
-        {
-          if (event_fd == SIGINT) std::cout << "SIGINT" << std::endl; 
-          if (event_fd == SIGTERM) std::cout << "SIGTERM" << std::endl; 
-          if (event_fd == SIGKILL) std::cout << "SIGKILL" << std::endl; 
+        if (events[i].filter == EVFILT_SIGNAL) {
+          if (event_fd == SIGINT)
+            std::cout << "SIGINT" << std::endl;
+          if (event_fd == SIGTERM)
+            std::cout << "SIGTERM" << std::endl;
+          if (event_fd == SIGKILL)
+            std::cout << "SIGKILL" << std::endl;
           quit_signal_catched = true;
           break;
         }
 
-#elif __linux__
+#elif __linux__ || _WIN32
         int event_flags = events[i].events;
         int event_fd = events[i].data.fd;
 #endif
 
-
         // Handle errors on sockets.
-#if __linux__
+#if __linux__ || _WIN32
         if (event_flags & (EPOLLERR | EPOLLHUP | EPOLLRDHUP)) {
 #elif __APPLE__
         if (event_flags & EV_ERROR) {
@@ -4232,13 +4413,21 @@ struct async_reactor {
 
             // ============================================
             // ACCEPT INCOMMING CONNECTION
-            struct sockaddr in_addr;
+            sockaddr_storage in_addr_storage;
+            sockaddr* in_addr = (sockaddr*) &in_addr_storage;
             socklen_t in_len;
             int socket_fd;
-            in_len = sizeof in_addr;
-            socket_fd = accept(listen_fd, &in_addr, &in_len);
+            in_len = sizeof(sockaddr_storage);
+            socket_fd = accept(listen_fd, in_addr, &in_len);
+            //socket_fd = accept(listen_fd, nullptr, nullptr);
             if (socket_fd == -1)
+            {
+              // if (errno != EAGAIN && errno != EWOULDBLOCK) {
+              //   std::cerr << "accept error: " << strerror(errno) << std::endl;
+              //   std::cerr << "accept error: " << WSAGetLastError() << std::endl;
+              // }
               break;
+            }   
             // ============================================
 
             // ============================================
@@ -4253,12 +4442,15 @@ struct async_reactor {
 
             // ============================================
             // Subscribe epoll to the socket file descriptor.
-            if (-1 == fcntl(socket_fd, F_SETFL, fcntl(socket_fd, F_GETFL, 0) | O_NONBLOCK))
-              continue;
+            // FIXME Duplicate ??
+            // if (-1 == fcntl(socket_fd, F_SETFL, fcntl(socket_fd, F_GETFL, 0) | O_NONBLOCK))
+            //   continue;
 #if __linux__
             this->epoll_add(socket_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET, fiber_idx);
+#elif _WIN32
+            this->epoll_add(socket_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP, fiber_idx);
 #elif __APPLE__
-            this->epoll_add(socket_fd, EVFILT_READ | EVFILT_WRITE, fiber_idx);
+          this->epoll_add(socket_fd, EVFILT_READ | EVFILT_WRITE, fiber_idx);
 #endif
 
             // ============================================
@@ -4266,9 +4458,9 @@ struct async_reactor {
             // ============================================
             // Simply utility to close fd at the end of a scope.
             struct scoped_fd {
-              int fd;
+              impl::socket_type fd;
               ~scoped_fd() {
-                if (0 != close(fd))
+                if (0 != impl::close_socket(fd))
                   std::cerr << "Error when closing file descriptor " << fd << ": "
                             << strerror(errno) << std::endl;
               }
@@ -4280,17 +4472,19 @@ struct async_reactor {
             fibers[fiber_idx] = boost::context::callcc([this, socket_fd, fiber_idx, in_addr,
                                                         &handler](continuation&& sink) {
               scoped_fd sfd{socket_fd}; // Will finally close the fd.
-              auto ctx = async_fiber_context(this, std::move(sink), fiber_idx, socket_fd, in_addr);
+              auto ctx = async_fiber_context(this, std::move(sink), fiber_idx, socket_fd, *in_addr);
               try {
-                if (ssl_ctx && !ctx.ssl_handshake(this->ssl_ctx))
-                {
+                if (ssl_ctx && !ctx.ssl_handshake(this->ssl_ctx)) {
                   std::cerr << "Error during SSL handshake" << std::endl;
                   return std::move(ctx.sink);
                 }
                 handler(ctx);
+                epoll_del(socket_fd);
               } catch (fiber_exception& ex) {
+                epoll_del(socket_fd);
                 return std::move(ex.c);
               } catch (const std::runtime_error& e) {
+                epoll_del(socket_fd);
                 std::cerr << "FATAL ERRROR: exception in fiber: " << e.what() << std::endl;
                 assert(0);
                 return std::move(ctx.sink);
@@ -4312,33 +4506,31 @@ struct async_reactor {
         }
 
         // Wakeup fibers if needed.
-        while (defered_resume.size())
-        {
+        while (defered_resume.size()) {
           int fiber_id = defered_resume.front();
           defered_resume.pop_front();
           assert(fiber_id < fibers.size());
           auto& fiber = fibers[fiber_id];
-          if (fiber)
-          {
-            // std::cout << "wakeup " << fiber_id << std::endl; 
+          if (fiber) {
+            // std::cout << "wakeup " << fiber_id << std::endl;
             fiber = fiber.resume();
           }
         }
-
-
       }
 
       // Call and Flush the defered functions.
-      if (defered_functions.size())
-      {
+      if (defered_functions.size()) {
         for (auto& f : defered_functions)
           f();
         defered_functions.clear();
       }
-
     }
     std::cout << "END OF EVENT LOOP" << std::endl;
-    close(epoll_fd);
+#if _WIN32
+    epoll_close(epoll_fd);
+#else
+    impl::close_socket(epoll_fd);
+#endif
   }
 };
 
@@ -4347,18 +4539,14 @@ static void shutdown_handler(int sig) {
   std::cout << "The server will shutdown..." << std::endl;
 }
 
-void async_fiber_context::epoll_add(int fd, int flags) {
-  reactor->epoll_add(fd, flags, fiber_id);
-}
+void async_fiber_context::epoll_add(int fd, int flags) { reactor->epoll_add(fd, flags, fiber_id); }
 void async_fiber_context::epoll_mod(int fd, int flags) { reactor->epoll_mod(fd, flags); }
 
-void async_fiber_context::defer(const std::function<void()>& fun)
-{
+void async_fiber_context::defer(const std::function<void()>& fun) {
   this->reactor->defered_functions.push_back(fun);
 }
 
-void async_fiber_context::defer_fiber_resume(int fiber_id)
-{
+void async_fiber_context::defer_fiber_resume(int fiber_id) {
   this->reactor->defered_resume.push_back(fiber_id);
 }
 
@@ -4371,14 +4559,37 @@ void start_tcp_server(int port, int socktype, int nthreads, H conn_handler,
                       std::string ssl_key_path = "", std::string ssl_cert_path = "",
                       std::string ssl_ciphers = "") {
 
+// Start the winsock DLL
+#ifdef _WIN32
+  WORD wVersionRequested;
+  WSADATA wsaData;
+  int err;
+  wVersionRequested = MAKEWORD(2, 2);
+  err = WSAStartup(wVersionRequested, &wsaData);
+  if (err != 0) {
+    std::cerr << "WSAStartup failed with error: " << err << std::endl;
+    return;
+  }
+#endif
+
+// Setup quit signals
+#ifdef _WIN32
+  signal(SIGINT, shutdown_handler);
+  signal(SIGTERM, shutdown_handler);
+  signal(SIGABRT, shutdown_handler);
+#else
   struct sigaction act;
   memset(&act, 0, sizeof(act));
   act.sa_handler = shutdown_handler;
-
   sigaction(SIGINT, &act, 0);
   sigaction(SIGTERM, &act, 0);
   sigaction(SIGQUIT, &act, 0);
+  // Ignore sigpipe signal. Otherwise sendfile causes crashes if the
+  // client closes the connection during the response transfer.
+  signal(SIGPIPE, SIG_IGN);
+#endif
 
+  // Start the server threads.
   int server_fd = impl::create_and_bind(port, socktype);
   std::vector<std::thread> ths;
   for (int i = 0; i < nthreads; i++)
@@ -4392,7 +4603,7 @@ void start_tcp_server(int port, int socktype, int nthreads, H conn_handler,
   for (auto& t : ths)
     t.join();
 
-  close(server_fd);
+  impl::close_socket(server_fd);
 }
 
 } // namespace li
@@ -4428,1096 +4639,1013 @@ inline std::string_view url_unescape(std::string_view str) {
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_URL_UNESCAPE_HH
 
-#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_HTTP_TOP_HEADER_BUILDER_HH
-#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_HTTP_TOP_HEADER_BUILDER_HH
-
-
-// #ifdef LITHIUM_SERVER_NAME
-//   #define MACRO_TO_STR2(L) #L
-//   #define MACRO_TO_STR(L) MACRO_TO_STR2(L)
-
-//   #define LITHIUM_SERVER_NAME_HEADER "Server: " MACRO_TO_STR(LITHIUM_SERVER_NAME) "\r\n"
-
-//   #undef MACRO_TO_STR
-//   #undef MACRO_TO_STR2
-// #else
-//   #define LITHIUM_SERVER_NAME_HEADER "Server: Lithium\r\n"
-// #endif
-
-namespace internal {
-
-struct double_buffer {
-
-  double_buffer() {
-    this->p1 = this->b1;
-    this->p2 = this->b2;
-  }
-
-  void swap() {
-    std::swap(this->p1, this->p2);
-  }
-
-  char* current_buffer() { return this->p1; }
-  char* next_buffer() { return this->p2; }
-  int size() { return 150; }
-
-  char* p1;
-  char* p2;
-  char b1[150];
-  char b2[150];
-};
-
-}
-
-struct http_top_header_builder {
-
-  std::string_view top_header() { return std::string_view(tmp.current_buffer(), top_header_size); }; 
-  std::string_view top_header_200() { return std::string_view(tmp_200.current_buffer(), top_header_200_size); }; 
-
-  void tick() {
-    time_t t = time(NULL);
-    struct tm tm;
-    gmtime_r(&t, &tm);
-
-    top_header_size = strftime(tmp.next_buffer(), tmp.size(),
-#ifdef LITHIUM_SERVER_NAME
-  #define MACRO_TO_STR2(L) #L
-  #define MACRO_TO_STR(L) MACRO_TO_STR2(L)
-  "\r\nServer: " MACRO_TO_STR(LITHIUM_SERVER_NAME) "\r\n"
-
-  #undef MACRO_TO_STR
-  #undef MACRO_TO_STR2
-#else
-  "\r\nServer: Lithium\r\n"
-#endif
-      "Date: %a, %d %b %Y %T GMT\r\n", &tm);
-    tmp.swap();
-
-    top_header_200_size = strftime(tmp_200.next_buffer(), tmp_200.size(), 
-      "HTTP/1.1 200 OK\r\n"
-#ifdef LITHIUM_SERVER_NAME
-  #define MACRO_TO_STR2(L) #L
-  #define MACRO_TO_STR(L) MACRO_TO_STR2(L)
-  "Server: " MACRO_TO_STR(LITHIUM_SERVER_NAME) "\r\n"
-
-  #undef MACRO_TO_STR
-  #undef MACRO_TO_STR2
-#else
-  "Server: Lithium\r\n"
-#endif
-
-      // LITHIUM_SERVER_NAME_HEADER
-      "Date: %a, %d %b %Y %T GMT\r\n", &tm);
-
-    tmp_200.swap();
-  }
-
-  internal::double_buffer tmp;
-  int top_header_size;
-
-  internal::double_buffer tmp_200;
-  int top_header_200_size;
-};
-
-#undef LITHIUM_SERVER_NAME_HEADER
-
-#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_HTTP_TOP_HEADER_BUILDER_HH
-
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_CONTENT_TYPES_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_CONTENT_TYPES_HH
 // This file is generated do not edit it.
 namespace li {
 static std::unordered_map<std::string_view, std::string_view> content_types = {
-{"123","application/vnd.lotus-1-2-3"},
-{"3dml","text/vnd.in3d.3dml"},
-{"3ds","image/x-3ds"},
-{"3g2","video/3gpp2"},
-{"3gp","video/3gpp"},
-{"7z","application/x-7z-compressed"},
-{"aab","application/x-authorware-bin"},
-{"aac","audio/x-aac"},
-{"aam","application/x-authorware-map"},
-{"aas","application/x-authorware-seg"},
-{"abw","application/x-abiword"},
-{"ac","application/pkix-attr-cert"},
-{"acc","application/vnd.americandynamics.acc"},
-{"ace","application/x-ace-compressed"},
-{"acu","application/vnd.acucobol"},
-{"acutc","application/vnd.acucorp"},
-{"adp","audio/adpcm"},
-{"aep","application/vnd.audiograph"},
-{"afm","application/x-font-type1"},
-{"afp","application/vnd.ibm.modcap"},
-{"ahead","application/vnd.ahead.space"},
-{"ai","application/postscript"},
-{"aif","audio/x-aiff"},
-{"aifc","audio/x-aiff"},
-{"aiff","audio/x-aiff"},
-{"air","application/vnd.adobe.air-application-installer-package+zip"},
-{"ait","application/vnd.dvb.ait"},
-{"ami","application/vnd.amiga.ami"},
-{"apk","application/vnd.android.package-archive"},
-{"appcache","text/cache-manifest"},
-{"application","application/x-ms-application"},
-{"apr","application/vnd.lotus-approach"},
-{"arc","application/x-freearc"},
-{"asc","application/pgp-signature"},
-{"asf","video/x-ms-asf"},
-{"asm","text/x-asm"},
-{"aso","application/vnd.accpac.simply.aso"},
-{"asx","video/x-ms-asf"},
-{"atc","application/vnd.acucorp"},
-{"atom","application/atom+xml"},
-{"atomcat","application/atomcat+xml"},
-{"atomsvc","application/atomsvc+xml"},
-{"atx","application/vnd.antix.game-component"},
-{"au","audio/basic"},
-{"avi","video/x-msvideo"},
-{"aw","application/applixware"},
-{"azf","application/vnd.airzip.filesecure.azf"},
-{"azs","application/vnd.airzip.filesecure.azs"},
-{"azw","application/vnd.amazon.ebook"},
-{"bat","application/x-msdownload"},
-{"bcpio","application/x-bcpio"},
-{"bdf","application/x-font-bdf"},
-{"bdm","application/vnd.syncml.dm+wbxml"},
-{"bed","application/vnd.realvnc.bed"},
-{"bh2","application/vnd.fujitsu.oasysprs"},
-{"bin","application/octet-stream"},
-{"blb","application/x-blorb"},
-{"blorb","application/x-blorb"},
-{"bmi","application/vnd.bmi"},
-{"bmp","image/bmp"},
-{"book","application/vnd.framemaker"},
-{"box","application/vnd.previewsystems.box"},
-{"boz","application/x-bzip2"},
-{"bpk","application/octet-stream"},
-{"btif","image/prs.btif"},
-{"bz","application/x-bzip"},
-{"bz2","application/x-bzip2"},
-{"c","text/x-c"},
-{"c11amc","application/vnd.cluetrust.cartomobile-config"},
-{"c11amz","application/vnd.cluetrust.cartomobile-config-pkg"},
-{"c4d","application/vnd.clonk.c4group"},
-{"c4f","application/vnd.clonk.c4group"},
-{"c4g","application/vnd.clonk.c4group"},
-{"c4p","application/vnd.clonk.c4group"},
-{"c4u","application/vnd.clonk.c4group"},
-{"cab","application/vnd.ms-cab-compressed"},
-{"caf","audio/x-caf"},
-{"cap","application/vnd.tcpdump.pcap"},
-{"car","application/vnd.curl.car"},
-{"cat","application/vnd.ms-pki.seccat"},
-{"cb7","application/x-cbr"},
-{"cba","application/x-cbr"},
-{"cbr","application/x-cbr"},
-{"cbt","application/x-cbr"},
-{"cbz","application/x-cbr"},
-{"cc","text/x-c"},
-{"cct","application/x-director"},
-{"ccxml","application/ccxml+xml"},
-{"cdbcmsg","application/vnd.contact.cmsg"},
-{"cdf","application/x-netcdf"},
-{"cdkey","application/vnd.mediastation.cdkey"},
-{"cdmia","application/cdmi-capability"},
-{"cdmic","application/cdmi-container"},
-{"cdmid","application/cdmi-domain"},
-{"cdmio","application/cdmi-object"},
-{"cdmiq","application/cdmi-queue"},
-{"cdx","chemical/x-cdx"},
-{"cdxml","application/vnd.chemdraw+xml"},
-{"cdy","application/vnd.cinderella"},
-{"cer","application/pkix-cert"},
-{"cfs","application/x-cfs-compressed"},
-{"cgm","image/cgm"},
-{"chat","application/x-chat"},
-{"chm","application/vnd.ms-htmlhelp"},
-{"chrt","application/vnd.kde.kchart"},
-{"cif","chemical/x-cif"},
-{"cii","application/vnd.anser-web-certificate-issue-initiation"},
-{"cil","application/vnd.ms-artgalry"},
-{"cla","application/vnd.claymore"},
-{"class","application/java-vm"},
-{"clkk","application/vnd.crick.clicker.keyboard"},
-{"clkp","application/vnd.crick.clicker.palette"},
-{"clkt","application/vnd.crick.clicker.template"},
-{"clkw","application/vnd.crick.clicker.wordbank"},
-{"clkx","application/vnd.crick.clicker"},
-{"clp","application/x-msclip"},
-{"cmc","application/vnd.cosmocaller"},
-{"cmdf","chemical/x-cmdf"},
-{"cml","chemical/x-cml"},
-{"cmp","application/vnd.yellowriver-custom-menu"},
-{"cmx","image/x-cmx"},
-{"cod","application/vnd.rim.cod"},
-{"com","application/x-msdownload"},
-{"conf","text/plain"},
-{"cpio","application/x-cpio"},
-{"cpp","text/x-c"},
-{"cpt","application/mac-compactpro"},
-{"crd","application/x-mscardfile"},
-{"crl","application/pkix-crl"},
-{"crt","application/x-x509-ca-cert"},
-{"cryptonote","application/vnd.rig.cryptonote"},
-{"csh","application/x-csh"},
-{"csml","chemical/x-csml"},
-{"csp","application/vnd.commonspace"},
-{"css","text/css"},
-{"cst","application/x-director"},
-{"csv","text/csv"},
-{"cu","application/cu-seeme"},
-{"curl","text/vnd.curl"},
-{"cww","application/prs.cww"},
-{"cxt","application/x-director"},
-{"cxx","text/x-c"},
-{"dae","model/vnd.collada+xml"},
-{"daf","application/vnd.mobius.daf"},
-{"dart","application/vnd.dart"},
-{"dataless","application/vnd.fdsn.seed"},
-{"davmount","application/davmount+xml"},
-{"dbk","application/docbook+xml"},
-{"dcr","application/x-director"},
-{"dcurl","text/vnd.curl.dcurl"},
-{"dd2","application/vnd.oma.dd2+xml"},
-{"ddd","application/vnd.fujixerox.ddd"},
-{"deb","application/x-debian-package"},
-{"def","text/plain"},
-{"deploy","application/octet-stream"},
-{"der","application/x-x509-ca-cert"},
-{"dfac","application/vnd.dreamfactory"},
-{"dgc","application/x-dgc-compressed"},
-{"dic","text/x-c"},
-{"dir","application/x-director"},
-{"dis","application/vnd.mobius.dis"},
-{"dist","application/octet-stream"},
-{"distz","application/octet-stream"},
-{"djv","image/vnd.djvu"},
-{"djvu","image/vnd.djvu"},
-{"dll","application/x-msdownload"},
-{"dmg","application/x-apple-diskimage"},
-{"dmp","application/vnd.tcpdump.pcap"},
-{"dms","application/octet-stream"},
-{"dna","application/vnd.dna"},
-{"doc","application/msword"},
-{"docm","application/vnd.ms-word.document.macroenabled.12"},
-{"docx","application/vnd.openxmlformats-officedocument.wordprocessingml.document"},
-{"dot","application/msword"},
-{"dotm","application/vnd.ms-word.template.macroenabled.12"},
-{"dotx","application/vnd.openxmlformats-officedocument.wordprocessingml.template"},
-{"dp","application/vnd.osgi.dp"},
-{"dpg","application/vnd.dpgraph"},
-{"dra","audio/vnd.dra"},
-{"dsc","text/prs.lines.tag"},
-{"dssc","application/dssc+der"},
-{"dtb","application/x-dtbook+xml"},
-{"dtd","application/xml-dtd"},
-{"dts","audio/vnd.dts"},
-{"dtshd","audio/vnd.dts.hd"},
-{"dump","application/octet-stream"},
-{"dvb","video/vnd.dvb.file"},
-{"dvi","application/x-dvi"},
-{"dwf","model/vnd.dwf"},
-{"dwg","image/vnd.dwg"},
-{"dxf","image/vnd.dxf"},
-{"dxp","application/vnd.spotfire.dxp"},
-{"dxr","application/x-director"},
-{"ecelp4800","audio/vnd.nuera.ecelp4800"},
-{"ecelp7470","audio/vnd.nuera.ecelp7470"},
-{"ecelp9600","audio/vnd.nuera.ecelp9600"},
-{"ecma","application/ecmascript"},
-{"edm","application/vnd.novadigm.edm"},
-{"edx","application/vnd.novadigm.edx"},
-{"efif","application/vnd.picsel"},
-{"ei6","application/vnd.pg.osasli"},
-{"elc","application/octet-stream"},
-{"emf","application/x-msmetafile"},
-{"eml","message/rfc822"},
-{"emma","application/emma+xml"},
-{"emz","application/x-msmetafile"},
-{"eol","audio/vnd.digital-winds"},
-{"eot","application/vnd.ms-fontobject"},
-{"eps","application/postscript"},
-{"epub","application/epub+zip"},
-{"es3","application/vnd.eszigno3+xml"},
-{"esa","application/vnd.osgi.subsystem"},
-{"esf","application/vnd.epson.esf"},
-{"et3","application/vnd.eszigno3+xml"},
-{"etx","text/x-setext"},
-{"eva","application/x-eva"},
-{"evy","application/x-envoy"},
-{"exe","application/x-msdownload"},
-{"exi","application/exi"},
-{"ext","application/vnd.novadigm.ext"},
-{"ez","application/andrew-inset"},
-{"ez2","application/vnd.ezpix-album"},
-{"ez3","application/vnd.ezpix-package"},
-{"f","text/x-fortran"},
-{"f4v","video/x-f4v"},
-{"f77","text/x-fortran"},
-{"f90","text/x-fortran"},
-{"fbs","image/vnd.fastbidsheet"},
-{"fcdt","application/vnd.adobe.formscentral.fcdt"},
-{"fcs","application/vnd.isac.fcs"},
-{"fdf","application/vnd.fdf"},
-{"fe_launch","application/vnd.denovo.fcselayout-link"},
-{"fg5","application/vnd.fujitsu.oasysgp"},
-{"fgd","application/x-director"},
-{"fh","image/x-freehand"},
-{"fh4","image/x-freehand"},
-{"fh5","image/x-freehand"},
-{"fh7","image/x-freehand"},
-{"fhc","image/x-freehand"},
-{"fig","application/x-xfig"},
-{"flac","audio/x-flac"},
-{"fli","video/x-fli"},
-{"flo","application/vnd.micrografx.flo"},
-{"flv","video/x-flv"},
-{"flw","application/vnd.kde.kivio"},
-{"flx","text/vnd.fmi.flexstor"},
-{"fly","text/vnd.fly"},
-{"fm","application/vnd.framemaker"},
-{"fnc","application/vnd.frogans.fnc"},
-{"for","text/x-fortran"},
-{"fpx","image/vnd.fpx"},
-{"frame","application/vnd.framemaker"},
-{"fsc","application/vnd.fsc.weblaunch"},
-{"fst","image/vnd.fst"},
-{"ftc","application/vnd.fluxtime.clip"},
-{"fti","application/vnd.anser-web-funds-transfer-initiation"},
-{"fvt","video/vnd.fvt"},
-{"fxp","application/vnd.adobe.fxp"},
-{"fxpl","application/vnd.adobe.fxp"},
-{"fzs","application/vnd.fuzzysheet"},
-{"g2w","application/vnd.geoplan"},
-{"g3","image/g3fax"},
-{"g3w","application/vnd.geospace"},
-{"gac","application/vnd.groove-account"},
-{"gam","application/x-tads"},
-{"gbr","application/rpki-ghostbusters"},
-{"gca","application/x-gca-compressed"},
-{"gdl","model/vnd.gdl"},
-{"geo","application/vnd.dynageo"},
-{"gex","application/vnd.geometry-explorer"},
-{"ggb","application/vnd.geogebra.file"},
-{"ggt","application/vnd.geogebra.tool"},
-{"ghf","application/vnd.groove-help"},
-{"gif","image/gif"},
-{"gim","application/vnd.groove-identity-message"},
-{"gml","application/gml+xml"},
-{"gmx","application/vnd.gmx"},
-{"gnumeric","application/x-gnumeric"},
-{"gph","application/vnd.flographit"},
-{"gpx","application/gpx+xml"},
-{"gqf","application/vnd.grafeq"},
-{"gqs","application/vnd.grafeq"},
-{"gram","application/srgs"},
-{"gramps","application/x-gramps-xml"},
-{"gre","application/vnd.geometry-explorer"},
-{"grv","application/vnd.groove-injector"},
-{"grxml","application/srgs+xml"},
-{"gsf","application/x-font-ghostscript"},
-{"gtar","application/x-gtar"},
-{"gtm","application/vnd.groove-tool-message"},
-{"gtw","model/vnd.gtw"},
-{"gv","text/vnd.graphviz"},
-{"gxf","application/gxf"},
-{"gxt","application/vnd.geonext"},
-{"h","text/x-c"},
-{"h261","video/h261"},
-{"h263","video/h263"},
-{"h264","video/h264"},
-{"hal","application/vnd.hal+xml"},
-{"hbci","application/vnd.hbci"},
-{"hdf","application/x-hdf"},
-{"hh","text/x-c"},
-{"hlp","application/winhlp"},
-{"hpgl","application/vnd.hp-hpgl"},
-{"hpid","application/vnd.hp-hpid"},
-{"hps","application/vnd.hp-hps"},
-{"hqx","application/mac-binhex40"},
-{"htke","application/vnd.kenameaapp"},
-{"htm","text/html"},
-{"html","text/html"},
-{"hvd","application/vnd.yamaha.hv-dic"},
-{"hvp","application/vnd.yamaha.hv-voice"},
-{"hvs","application/vnd.yamaha.hv-script"},
-{"i2g","application/vnd.intergeo"},
-{"icc","application/vnd.iccprofile"},
-{"ice","x-conference/x-cooltalk"},
-{"icm","application/vnd.iccprofile"},
-{"ico","image/x-icon"},
-{"ics","text/calendar"},
-{"ief","image/ief"},
-{"ifb","text/calendar"},
-{"ifm","application/vnd.shana.informed.formdata"},
-{"iges","model/iges"},
-{"igl","application/vnd.igloader"},
-{"igm","application/vnd.insors.igm"},
-{"igs","model/iges"},
-{"igx","application/vnd.micrografx.igx"},
-{"iif","application/vnd.shana.informed.interchange"},
-{"imp","application/vnd.accpac.simply.imp"},
-{"ims","application/vnd.ms-ims"},
-{"in","text/plain"},
-{"ink","application/inkml+xml"},
-{"inkml","application/inkml+xml"},
-{"install","application/x-install-instructions"},
-{"iota","application/vnd.astraea-software.iota"},
-{"ipfix","application/ipfix"},
-{"ipk","application/vnd.shana.informed.package"},
-{"irm","application/vnd.ibm.rights-management"},
-{"irp","application/vnd.irepository.package+xml"},
-{"iso","application/x-iso9660-image"},
-{"itp","application/vnd.shana.informed.formtemplate"},
-{"ivp","application/vnd.immervision-ivp"},
-{"ivu","application/vnd.immervision-ivu"},
-{"jad","text/vnd.sun.j2me.app-descriptor"},
-{"jam","application/vnd.jam"},
-{"jar","application/java-archive"},
-{"java","text/x-java-source"},
-{"jisp","application/vnd.jisp"},
-{"jlt","application/vnd.hp-jlyt"},
-{"jnlp","application/x-java-jnlp-file"},
-{"joda","application/vnd.joost.joda-archive"},
-{"jpe","image/jpeg"},
-{"jpeg","image/jpeg"},
-{"jpg","image/jpeg"},
-{"jpgm","video/jpm"},
-{"jpgv","video/jpeg"},
-{"jpm","video/jpm"},
-{"js","application/javascript"},
-{"json","application/json"},
-{"jsonml","application/jsonml+json"},
-{"kar","audio/midi"},
-{"karbon","application/vnd.kde.karbon"},
-{"kfo","application/vnd.kde.kformula"},
-{"kia","application/vnd.kidspiration"},
-{"kml","application/vnd.google-earth.kml+xml"},
-{"kmz","application/vnd.google-earth.kmz"},
-{"kne","application/vnd.kinar"},
-{"knp","application/vnd.kinar"},
-{"kon","application/vnd.kde.kontour"},
-{"kpr","application/vnd.kde.kpresenter"},
-{"kpt","application/vnd.kde.kpresenter"},
-{"kpxx","application/vnd.ds-keypoint"},
-{"ksp","application/vnd.kde.kspread"},
-{"ktr","application/vnd.kahootz"},
-{"ktx","image/ktx"},
-{"ktz","application/vnd.kahootz"},
-{"kwd","application/vnd.kde.kword"},
-{"kwt","application/vnd.kde.kword"},
-{"lasxml","application/vnd.las.las+xml"},
-{"latex","application/x-latex"},
-{"lbd","application/vnd.llamagraphics.life-balance.desktop"},
-{"lbe","application/vnd.llamagraphics.life-balance.exchange+xml"},
-{"les","application/vnd.hhe.lesson-player"},
-{"lha","application/x-lzh-compressed"},
-{"link66","application/vnd.route66.link66+xml"},
-{"list","text/plain"},
-{"list3820","application/vnd.ibm.modcap"},
-{"listafp","application/vnd.ibm.modcap"},
-{"lnk","application/x-ms-shortcut"},
-{"log","text/plain"},
-{"lostxml","application/lost+xml"},
-{"lrf","application/octet-stream"},
-{"lrm","application/vnd.ms-lrm"},
-{"ltf","application/vnd.frogans.ltf"},
-{"lvp","audio/vnd.lucent.voice"},
-{"lwp","application/vnd.lotus-wordpro"},
-{"lzh","application/x-lzh-compressed"},
-{"m13","application/x-msmediaview"},
-{"m14","application/x-msmediaview"},
-{"m1v","video/mpeg"},
-{"m21","application/mp21"},
-{"m2a","audio/mpeg"},
-{"m2v","video/mpeg"},
-{"m3a","audio/mpeg"},
-{"m3u","audio/x-mpegurl"},
-{"m3u8","application/vnd.apple.mpegurl"},
-{"m4a","audio/mp4"},
-{"m4u","video/vnd.mpegurl"},
-{"m4v","video/x-m4v"},
-{"ma","application/mathematica"},
-{"mads","application/mads+xml"},
-{"mag","application/vnd.ecowin.chart"},
-{"maker","application/vnd.framemaker"},
-{"man","text/troff"},
-{"mar","application/octet-stream"},
-{"mathml","application/mathml+xml"},
-{"mb","application/mathematica"},
-{"mbk","application/vnd.mobius.mbk"},
-{"mbox","application/mbox"},
-{"mc1","application/vnd.medcalcdata"},
-{"mcd","application/vnd.mcd"},
-{"mcurl","text/vnd.curl.mcurl"},
-{"mdb","application/x-msaccess"},
-{"mdi","image/vnd.ms-modi"},
-{"me","text/troff"},
-{"mesh","model/mesh"},
-{"meta4","application/metalink4+xml"},
-{"metalink","application/metalink+xml"},
-{"mets","application/mets+xml"},
-{"mfm","application/vnd.mfmp"},
-{"mft","application/rpki-manifest"},
-{"mgp","application/vnd.osgeo.mapguide.package"},
-{"mgz","application/vnd.proteus.magazine"},
-{"mid","audio/midi"},
-{"midi","audio/midi"},
-{"mie","application/x-mie"},
-{"mif","application/vnd.mif"},
-{"mime","message/rfc822"},
-{"mj2","video/mj2"},
-{"mjp2","video/mj2"},
-{"mk3d","video/x-matroska"},
-{"mka","audio/x-matroska"},
-{"mks","video/x-matroska"},
-{"mkv","video/x-matroska"},
-{"mlp","application/vnd.dolby.mlp"},
-{"mmd","application/vnd.chipnuts.karaoke-mmd"},
-{"mmf","application/vnd.smaf"},
-{"mmr","image/vnd.fujixerox.edmics-mmr"},
-{"mng","video/x-mng"},
-{"mny","application/x-msmoney"},
-{"mobi","application/x-mobipocket-ebook"},
-{"mods","application/mods+xml"},
-{"mov","video/quicktime"},
-{"movie","video/x-sgi-movie"},
-{"mp2","audio/mpeg"},
-{"mp21","application/mp21"},
-{"mp2a","audio/mpeg"},
-{"mp3","audio/mpeg"},
-{"mp4","video/mp4"},
-{"mp4a","audio/mp4"},
-{"mp4s","application/mp4"},
-{"mp4v","video/mp4"},
-{"mpc","application/vnd.mophun.certificate"},
-{"mpe","video/mpeg"},
-{"mpeg","video/mpeg"},
-{"mpg","video/mpeg"},
-{"mpg4","video/mp4"},
-{"mpga","audio/mpeg"},
-{"mpkg","application/vnd.apple.installer+xml"},
-{"mpm","application/vnd.blueice.multipass"},
-{"mpn","application/vnd.mophun.application"},
-{"mpp","application/vnd.ms-project"},
-{"mpt","application/vnd.ms-project"},
-{"mpy","application/vnd.ibm.minipay"},
-{"mqy","application/vnd.mobius.mqy"},
-{"mrc","application/marc"},
-{"mrcx","application/marcxml+xml"},
-{"ms","text/troff"},
-{"mscml","application/mediaservercontrol+xml"},
-{"mseed","application/vnd.fdsn.mseed"},
-{"mseq","application/vnd.mseq"},
-{"msf","application/vnd.epson.msf"},
-{"msh","model/mesh"},
-{"msi","application/x-msdownload"},
-{"msl","application/vnd.mobius.msl"},
-{"msty","application/vnd.muvee.style"},
-{"mts","model/vnd.mts"},
-{"mus","application/vnd.musician"},
-{"musicxml","application/vnd.recordare.musicxml+xml"},
-{"mvb","application/x-msmediaview"},
-{"mwf","application/vnd.mfer"},
-{"mxf","application/mxf"},
-{"mxl","application/vnd.recordare.musicxml"},
-{"mxml","application/xv+xml"},
-{"mxs","application/vnd.triscape.mxs"},
-{"mxu","video/vnd.mpegurl"},
-{"n-gage","application/vnd.nokia.n-gage.symbian.install"},
-{"n3","text/n3"},
-{"nb","application/mathematica"},
-{"nbp","application/vnd.wolfram.player"},
-{"nc","application/x-netcdf"},
-{"ncx","application/x-dtbncx+xml"},
-{"nfo","text/x-nfo"},
-{"ngdat","application/vnd.nokia.n-gage.data"},
-{"nitf","application/vnd.nitf"},
-{"nlu","application/vnd.neurolanguage.nlu"},
-{"nml","application/vnd.enliven"},
-{"nnd","application/vnd.noblenet-directory"},
-{"nns","application/vnd.noblenet-sealer"},
-{"nnw","application/vnd.noblenet-web"},
-{"npx","image/vnd.net-fpx"},
-{"nsc","application/x-conference"},
-{"nsf","application/vnd.lotus-notes"},
-{"ntf","application/vnd.nitf"},
-{"nzb","application/x-nzb"},
-{"oa2","application/vnd.fujitsu.oasys2"},
-{"oa3","application/vnd.fujitsu.oasys3"},
-{"oas","application/vnd.fujitsu.oasys"},
-{"obd","application/x-msbinder"},
-{"obj","application/x-tgif"},
-{"oda","application/oda"},
-{"odb","application/vnd.oasis.opendocument.database"},
-{"odc","application/vnd.oasis.opendocument.chart"},
-{"odf","application/vnd.oasis.opendocument.formula"},
-{"odft","application/vnd.oasis.opendocument.formula-template"},
-{"odg","application/vnd.oasis.opendocument.graphics"},
-{"odi","application/vnd.oasis.opendocument.image"},
-{"odm","application/vnd.oasis.opendocument.text-master"},
-{"odp","application/vnd.oasis.opendocument.presentation"},
-{"ods","application/vnd.oasis.opendocument.spreadsheet"},
-{"odt","application/vnd.oasis.opendocument.text"},
-{"oga","audio/ogg"},
-{"ogg","audio/ogg"},
-{"ogv","video/ogg"},
-{"ogx","application/ogg"},
-{"omdoc","application/omdoc+xml"},
-{"onepkg","application/onenote"},
-{"onetmp","application/onenote"},
-{"onetoc","application/onenote"},
-{"onetoc2","application/onenote"},
-{"opf","application/oebps-package+xml"},
-{"opml","text/x-opml"},
-{"oprc","application/vnd.palm"},
-{"opus","audio/ogg"},
-{"org","application/vnd.lotus-organizer"},
-{"osf","application/vnd.yamaha.openscoreformat"},
-{"osfpvg","application/vnd.yamaha.openscoreformat.osfpvg+xml"},
-{"otc","application/vnd.oasis.opendocument.chart-template"},
-{"otf","font/otf"},
-{"otg","application/vnd.oasis.opendocument.graphics-template"},
-{"oth","application/vnd.oasis.opendocument.text-web"},
-{"oti","application/vnd.oasis.opendocument.image-template"},
-{"otp","application/vnd.oasis.opendocument.presentation-template"},
-{"ots","application/vnd.oasis.opendocument.spreadsheet-template"},
-{"ott","application/vnd.oasis.opendocument.text-template"},
-{"oxps","application/oxps"},
-{"oxt","application/vnd.openofficeorg.extension"},
-{"p","text/x-pascal"},
-{"p10","application/pkcs10"},
-{"p12","application/x-pkcs12"},
-{"p7b","application/x-pkcs7-certificates"},
-{"p7c","application/pkcs7-mime"},
-{"p7m","application/pkcs7-mime"},
-{"p7r","application/x-pkcs7-certreqresp"},
-{"p7s","application/pkcs7-signature"},
-{"p8","application/pkcs8"},
-{"pas","text/x-pascal"},
-{"paw","application/vnd.pawaafile"},
-{"pbd","application/vnd.powerbuilder6"},
-{"pbm","image/x-portable-bitmap"},
-{"pcap","application/vnd.tcpdump.pcap"},
-{"pcf","application/x-font-pcf"},
-{"pcl","application/vnd.hp-pcl"},
-{"pclxl","application/vnd.hp-pclxl"},
-{"pct","image/x-pict"},
-{"pcurl","application/vnd.curl.pcurl"},
-{"pcx","image/x-pcx"},
-{"pdb","application/vnd.palm"},
-{"pdf","application/pdf"},
-{"pfa","application/x-font-type1"},
-{"pfb","application/x-font-type1"},
-{"pfm","application/x-font-type1"},
-{"pfr","application/font-tdpfr"},
-{"pfx","application/x-pkcs12"},
-{"pgm","image/x-portable-graymap"},
-{"pgn","application/x-chess-pgn"},
-{"pgp","application/pgp-encrypted"},
-{"pic","image/x-pict"},
-{"pkg","application/octet-stream"},
-{"pki","application/pkixcmp"},
-{"pkipath","application/pkix-pkipath"},
-{"plb","application/vnd.3gpp.pic-bw-large"},
-{"plc","application/vnd.mobius.plc"},
-{"plf","application/vnd.pocketlearn"},
-{"pls","application/pls+xml"},
-{"pml","application/vnd.ctc-posml"},
-{"png","image/png"},
-{"pnm","image/x-portable-anymap"},
-{"portpkg","application/vnd.macports.portpkg"},
-{"pot","application/vnd.ms-powerpoint"},
-{"potm","application/vnd.ms-powerpoint.template.macroenabled.12"},
-{"potx","application/vnd.openxmlformats-officedocument.presentationml.template"},
-{"ppam","application/vnd.ms-powerpoint.addin.macroenabled.12"},
-{"ppd","application/vnd.cups-ppd"},
-{"ppm","image/x-portable-pixmap"},
-{"pps","application/vnd.ms-powerpoint"},
-{"ppsm","application/vnd.ms-powerpoint.slideshow.macroenabled.12"},
-{"ppsx","application/vnd.openxmlformats-officedocument.presentationml.slideshow"},
-{"ppt","application/vnd.ms-powerpoint"},
-{"pptm","application/vnd.ms-powerpoint.presentation.macroenabled.12"},
-{"pptx","application/vnd.openxmlformats-officedocument.presentationml.presentation"},
-{"pqa","application/vnd.palm"},
-{"prc","application/x-mobipocket-ebook"},
-{"pre","application/vnd.lotus-freelance"},
-{"prf","application/pics-rules"},
-{"ps","application/postscript"},
-{"psb","application/vnd.3gpp.pic-bw-small"},
-{"psd","image/vnd.adobe.photoshop"},
-{"psf","application/x-font-linux-psf"},
-{"pskcxml","application/pskc+xml"},
-{"ptid","application/vnd.pvi.ptid1"},
-{"pub","application/x-mspublisher"},
-{"pvb","application/vnd.3gpp.pic-bw-var"},
-{"pwn","application/vnd.3m.post-it-notes"},
-{"pya","audio/vnd.ms-playready.media.pya"},
-{"pyv","video/vnd.ms-playready.media.pyv"},
-{"qam","application/vnd.epson.quickanime"},
-{"qbo","application/vnd.intu.qbo"},
-{"qfx","application/vnd.intu.qfx"},
-{"qps","application/vnd.publishare-delta-tree"},
-{"qt","video/quicktime"},
-{"qwd","application/vnd.quark.quarkxpress"},
-{"qwt","application/vnd.quark.quarkxpress"},
-{"qxb","application/vnd.quark.quarkxpress"},
-{"qxd","application/vnd.quark.quarkxpress"},
-{"qxl","application/vnd.quark.quarkxpress"},
-{"qxt","application/vnd.quark.quarkxpress"},
-{"ra","audio/x-pn-realaudio"},
-{"ram","audio/x-pn-realaudio"},
-{"rar","application/x-rar-compressed"},
-{"ras","image/x-cmu-raster"},
-{"rcprofile","application/vnd.ipunplugged.rcprofile"},
-{"rdf","application/rdf+xml"},
-{"rdz","application/vnd.data-vision.rdz"},
-{"rep","application/vnd.businessobjects"},
-{"res","application/x-dtbresource+xml"},
-{"rgb","image/x-rgb"},
-{"rif","application/reginfo+xml"},
-{"rip","audio/vnd.rip"},
-{"ris","application/x-research-info-systems"},
-{"rl","application/resource-lists+xml"},
-{"rlc","image/vnd.fujixerox.edmics-rlc"},
-{"rld","application/resource-lists-diff+xml"},
-{"rm","application/vnd.rn-realmedia"},
-{"rmi","audio/midi"},
-{"rmp","audio/x-pn-realaudio-plugin"},
-{"rms","application/vnd.jcp.javame.midlet-rms"},
-{"rmvb","application/vnd.rn-realmedia-vbr"},
-{"rnc","application/relax-ng-compact-syntax"},
-{"roa","application/rpki-roa"},
-{"roff","text/troff"},
-{"rp9","application/vnd.cloanto.rp9"},
-{"rpss","application/vnd.nokia.radio-presets"},
-{"rpst","application/vnd.nokia.radio-preset"},
-{"rq","application/sparql-query"},
-{"rs","application/rls-services+xml"},
-{"rsd","application/rsd+xml"},
-{"rss","application/rss+xml"},
-{"rtf","application/rtf"},
-{"rtx","text/richtext"},
-{"s","text/x-asm"},
-{"s3m","audio/s3m"},
-{"saf","application/vnd.yamaha.smaf-audio"},
-{"sbml","application/sbml+xml"},
-{"sc","application/vnd.ibm.secure-container"},
-{"scd","application/x-msschedule"},
-{"scm","application/vnd.lotus-screencam"},
-{"scq","application/scvp-cv-request"},
-{"scs","application/scvp-cv-response"},
-{"scurl","text/vnd.curl.scurl"},
-{"sda","application/vnd.stardivision.draw"},
-{"sdc","application/vnd.stardivision.calc"},
-{"sdd","application/vnd.stardivision.impress"},
-{"sdkd","application/vnd.solent.sdkm+xml"},
-{"sdkm","application/vnd.solent.sdkm+xml"},
-{"sdp","application/sdp"},
-{"sdw","application/vnd.stardivision.writer"},
-{"see","application/vnd.seemail"},
-{"seed","application/vnd.fdsn.seed"},
-{"sema","application/vnd.sema"},
-{"semd","application/vnd.semd"},
-{"semf","application/vnd.semf"},
-{"ser","application/java-serialized-object"},
-{"setpay","application/set-payment-initiation"},
-{"setreg","application/set-registration-initiation"},
-{"sfd-hdstx","application/vnd.hydrostatix.sof-data"},
-{"sfs","application/vnd.spotfire.sfs"},
-{"sfv","text/x-sfv"},
-{"sgi","image/sgi"},
-{"sgl","application/vnd.stardivision.writer-global"},
-{"sgm","text/sgml"},
-{"sgml","text/sgml"},
-{"sh","application/x-sh"},
-{"shar","application/x-shar"},
-{"shf","application/shf+xml"},
-{"sid","image/x-mrsid-image"},
-{"sig","application/pgp-signature"},
-{"sil","audio/silk"},
-{"silo","model/mesh"},
-{"sis","application/vnd.symbian.install"},
-{"sisx","application/vnd.symbian.install"},
-{"sit","application/x-stuffit"},
-{"sitx","application/x-stuffitx"},
-{"skd","application/vnd.koan"},
-{"skm","application/vnd.koan"},
-{"skp","application/vnd.koan"},
-{"skt","application/vnd.koan"},
-{"sldm","application/vnd.ms-powerpoint.slide.macroenabled.12"},
-{"sldx","application/vnd.openxmlformats-officedocument.presentationml.slide"},
-{"slt","application/vnd.epson.salt"},
-{"sm","application/vnd.stepmania.stepchart"},
-{"smf","application/vnd.stardivision.math"},
-{"smi","application/smil+xml"},
-{"smil","application/smil+xml"},
-{"smv","video/x-smv"},
-{"smzip","application/vnd.stepmania.package"},
-{"snd","audio/basic"},
-{"snf","application/x-font-snf"},
-{"so","application/octet-stream"},
-{"spc","application/x-pkcs7-certificates"},
-{"spf","application/vnd.yamaha.smaf-phrase"},
-{"spl","application/x-futuresplash"},
-{"spot","text/vnd.in3d.spot"},
-{"spp","application/scvp-vp-response"},
-{"spq","application/scvp-vp-request"},
-{"spx","audio/ogg"},
-{"sql","application/x-sql"},
-{"src","application/x-wais-source"},
-{"srt","application/x-subrip"},
-{"sru","application/sru+xml"},
-{"srx","application/sparql-results+xml"},
-{"ssdl","application/ssdl+xml"},
-{"sse","application/vnd.kodak-descriptor"},
-{"ssf","application/vnd.epson.ssf"},
-{"ssml","application/ssml+xml"},
-{"st","application/vnd.sailingtracker.track"},
-{"stc","application/vnd.sun.xml.calc.template"},
-{"std","application/vnd.sun.xml.draw.template"},
-{"stf","application/vnd.wt.stf"},
-{"sti","application/vnd.sun.xml.impress.template"},
-{"stk","application/hyperstudio"},
-{"stl","application/vnd.ms-pki.stl"},
-{"str","application/vnd.pg.format"},
-{"stw","application/vnd.sun.xml.writer.template"},
-{"sub","image/vnd.dvb.subtitle"},
-{"sub","text/vnd.dvb.subtitle"},
-{"sus","application/vnd.sus-calendar"},
-{"susp","application/vnd.sus-calendar"},
-{"sv4cpio","application/x-sv4cpio"},
-{"sv4crc","application/x-sv4crc"},
-{"svc","application/vnd.dvb.service"},
-{"svd","application/vnd.svd"},
-{"svg","image/svg+xml"},
-{"svgz","image/svg+xml"},
-{"swa","application/x-director"},
-{"swf","application/x-shockwave-flash"},
-{"swi","application/vnd.aristanetworks.swi"},
-{"sxc","application/vnd.sun.xml.calc"},
-{"sxd","application/vnd.sun.xml.draw"},
-{"sxg","application/vnd.sun.xml.writer.global"},
-{"sxi","application/vnd.sun.xml.impress"},
-{"sxm","application/vnd.sun.xml.math"},
-{"sxw","application/vnd.sun.xml.writer"},
-{"t","text/troff"},
-{"t3","application/x-t3vm-image"},
-{"taglet","application/vnd.mynfc"},
-{"tao","application/vnd.tao.intent-module-archive"},
-{"tar","application/x-tar"},
-{"tcap","application/vnd.3gpp2.tcap"},
-{"tcl","application/x-tcl"},
-{"teacher","application/vnd.smart.teacher"},
-{"tei","application/tei+xml"},
-{"teicorpus","application/tei+xml"},
-{"tex","application/x-tex"},
-{"texi","application/x-texinfo"},
-{"texinfo","application/x-texinfo"},
-{"text","text/plain"},
-{"tfi","application/thraud+xml"},
-{"tfm","application/x-tex-tfm"},
-{"tga","image/x-tga"},
-{"thmx","application/vnd.ms-officetheme"},
-{"tif","image/tiff"},
-{"tiff","image/tiff"},
-{"tmo","application/vnd.tmobile-livetv"},
-{"torrent","application/x-bittorrent"},
-{"tpl","application/vnd.groove-tool-template"},
-{"tpt","application/vnd.trid.tpt"},
-{"tr","text/troff"},
-{"tra","application/vnd.trueapp"},
-{"trm","application/x-msterminal"},
-{"tsd","application/timestamped-data"},
-{"tsv","text/tab-separated-values"},
-{"ttc","font/collection"},
-{"ttf","font/ttf"},
-{"ttl","text/turtle"},
-{"twd","application/vnd.simtech-mindmapper"},
-{"twds","application/vnd.simtech-mindmapper"},
-{"txd","application/vnd.genomatix.tuxedo"},
-{"txf","application/vnd.mobius.txf"},
-{"txt","text/plain"},
-{"u32","application/x-authorware-bin"},
-{"udeb","application/x-debian-package"},
-{"ufd","application/vnd.ufdl"},
-{"ufdl","application/vnd.ufdl"},
-{"ulx","application/x-glulx"},
-{"umj","application/vnd.umajin"},
-{"unityweb","application/vnd.unity"},
-{"uoml","application/vnd.uoml+xml"},
-{"uri","text/uri-list"},
-{"uris","text/uri-list"},
-{"urls","text/uri-list"},
-{"ustar","application/x-ustar"},
-{"utz","application/vnd.uiq.theme"},
-{"uu","text/x-uuencode"},
-{"uva","audio/vnd.dece.audio"},
-{"uvd","application/vnd.dece.data"},
-{"uvf","application/vnd.dece.data"},
-{"uvg","image/vnd.dece.graphic"},
-{"uvh","video/vnd.dece.hd"},
-{"uvi","image/vnd.dece.graphic"},
-{"uvm","video/vnd.dece.mobile"},
-{"uvp","video/vnd.dece.pd"},
-{"uvs","video/vnd.dece.sd"},
-{"uvt","application/vnd.dece.ttml+xml"},
-{"uvu","video/vnd.uvvu.mp4"},
-{"uvv","video/vnd.dece.video"},
-{"uvva","audio/vnd.dece.audio"},
-{"uvvd","application/vnd.dece.data"},
-{"uvvf","application/vnd.dece.data"},
-{"uvvg","image/vnd.dece.graphic"},
-{"uvvh","video/vnd.dece.hd"},
-{"uvvi","image/vnd.dece.graphic"},
-{"uvvm","video/vnd.dece.mobile"},
-{"uvvp","video/vnd.dece.pd"},
-{"uvvs","video/vnd.dece.sd"},
-{"uvvt","application/vnd.dece.ttml+xml"},
-{"uvvu","video/vnd.uvvu.mp4"},
-{"uvvv","video/vnd.dece.video"},
-{"uvvx","application/vnd.dece.unspecified"},
-{"uvvz","application/vnd.dece.zip"},
-{"uvx","application/vnd.dece.unspecified"},
-{"uvz","application/vnd.dece.zip"},
-{"vcard","text/vcard"},
-{"vcd","application/x-cdlink"},
-{"vcf","text/x-vcard"},
-{"vcg","application/vnd.groove-vcard"},
-{"vcs","text/x-vcalendar"},
-{"vcx","application/vnd.vcx"},
-{"vis","application/vnd.visionary"},
-{"viv","video/vnd.vivo"},
-{"vob","video/x-ms-vob"},
-{"vor","application/vnd.stardivision.writer"},
-{"vox","application/x-authorware-bin"},
-{"vrml","model/vrml"},
-{"vsd","application/vnd.visio"},
-{"vsf","application/vnd.vsf"},
-{"vss","application/vnd.visio"},
-{"vst","application/vnd.visio"},
-{"vsw","application/vnd.visio"},
-{"vtu","model/vnd.vtu"},
-{"vxml","application/voicexml+xml"},
-{"w3d","application/x-director"},
-{"wad","application/x-doom"},
-{"wav","audio/x-wav"},
-{"wax","audio/x-ms-wax"},
-{"wbmp","image/vnd.wap.wbmp"},
-{"wbs","application/vnd.criticaltools.wbs+xml"},
-{"wbxml","application/vnd.wap.wbxml"},
-{"wcm","application/vnd.ms-works"},
-{"wdb","application/vnd.ms-works"},
-{"wdp","image/vnd.ms-photo"},
-{"weba","audio/webm"},
-{"webm","video/webm"},
-{"webp","image/webp"},
-{"wg","application/vnd.pmi.widget"},
-{"wgt","application/widget"},
-{"wks","application/vnd.ms-works"},
-{"wm","video/x-ms-wm"},
-{"wma","audio/x-ms-wma"},
-{"wmd","application/x-ms-wmd"},
-{"wmf","application/x-msmetafile"},
-{"wml","text/vnd.wap.wml"},
-{"wmlc","application/vnd.wap.wmlc"},
-{"wmls","text/vnd.wap.wmlscript"},
-{"wmlsc","application/vnd.wap.wmlscriptc"},
-{"wmv","video/x-ms-wmv"},
-{"wmx","video/x-ms-wmx"},
-{"wmz","application/x-ms-wmz"},
-{"wmz","application/x-msmetafile"},
-{"woff","font/woff"},
-{"woff2","font/woff2"},
-{"wpd","application/vnd.wordperfect"},
-{"wpl","application/vnd.ms-wpl"},
-{"wps","application/vnd.ms-works"},
-{"wqd","application/vnd.wqd"},
-{"wri","application/x-mswrite"},
-{"wrl","model/vrml"},
-{"wsdl","application/wsdl+xml"},
-{"wspolicy","application/wspolicy+xml"},
-{"wtb","application/vnd.webturbo"},
-{"wvx","video/x-ms-wvx"},
-{"x32","application/x-authorware-bin"},
-{"x3d","model/x3d+xml"},
-{"x3db","model/x3d+binary"},
-{"x3dbz","model/x3d+binary"},
-{"x3dv","model/x3d+vrml"},
-{"x3dvz","model/x3d+vrml"},
-{"x3dz","model/x3d+xml"},
-{"xaml","application/xaml+xml"},
-{"xap","application/x-silverlight-app"},
-{"xar","application/vnd.xara"},
-{"xbap","application/x-ms-xbap"},
-{"xbd","application/vnd.fujixerox.docuworks.binder"},
-{"xbm","image/x-xbitmap"},
-{"xdf","application/xcap-diff+xml"},
-{"xdm","application/vnd.syncml.dm+xml"},
-{"xdp","application/vnd.adobe.xdp+xml"},
-{"xdssc","application/dssc+xml"},
-{"xdw","application/vnd.fujixerox.docuworks"},
-{"xenc","application/xenc+xml"},
-{"xer","application/patch-ops-error+xml"},
-{"xfdf","application/vnd.adobe.xfdf"},
-{"xfdl","application/vnd.xfdl"},
-{"xht","application/xhtml+xml"},
-{"xhtml","application/xhtml+xml"},
-{"xhvml","application/xv+xml"},
-{"xif","image/vnd.xiff"},
-{"xla","application/vnd.ms-excel"},
-{"xlam","application/vnd.ms-excel.addin.macroenabled.12"},
-{"xlc","application/vnd.ms-excel"},
-{"xlf","application/x-xliff+xml"},
-{"xlm","application/vnd.ms-excel"},
-{"xls","application/vnd.ms-excel"},
-{"xlsb","application/vnd.ms-excel.sheet.binary.macroenabled.12"},
-{"xlsm","application/vnd.ms-excel.sheet.macroenabled.12"},
-{"xlsx","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"},
-{"xlt","application/vnd.ms-excel"},
-{"xltm","application/vnd.ms-excel.template.macroenabled.12"},
-{"xltx","application/vnd.openxmlformats-officedocument.spreadsheetml.template"},
-{"xlw","application/vnd.ms-excel"},
-{"xm","audio/xm"},
-{"xml","application/xml"},
-{"xo","application/vnd.olpc-sugar"},
-{"xop","application/xop+xml"},
-{"xpi","application/x-xpinstall"},
-{"xpl","application/xproc+xml"},
-{"xpm","image/x-xpixmap"},
-{"xpr","application/vnd.is-xpr"},
-{"xps","application/vnd.ms-xpsdocument"},
-{"xpw","application/vnd.intercon.formnet"},
-{"xpx","application/vnd.intercon.formnet"},
-{"xsl","application/xml"},
-{"xslt","application/xslt+xml"},
-{"xsm","application/vnd.syncml+xml"},
-{"xspf","application/xspf+xml"},
-{"xul","application/vnd.mozilla.xul+xml"},
-{"xvm","application/xv+xml"},
-{"xvml","application/xv+xml"},
-{"xwd","image/x-xwindowdump"},
-{"xyz","chemical/x-xyz"},
-{"xz","application/x-xz"},
-{"yang","application/yang"},
-{"yin","application/yin+xml"},
-{"z1","application/x-zmachine"},
-{"z2","application/x-zmachine"},
-{"z3","application/x-zmachine"},
-{"z4","application/x-zmachine"},
-{"z5","application/x-zmachine"},
-{"z6","application/x-zmachine"},
-{"z7","application/x-zmachine"},
-{"z8","application/x-zmachine"},
-{"zaz","application/vnd.zzazz.deck+xml"},
-{"zip","application/zip"},
-{"zir","application/vnd.zul"},
-{"zirz","application/vnd.zul"},
-{"zmm","application/vnd.handheld-entertainment+xml"},
+{"ez", "application/andrew-inset"},
+{"aw", "application/applixware"},
+{"atom", "application/atom+xml"},
+{"atomcat", "application/atomcat+xml"},
+{"atomsvc", "application/atomsvc+xml"},
+{"ccxml", "application/ccxml+xml"},
+{"cdmia", "application/cdmi-capability"},
+{"cdmic", "application/cdmi-container"},
+{"cdmid", "application/cdmi-domain"},
+{"cdmio", "application/cdmi-object"},
+{"cdmiq", "application/cdmi-queue"},
+{"cu", "application/cu-seeme"},
+{"davmount", "application/davmount+xml"},
+{"dbk", "application/docbook+xml"},
+{"dssc", "application/dssc+der"},
+{"xdssc", "application/dssc+xml"},
+{"ecma", "application/ecmascript"},
+{"emma", "application/emma+xml"},
+{"epub", "application/epub+zip"},
+{"exi", "application/exi"},
+{"pfr", "application/font-tdpfr"},
+{"gml", "application/gml+xml"},
+{"gpx", "application/gpx+xml"},
+{"gxf", "application/gxf"},
+{"stk", "application/hyperstudio"},
+{"ink", "application/inkml+xml"},
+{"inkml", "application/inkml+xml"},
+{"ipfix", "application/ipfix"},
+{"jar", "application/java-archive"},
+{"ser", "application/java-serialized-object"},
+{"class", "application/java-vm"},
+{"js", "application/javascript"},
+{"json", "application/json"},
+{"jsonml", "application/jsonml+json"},
+{"lostxml", "application/lost+xml"},
+{"hqx", "application/mac-binhex40"},
+{"cpt", "application/mac-compactpro"},
+{"mads", "application/mads+xml"},
+{"mrc", "application/marc"},
+{"mrcx", "application/marcxml+xml"},
+{"ma", "application/mathematica"},
+{"nb", "application/mathematica"},
+{"mb", "application/mathematica"},
+{"mathml", "application/mathml+xml"},
+{"mbox", "application/mbox"},
+{"mscml", "application/mediaservercontrol+xml"},
+{"metalink", "application/metalink+xml"},
+{"meta4", "application/metalink4+xml"},
+{"mets", "application/mets+xml"},
+{"mods", "application/mods+xml"},
+{"m21", "application/mp21"},
+{"mp21", "application/mp21"},
+{"mp4s", "application/mp4"},
+{"doc", "application/msword"},
+{"dot", "application/msword"},
+{"mxf", "application/mxf"},
+{"bin", "application/octet-stream"},
+{"dms", "application/octet-stream"},
+{"lrf", "application/octet-stream"},
+{"mar", "application/octet-stream"},
+{"so", "application/octet-stream"},
+{"dist", "application/octet-stream"},
+{"distz", "application/octet-stream"},
+{"pkg", "application/octet-stream"},
+{"bpk", "application/octet-stream"},
+{"dump", "application/octet-stream"},
+{"elc", "application/octet-stream"},
+{"deploy", "application/octet-stream"},
+{"oda", "application/oda"},
+{"opf", "application/oebps-package+xml"},
+{"ogx", "application/ogg"},
+{"omdoc", "application/omdoc+xml"},
+{"onetoc", "application/onenote"},
+{"onetoc2", "application/onenote"},
+{"onetmp", "application/onenote"},
+{"onepkg", "application/onenote"},
+{"oxps", "application/oxps"},
+{"xer", "application/patch-ops-error+xml"},
+{"pdf", "application/pdf"},
+{"pgp", "application/pgp-encrypted"},
+{"asc", "application/pgp-signature"},
+{"sig", "application/pgp-signature"},
+{"prf", "application/pics-rules"},
+{"p10", "application/pkcs10"},
+{"p7m", "application/pkcs7-mime"},
+{"p7c", "application/pkcs7-mime"},
+{"p7s", "application/pkcs7-signature"},
+{"p8", "application/pkcs8"},
+{"ac", "application/pkix-attr-cert"},
+{"cer", "application/pkix-cert"},
+{"crl", "application/pkix-crl"},
+{"pkipath", "application/pkix-pkipath"},
+{"pki", "application/pkixcmp"},
+{"pls", "application/pls+xml"},
+{"ai", "application/postscript"},
+{"eps", "application/postscript"},
+{"ps", "application/postscript"},
+{"cww", "application/prs.cww"},
+{"pskcxml", "application/pskc+xml"},
+{"rdf", "application/rdf+xml"},
+{"rif", "application/reginfo+xml"},
+{"rnc", "application/relax-ng-compact-syntax"},
+{"rl", "application/resource-lists+xml"},
+{"rld", "application/resource-lists-diff+xml"},
+{"rs", "application/rls-services+xml"},
+{"gbr", "application/rpki-ghostbusters"},
+{"mft", "application/rpki-manifest"},
+{"roa", "application/rpki-roa"},
+{"rsd", "application/rsd+xml"},
+{"rss", "application/rss+xml"},
+{"rtf", "application/rtf"},
+{"sbml", "application/sbml+xml"},
+{"scq", "application/scvp-cv-request"},
+{"scs", "application/scvp-cv-response"},
+{"spq", "application/scvp-vp-request"},
+{"spp", "application/scvp-vp-response"},
+{"sdp", "application/sdp"},
+{"setpay", "application/set-payment-initiation"},
+{"setreg", "application/set-registration-initiation"},
+{"shf", "application/shf+xml"},
+{"smi", "application/smil+xml"},
+{"smil", "application/smil+xml"},
+{"rq", "application/sparql-query"},
+{"srx", "application/sparql-results+xml"},
+{"gram", "application/srgs"},
+{"grxml", "application/srgs+xml"},
+{"sru", "application/sru+xml"},
+{"ssdl", "application/ssdl+xml"},
+{"ssml", "application/ssml+xml"},
+{"tei", "application/tei+xml"},
+{"teicorpus", "application/tei+xml"},
+{"tfi", "application/thraud+xml"},
+{"tsd", "application/timestamped-data"},
+{"plb", "application/vnd.3gpp.pic-bw-large"},
+{"psb", "application/vnd.3gpp.pic-bw-small"},
+{"pvb", "application/vnd.3gpp.pic-bw-var"},
+{"tcap", "application/vnd.3gpp2.tcap"},
+{"pwn", "application/vnd.3m.post-it-notes"},
+{"aso", "application/vnd.accpac.simply.aso"},
+{"imp", "application/vnd.accpac.simply.imp"},
+{"acu", "application/vnd.acucobol"},
+{"atc", "application/vnd.acucorp"},
+{"acutc", "application/vnd.acucorp"},
+{"air", "application/vnd.adobe.air-application-installer-package+zip"},
+{"fcdt", "application/vnd.adobe.formscentral.fcdt"},
+{"fxp", "application/vnd.adobe.fxp"},
+{"fxpl", "application/vnd.adobe.fxp"},
+{"xdp", "application/vnd.adobe.xdp+xml"},
+{"xfdf", "application/vnd.adobe.xfdf"},
+{"ahead", "application/vnd.ahead.space"},
+{"azf", "application/vnd.airzip.filesecure.azf"},
+{"azs", "application/vnd.airzip.filesecure.azs"},
+{"azw", "application/vnd.amazon.ebook"},
+{"acc", "application/vnd.americandynamics.acc"},
+{"ami", "application/vnd.amiga.ami"},
+{"apk", "application/vnd.android.package-archive"},
+{"cii", "application/vnd.anser-web-certificate-issue-initiation"},
+{"fti", "application/vnd.anser-web-funds-transfer-initiation"},
+{"atx", "application/vnd.antix.game-component"},
+{"mpkg", "application/vnd.apple.installer+xml"},
+{"m3u8", "application/vnd.apple.mpegurl"},
+{"swi", "application/vnd.aristanetworks.swi"},
+{"iota", "application/vnd.astraea-software.iota"},
+{"aep", "application/vnd.audiograph"},
+{"mpm", "application/vnd.blueice.multipass"},
+{"bmi", "application/vnd.bmi"},
+{"rep", "application/vnd.businessobjects"},
+{"cdxml", "application/vnd.chemdraw+xml"},
+{"mmd", "application/vnd.chipnuts.karaoke-mmd"},
+{"cdy", "application/vnd.cinderella"},
+{"cla", "application/vnd.claymore"},
+{"rp9", "application/vnd.cloanto.rp9"},
+{"c4g", "application/vnd.clonk.c4group"},
+{"c4d", "application/vnd.clonk.c4group"},
+{"c4f", "application/vnd.clonk.c4group"},
+{"c4p", "application/vnd.clonk.c4group"},
+{"c4u", "application/vnd.clonk.c4group"},
+{"c11amc", "application/vnd.cluetrust.cartomobile-config"},
+{"c11amz", "application/vnd.cluetrust.cartomobile-config-pkg"},
+{"csp", "application/vnd.commonspace"},
+{"cdbcmsg", "application/vnd.contact.cmsg"},
+{"cmc", "application/vnd.cosmocaller"},
+{"clkx", "application/vnd.crick.clicker"},
+{"clkk", "application/vnd.crick.clicker.keyboard"},
+{"clkp", "application/vnd.crick.clicker.palette"},
+{"clkt", "application/vnd.crick.clicker.template"},
+{"clkw", "application/vnd.crick.clicker.wordbank"},
+{"wbs", "application/vnd.criticaltools.wbs+xml"},
+{"pml", "application/vnd.ctc-posml"},
+{"ppd", "application/vnd.cups-ppd"},
+{"car", "application/vnd.curl.car"},
+{"pcurl", "application/vnd.curl.pcurl"},
+{"dart", "application/vnd.dart"},
+{"rdz", "application/vnd.data-vision.rdz"},
+{"uvf", "application/vnd.dece.data"},
+{"uvvf", "application/vnd.dece.data"},
+{"uvd", "application/vnd.dece.data"},
+{"uvvd", "application/vnd.dece.data"},
+{"uvt", "application/vnd.dece.ttml+xml"},
+{"uvvt", "application/vnd.dece.ttml+xml"},
+{"uvx", "application/vnd.dece.unspecified"},
+{"uvvx", "application/vnd.dece.unspecified"},
+{"uvz", "application/vnd.dece.zip"},
+{"uvvz", "application/vnd.dece.zip"},
+{"fe_launch", "application/vnd.denovo.fcselayout-link"},
+{"dna", "application/vnd.dna"},
+{"mlp", "application/vnd.dolby.mlp"},
+{"dpg", "application/vnd.dpgraph"},
+{"dfac", "application/vnd.dreamfactory"},
+{"kpxx", "application/vnd.ds-keypoint"},
+{"ait", "application/vnd.dvb.ait"},
+{"svc", "application/vnd.dvb.service"},
+{"geo", "application/vnd.dynageo"},
+{"mag", "application/vnd.ecowin.chart"},
+{"nml", "application/vnd.enliven"},
+{"esf", "application/vnd.epson.esf"},
+{"msf", "application/vnd.epson.msf"},
+{"qam", "application/vnd.epson.quickanime"},
+{"slt", "application/vnd.epson.salt"},
+{"ssf", "application/vnd.epson.ssf"},
+{"es3", "application/vnd.eszigno3+xml"},
+{"et3", "application/vnd.eszigno3+xml"},
+{"ez2", "application/vnd.ezpix-album"},
+{"ez3", "application/vnd.ezpix-package"},
+{"fdf", "application/vnd.fdf"},
+{"mseed", "application/vnd.fdsn.mseed"},
+{"seed", "application/vnd.fdsn.seed"},
+{"dataless", "application/vnd.fdsn.seed"},
+{"gph", "application/vnd.flographit"},
+{"ftc", "application/vnd.fluxtime.clip"},
+{"fm", "application/vnd.framemaker"},
+{"frame", "application/vnd.framemaker"},
+{"maker", "application/vnd.framemaker"},
+{"book", "application/vnd.framemaker"},
+{"fnc", "application/vnd.frogans.fnc"},
+{"ltf", "application/vnd.frogans.ltf"},
+{"fsc", "application/vnd.fsc.weblaunch"},
+{"oas", "application/vnd.fujitsu.oasys"},
+{"oa2", "application/vnd.fujitsu.oasys2"},
+{"oa3", "application/vnd.fujitsu.oasys3"},
+{"fg5", "application/vnd.fujitsu.oasysgp"},
+{"bh2", "application/vnd.fujitsu.oasysprs"},
+{"ddd", "application/vnd.fujixerox.ddd"},
+{"xdw", "application/vnd.fujixerox.docuworks"},
+{"xbd", "application/vnd.fujixerox.docuworks.binder"},
+{"fzs", "application/vnd.fuzzysheet"},
+{"txd", "application/vnd.genomatix.tuxedo"},
+{"ggb", "application/vnd.geogebra.file"},
+{"ggt", "application/vnd.geogebra.tool"},
+{"gex", "application/vnd.geometry-explorer"},
+{"gre", "application/vnd.geometry-explorer"},
+{"gxt", "application/vnd.geonext"},
+{"g2w", "application/vnd.geoplan"},
+{"g3w", "application/vnd.geospace"},
+{"gmx", "application/vnd.gmx"},
+{"kml", "application/vnd.google-earth.kml+xml"},
+{"kmz", "application/vnd.google-earth.kmz"},
+{"gqf", "application/vnd.grafeq"},
+{"gqs", "application/vnd.grafeq"},
+{"gac", "application/vnd.groove-account"},
+{"ghf", "application/vnd.groove-help"},
+{"gim", "application/vnd.groove-identity-message"},
+{"grv", "application/vnd.groove-injector"},
+{"gtm", "application/vnd.groove-tool-message"},
+{"tpl", "application/vnd.groove-tool-template"},
+{"vcg", "application/vnd.groove-vcard"},
+{"hal", "application/vnd.hal+xml"},
+{"zmm", "application/vnd.handheld-entertainment+xml"},
+{"hbci", "application/vnd.hbci"},
+{"les", "application/vnd.hhe.lesson-player"},
+{"hpgl", "application/vnd.hp-hpgl"},
+{"hpid", "application/vnd.hp-hpid"},
+{"hps", "application/vnd.hp-hps"},
+{"jlt", "application/vnd.hp-jlyt"},
+{"pcl", "application/vnd.hp-pcl"},
+{"pclxl", "application/vnd.hp-pclxl"},
+{"sfd-hdstx", "application/vnd.hydrostatix.sof-data"},
+{"mpy", "application/vnd.ibm.minipay"},
+{"afp", "application/vnd.ibm.modcap"},
+{"listafp", "application/vnd.ibm.modcap"},
+{"list3820", "application/vnd.ibm.modcap"},
+{"irm", "application/vnd.ibm.rights-management"},
+{"sc", "application/vnd.ibm.secure-container"},
+{"icc", "application/vnd.iccprofile"},
+{"icm", "application/vnd.iccprofile"},
+{"igl", "application/vnd.igloader"},
+{"ivp", "application/vnd.immervision-ivp"},
+{"ivu", "application/vnd.immervision-ivu"},
+{"igm", "application/vnd.insors.igm"},
+{"xpw", "application/vnd.intercon.formnet"},
+{"xpx", "application/vnd.intercon.formnet"},
+{"i2g", "application/vnd.intergeo"},
+{"qbo", "application/vnd.intu.qbo"},
+{"qfx", "application/vnd.intu.qfx"},
+{"rcprofile", "application/vnd.ipunplugged.rcprofile"},
+{"irp", "application/vnd.irepository.package+xml"},
+{"xpr", "application/vnd.is-xpr"},
+{"fcs", "application/vnd.isac.fcs"},
+{"jam", "application/vnd.jam"},
+{"rms", "application/vnd.jcp.javame.midlet-rms"},
+{"jisp", "application/vnd.jisp"},
+{"joda", "application/vnd.joost.joda-archive"},
+{"ktz", "application/vnd.kahootz"},
+{"ktr", "application/vnd.kahootz"},
+{"karbon", "application/vnd.kde.karbon"},
+{"chrt", "application/vnd.kde.kchart"},
+{"kfo", "application/vnd.kde.kformula"},
+{"flw", "application/vnd.kde.kivio"},
+{"kon", "application/vnd.kde.kontour"},
+{"kpr", "application/vnd.kde.kpresenter"},
+{"kpt", "application/vnd.kde.kpresenter"},
+{"ksp", "application/vnd.kde.kspread"},
+{"kwd", "application/vnd.kde.kword"},
+{"kwt", "application/vnd.kde.kword"},
+{"htke", "application/vnd.kenameaapp"},
+{"kia", "application/vnd.kidspiration"},
+{"kne", "application/vnd.kinar"},
+{"knp", "application/vnd.kinar"},
+{"skp", "application/vnd.koan"},
+{"skd", "application/vnd.koan"},
+{"skt", "application/vnd.koan"},
+{"skm", "application/vnd.koan"},
+{"sse", "application/vnd.kodak-descriptor"},
+{"lasxml", "application/vnd.las.las+xml"},
+{"lbd", "application/vnd.llamagraphics.life-balance.desktop"},
+{"lbe", "application/vnd.llamagraphics.life-balance.exchange+xml"},
+{"123", "application/vnd.lotus-1-2-3"},
+{"apr", "application/vnd.lotus-approach"},
+{"pre", "application/vnd.lotus-freelance"},
+{"nsf", "application/vnd.lotus-notes"},
+{"org", "application/vnd.lotus-organizer"},
+{"scm", "application/vnd.lotus-screencam"},
+{"lwp", "application/vnd.lotus-wordpro"},
+{"portpkg", "application/vnd.macports.portpkg"},
+{"mcd", "application/vnd.mcd"},
+{"mc1", "application/vnd.medcalcdata"},
+{"cdkey", "application/vnd.mediastation.cdkey"},
+{"mwf", "application/vnd.mfer"},
+{"mfm", "application/vnd.mfmp"},
+{"flo", "application/vnd.micrografx.flo"},
+{"igx", "application/vnd.micrografx.igx"},
+{"mif", "application/vnd.mif"},
+{"daf", "application/vnd.mobius.daf"},
+{"dis", "application/vnd.mobius.dis"},
+{"mbk", "application/vnd.mobius.mbk"},
+{"mqy", "application/vnd.mobius.mqy"},
+{"msl", "application/vnd.mobius.msl"},
+{"plc", "application/vnd.mobius.plc"},
+{"txf", "application/vnd.mobius.txf"},
+{"mpn", "application/vnd.mophun.application"},
+{"mpc", "application/vnd.mophun.certificate"},
+{"xul", "application/vnd.mozilla.xul+xml"},
+{"cil", "application/vnd.ms-artgalry"},
+{"cab", "application/vnd.ms-cab-compressed"},
+{"xls", "application/vnd.ms-excel"},
+{"xlm", "application/vnd.ms-excel"},
+{"xla", "application/vnd.ms-excel"},
+{"xlc", "application/vnd.ms-excel"},
+{"xlt", "application/vnd.ms-excel"},
+{"xlw", "application/vnd.ms-excel"},
+{"xlam", "application/vnd.ms-excel.addin.macroenabled.12"},
+{"xlsb", "application/vnd.ms-excel.sheet.binary.macroenabled.12"},
+{"xlsm", "application/vnd.ms-excel.sheet.macroenabled.12"},
+{"xltm", "application/vnd.ms-excel.template.macroenabled.12"},
+{"eot", "application/vnd.ms-fontobject"},
+{"chm", "application/vnd.ms-htmlhelp"},
+{"ims", "application/vnd.ms-ims"},
+{"lrm", "application/vnd.ms-lrm"},
+{"thmx", "application/vnd.ms-officetheme"},
+{"cat", "application/vnd.ms-pki.seccat"},
+{"stl", "application/vnd.ms-pki.stl"},
+{"ppt", "application/vnd.ms-powerpoint"},
+{"pps", "application/vnd.ms-powerpoint"},
+{"pot", "application/vnd.ms-powerpoint"},
+{"ppam", "application/vnd.ms-powerpoint.addin.macroenabled.12"},
+{"pptm", "application/vnd.ms-powerpoint.presentation.macroenabled.12"},
+{"sldm", "application/vnd.ms-powerpoint.slide.macroenabled.12"},
+{"ppsm", "application/vnd.ms-powerpoint.slideshow.macroenabled.12"},
+{"potm", "application/vnd.ms-powerpoint.template.macroenabled.12"},
+{"mpp", "application/vnd.ms-project"},
+{"mpt", "application/vnd.ms-project"},
+{"docm", "application/vnd.ms-word.document.macroenabled.12"},
+{"dotm", "application/vnd.ms-word.template.macroenabled.12"},
+{"wps", "application/vnd.ms-works"},
+{"wks", "application/vnd.ms-works"},
+{"wcm", "application/vnd.ms-works"},
+{"wdb", "application/vnd.ms-works"},
+{"wpl", "application/vnd.ms-wpl"},
+{"xps", "application/vnd.ms-xpsdocument"},
+{"mseq", "application/vnd.mseq"},
+{"mus", "application/vnd.musician"},
+{"msty", "application/vnd.muvee.style"},
+{"taglet", "application/vnd.mynfc"},
+{"nlu", "application/vnd.neurolanguage.nlu"},
+{"ntf", "application/vnd.nitf"},
+{"nitf", "application/vnd.nitf"},
+{"nnd", "application/vnd.noblenet-directory"},
+{"nns", "application/vnd.noblenet-sealer"},
+{"nnw", "application/vnd.noblenet-web"},
+{"ngdat", "application/vnd.nokia.n-gage.data"},
+{"n-gage", "application/vnd.nokia.n-gage.symbian.install"},
+{"rpst", "application/vnd.nokia.radio-preset"},
+{"rpss", "application/vnd.nokia.radio-presets"},
+{"edm", "application/vnd.novadigm.edm"},
+{"edx", "application/vnd.novadigm.edx"},
+{"ext", "application/vnd.novadigm.ext"},
+{"odc", "application/vnd.oasis.opendocument.chart"},
+{"otc", "application/vnd.oasis.opendocument.chart-template"},
+{"odb", "application/vnd.oasis.opendocument.database"},
+{"odf", "application/vnd.oasis.opendocument.formula"},
+{"odft", "application/vnd.oasis.opendocument.formula-template"},
+{"odg", "application/vnd.oasis.opendocument.graphics"},
+{"otg", "application/vnd.oasis.opendocument.graphics-template"},
+{"odi", "application/vnd.oasis.opendocument.image"},
+{"oti", "application/vnd.oasis.opendocument.image-template"},
+{"odp", "application/vnd.oasis.opendocument.presentation"},
+{"otp", "application/vnd.oasis.opendocument.presentation-template"},
+{"ods", "application/vnd.oasis.opendocument.spreadsheet"},
+{"ots", "application/vnd.oasis.opendocument.spreadsheet-template"},
+{"odt", "application/vnd.oasis.opendocument.text"},
+{"odm", "application/vnd.oasis.opendocument.text-master"},
+{"ott", "application/vnd.oasis.opendocument.text-template"},
+{"oth", "application/vnd.oasis.opendocument.text-web"},
+{"xo", "application/vnd.olpc-sugar"},
+{"dd2", "application/vnd.oma.dd2+xml"},
+{"oxt", "application/vnd.openofficeorg.extension"},
+{"pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"},
+{"sldx", "application/vnd.openxmlformats-officedocument.presentationml.slide"},
+{"ppsx", "application/vnd.openxmlformats-officedocument.presentationml.slideshow"},
+{"potx", "application/vnd.openxmlformats-officedocument.presentationml.template"},
+{"xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"},
+{"xltx", "application/vnd.openxmlformats-officedocument.spreadsheetml.template"},
+{"docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"},
+{"dotx", "application/vnd.openxmlformats-officedocument.wordprocessingml.template"},
+{"mgp", "application/vnd.osgeo.mapguide.package"},
+{"dp", "application/vnd.osgi.dp"},
+{"esa", "application/vnd.osgi.subsystem"},
+{"pdb", "application/vnd.palm"},
+{"pqa", "application/vnd.palm"},
+{"oprc", "application/vnd.palm"},
+{"paw", "application/vnd.pawaafile"},
+{"str", "application/vnd.pg.format"},
+{"ei6", "application/vnd.pg.osasli"},
+{"efif", "application/vnd.picsel"},
+{"wg", "application/vnd.pmi.widget"},
+{"plf", "application/vnd.pocketlearn"},
+{"pbd", "application/vnd.powerbuilder6"},
+{"box", "application/vnd.previewsystems.box"},
+{"mgz", "application/vnd.proteus.magazine"},
+{"qps", "application/vnd.publishare-delta-tree"},
+{"ptid", "application/vnd.pvi.ptid1"},
+{"qxd", "application/vnd.quark.quarkxpress"},
+{"qxt", "application/vnd.quark.quarkxpress"},
+{"qwd", "application/vnd.quark.quarkxpress"},
+{"qwt", "application/vnd.quark.quarkxpress"},
+{"qxl", "application/vnd.quark.quarkxpress"},
+{"qxb", "application/vnd.quark.quarkxpress"},
+{"bed", "application/vnd.realvnc.bed"},
+{"mxl", "application/vnd.recordare.musicxml"},
+{"musicxml", "application/vnd.recordare.musicxml+xml"},
+{"cryptonote", "application/vnd.rig.cryptonote"},
+{"cod", "application/vnd.rim.cod"},
+{"rm", "application/vnd.rn-realmedia"},
+{"rmvb", "application/vnd.rn-realmedia-vbr"},
+{"link66", "application/vnd.route66.link66+xml"},
+{"st", "application/vnd.sailingtracker.track"},
+{"see", "application/vnd.seemail"},
+{"sema", "application/vnd.sema"},
+{"semd", "application/vnd.semd"},
+{"semf", "application/vnd.semf"},
+{"ifm", "application/vnd.shana.informed.formdata"},
+{"itp", "application/vnd.shana.informed.formtemplate"},
+{"iif", "application/vnd.shana.informed.interchange"},
+{"ipk", "application/vnd.shana.informed.package"},
+{"twd", "application/vnd.simtech-mindmapper"},
+{"twds", "application/vnd.simtech-mindmapper"},
+{"mmf", "application/vnd.smaf"},
+{"teacher", "application/vnd.smart.teacher"},
+{"sdkm", "application/vnd.solent.sdkm+xml"},
+{"sdkd", "application/vnd.solent.sdkm+xml"},
+{"dxp", "application/vnd.spotfire.dxp"},
+{"sfs", "application/vnd.spotfire.sfs"},
+{"sdc", "application/vnd.stardivision.calc"},
+{"sda", "application/vnd.stardivision.draw"},
+{"sdd", "application/vnd.stardivision.impress"},
+{"smf", "application/vnd.stardivision.math"},
+{"sdw", "application/vnd.stardivision.writer"},
+{"vor", "application/vnd.stardivision.writer"},
+{"sgl", "application/vnd.stardivision.writer-global"},
+{"smzip", "application/vnd.stepmania.package"},
+{"sm", "application/vnd.stepmania.stepchart"},
+{"sxc", "application/vnd.sun.xml.calc"},
+{"stc", "application/vnd.sun.xml.calc.template"},
+{"sxd", "application/vnd.sun.xml.draw"},
+{"std", "application/vnd.sun.xml.draw.template"},
+{"sxi", "application/vnd.sun.xml.impress"},
+{"sti", "application/vnd.sun.xml.impress.template"},
+{"sxm", "application/vnd.sun.xml.math"},
+{"sxw", "application/vnd.sun.xml.writer"},
+{"sxg", "application/vnd.sun.xml.writer.global"},
+{"stw", "application/vnd.sun.xml.writer.template"},
+{"sus", "application/vnd.sus-calendar"},
+{"susp", "application/vnd.sus-calendar"},
+{"svd", "application/vnd.svd"},
+{"sis", "application/vnd.symbian.install"},
+{"sisx", "application/vnd.symbian.install"},
+{"xsm", "application/vnd.syncml+xml"},
+{"bdm", "application/vnd.syncml.dm+wbxml"},
+{"xdm", "application/vnd.syncml.dm+xml"},
+{"tao", "application/vnd.tao.intent-module-archive"},
+{"pcap", "application/vnd.tcpdump.pcap"},
+{"cap", "application/vnd.tcpdump.pcap"},
+{"dmp", "application/vnd.tcpdump.pcap"},
+{"tmo", "application/vnd.tmobile-livetv"},
+{"tpt", "application/vnd.trid.tpt"},
+{"mxs", "application/vnd.triscape.mxs"},
+{"tra", "application/vnd.trueapp"},
+{"ufd", "application/vnd.ufdl"},
+{"ufdl", "application/vnd.ufdl"},
+{"utz", "application/vnd.uiq.theme"},
+{"umj", "application/vnd.umajin"},
+{"unityweb", "application/vnd.unity"},
+{"uoml", "application/vnd.uoml+xml"},
+{"vcx", "application/vnd.vcx"},
+{"vsd", "application/vnd.visio"},
+{"vst", "application/vnd.visio"},
+{"vss", "application/vnd.visio"},
+{"vsw", "application/vnd.visio"},
+{"vis", "application/vnd.visionary"},
+{"vsf", "application/vnd.vsf"},
+{"wbxml", "application/vnd.wap.wbxml"},
+{"wmlc", "application/vnd.wap.wmlc"},
+{"wmlsc", "application/vnd.wap.wmlscriptc"},
+{"wtb", "application/vnd.webturbo"},
+{"nbp", "application/vnd.wolfram.player"},
+{"wpd", "application/vnd.wordperfect"},
+{"wqd", "application/vnd.wqd"},
+{"stf", "application/vnd.wt.stf"},
+{"xar", "application/vnd.xara"},
+{"xfdl", "application/vnd.xfdl"},
+{"hvd", "application/vnd.yamaha.hv-dic"},
+{"hvs", "application/vnd.yamaha.hv-script"},
+{"hvp", "application/vnd.yamaha.hv-voice"},
+{"osf", "application/vnd.yamaha.openscoreformat"},
+{"osfpvg", "application/vnd.yamaha.openscoreformat.osfpvg+xml"},
+{"saf", "application/vnd.yamaha.smaf-audio"},
+{"spf", "application/vnd.yamaha.smaf-phrase"},
+{"cmp", "application/vnd.yellowriver-custom-menu"},
+{"zir", "application/vnd.zul"},
+{"zirz", "application/vnd.zul"},
+{"zaz", "application/vnd.zzazz.deck+xml"},
+{"vxml", "application/voicexml+xml"},
+{"wgt", "application/widget"},
+{"hlp", "application/winhlp"},
+{"wsdl", "application/wsdl+xml"},
+{"wspolicy", "application/wspolicy+xml"},
+{"7z", "application/x-7z-compressed"},
+{"abw", "application/x-abiword"},
+{"ace", "application/x-ace-compressed"},
+{"dmg", "application/x-apple-diskimage"},
+{"aab", "application/x-authorware-bin"},
+{"x32", "application/x-authorware-bin"},
+{"u32", "application/x-authorware-bin"},
+{"vox", "application/x-authorware-bin"},
+{"aam", "application/x-authorware-map"},
+{"aas", "application/x-authorware-seg"},
+{"bcpio", "application/x-bcpio"},
+{"torrent", "application/x-bittorrent"},
+{"blb", "application/x-blorb"},
+{"blorb", "application/x-blorb"},
+{"bz", "application/x-bzip"},
+{"bz2", "application/x-bzip2"},
+{"boz", "application/x-bzip2"},
+{"cbr", "application/x-cbr"},
+{"cba", "application/x-cbr"},
+{"cbt", "application/x-cbr"},
+{"cbz", "application/x-cbr"},
+{"cb7", "application/x-cbr"},
+{"vcd", "application/x-cdlink"},
+{"cfs", "application/x-cfs-compressed"},
+{"chat", "application/x-chat"},
+{"pgn", "application/x-chess-pgn"},
+{"nsc", "application/x-conference"},
+{"cpio", "application/x-cpio"},
+{"csh", "application/x-csh"},
+{"deb", "application/x-debian-package"},
+{"udeb", "application/x-debian-package"},
+{"dgc", "application/x-dgc-compressed"},
+{"dir", "application/x-director"},
+{"dcr", "application/x-director"},
+{"dxr", "application/x-director"},
+{"cst", "application/x-director"},
+{"cct", "application/x-director"},
+{"cxt", "application/x-director"},
+{"w3d", "application/x-director"},
+{"fgd", "application/x-director"},
+{"swa", "application/x-director"},
+{"wad", "application/x-doom"},
+{"ncx", "application/x-dtbncx+xml"},
+{"dtb", "application/x-dtbook+xml"},
+{"res", "application/x-dtbresource+xml"},
+{"dvi", "application/x-dvi"},
+{"evy", "application/x-envoy"},
+{"eva", "application/x-eva"},
+{"bdf", "application/x-font-bdf"},
+{"gsf", "application/x-font-ghostscript"},
+{"psf", "application/x-font-linux-psf"},
+{"pcf", "application/x-font-pcf"},
+{"snf", "application/x-font-snf"},
+{"pfa", "application/x-font-type1"},
+{"pfb", "application/x-font-type1"},
+{"pfm", "application/x-font-type1"},
+{"afm", "application/x-font-type1"},
+{"arc", "application/x-freearc"},
+{"spl", "application/x-futuresplash"},
+{"gca", "application/x-gca-compressed"},
+{"ulx", "application/x-glulx"},
+{"gnumeric", "application/x-gnumeric"},
+{"gramps", "application/x-gramps-xml"},
+{"gtar", "application/x-gtar"},
+{"hdf", "application/x-hdf"},
+{"install", "application/x-install-instructions"},
+{"iso", "application/x-iso9660-image"},
+{"jnlp", "application/x-java-jnlp-file"},
+{"latex", "application/x-latex"},
+{"lzh", "application/x-lzh-compressed"},
+{"lha", "application/x-lzh-compressed"},
+{"mie", "application/x-mie"},
+{"prc", "application/x-mobipocket-ebook"},
+{"mobi", "application/x-mobipocket-ebook"},
+{"application", "application/x-ms-application"},
+{"lnk", "application/x-ms-shortcut"},
+{"wmd", "application/x-ms-wmd"},
+{"wmz", "application/x-ms-wmz"},
+{"xbap", "application/x-ms-xbap"},
+{"mdb", "application/x-msaccess"},
+{"obd", "application/x-msbinder"},
+{"crd", "application/x-mscardfile"},
+{"clp", "application/x-msclip"},
+{"exe", "application/x-msdownload"},
+{"dll", "application/x-msdownload"},
+{"com", "application/x-msdownload"},
+{"bat", "application/x-msdownload"},
+{"msi", "application/x-msdownload"},
+{"mvb", "application/x-msmediaview"},
+{"m13", "application/x-msmediaview"},
+{"m14", "application/x-msmediaview"},
+{"wmf", "application/x-msmetafile"},
+{"wmz", "application/x-msmetafile"},
+{"emf", "application/x-msmetafile"},
+{"emz", "application/x-msmetafile"},
+{"mny", "application/x-msmoney"},
+{"pub", "application/x-mspublisher"},
+{"scd", "application/x-msschedule"},
+{"trm", "application/x-msterminal"},
+{"wri", "application/x-mswrite"},
+{"nc", "application/x-netcdf"},
+{"cdf", "application/x-netcdf"},
+{"nzb", "application/x-nzb"},
+{"p12", "application/x-pkcs12"},
+{"pfx", "application/x-pkcs12"},
+{"p7b", "application/x-pkcs7-certificates"},
+{"spc", "application/x-pkcs7-certificates"},
+{"p7r", "application/x-pkcs7-certreqresp"},
+{"rar", "application/x-rar-compressed"},
+{"ris", "application/x-research-info-systems"},
+{"sh", "application/x-sh"},
+{"shar", "application/x-shar"},
+{"swf", "application/x-shockwave-flash"},
+{"xap", "application/x-silverlight-app"},
+{"sql", "application/x-sql"},
+{"sit", "application/x-stuffit"},
+{"sitx", "application/x-stuffitx"},
+{"srt", "application/x-subrip"},
+{"sv4cpio", "application/x-sv4cpio"},
+{"sv4crc", "application/x-sv4crc"},
+{"t3", "application/x-t3vm-image"},
+{"gam", "application/x-tads"},
+{"tar", "application/x-tar"},
+{"tcl", "application/x-tcl"},
+{"tex", "application/x-tex"},
+{"tfm", "application/x-tex-tfm"},
+{"texinfo", "application/x-texinfo"},
+{"texi", "application/x-texinfo"},
+{"obj", "application/x-tgif"},
+{"ustar", "application/x-ustar"},
+{"src", "application/x-wais-source"},
+{"der", "application/x-x509-ca-cert"},
+{"crt", "application/x-x509-ca-cert"},
+{"fig", "application/x-xfig"},
+{"xlf", "application/x-xliff+xml"},
+{"xpi", "application/x-xpinstall"},
+{"xz", "application/x-xz"},
+{"z1", "application/x-zmachine"},
+{"z2", "application/x-zmachine"},
+{"z3", "application/x-zmachine"},
+{"z4", "application/x-zmachine"},
+{"z5", "application/x-zmachine"},
+{"z6", "application/x-zmachine"},
+{"z7", "application/x-zmachine"},
+{"z8", "application/x-zmachine"},
+{"xaml", "application/xaml+xml"},
+{"xdf", "application/xcap-diff+xml"},
+{"xenc", "application/xenc+xml"},
+{"xhtml", "application/xhtml+xml"},
+{"xht", "application/xhtml+xml"},
+{"xml", "application/xml"},
+{"xsl", "application/xml"},
+{"dtd", "application/xml-dtd"},
+{"xop", "application/xop+xml"},
+{"xpl", "application/xproc+xml"},
+{"xslt", "application/xslt+xml"},
+{"xspf", "application/xspf+xml"},
+{"mxml", "application/xv+xml"},
+{"xhvml", "application/xv+xml"},
+{"xvml", "application/xv+xml"},
+{"xvm", "application/xv+xml"},
+{"yang", "application/yang"},
+{"yin", "application/yin+xml"},
+{"zip", "application/zip"},
+{"adp", "audio/adpcm"},
+{"au", "audio/basic"},
+{"snd", "audio/basic"},
+{"mid", "audio/midi"},
+{"midi", "audio/midi"},
+{"kar", "audio/midi"},
+{"rmi", "audio/midi"},
+{"m4a", "audio/mp4"},
+{"mp4a", "audio/mp4"},
+{"mpga", "audio/mpeg"},
+{"mp2", "audio/mpeg"},
+{"mp2a", "audio/mpeg"},
+{"mp3", "audio/mpeg"},
+{"m2a", "audio/mpeg"},
+{"m3a", "audio/mpeg"},
+{"oga", "audio/ogg"},
+{"ogg", "audio/ogg"},
+{"spx", "audio/ogg"},
+{"opus", "audio/ogg"},
+{"s3m", "audio/s3m"},
+{"sil", "audio/silk"},
+{"uva", "audio/vnd.dece.audio"},
+{"uvva", "audio/vnd.dece.audio"},
+{"eol", "audio/vnd.digital-winds"},
+{"dra", "audio/vnd.dra"},
+{"dts", "audio/vnd.dts"},
+{"dtshd", "audio/vnd.dts.hd"},
+{"lvp", "audio/vnd.lucent.voice"},
+{"pya", "audio/vnd.ms-playready.media.pya"},
+{"ecelp4800", "audio/vnd.nuera.ecelp4800"},
+{"ecelp7470", "audio/vnd.nuera.ecelp7470"},
+{"ecelp9600", "audio/vnd.nuera.ecelp9600"},
+{"rip", "audio/vnd.rip"},
+{"weba", "audio/webm"},
+{"aac", "audio/x-aac"},
+{"aif", "audio/x-aiff"},
+{"aiff", "audio/x-aiff"},
+{"aifc", "audio/x-aiff"},
+{"caf", "audio/x-caf"},
+{"flac", "audio/x-flac"},
+{"mka", "audio/x-matroska"},
+{"m3u", "audio/x-mpegurl"},
+{"wax", "audio/x-ms-wax"},
+{"wma", "audio/x-ms-wma"},
+{"ram", "audio/x-pn-realaudio"},
+{"ra", "audio/x-pn-realaudio"},
+{"rmp", "audio/x-pn-realaudio-plugin"},
+{"wav", "audio/x-wav"},
+{"xm", "audio/xm"},
+{"cdx", "chemical/x-cdx"},
+{"cif", "chemical/x-cif"},
+{"cmdf", "chemical/x-cmdf"},
+{"cml", "chemical/x-cml"},
+{"csml", "chemical/x-csml"},
+{"xyz", "chemical/x-xyz"},
+{"ttc", "font/collection"},
+{"otf", "font/otf"},
+{"ttf", "font/ttf"},
+{"woff", "font/woff"},
+{"woff2", "font/woff2"},
+{"bmp", "image/bmp"},
+{"cgm", "image/cgm"},
+{"g3", "image/g3fax"},
+{"gif", "image/gif"},
+{"ief", "image/ief"},
+{"jpeg", "image/jpeg"},
+{"jpg", "image/jpeg"},
+{"jpe", "image/jpeg"},
+{"ktx", "image/ktx"},
+{"png", "image/png"},
+{"btif", "image/prs.btif"},
+{"sgi", "image/sgi"},
+{"svg", "image/svg+xml"},
+{"svgz", "image/svg+xml"},
+{"tiff", "image/tiff"},
+{"tif", "image/tiff"},
+{"psd", "image/vnd.adobe.photoshop"},
+{"uvi", "image/vnd.dece.graphic"},
+{"uvvi", "image/vnd.dece.graphic"},
+{"uvg", "image/vnd.dece.graphic"},
+{"uvvg", "image/vnd.dece.graphic"},
+{"djvu", "image/vnd.djvu"},
+{"djv", "image/vnd.djvu"},
+{"sub", "image/vnd.dvb.subtitle"},
+{"dwg", "image/vnd.dwg"},
+{"dxf", "image/vnd.dxf"},
+{"fbs", "image/vnd.fastbidsheet"},
+{"fpx", "image/vnd.fpx"},
+{"fst", "image/vnd.fst"},
+{"mmr", "image/vnd.fujixerox.edmics-mmr"},
+{"rlc", "image/vnd.fujixerox.edmics-rlc"},
+{"mdi", "image/vnd.ms-modi"},
+{"wdp", "image/vnd.ms-photo"},
+{"npx", "image/vnd.net-fpx"},
+{"wbmp", "image/vnd.wap.wbmp"},
+{"xif", "image/vnd.xiff"},
+{"webp", "image/webp"},
+{"3ds", "image/x-3ds"},
+{"ras", "image/x-cmu-raster"},
+{"cmx", "image/x-cmx"},
+{"fh", "image/x-freehand"},
+{"fhc", "image/x-freehand"},
+{"fh4", "image/x-freehand"},
+{"fh5", "image/x-freehand"},
+{"fh7", "image/x-freehand"},
+{"ico", "image/x-icon"},
+{"sid", "image/x-mrsid-image"},
+{"pcx", "image/x-pcx"},
+{"pic", "image/x-pict"},
+{"pct", "image/x-pict"},
+{"pnm", "image/x-portable-anymap"},
+{"pbm", "image/x-portable-bitmap"},
+{"pgm", "image/x-portable-graymap"},
+{"ppm", "image/x-portable-pixmap"},
+{"rgb", "image/x-rgb"},
+{"tga", "image/x-tga"},
+{"xbm", "image/x-xbitmap"},
+{"xpm", "image/x-xpixmap"},
+{"xwd", "image/x-xwindowdump"},
+{"eml", "message/rfc822"},
+{"mime", "message/rfc822"},
+{"igs", "model/iges"},
+{"iges", "model/iges"},
+{"msh", "model/mesh"},
+{"mesh", "model/mesh"},
+{"silo", "model/mesh"},
+{"dae", "model/vnd.collada+xml"},
+{"dwf", "model/vnd.dwf"},
+{"gdl", "model/vnd.gdl"},
+{"gtw", "model/vnd.gtw"},
+{"mts", "model/vnd.mts"},
+{"vtu", "model/vnd.vtu"},
+{"wrl", "model/vrml"},
+{"vrml", "model/vrml"},
+{"x3db", "model/x3d+binary"},
+{"x3dbz", "model/x3d+binary"},
+{"x3dv", "model/x3d+vrml"},
+{"x3dvz", "model/x3d+vrml"},
+{"x3d", "model/x3d+xml"},
+{"x3dz", "model/x3d+xml"},
+{"appcache", "text/cache-manifest"},
+{"ics", "text/calendar"},
+{"ifb", "text/calendar"},
+{"css", "text/css"},
+{"csv", "text/csv"},
+{"html", "text/html"},
+{"htm", "text/html"},
+{"n3", "text/n3"},
+{"txt", "text/plain"},
+{"text", "text/plain"},
+{"conf", "text/plain"},
+{"def", "text/plain"},
+{"list", "text/plain"},
+{"log", "text/plain"},
+{"in", "text/plain"},
+{"dsc", "text/prs.lines.tag"},
+{"rtx", "text/richtext"},
+{"sgml", "text/sgml"},
+{"sgm", "text/sgml"},
+{"tsv", "text/tab-separated-values"},
+{"t", "text/troff"},
+{"tr", "text/troff"},
+{"roff", "text/troff"},
+{"man", "text/troff"},
+{"me", "text/troff"},
+{"ms", "text/troff"},
+{"ttl", "text/turtle"},
+{"uri", "text/uri-list"},
+{"uris", "text/uri-list"},
+{"urls", "text/uri-list"},
+{"vcard", "text/vcard"},
+{"curl", "text/vnd.curl"},
+{"dcurl", "text/vnd.curl.dcurl"},
+{"mcurl", "text/vnd.curl.mcurl"},
+{"scurl", "text/vnd.curl.scurl"},
+{"sub", "text/vnd.dvb.subtitle"},
+{"fly", "text/vnd.fly"},
+{"flx", "text/vnd.fmi.flexstor"},
+{"gv", "text/vnd.graphviz"},
+{"3dml", "text/vnd.in3d.3dml"},
+{"spot", "text/vnd.in3d.spot"},
+{"jad", "text/vnd.sun.j2me.app-descriptor"},
+{"wml", "text/vnd.wap.wml"},
+{"wmls", "text/vnd.wap.wmlscript"},
+{"s", "text/x-asm"},
+{"asm", "text/x-asm"},
+{"c", "text/x-c"},
+{"cc", "text/x-c"},
+{"cxx", "text/x-c"},
+{"cpp", "text/x-c"},
+{"h", "text/x-c"},
+{"hh", "text/x-c"},
+{"dic", "text/x-c"},
+{"f", "text/x-fortran"},
+{"for", "text/x-fortran"},
+{"f77", "text/x-fortran"},
+{"f90", "text/x-fortran"},
+{"java", "text/x-java-source"},
+{"nfo", "text/x-nfo"},
+{"opml", "text/x-opml"},
+{"p", "text/x-pascal"},
+{"pas", "text/x-pascal"},
+{"etx", "text/x-setext"},
+{"sfv", "text/x-sfv"},
+{"uu", "text/x-uuencode"},
+{"vcs", "text/x-vcalendar"},
+{"vcf", "text/x-vcard"},
+{"3gp", "video/3gpp"},
+{"3g2", "video/3gpp2"},
+{"h261", "video/h261"},
+{"h263", "video/h263"},
+{"h264", "video/h264"},
+{"jpgv", "video/jpeg"},
+{"jpm", "video/jpm"},
+{"jpgm", "video/jpm"},
+{"mj2", "video/mj2"},
+{"mjp2", "video/mj2"},
+{"mp4", "video/mp4"},
+{"mp4v", "video/mp4"},
+{"mpg4", "video/mp4"},
+{"mpeg", "video/mpeg"},
+{"mpg", "video/mpeg"},
+{"mpe", "video/mpeg"},
+{"m1v", "video/mpeg"},
+{"m2v", "video/mpeg"},
+{"ogv", "video/ogg"},
+{"qt", "video/quicktime"},
+{"mov", "video/quicktime"},
+{"uvh", "video/vnd.dece.hd"},
+{"uvvh", "video/vnd.dece.hd"},
+{"uvm", "video/vnd.dece.mobile"},
+{"uvvm", "video/vnd.dece.mobile"},
+{"uvp", "video/vnd.dece.pd"},
+{"uvvp", "video/vnd.dece.pd"},
+{"uvs", "video/vnd.dece.sd"},
+{"uvvs", "video/vnd.dece.sd"},
+{"uvv", "video/vnd.dece.video"},
+{"uvvv", "video/vnd.dece.video"},
+{"dvb", "video/vnd.dvb.file"},
+{"fvt", "video/vnd.fvt"},
+{"mxu", "video/vnd.mpegurl"},
+{"m4u", "video/vnd.mpegurl"},
+{"pyv", "video/vnd.ms-playready.media.pyv"},
+{"uvu", "video/vnd.uvvu.mp4"},
+{"uvvu", "video/vnd.uvvu.mp4"},
+{"viv", "video/vnd.vivo"},
+{"webm", "video/webm"},
+{"f4v", "video/x-f4v"},
+{"fli", "video/x-fli"},
+{"flv", "video/x-flv"},
+{"m4v", "video/x-m4v"},
+{"mkv", "video/x-matroska"},
+{"mk3d", "video/x-matroska"},
+{"mks", "video/x-matroska"},
+{"mng", "video/x-mng"},
+{"asf", "video/x-ms-asf"},
+{"asx", "video/x-ms-asf"},
+{"vob", "video/x-ms-vob"},
+{"wm", "video/x-ms-wm"},
+{"wmv", "video/x-ms-wmv"},
+{"wmx", "video/x-ms-wmx"},
+{"wvx", "video/x-ms-wvx"},
+{"avi", "video/x-msvideo"},
+{"movie", "video/x-sgi-movie"},
+{"smv", "video/x-smv"},
+{"ice", "x-conference/x-cooltalk"},
 };}
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_CONTENT_TYPES_HH
+
+#ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_HTTP_CTX_HH
+#define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_HTTP_CTX_HH
+
+#if not defined(_WIN32)
+#endif
+
+#if __linux__ // the sendfile header does not exists on macos.
+#endif
+
+
+
 
 
 namespace li {
@@ -5527,20 +5655,25 @@ namespace http_async_impl {
 static char* date_buf = nullptr;
 static int date_buf_size = 0;
 
-using ::li::content_types; // static std::unordered_map<std::string_view, std::string_view> content_types
+using ::li::content_types; // static std::unordered_map<std::string_view, std::string_view>
+                           // content_types
 
-static thread_local std::unordered_map<std::string, std::pair<std::string_view, std::string_view>> static_files;
+static thread_local std::unordered_map<std::string, std::pair<std::string_view, std::string_view>>
+    static_files;
 
+#ifndef _WIN32
 http_top_header_builder http_top_header [[gnu::weak]];
+#else
+__declspec(selectany) http_top_header_builder http_top_header;
+#endif
 
-template <typename FIBER>
-struct generic_http_ctx {
+template <typename FIBER> struct generic_http_ctx {
 
   generic_http_ctx(input_buffer& _rb, FIBER& _fiber) : rb(_rb), fiber(_fiber) {
     get_parameters_map.reserve(10);
     response_headers.reserve(20);
 
-    output_stream = output_buffer(50*1024, [&](const char* d, int s) { fiber.write(d, s); });
+    output_stream = output_buffer(50 * 1024, [&](const char* d, int s) { fiber.write(d, s); });
 
     headers_stream =
         output_buffer(1000, [&](const char* d, int s) { output_stream << std::string_view(d, s); });
@@ -5638,17 +5771,6 @@ struct generic_http_ctx {
       output_stream << http_top_header.top_header_200();
     else
       output_stream << "HTTP/1.1 " << status_ << http_top_header.top_header();
-    // output_stream << "HTTP/1.1 " << status_;
-    // output_stream << "\r\nDate: " << std::string_view(date_buf, date_buf_size);
-    // #ifdef LITHIUM_SERVER_NAME
-    //   #define MACRO_TO_STR2(L) #L
-    //   #define MACRO_TO_STR(L) MACRO_TO_STR2(L)
-    //   output_stream << "\r\nConnection: keep-alive\r\nServer: " MACRO_TO_STR(LITHIUM_SERVER_NAME) "\r\n";
-    //   #undef MACRO_TO_STR
-    //   #undef MACRO_TO_STR2
-    // #else
-    //   output_stream << "\r\nConnection: keep-alive\r\nServer: Lithium\r\n";
-    // #endif
   }
 
   void prepare_request() {
@@ -5679,7 +5801,6 @@ struct generic_http_ctx {
         content_type_ = get_value();
         chunked_ = (content_type_ == "chunked");
       }
-
     }
   }
 
@@ -5717,9 +5838,7 @@ struct generic_http_ctx {
     headers_stream.flush(); // flushes to output_stream.
     output_stream << "Content-Length: " << json_stream.to_string_view().size() << "\r\n\r\n";
     json_stream.flush(); // flushes to output_stream.
-    
   }
-
 
   void respond_if_needed() {
     if (!response_written_) {
@@ -5800,9 +5919,103 @@ struct generic_http_ctx {
     }
   }
 
-  void send_static_file(const char* path) {
+  // Send a file.
+  void send_file(const char* path) {
+
+
+#ifndef _WIN32 // Linux / Macos version with sendfile
+
+    // Open the file in non blocking mode.
+    int fd = open(path, O_RDONLY);
+    if (fd == -1)
+      throw http_error::not_found("File not found.");
+
+    // Get file size
+    size_t file_size = lseek(fd, (size_t)0, SEEK_END);
+
+    // Set content type header.
+    size_t ext_pos = std::string_view(path).rfind('.');
+    std::string_view content_type("");
+    if (ext_pos != std::string::npos) {
+      auto type_itr = content_types.find(std::string_view(path).substr(ext_pos + 1).data());
+      if (type_itr != content_types.end()) {
+        content_type = type_itr->second;
+        set_header("Content-Type", content_type);
+      }
+    }
+
+    // Writing the http headers.
+    response_written_ = true;
+    format_top_headers(output_stream);
+    headers_stream.flush(); // flushes headers to output_stream.
+    output_stream << "Content-Length: " << file_size << "\r\n\r\n";
+    output_stream.flush();
+
+    off_t offset = 0;
+    lseek(fd, (size_t)0, 0);
+    while (offset < file_size) {
+#if __APPLE__ // sendfile on macos is slightly different...
+      off_t nwritten = 0;
+      int ret = ::sendfile(fd, socket_fd, offset, &nwritten, nullptr, 0);
+      offset += nwritten;
+      if (ret == 0 && nwritten == 0) break; // end of file.
+#else
+      int ret = ::sendfile(socket_fd, fd, &offset, file_size - offset);
+#endif
+      if (ret != -1) {
+        if (offset < file_size) {
+          continue; // this->fiber.yield();
+        }
+      } else if (errno == EAGAIN) {
+        this->fiber.yield();
+      } else {
+        close(fd);
+        std::cerr << "Internal error: sendfile failed: " << strerror(errno) << std::endl;
+        throw http_error::not_found("Internal error: sendfile failed.");
+      }
+    }
+
+    close(fd);
+
+#else // Windows impl with basic read write.
+
+    // Open file.
+    FILE* fd = fopen(path, "r");
+    if (fd == nullptr)
+      throw http_error::not_found("File not found.");
+
+    // Get file size.
+    DWORD file_size = 0;
+    GetFileSize(fd, &file_size);
+    // Writing the http headers.
+    response_written_ = true;
+    format_top_headers(output_stream);
+    headers_stream.flush(); // flushes to output_stream.
+    output_stream << "Content-Length: " << file_size << "\r\n\r\n"; // Add body
+    output_stream.flush();
+
+    // Read the file and write it to the socket.
+    size_t nread = 1;
+    size_t offset = 0;
+    while (nread != 0) {
+      char buffer[4096];
+      nread = _fread_nolock(buffer, sizeof(buffer), file_size - offset, fd);
+      offset += nread;
+      this->fiber.write(buffer, nread);
+    }
+    if (!feof(fd))
+      throw http_error::not_found("Internal error: Could not reach the end of file.");
+
+#endif
+  }
+
+#if 0
+  // Send a static file. Not used anymore, todo if we want beter performances: implement 
+  // a multiplatform file cache.
+  void send_static_file(const char* path, int cache_duration_second) {
     auto it = static_files.find(path);
     if (static_files.end() == it or !it->second.first.size()) {
+
       int fd = open(path, O_RDONLY);
       if (fd == -1)
         throw http_error::not_found("File not found.");
@@ -5810,32 +6023,30 @@ struct generic_http_ctx {
       int file_size = lseek(fd, (size_t)0, SEEK_END);
       auto content =
           std::string_view((char*)mmap(0, file_size, PROT_READ, MAP_SHARED, fd, 0), file_size);
-      if (!content.data()) throw http_error::not_found("File not found.");
+      if (!content.data())
+        throw http_error::not_found("File not found.");
       close(fd);
 
       size_t ext_pos = std::string_view(path).rfind('.');
       std::string_view content_type("");
-      if (ext_pos != std::string::npos)
-      {
+      if (ext_pos != std::string::npos) {
         auto type_itr = content_types.find(std::string_view(path).substr(ext_pos + 1).data());
-        if (type_itr != content_types.end())
-        {
+        if (type_itr != content_types.end()) {
           content_type = type_itr->second;
           set_header("Content-Type", content_type);
         }
       }
       static_files.insert({path, {content, content_type}});
+
       respond(content);
     } else {
-      if (it->second.second.size())
-      {
+      if (it->second.second.size()) {
         set_header("Content-Type", it->second.second);
       }
       respond(it->second.first);
     }
   }
-
-  // private:
+#endif
 
   void add_header_line(const char* l) { header_lines.push_back(l); }
   const char* last_header_line() { return header_lines.back(); }
@@ -5851,7 +6062,7 @@ struct generic_http_ctx {
 #if 0
     const char* end = (const char*)memchr(start + 1, split_char, line_end - start - 2);
     if (!end) end = line_end - 1;
-#else    
+#else
     const char* end = start + 1;
     while (end < (line_end - 1) and *end != split_char)
       end++;
@@ -5957,23 +6168,24 @@ struct generic_http_ctx {
 
     } else if (chunked_) {
       // Chunked decoding.
-      const char* cur = body_start.data();
-      int chunked_size = strtol(rb.read_until(read, cur, '\r').data(), nullptr, 16);
-      cur++; // skip \n
-      while (chunked_size > 0) {
-        // Read chunk.
-        std::string_view chunk = rb.read_n(read, cur, chunked_size);
-        callback(chunk);
-        rb.free(chunk);
-        cur += chunked_size + 2; // skip \r\n.
+      assert(0);
+      // const char* cur = body_start.data();
+      // int chunked_size = strtol(rb.read_until(read, cur, '\r').data(), nullptr, 16);
+      // cur++; // skip \n
+      // while (chunked_size > 0) {
+      //   // Read chunk.
+      //   std::string_view chunk = rb.read_n(read, cur, chunked_size);
+      //   callback(chunk);
+      //   rb.free(chunk);
+      //   cur += chunked_size + 2; // skip \r\n.
 
-        // Read next chunk size.
-        chunked_size = strtol(rb.read_until(read, cur, '\r').data(), nullptr, 16);
-        cur++; // skip \n
-      }
-      cur += 2; // skip the terminaison chunk.
-      body_end_ = cur;
-      body_ = std::string_view(body_start.data(), cur - body_start.data());
+      //   // Read next chunk size.
+      //   chunked_size = strtol(rb.read_until(read, cur, '\r').data(), nullptr, 16);
+      //   cur++; // skip \n
+      // }
+      // cur += 2; // skip the terminaison chunk.
+      // body_end_ = cur;
+      // body_ = std::string_view(body_start.data(), cur - body_start.data());
     }
   }
 
@@ -6118,7 +6330,7 @@ template <typename F> auto make_http_processor(F handler) {
 
       auto ctx = generic_http_ctx(rb, fiber);
       ctx.socket_fd = fiber.socket_fd;
-      
+
       while (true) {
         ctx.is_body_read_ = false;
         ctx.header_lines.clear();
@@ -6150,55 +6362,61 @@ template <typename F> auto make_http_processor(F handler) {
              cur = rbend + 1;
              break;
            }
-           if (cur[1] == '\n') { // \n already checked by memchr. 
-#else          
+           if (cur[1] == '\n') { // \n already checked by memchr.
+#else
           while ((cur - rb.data()) < rb.end - 3) {
-           if (cur[0] == '\r' and cur[1] == '\n') {
+            if (cur[0] == '\r' and cur[1] == '\n') {
 #endif
-              cur += 2;// skip \r\n
-              ctx.add_header_line(cur);
-              // If we read \r\n twice the header is complete.
-              if (cur[0] == '\r' and cur[1] == '\n')
-              {
-                complete_header = true;
-                cur += 2; // skip \r\n
-                header_end = cur - rb.data();
-                break;
-              }
-            } else
-              cur++;
+          cur += 2; // skip \r\n
+          ctx.add_header_line(cur);
+          // If we read \r\n twice the header is complete.
+          if (cur[0] == '\r' and cur[1] == '\n') {
+            complete_header = true;
+            cur += 2; // skip \r\n
+            header_end = cur - rb.data();
+            break;
           }
-
-          // Read more data from the socket if the headers are not complete.
-          if (!complete_header && 0 == rb.read_more(fiber)) return;
         }
-
-        // Header is complete. Process it.
-        // Run the handler.
-        assert(rb.cursor <= rb.end);
-        ctx.body_start = std::string_view(rb.data() + header_end, rb.end - header_end);
-        ctx.prepare_request();
-        handler(ctx);
-        assert(rb.cursor <= rb.end);
-
-        // Update the cursor the beginning of the next request.
-        ctx.prepare_next_request();
-        // if read buffer is empty, we can flush the output buffer.
-        if (rb.empty())
-          ctx.flush_responses();
+        else cur++;
       }
-    } catch (const std::runtime_error& e) {
-      std::cerr << "Error: " << e.what() << std::endl;
-      return;
+
+      // Read more data from the socket if the headers are not complete.
+      if (!complete_header && 0 == rb.read_more(fiber))
+        return;
     }
-  };
+
+    // Header is complete. Process it.
+    // Run the handler.
+    assert(rb.cursor <= rb.end);
+    ctx.body_start = std::string_view(rb.data() + header_end, rb.end - header_end);
+    ctx.prepare_request();
+    handler(ctx);
+    assert(rb.cursor <= rb.end);
+
+    // Update the cursor the beginning of the next request.
+    ctx.prepare_next_request();
+    // if read buffer is empty, we can flush the output buffer.
+    if (rb.empty())
+      ctx.flush_responses();
+  }
+}
+catch (const std::runtime_error& e) {
+  std::cerr << "Error: " << e.what() << std::endl;
+  return;
+}
+};
 }
 
 } // namespace http_async_impl
 } // namespace li
 
+#endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_HTTP_CTX_HH
+
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_REQUEST_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_REQUEST_HH
+
+#if not defined _WIN32
+#endif
 
 
 
@@ -6476,7 +6694,7 @@ inline auto make_url_parser_info(const std::string_view url) {
         param_name_end++;
 
       if (param_name_end != param_name_start and check_pattern(param_name_end, '}')) {
-        int size = param_name_end - param_name_start;
+        int size = int(param_name_end - param_name_start);
         bool is_path = false;
         if (size > 3 and param_name_end[-1] == '.' and param_name_end[-2] == '.' and
             param_name_end[-3] == '.') {
@@ -6701,9 +6919,13 @@ struct http_response {
     http_ctx.respond(a1); 
   }
 
-  inline void write_static_file(const std::string path) {
-    http_ctx.send_static_file(path.c_str());
+  inline void write_file(const std::string path) {
+    http_ctx.send_file(path.c_str());
   }
+  // Disabled because of missing cache implementation.
+  // inline void write_static_file(const std::string path) {
+  //   http_ctx.send_static_file(path.c_str(), 0);
+  // }
 
   http_async_impl::http_ctx& http_ctx;
   std::string body;
@@ -6716,9 +6938,8 @@ struct http_response {
 
 namespace li {
 
-
 template <typename... O>
-auto http_serve(api<http_request, http_response> api, int port, O... opts) {
+void http_serve(api<http_request, http_response> api, int port, O... opts) {
 
   auto options = mmm(opts...);
 
@@ -6743,41 +6964,39 @@ auto http_serve(api<http_request, http_response> api, int port, O... opts) {
   auto date_thread = std::make_shared<std::thread>([&]() {
     while (!quit_signal_catched) {
       li::http_async_impl::http_top_header.tick();
-      usleep(1e6);
+      std::this_thread::sleep_for(std::chrono::seconds(1));
     }
   });
 
-  auto server_thread = std::make_shared<std::thread>([=]() {
+  auto server_thread = std::make_shared<std::thread>([=] {
     std::cout << "Starting lithium::http_server on port " << port << std::endl;
 
-    if constexpr (has_key(options, s::ssl_key))
-    {
-      static_assert(has_key(options, s::ssl_certificate), "You need to provide both the ssl_certificate option and the ssl_key option.");
+    if constexpr (has_key<decltype(options)>(s::ssl_key)) {
+      static_assert(has_key<decltype(options)>(s::ssl_certificate),
+                    "You need to provide both the ssl_certificate option and the ssl_key option.");
       std::string ssl_key = options.ssl_key;
       std::string ssl_cert = options.ssl_certificate;
-      std::string ssl_ciphers = "";
-      if constexpr (has_key(options, s::ssl_ciphers))
-      {
-        ssl_ciphers = options.ssl_ciphers;
-      }
+      std::string ssl_ciphers = get_or(options, s::ssl_ciphers, "");
       start_tcp_server(port, SOCK_STREAM, nthreads,
-                       http_async_impl::make_http_processor(std::move(handler)),
-                       ssl_key, ssl_cert, ssl_ciphers);
-    }
-    else
+                       http_async_impl::make_http_processor(std::move(handler)), ssl_key,
+                       ssl_cert, ssl_ciphers);
+    } else {
       start_tcp_server(port, SOCK_STREAM, nthreads,
                        http_async_impl::make_http_processor(std::move(handler)));
+    }
     date_thread->join();
   });
 
-  if constexpr (has_key<decltype(options), s::non_blocking_t>()) {
-    usleep(0.1e6);
+  if (has_key<decltype(options), s::non_blocking_t>()) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
     date_thread->detach();
     server_thread->detach();
     // return mmm(s::server_thread = server_thread, s::date_thread = date_thread);
   } else
     server_thread->join();
 }
+
 } // namespace li
 
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_SERVER_HTTP_SERVE_HH
@@ -7080,27 +7299,40 @@ template <typename... A> http_api http_authentication_api(http_authentication<A.
 namespace li {
 
 namespace impl {
-  inline bool is_regular_file(const std::string& path) {
-    struct stat path_stat;
-    if (-1 == stat(path.c_str(), &path_stat))
-      return false;
-    return S_ISREG(path_stat.st_mode);
-  }
+inline bool is_regular_file(const std::string& path) {
+  struct stat path_stat;
+  if (-1 == stat(path.c_str(), &path_stat))
+    return false;
+  return path_stat.st_mode & S_IFREG;
+}
 
-  inline bool is_directory(const std::string& path) {
-    struct stat path_stat;
-    if (-1 == stat(path.c_str(), &path_stat))
-      return false;
-    return S_ISDIR(path_stat.st_mode);
-  }
+inline bool is_directory(const std::string& path) {
+  struct stat path_stat;
+  if (-1 == stat(path.c_str(), &path_stat))
+    return false;
+  return path_stat.st_mode & S_IFDIR;
+}
 
-  inline bool starts_with(const char *pre, const char *str)
-  {
-      size_t lenpre = strlen(pre),
-            lenstr = strlen(str);
-      return lenstr < lenpre ? false : memcmp(pre, str, lenpre) == 0;
-  }
+inline bool starts_with(const char* pre, const char* str) {
+  size_t lenpre = strlen(pre), lenstr = strlen(str);
+  return lenstr < lenpre ? false : memcmp(pre, str, lenpre) == 0;
+}
 } // namespace impl
+
+#if defined _WIN32
+#define CROSSPLATFORM_MAX_PATH MAX_PATH
+#else
+#define CROSSPLATFORM_MAX_PATH PATH_MAX
+#endif
+
+template <unsigned S> bool crossplatform_realpath(const std::string& path, char out_buffer[S]) {
+  // Check if file exists by real file path.
+#if defined _WIN32
+  return 0 != GetFullPathNameA(path.c_str(), S, out_buffer, nullptr);
+#else
+  return nullptr != realpath(path.c_str(), out_buffer);
+#endif
+}
 
 inline auto serve_file(const std::string& root, std::string_view path, http_response& response) {
   static char dot = '.', slash = '/';
@@ -7115,35 +7347,36 @@ inline auto serve_file(const std::string& root, std::string_view path, http_resp
   if (path.empty() || !impl::is_regular_file(full_path)) {
     throw http_error::not_found("file not found.");
   }
-  
+
   // Check if file exists by real file path.
-  char realpath_out[PATH_MAX]{0};
-  if (nullptr == realpath(full_path.c_str(), realpath_out))
+  char realpath_out[CROSSPLATFORM_MAX_PATH]{0};
+  if (!crossplatform_realpath<CROSSPLATFORM_MAX_PATH>(full_path, realpath_out))
     throw http_error::not_found("file not found.");
 
   // Check that path is within the root directory.
   if (!impl::starts_with(root.c_str(), realpath_out))
     throw http_error::not_found("Access denied.");
 
-  response.write_static_file(full_path);
+  response.write_file(full_path);
 };
 
 inline auto serve_directory(const std::string& root) {
-  // extract root realpath. 
-  char realpath_out[PATH_MAX]{0};
-  if (nullptr == realpath(root.c_str(), realpath_out))
-    throw std::runtime_error(std::string("serve_directory error: Directory ") + root + " does not exists.");
+  // extract root realpath.
+
+  char realpath_out[CROSSPLATFORM_MAX_PATH]{0};
+  if (!crossplatform_realpath<CROSSPLATFORM_MAX_PATH>(root, realpath_out))
+    throw std::runtime_error(std::string("serve_directory error: Directory ") + root +
+                             " does not exists.");
 
   // Check if it is a directory.
-  if (!impl::is_directory(realpath_out))
-  {
-    throw std::runtime_error(std::string("serve_directory error: ") + root + " is not a directory.");
+  if (!impl::is_directory(realpath_out)) {
+    throw std::runtime_error(std::string("serve_directory error: ") + root +
+                             " is not a directory.");
   }
 
   // Ensure the root ends with a /
   std::string real_root(realpath_out);
-  if (real_root.back() != '/')
-  {
+  if (real_root.back() != '/') {
     real_root.push_back('/');
   }
 

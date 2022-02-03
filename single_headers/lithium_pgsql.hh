@@ -40,6 +40,9 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#if _WIN32
+#include <winsock2.h>
+#endif
 
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_HH
@@ -48,6 +51,8 @@
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_DATABASE_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_DATABASE_HH
 
+#if not defined _WIN32
+#endif
 
 #include "libpq-fe.h"
 
@@ -252,14 +257,19 @@ template <typename F, typename... A> struct callable_with {
 namespace li {
 
 namespace internal {
-struct {
+struct reduce_add_type {
   template <typename A, typename... B> constexpr auto operator()(A&& a, B&&... b) {
     auto result = a;
     using expand_variadic_pack = int[];
     (void)expand_variadic_pack{0, ((result += b), 0)...};
     return result;
   }
-} reduce_add;
+};
+#ifdef _WIN32
+__declspec(selectany) reduce_add_type reduce_add;
+#else
+reduce_add_type reduce_add [[gnu::weak]];
+#endif
 
 } // namespace internal
 
@@ -281,7 +291,10 @@ template <typename M1, typename... Ms> struct metamap<M1, Ms...> : public M1, pu
   // metamap(self& other)
   //  : metamap(const_cast<const self&>(other)) {}
 
-  constexpr inline metamap(typename M1::_iod_value_type&& m1, typename Ms::_iod_value_type&&... members) : M1{m1}, Ms{std::forward<typename Ms::_iod_value_type>(members)}... {}
+  template <typename M>
+  using get_value_type = typename M::_iod_value_type;
+
+  constexpr inline metamap(get_value_type<M1>&& m1, get_value_type<Ms>&&... members) : M1{m1}, Ms{std::forward<get_value_type<Ms>>(members)}... {}
   constexpr inline metamap(M1&& m1, Ms&&... members) : M1(m1), Ms(std::forward<Ms>(members))... {}
   constexpr inline metamap(const M1& m1, const Ms&... members) : M1(m1), Ms((members))... {}
 
@@ -889,6 +902,8 @@ constexpr auto forward_tuple_as_metamap(std::tuple<S...> keys, const std::tuple<
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_CONNECTION_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_CONNECTION_HH
 
+#if not defined(_WIN32)
+#endif
 
 #include "libpq-fe.h"
 
@@ -1070,6 +1085,11 @@ private:
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_RESULT_HPP
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_RESULT_HPP
 
+
+#ifdef _WIN32
+#else
+#endif
+
 #include "libpq-fe.h"
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_INTERNAL_UTILS_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_INTERNAL_UTILS_HH
@@ -1093,7 +1113,13 @@ template <typename... T> struct unconstref_tuple_elements<std::tuple<T...>> {
 //#include <catalog/pg_type_d.h>
 
 #if __APPLE__ // from https://gist.github.com/yinyin/2027912
+
 #define be64toh(x) OSSwapBigToHostInt64(x)
+
+#elif _WIN32 // from https://gist.github.com/PkmX/63dd23f28ba885be53a5
+
+#define be64toh(x) _byteswap_uint64(x)
+
 #endif
 
 #define INT8OID 20
@@ -1708,6 +1734,9 @@ private:
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_STATEMENT_HPP
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_PGSQL_STATEMENT_HPP
 
+#ifdef _WIN32
+#endif
+
 
 
 namespace li {
@@ -1815,13 +1844,22 @@ sql_result<pgsql_result<Y>> pgsql_statement<Y>::operator()(T&&... args) {
   unsigned int nparams = 0;
   if constexpr (sizeof...(T) > 0)
     nparams = (bind_compute_nparam(std::forward<T>(args)) + ...);
+
+#ifdef _WIN32 // MSVC does not support variable sized arrays.
+  std::vector<const char*> values_(nparams);
+  std::vector<int> lengths_(nparams);
+  std::vector<int> binary_(nparams);
+  const char** values = values_.data();
+  int* lengths = lengths_.data();
+  int* binary = binary_.data();
+#else
   const char* values_[nparams];
   int lengths_[nparams];
   int binary_[nparams];
-
   const char** values = values_;
   int* lengths = lengths_;
   int* binary = binary_;
+#endif
 
   int i = 0;
   tuple_map(std::forward_as_tuple(args...), [&](const auto& a) {
@@ -1946,11 +1984,15 @@ template <typename Y> struct pgsql_connection {
 
 
 namespace li {
+  
 // thread local map of sql_database<I>* -> sql_database_thread_local_data<I>*;
 // This is used to store the thread local async connection pool.
 // void* is used instead of concrete types to handle different I parameter.
-
+#ifndef _WIN32
 thread_local std::unordered_map<void*, void*> sql_thread_local_data [[gnu::weak]];
+#else
+__declspec(selectany) thread_local std::unordered_map<void*, void*> sql_thread_local_data; 
+#endif
 
 template <typename I> struct sql_database_thread_local_data {
 
@@ -2064,8 +2106,8 @@ template <typename I> struct sql_database {
 
     connection_data_type* data = nullptr;
     bool reuse = false;
+    time_t start_time = time(NULL);
     while (!data) {
-
       if (!pool.connections.empty()) {
         auto lock = [&pool, this] {
           if constexpr (std::is_same_v<Y, active_yield>)
@@ -2098,6 +2140,9 @@ template <typename I> struct sql_database {
         if (!data)
           pool.n_connections--;
       }
+
+      if (time(NULL) > start_time + 10)
+        throw std::runtime_error("Timeout: Cannot connect to the database."); 
     }
 
     assert(data);
@@ -2186,6 +2231,8 @@ struct pgsql_database_impl {
     return PQsocket(data->pgconn_);
   }
 
+#ifndef __linux__ // Synchronized connection on Windows and MacOS because async hangs indefinitelly 
+// on these plaforms.
   template <typename Y> inline pgsql_connection_data* new_connection(Y& fiber) {
 
     PGconn* connection = nullptr;
@@ -2193,7 +2240,42 @@ struct pgsql_database_impl {
     std::stringstream coninfo;
     coninfo << "postgresql://" << user_ << ":" << passwd_ << "@" << host_ << ":" << port_ << "/"
             << database_;
-    // connection = PQconnectdb(coninfo.str().c_str());
+    std::cout << "Try to connect: " << coninfo.str() << std::endl;
+    connection = PQconnectdb(coninfo.str().c_str());
+
+    if (!connection) {
+      std::cerr << "Warning: PQconnectdb returned null." << std::endl;
+      return nullptr;
+    }
+
+    pgsql_fd = PQsocket(connection);
+    if (pgsql_fd == -1) {
+      std::cerr << "Warning: PQsocket returned -1: " << PQerrorMessage(connection) << std::endl;
+      // If PQsocket return -1, retry later.
+      PQfinish(connection);
+      return nullptr;
+    }
+
+    #if __linux__
+      fiber.epoll_mod(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
+    #elif __APPLE__
+      fiber.epoll_mod(pgsql_fd, EVFILT_READ | EVFILT_WRITE);
+    #endif
+
+    // pgsql_set_character_set(pgsql, character_set_.c_str());
+    return new pgsql_connection_data{connection, pgsql_fd};
+  }
+#else 
+  template <typename Y> inline pgsql_connection_data* new_connection(Y& fiber) {
+
+    PGconn* connection = nullptr;
+    int pgsql_fd = -1;
+    std::stringstream coninfo;
+    coninfo << "postgresql://" << user_ << ":" << passwd_ << "@" << host_ << ":" << port_ << "/"
+            << database_;
+    std::cout << "Try to connect: " << coninfo.str() << std::endl;
+    //connection = PQconnectdb(coninfo.str().c_str());
+
     connection = PQconnectStart(coninfo.str().c_str());
     if (!connection) {
       std::cerr << "Warning: PQconnectStart returned null." << std::endl;
@@ -2222,7 +2304,14 @@ struct pgsql_database_impl {
     #endif
 
     try {
+      int start_time = time(NULL);
       while (status != PGRES_POLLING_FAILED and status != PGRES_POLLING_OK) {
+        if (time(NULL) > start_time + 10)
+        {
+          std::cerr << "Timeout: Cannot connect to postresql database. Make sure a PostgreSQL server is running "         << " at " << host_ << ":" << port_ << std::endl;
+
+          throw std::runtime_error("Timeout: Cannot connect to postresql database.");
+        }
         int new_pgsql_fd = PQsocket(connection);
         if (new_pgsql_fd != pgsql_fd) {
           pgsql_fd = new_pgsql_fd;
@@ -2256,7 +2345,7 @@ struct pgsql_database_impl {
     // pgsql_set_character_set(pgsql, character_set_.c_str());
     return new pgsql_connection_data{connection, pgsql_fd};
   }
-
+#endif
   template <typename Y>
   auto scoped_connection(Y& fiber, std::shared_ptr<pgsql_connection_data>& data) {
     return pgsql_connection<Y>(fiber, data);
@@ -2479,8 +2568,9 @@ template <typename SCHEMA, typename C> struct sql_orm {
   sql_orm(SCHEMA& schema, C&& con) : schema_(schema), con_(std::forward<C>(con)) {}
 
   template <typename S, typename... A> void call_callback(S s, A&&... args) {
-    if constexpr (has_key<decltype(schema_.get_callbacks())>(S{}))
-      return schema_.get_callbacks()[s](args...);
+    get_or(schema_.get_callbacks(), s, [] (A... args) {})(args...);
+    // if constexpr (has_key<decltype(schema_.get_callbacks())>(S{}))
+    //   return schema_.get_callbacks().template operator[]<S>(s)(args...);
   }
 
   inline auto& drop_table_if_exists() {
@@ -2568,7 +2658,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
   template <typename... W, typename... A> auto find_one(metamap<W...> where, A&&... cb_args) {
 
-    auto stmt = con_.cached_statement([&] (){ 
+    auto stmt = con_.cached_statement([&] { 
         std::ostringstream ss;
         placeholder_pos_ = 0;
         ss << "SELECT ";
@@ -2588,7 +2678,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     });
 
     O result;
-    bool read_success = li::tuple_reduce(metamap_values(where), stmt).template read(metamap_values(result));
+    bool read_success = li::tuple_reduce(metamap_values(where), stmt).read(metamap_values(result));
     if (read_success)
     {
       call_callback(s::read_access, result, cb_args...);

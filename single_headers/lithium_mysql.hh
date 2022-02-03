@@ -237,14 +237,19 @@ template <typename F, typename... A> struct callable_with {
 namespace li {
 
 namespace internal {
-struct {
+struct reduce_add_type {
   template <typename A, typename... B> constexpr auto operator()(A&& a, B&&... b) {
     auto result = a;
     using expand_variadic_pack = int[];
     (void)expand_variadic_pack{0, ((result += b), 0)...};
     return result;
   }
-} reduce_add;
+};
+#ifdef _WIN32
+__declspec(selectany) reduce_add_type reduce_add;
+#else
+reduce_add_type reduce_add [[gnu::weak]];
+#endif
 
 } // namespace internal
 
@@ -266,7 +271,10 @@ template <typename M1, typename... Ms> struct metamap<M1, Ms...> : public M1, pu
   // metamap(self& other)
   //  : metamap(const_cast<const self&>(other)) {}
 
-  constexpr inline metamap(typename M1::_iod_value_type&& m1, typename Ms::_iod_value_type&&... members) : M1{m1}, Ms{std::forward<typename Ms::_iod_value_type>(members)}... {}
+  template <typename M>
+  using get_value_type = typename M::_iod_value_type;
+
+  constexpr inline metamap(get_value_type<M1>&& m1, get_value_type<Ms>&&... members) : M1{m1}, Ms{std::forward<get_value_type<Ms>>(members)}... {}
   constexpr inline metamap(M1&& m1, Ms&&... members) : M1(m1), Ms(std::forward<Ms>(members))... {}
   constexpr inline metamap(const M1& m1, const Ms&... members) : M1(m1), Ms((members))... {}
 
@@ -1689,13 +1697,13 @@ namespace li {
  */
 template <typename B> struct mysql_statement_result {
 
-  mysql_statement_result(B& mysql_wrapper, mysql_statement_data& data,
-                         const std::shared_ptr<mysql_connection_data>& connection)
-      : mysql_wrapper_(mysql_wrapper), data_(data), connection_(connection) {}
+  mysql_statement_result(B& mysql_wrapper_, mysql_statement_data& data_,
+                         const std::shared_ptr<mysql_connection_data>& connection_)
+      : mysql_wrapper_(mysql_wrapper_), data_(data_), connection_(connection_) {}
 
   mysql_statement_result& operator=(mysql_statement_result&) = delete;
   mysql_statement_result(const mysql_statement_result&) = delete;
-  mysql_statement_result(mysql_statement_result&& other) = default;
+  mysql_statement_result(mysql_statement_result&&) = default;
 
   /**
    * @brief Destructor. Free the result if needed.
@@ -1704,7 +1712,7 @@ template <typename B> struct mysql_statement_result {
 
   inline void flush_results() {
     // if (result_allocated_)
-    if (connection_)
+    if (connection_) // connection is null if this has been moved in another instance.
       mysql_wrapper_.mysql_stmt_free_result(connection_->error_, data_.stmt_);
     // result_allocated_ = false;
   }
@@ -1959,10 +1967,12 @@ template <typename B>
 template <typename... T>
 sql_result<mysql_statement_result<B>> mysql_statement<B>::operator()(T&&... args) {
 
-  if (sizeof...(T) > 0) {
+  if constexpr (sizeof...(T) > 0) {
+  // if (sizeof...(T) > 0) {
     // Bind the ...args in the MYSQL BIND structure.
     MYSQL_BIND bind[sizeof...(T)];
-    memset(bind, 0, sizeof(bind));
+    //memset(bind, 0, sizeof...(T) * sizeof(MYSQL_BIND));
+    memset(bind, 0, sizeof(bind)); // does not work compile on windows ? 
     int i = 0;
     tuple_map(std::forward_as_tuple(args...), [&](auto& m) {
       mysql_bind_param(bind[i], m);
@@ -1981,8 +1991,7 @@ sql_result<mysql_statement_result<B>> mysql_statement<B>::operator()(T&&... args
   mysql_wrapper_.mysql_stmt_execute(connection_->error_, data_.stmt_);
 
   // Return the wrapped mysql result.
-  return sql_result<mysql_statement_result<B>>{
-      mysql_statement_result<B>{mysql_wrapper_, data_, connection_}};
+  return sql_result<mysql_statement_result<B>>(mysql_statement_result<B>(mysql_wrapper_, data_, connection_));
 }
 
 } // namespace li
@@ -2210,8 +2219,8 @@ template <typename B> long long int mysql_connection<B>::last_insert_rowid() {
 template <typename B>
 sql_result<mysql_result<B>> mysql_connection<B>::operator()(const std::string& rq) {
   mysql_wrapper_.mysql_real_query(data_->error_, data_->connection_, rq.c_str(), rq.size());
-  return sql_result<mysql_result<B>>{
-      mysql_result<B>{mysql_wrapper_, data_}};
+ return sql_result<mysql_result<B>>(
+      mysql_result<B>(mysql_wrapper_, data_));
 }
 
 template <typename B>
@@ -2269,11 +2278,15 @@ template <typename B> mysql_statement<B> mysql_connection<B>::prepare(const std:
 
 
 namespace li {
+  
 // thread local map of sql_database<I>* -> sql_database_thread_local_data<I>*;
 // This is used to store the thread local async connection pool.
 // void* is used instead of concrete types to handle different I parameter.
-
+#ifndef _WIN32
 thread_local std::unordered_map<void*, void*> sql_thread_local_data [[gnu::weak]];
+#else
+__declspec(selectany) thread_local std::unordered_map<void*, void*> sql_thread_local_data; 
+#endif
 
 template <typename I> struct sql_database_thread_local_data {
 
@@ -2387,8 +2400,8 @@ template <typename I> struct sql_database {
 
     connection_data_type* data = nullptr;
     bool reuse = false;
+    time_t start_time = time(NULL);
     while (!data) {
-
       if (!pool.connections.empty()) {
         auto lock = [&pool, this] {
           if constexpr (std::is_same_v<Y, active_yield>)
@@ -2421,6 +2434,9 @@ template <typename I> struct sql_database {
         if (!data)
           pool.n_connections--;
       }
+
+      if (time(NULL) > start_time + 10)
+        throw std::runtime_error("Timeout: Cannot connect to the database."); 
     }
 
     assert(data);
@@ -2841,8 +2857,9 @@ template <typename SCHEMA, typename C> struct sql_orm {
   sql_orm(SCHEMA& schema, C&& con) : schema_(schema), con_(std::forward<C>(con)) {}
 
   template <typename S, typename... A> void call_callback(S s, A&&... args) {
-    if constexpr (has_key<decltype(schema_.get_callbacks())>(S{}))
-      return schema_.get_callbacks()[s](args...);
+    get_or(schema_.get_callbacks(), s, [] (A... args) {})(args...);
+    // if constexpr (has_key<decltype(schema_.get_callbacks())>(S{}))
+    //   return schema_.get_callbacks().template operator[]<S>(s)(args...);
   }
 
   inline auto& drop_table_if_exists() {
@@ -2930,7 +2947,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
   template <typename... W, typename... A> auto find_one(metamap<W...> where, A&&... cb_args) {
 
-    auto stmt = con_.cached_statement([&] (){ 
+    auto stmt = con_.cached_statement([&] { 
         std::ostringstream ss;
         placeholder_pos_ = 0;
         ss << "SELECT ";
@@ -2950,7 +2967,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     });
 
     O result;
-    bool read_success = li::tuple_reduce(metamap_values(where), stmt).template read(metamap_values(result));
+    bool read_success = li::tuple_reduce(metamap_values(where), stmt).read(metamap_values(result));
     if (read_success)
     {
       call_callback(s::read_access, result, cb_args...);

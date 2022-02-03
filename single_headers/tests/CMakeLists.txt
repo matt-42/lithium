@@ -2,20 +2,6 @@ cmake_minimum_required(VERSION 3.0)
 
 project(li)
 
-find_package(MYSQL REQUIRED)
-find_package(PostgreSQL REQUIRED)
-find_package(Boost REQUIRED context)
-find_package(SQLite3 REQUIRED)
-find_package(CURL REQUIRED)
-find_package(Threads REQUIRED)
-find_package(OpenSSL REQUIRED)
-
-include_directories(${SQLite3_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS} ${MYSQL_INCLUDE_DIR})
-include_directories(${PostgreSQL_INCLUDE_DIRS})
-include_directories(${Boost_INCLUDE_DIRS})
-set(LIBS ${SQLite3_LIBRARIES} ${CURL_LIBRARIES} ${MYSQL_LIBRARY} ${PostgreSQL_LIBRARIES} 
-          ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} ${OPENSSL_LIBRARIES})
-
 set(CMAKE_CXX_STANDARD 17)
 
 include_directories(${CMAKE_SOURCE_DIR}/single_headers) # tests include there headers
@@ -31,7 +17,10 @@ function(add_sh_executable target_name)
 endfunction(add_sh_executable)
 
 #set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -march=native -mtune=native -flto") 
-add_definitions(-Wno-ignored-attributes) # to skip postgresql warnings.
+
+IF (NOT WIN32)
+  add_definitions(-Wno-ignored-attributes) # to skip postgresql warnings.
+ENDIF ()
 
 add_sh_executable(json json.cc)
 add_sh_executable(http_server http_server.cc)

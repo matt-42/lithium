@@ -411,14 +411,19 @@ template <template <class> class F, typename T> decltype(auto) tuple_filter(T&& 
 namespace li {
 
 namespace internal {
-struct {
+struct reduce_add_type {
   template <typename A, typename... B> constexpr auto operator()(A&& a, B&&... b) {
     auto result = a;
     using expand_variadic_pack = int[];
     (void)expand_variadic_pack{0, ((result += b), 0)...};
     return result;
   }
-} reduce_add;
+};
+#ifdef _WIN32
+__declspec(selectany) reduce_add_type reduce_add;
+#else
+reduce_add_type reduce_add [[gnu::weak]];
+#endif
 
 } // namespace internal
 
@@ -440,7 +445,10 @@ template <typename M1, typename... Ms> struct metamap<M1, Ms...> : public M1, pu
   // metamap(self& other)
   //  : metamap(const_cast<const self&>(other)) {}
 
-  constexpr inline metamap(typename M1::_iod_value_type&& m1, typename Ms::_iod_value_type&&... members) : M1{m1}, Ms{std::forward<typename Ms::_iod_value_type>(members)}... {}
+  template <typename M>
+  using get_value_type = typename M::_iod_value_type;
+
+  constexpr inline metamap(get_value_type<M1>&& m1, get_value_type<Ms>&&... members) : M1{m1}, Ms{std::forward<get_value_type<Ms>>(members)}... {}
   constexpr inline metamap(M1&& m1, Ms&&... members) : M1(m1), Ms(std::forward<Ms>(members))... {}
   constexpr inline metamap(const M1& m1, const Ms&... members) : M1(m1), Ms((members))... {}
 
@@ -1612,8 +1620,7 @@ struct sqlite_statement {
     if (last_step_ret != SQLITE_ROW and last_step_ret != SQLITE_DONE)
       throw std::runtime_error(sqlite3_errstr(last_step_ret));
 
-    return sql_result<sqlite_statement_result>{
-        sqlite_statement_result{this->db_, this->stmt_, last_step_ret}};
+    return sql_result<sqlite_statement_result>(sqlite_statement_result{this->db_, this->stmt_, last_step_ret});
   }
 
   inline int bind(sqlite3_stmt* stmt, int pos, double d) const {
@@ -1786,8 +1793,9 @@ template <typename SCHEMA, typename C> struct sql_orm {
   sql_orm(SCHEMA& schema, C&& con) : schema_(schema), con_(std::forward<C>(con)) {}
 
   template <typename S, typename... A> void call_callback(S s, A&&... args) {
-    if constexpr (has_key<decltype(schema_.get_callbacks())>(S{}))
-      return schema_.get_callbacks()[s](args...);
+    get_or(schema_.get_callbacks(), s, [] (A... args) {})(args...);
+    // if constexpr (has_key<decltype(schema_.get_callbacks())>(S{}))
+    //   return schema_.get_callbacks().template operator[]<S>(s)(args...);
   }
 
   inline auto& drop_table_if_exists() {
@@ -1875,7 +1883,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
 
   template <typename... W, typename... A> auto find_one(metamap<W...> where, A&&... cb_args) {
 
-    auto stmt = con_.cached_statement([&] (){ 
+    auto stmt = con_.cached_statement([&] { 
         std::ostringstream ss;
         placeholder_pos_ = 0;
         ss << "SELECT ";
@@ -1895,7 +1903,7 @@ template <typename SCHEMA, typename C> struct sql_orm {
     });
 
     O result;
-    bool read_success = li::tuple_reduce(metamap_values(where), stmt).template read(metamap_values(result));
+    bool read_success = li::tuple_reduce(metamap_values(where), stmt).read(metamap_values(result));
     if (read_success)
     {
       call_callback(s::read_access, result, cb_args...);

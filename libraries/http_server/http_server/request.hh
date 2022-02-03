@@ -1,6 +1,9 @@
 #pragma once
 
+#if not defined _WIN32
 #include <arpa/inet.h>
+#endif
+
 #include <boost/lexical_cast.hpp>
 #include <iostream>
 #include <set>
@@ -12,6 +15,7 @@
 
 #include <li/http_server/error.hh>
 #include <li/http_server/url_decode.hh>
+#include <li/http_server/http_ctx.hh>
 
 #include <li/metamap/metamap.hh>
 
@@ -74,7 +78,7 @@ inline auto make_url_parser_info(const std::string_view url) {
         param_name_end++;
 
       if (param_name_end != param_name_start and check_pattern(param_name_end, '}')) {
-        int size = param_name_end - param_name_start;
+        int size = int(param_name_end - param_name_start);
         bool is_path = false;
         if (size > 3 and param_name_end[-1] == '.' and param_name_end[-2] == '.' and
             param_name_end[-3] == '.') {

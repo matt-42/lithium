@@ -4,8 +4,11 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#if not defined(_WIN32)
 #include <netdb.h>
 #include <netinet/tcp.h>
+#endif
+
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,9 +20,18 @@
 #include <sys/event.h>
 #endif
 
+#if defined __linux__ || defined __APPLE__
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
+#endif
+
+#if defined _WIN32
+#include <WS2tcpip.h>
+#include <WinSock2.h>
+#include <wepoll.h>
+#endif
+
 #include <deque>
 #include <thread>
 #include <vector>
@@ -32,16 +44,35 @@ namespace li {
 
 namespace impl {
 
+#if defined _WIN32
+typedef SOCKET socket_type;
+#else
+typedef int socket_type;
+#endif
+
+inline int close_socket(socket_type sock) {
+#if defined _WIN32
+  return closesocket(sock);
+#else
+  return close(sock);
+#endif
+}
+
 // Helper to create a TCP/UDP server socket.
-static int create_and_bind(int port, int socktype) {
+static socket_type create_and_bind(int port, int socktype) {
   struct addrinfo hints;
   struct addrinfo *result, *rp;
-  int s, sfd;
+  int s;
+
+  socket_type sfd;
 
   char port_str[20];
   snprintf(port_str, sizeof(port_str), "%d", port);
   memset(&hints, 0, sizeof(struct addrinfo));
-  hints.ai_family = AF_UNSPEC;  /* Return IPv4 and IPv6 choices */
+  
+  // On windows, setting up the dual-stack mode (ipv4/ipv6 on the same socket).
+  // https://docs.microsoft.com/en-us/windows/win32/winsock/dual-stack-sockets
+  hints.ai_family = AF_INET6;
   hints.ai_socktype = socktype; /* We want a TCP socket */
   hints.ai_flags = AI_PASSIVE;  /* All interfaces */
 
@@ -56,13 +87,23 @@ static int create_and_bind(int port, int socktype) {
     if (sfd == -1)
       continue;
 
-    s = bind(sfd, rp->ai_addr, rp->ai_addrlen);
+    // Turn of IPV6_V6ONLY to accept ipv4.
+    // https://stackoverflow.com/questions/1618240/how-to-support-both-ipv4-and-ipv6-connections
+    int ipv6only = 0;
+    if(setsockopt(sfd, IPPROTO_IPV6, IPV6_V6ONLY, (char*)&ipv6only, sizeof(ipv6only)) != 0)
+    {
+      std::cerr << "FATAL ERROR: setsockopt error when setting IPV6_V6ONLY to 0: " << strerror(errno)
+                << std::endl;
+    }
+
+    s = bind(sfd, rp->ai_addr, int(rp->ai_addrlen));
     if (s == 0) {
       /* We managed to bind successfully! */
       break;
     }
-
-    close(sfd);
+    else {
+      close_socket(sfd);
+    }
   }
 
   if (rp == NULL) {
@@ -72,8 +113,20 @@ static int create_and_bind(int port, int socktype) {
 
   freeaddrinfo(result);
 
+#if _WIN32
+  u_long set_on = 1;
+  auto ret = ioctlsocket(sfd, (long)FIONBIO, &set_on);
+  if (ret) {
+    std::cerr << "FATAL ERROR: Cannot set socket to non blocking mode with ioctlsocket"
+              << std::endl;
+  }
+
+#else
   int flags = fcntl(sfd, F_GETFL, 0);
   fcntl(sfd, F_SETFL, flags | O_NONBLOCK);
+
+#endif
+  
   ::listen(sfd, SOMAXCONN);
 
   return sfd;
@@ -117,27 +170,27 @@ struct async_fiber_context {
   inline async_fiber_context(const async_fiber_context&) = delete;
 
   inline async_fiber_context(async_reactor* reactor, boost::context::continuation&& sink,
-                      int fiber_id, int socket_fd, sockaddr in_addr)
+                             int fiber_id, int socket_fd, sockaddr in_addr)
       : reactor(reactor), sink(std::forward<boost::context::continuation&&>(sink)),
-        fiber_id(fiber_id), socket_fd(socket_fd),
-        in_addr(in_addr) {}
+        fiber_id(fiber_id), socket_fd(socket_fd), in_addr(in_addr) {}
 
   inline void yield() { sink = sink.resume(); }
-       
+
   inline bool ssl_handshake(std::unique_ptr<ssl_context>& ssl_ctx) {
-    if (!ssl_ctx) return false;
+    if (!ssl_ctx)
+      return false;
 
     ssl = SSL_new(ssl_ctx->ctx);
     SSL_set_fd(ssl, socket_fd);
 
     while (int ret = SSL_accept(ssl)) {
-      if (ret == 1) return true;
+      if (ret == 1)
+        return true;
 
       int err = SSL_get_error(ssl, ret);
       if (err == SSL_ERROR_WANT_WRITE || err == SSL_ERROR_WANT_READ)
         this->yield();
-      else
-      {
+      else {
         ERR_print_errors_fp(stderr);
         return false;
         // throw std::runtime_error("Error during https handshake.");
@@ -147,8 +200,7 @@ struct async_fiber_context {
   }
 
   inline ~async_fiber_context() {
-    if (ssl)
-    {
+    if (ssl) {
       SSL_shutdown(ssl);
       SSL_free(ssl);
     }
@@ -175,10 +227,10 @@ struct async_fiber_context {
   }
 
   inline int read(char* buf, int max_size) {
-    ssize_t count = read_impl(buf, max_size);
+    int count = read_impl(buf, max_size);
     while (count <= 0) {
       if ((count < 0 and errno != EAGAIN) or count == 0)
-        return ssize_t(0);
+        return int(0);
       sink = sink.resume();
       count = read_impl(buf, max_size);
     }
@@ -192,14 +244,14 @@ struct async_fiber_context {
       return true;
     }
     const char* end = buf + size;
-    ssize_t count = write_impl(buf, end - buf);
+    int count = write_impl(buf, end - buf);
     if (count > 0)
       buf += count;
     while (buf != end) {
       if ((count < 0 and errno != EAGAIN) or count == 0)
         return false;
       sink = sink.resume();
-      count = write_impl(buf, end - buf);
+      count = write_impl(buf, int(end - buf));
       if (count > 0)
         buf += count;
     }
@@ -211,7 +263,13 @@ struct async_reactor {
 
   typedef boost::context::continuation continuation;
 
-  int epoll_fd;
+#if defined _WIN32
+  typedef HANDLE epoll_handle_t;
+#else
+  typedef int epoll_handle_t;
+#endif
+
+  epoll_handle_t epoll_fd;
   std::vector<continuation> fibers;
   std::vector<int> fd_to_fiber_idx;
   std::unique_ptr<ssl_context> ssl_ctx = nullptr;
@@ -226,13 +284,11 @@ struct async_reactor {
     return fibers[fiber_idx];
   }
 
-  inline void reassign_fd_to_fiber(int fd, int fiber_idx) {
-    fd_to_fiber_idx[fd] = fiber_idx;
-  }
+  inline void reassign_fd_to_fiber(int fd, int fiber_idx) { fd_to_fiber_idx[fd] = fiber_idx; }
 
-  inline void epoll_ctl(int epoll_fd, int fd, int action, uint32_t flags) {
+  inline void epoll_ctl(epoll_handle_t epoll_fd, int fd, int action, uint32_t flags) {
 
-    #if __linux__
+#if __linux__ || _WIN32
     {
       epoll_event event;
       memset(&event, 0, sizeof(event));
@@ -241,21 +297,21 @@ struct async_reactor {
       if (-1 == ::epoll_ctl(epoll_fd, action, fd, &event) and errno != EEXIST)
         std::cout << "epoll_ctl error: " << strerror(errno) << std::endl;
     }
-    #elif __APPLE__
+#elif __APPLE__
     {
       struct kevent ev_set;
       EV_SET(&ev_set, fd, flags, action, 0, 0, NULL);
       kevent(epoll_fd, &ev_set, 1, NULL, 0, NULL);
     }
-    #endif
+#endif
   };
 
   inline void epoll_add(int new_fd, int flags, int fiber_idx = -1) {
-    #if __linux__
+#if __linux__ || _WIN32
     epoll_ctl(epoll_fd, new_fd, EPOLL_CTL_ADD, flags);
-    #elif __APPLE__
+#elif __APPLE__
     epoll_ctl(epoll_fd, new_fd, EV_ADD, flags);
-    #endif
+#endif
 
     // Associate new_fd to the fiber.
     if (int(fd_to_fiber_idx.size()) < new_fd + 1)
@@ -263,21 +319,35 @@ struct async_reactor {
     fd_to_fiber_idx[new_fd] = fiber_idx;
   }
 
-  inline void epoll_mod(int fd, int flags) { 
-    #if __linux__
-    epoll_ctl(epoll_fd, fd, EPOLL_CTL_MOD, flags); 
-    #elif __APPLE__
-    epoll_ctl(epoll_fd, fd, EV_ADD, flags); 
-    #endif
-    }
+  inline void epoll_del(int fd) {
+#if __linux__ || _WIN32
+    epoll_ctl(epoll_fd, fd, EPOLL_CTL_DEL, 0);
+#elif __APPLE__
+    epoll_ctl(epoll_fd, fd, EV_DELETE, 0);
+#endif
+  }
+
+  inline void epoll_mod(int fd, int flags) {
+#if __linux__ || _WIN32
+    epoll_ctl(epoll_fd, fd, EPOLL_CTL_MOD, flags);
+#elif __APPLE__
+    epoll_ctl(epoll_fd, fd, EV_ADD, flags);
+#endif
+  }
 
   template <typename H> void event_loop(int listen_fd, H handler) {
 
     const int MAXEVENTS = 64;
 
-#if __linux__
+#if __linux__ || _WIN32
     this->epoll_fd = epoll_create1(0);
+#ifdef _WIN32
+    // epollet is not implemented by wepoll.
+    epoll_ctl(epoll_fd, listen_fd, EPOLL_CTL_ADD, EPOLLIN);
+#else
     epoll_ctl(epoll_fd, listen_fd, EPOLL_CTL_ADD, EPOLLIN | EPOLLET);
+#endif
+
     epoll_event events[MAXEVENTS];
 
 #elif __APPLE__
@@ -293,13 +363,13 @@ struct async_reactor {
     timeout.tv_nsec = 10000;
 #endif
 
-
     // Main loop.
     while (!quit_signal_catched) {
 
-#if __linux__
+#if __linux__ || _WIN32
       // Wakeup to check if any quit signal has been catched.
       int n_events = epoll_wait(epoll_fd, events, MAXEVENTS, 1);
+      // std::cout << "got " << n_events << " epoll events." << std::endl;
 #elif __APPLE__
       // kevent is already listening to quit signals.
       int n_events = kevent(epoll_fd, NULL, 0, events, MAXEVENTS, &timeout);
@@ -308,35 +378,35 @@ struct async_reactor {
       if (quit_signal_catched)
         break;
 
-      if (n_events == 0 )
+      if (n_events == 0)
         for (int i = 0; i < fibers.size(); i++)
           if (fibers[i])
             fibers[i] = fibers[i].resume();
 
       for (int i = 0; i < n_events; i++) {
 
-
 #if __APPLE__
         int event_flags = events[i].flags;
         int event_fd = events[i].ident;
 
-        if (events[i].filter == EVFILT_SIGNAL)
-        {
-          if (event_fd == SIGINT) std::cout << "SIGINT" << std::endl; 
-          if (event_fd == SIGTERM) std::cout << "SIGTERM" << std::endl; 
-          if (event_fd == SIGKILL) std::cout << "SIGKILL" << std::endl; 
+        if (events[i].filter == EVFILT_SIGNAL) {
+          if (event_fd == SIGINT)
+            std::cout << "SIGINT" << std::endl;
+          if (event_fd == SIGTERM)
+            std::cout << "SIGTERM" << std::endl;
+          if (event_fd == SIGKILL)
+            std::cout << "SIGKILL" << std::endl;
           quit_signal_catched = true;
           break;
         }
 
-#elif __linux__
+#elif __linux__ || _WIN32
         int event_flags = events[i].events;
         int event_fd = events[i].data.fd;
 #endif
 
-
         // Handle errors on sockets.
-#if __linux__
+#if __linux__ || _WIN32
         if (event_flags & (EPOLLERR | EPOLLHUP | EPOLLRDHUP)) {
 #elif __APPLE__
         if (event_flags & EV_ERROR) {
@@ -359,13 +429,21 @@ struct async_reactor {
 
             // ============================================
             // ACCEPT INCOMMING CONNECTION
-            struct sockaddr in_addr;
+            sockaddr_storage in_addr_storage;
+            sockaddr* in_addr = (sockaddr*) &in_addr_storage;
             socklen_t in_len;
             int socket_fd;
-            in_len = sizeof in_addr;
-            socket_fd = accept(listen_fd, &in_addr, &in_len);
+            in_len = sizeof(sockaddr_storage);
+            socket_fd = accept(listen_fd, in_addr, &in_len);
+            //socket_fd = accept(listen_fd, nullptr, nullptr);
             if (socket_fd == -1)
+            {
+              // if (errno != EAGAIN && errno != EWOULDBLOCK) {
+              //   std::cerr << "accept error: " << strerror(errno) << std::endl;
+              //   std::cerr << "accept error: " << WSAGetLastError() << std::endl;
+              // }
               break;
+            }   
             // ============================================
 
             // ============================================
@@ -380,12 +458,15 @@ struct async_reactor {
 
             // ============================================
             // Subscribe epoll to the socket file descriptor.
-            if (-1 == fcntl(socket_fd, F_SETFL, fcntl(socket_fd, F_GETFL, 0) | O_NONBLOCK))
-              continue;
+            // FIXME Duplicate ??
+            // if (-1 == fcntl(socket_fd, F_SETFL, fcntl(socket_fd, F_GETFL, 0) | O_NONBLOCK))
+            //   continue;
 #if __linux__
             this->epoll_add(socket_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET, fiber_idx);
+#elif _WIN32
+            this->epoll_add(socket_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP, fiber_idx);
 #elif __APPLE__
-            this->epoll_add(socket_fd, EVFILT_READ | EVFILT_WRITE, fiber_idx);
+          this->epoll_add(socket_fd, EVFILT_READ | EVFILT_WRITE, fiber_idx);
 #endif
 
             // ============================================
@@ -393,9 +474,9 @@ struct async_reactor {
             // ============================================
             // Simply utility to close fd at the end of a scope.
             struct scoped_fd {
-              int fd;
+              impl::socket_type fd;
               ~scoped_fd() {
-                if (0 != close(fd))
+                if (0 != impl::close_socket(fd))
                   std::cerr << "Error when closing file descriptor " << fd << ": "
                             << strerror(errno) << std::endl;
               }
@@ -407,17 +488,19 @@ struct async_reactor {
             fibers[fiber_idx] = boost::context::callcc([this, socket_fd, fiber_idx, in_addr,
                                                         &handler](continuation&& sink) {
               scoped_fd sfd{socket_fd}; // Will finally close the fd.
-              auto ctx = async_fiber_context(this, std::move(sink), fiber_idx, socket_fd, in_addr);
+              auto ctx = async_fiber_context(this, std::move(sink), fiber_idx, socket_fd, *in_addr);
               try {
-                if (ssl_ctx && !ctx.ssl_handshake(this->ssl_ctx))
-                {
+                if (ssl_ctx && !ctx.ssl_handshake(this->ssl_ctx)) {
                   std::cerr << "Error during SSL handshake" << std::endl;
                   return std::move(ctx.sink);
                 }
                 handler(ctx);
+                epoll_del(socket_fd);
               } catch (fiber_exception& ex) {
+                epoll_del(socket_fd);
                 return std::move(ex.c);
               } catch (const std::runtime_error& e) {
+                epoll_del(socket_fd);
                 std::cerr << "FATAL ERRROR: exception in fiber: " << e.what() << std::endl;
                 assert(0);
                 return std::move(ctx.sink);
@@ -439,33 +522,31 @@ struct async_reactor {
         }
 
         // Wakeup fibers if needed.
-        while (defered_resume.size())
-        {
+        while (defered_resume.size()) {
           int fiber_id = defered_resume.front();
           defered_resume.pop_front();
           assert(fiber_id < fibers.size());
           auto& fiber = fibers[fiber_id];
-          if (fiber)
-          {
-            // std::cout << "wakeup " << fiber_id << std::endl; 
+          if (fiber) {
+            // std::cout << "wakeup " << fiber_id << std::endl;
             fiber = fiber.resume();
           }
         }
-
-
       }
 
       // Call and Flush the defered functions.
-      if (defered_functions.size())
-      {
+      if (defered_functions.size()) {
         for (auto& f : defered_functions)
           f();
         defered_functions.clear();
       }
-
     }
     std::cout << "END OF EVENT LOOP" << std::endl;
-    close(epoll_fd);
+#if _WIN32
+    epoll_close(epoll_fd);
+#else
+    impl::close_socket(epoll_fd);
+#endif
   }
 };
 
@@ -474,18 +555,14 @@ static void shutdown_handler(int sig) {
   std::cout << "The server will shutdown..." << std::endl;
 }
 
-void async_fiber_context::epoll_add(int fd, int flags) {
-  reactor->epoll_add(fd, flags, fiber_id);
-}
+void async_fiber_context::epoll_add(int fd, int flags) { reactor->epoll_add(fd, flags, fiber_id); }
 void async_fiber_context::epoll_mod(int fd, int flags) { reactor->epoll_mod(fd, flags); }
 
-void async_fiber_context::defer(const std::function<void()>& fun)
-{
+void async_fiber_context::defer(const std::function<void()>& fun) {
   this->reactor->defered_functions.push_back(fun);
 }
 
-void async_fiber_context::defer_fiber_resume(int fiber_id)
-{
+void async_fiber_context::defer_fiber_resume(int fiber_id) {
   this->reactor->defered_resume.push_back(fiber_id);
 }
 
@@ -498,14 +575,37 @@ void start_tcp_server(int port, int socktype, int nthreads, H conn_handler,
                       std::string ssl_key_path = "", std::string ssl_cert_path = "",
                       std::string ssl_ciphers = "") {
 
+// Start the winsock DLL
+#ifdef _WIN32
+  WORD wVersionRequested;
+  WSADATA wsaData;
+  int err;
+  wVersionRequested = MAKEWORD(2, 2);
+  err = WSAStartup(wVersionRequested, &wsaData);
+  if (err != 0) {
+    std::cerr << "WSAStartup failed with error: " << err << std::endl;
+    return;
+  }
+#endif
+
+// Setup quit signals
+#ifdef _WIN32
+  signal(SIGINT, shutdown_handler);
+  signal(SIGTERM, shutdown_handler);
+  signal(SIGABRT, shutdown_handler);
+#else
   struct sigaction act;
   memset(&act, 0, sizeof(act));
   act.sa_handler = shutdown_handler;
-
   sigaction(SIGINT, &act, 0);
   sigaction(SIGTERM, &act, 0);
   sigaction(SIGQUIT, &act, 0);
+  // Ignore sigpipe signal. Otherwise sendfile causes crashes if the
+  // client closes the connection during the response transfer.
+  signal(SIGPIPE, SIG_IGN);
+#endif
 
+  // Start the server threads.
   int server_fd = impl::create_and_bind(port, socktype);
   std::vector<std::thread> ths;
   for (int i = 0; i < nthreads; i++)
@@ -519,7 +619,7 @@ void start_tcp_server(int port, int socktype, int nthreads, H conn_handler,
   for (auto& t : ths)
     t.join();
 
-  close(server_fd);
+  impl::close_socket(server_fd);
 }
 
 } // namespace li

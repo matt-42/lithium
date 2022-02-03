@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef _WIN32
+#include <winsock2.h>
+#endif
+
 #include <libpq-fe.h>
 
 #include <li/callable_traits/callable_traits.hh>
@@ -113,13 +117,22 @@ sql_result<pgsql_result<Y>> pgsql_statement<Y>::operator()(T&&... args) {
   unsigned int nparams = 0;
   if constexpr (sizeof...(T) > 0)
     nparams = (bind_compute_nparam(std::forward<T>(args)) + ...);
+
+#ifdef _WIN32 // MSVC does not support variable sized arrays.
+  std::vector<const char*> values_(nparams);
+  std::vector<int> lengths_(nparams);
+  std::vector<int> binary_(nparams);
+  const char** values = values_.data();
+  int* lengths = lengths_.data();
+  int* binary = binary_.data();
+#else
   const char* values_[nparams];
   int lengths_[nparams];
   int binary_[nparams];
-
   const char** values = values_;
   int* lengths = lengths_;
   int* binary = binary_;
+#endif
 
   int i = 0;
   tuple_map(std::forward_as_tuple(args...), [&](const auto& a) {

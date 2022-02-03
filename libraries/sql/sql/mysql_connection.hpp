@@ -39,8 +39,8 @@ template <typename B> long long int mysql_connection<B>::last_insert_rowid() {
 template <typename B>
 sql_result<mysql_result<B>> mysql_connection<B>::operator()(const std::string& rq) {
   mysql_wrapper_.mysql_real_query(data_->error_, data_->connection_, rq.c_str(), rq.size());
-  return sql_result<mysql_result<B>>{
-      mysql_result<B>{mysql_wrapper_, data_}};
+ return sql_result<mysql_result<B>>(
+      mysql_result<B>(mysql_wrapper_, data_));
 }
 
 template <typename B>

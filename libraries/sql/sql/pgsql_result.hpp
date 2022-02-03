@@ -1,6 +1,12 @@
 #pragma once
 
+
+#ifdef _WIN32
+#include <winsock2.h>
+#else
 #include <arpa/inet.h>
+#endif
+
 #include "libpq-fe.h"
 #include <li/sql/internal/utils.hh>
 #if __APPLE__
@@ -9,8 +15,14 @@
 //#include <catalog/pg_type_d.h>
 
 #if __APPLE__ // from https://gist.github.com/yinyin/2027912
+
 #include <libkern/OSByteOrder.h>
 #define be64toh(x) OSSwapBigToHostInt64(x)
+
+#elif _WIN32 // from https://gist.github.com/PkmX/63dd23f28ba885be53a5
+
+#define be64toh(x) _byteswap_uint64(x)
+
 #endif
 
 #define INT8OID 20

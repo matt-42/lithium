@@ -31,34 +31,44 @@ else ()
     set (X86 FALSE)
 endif ()
 
+set(_PROGRAMFILESX86 "PROGRAMFILES(x86)")
+file(TO_CMAKE_PATH "$ENV{${_PROGRAMFILESX86}}" _programfiles_x86)
+
 if( WIN32 )
 	if (X86)
-		file(GLOB MARIADB_LIB_DIR "$ENV{ProgramFiles(x86)}/MariaDB*/lib")
-		file(GLOB MARIADB_INC_DIR  "$ENV{ProgramFiles(x86)}/MariaDB*/include/mysql")
-		file(GLOB MYSQLDB_LIB_DIR "$ENV{ProgramFiles(x86)}/MySQL/*/lib")
-		file(GLOB MYSQLDB_INC_DIR  "$ENV{ProgramFiles(x86)}/MySQL/*/include")
+		file(GLOB MARIADB_LIB_DIR "${_programfiles_x86}}/MariaDB*/lib")
+		file(GLOB MARIADB_INC_DIR  "${_programfiles_x86}}/MariaDB*/include/mysql")
 	else()
 		file(GLOB MARIADB_LIB_DIR "$ENV{PROGRAMFILES}/MariaDB*/lib")
 		file(GLOB MARIADB_INC_DIR  "$ENV{PROGRAMFILES}/MariaDB*/include/mysql")
-		file(GLOB MYSQLDB_LIB_DIR "$ENV{PROGRAMFILES}/MySQL/*/lib")
-		file(GLOB MYSQLDB_INC_DIR  "$ENV{PROGRAMFILES}/MySQL/*/include")
 	endif()
 
 	find_path( MYSQL_INCLUDE_DIR
 		NAMES "mysql.h"
-		PATHS  ${MARIADB_INC_DIR} ${MYSQLDB_INC_DIR}   )
+		PATHS  ${MARIADB_INC_DIR}
+		PATH_SUFFIXES "mysql" )
 	
 	find_library( MYSQLCLIENT_LIBRARY
 	NAMES "mariadbclient" "mysqlclient" "mysqlclient_r"
-	PATHS ${MARIADB_LIB_DIR} ${MYSQLDB_LIB_DIR} )
+	PATHS ${MARIADB_LIB_DIR} )
+
 	find_library( MYSQL_LIBRARY
 		NAMES "libmariadb" "libmysql"
-		PATHS ${MYSQLDB_LIB_DIR} ${MARIADB_LIB_DIRX})
+		PATHS ${MYSQLDB_LIB_DIR}
+		)
+
+	message("INCLUDE PATH:" ${CMAKE_INCLUDE_PATH} ${CMAKE_PREFIX_PATH} ${CMAKE_FRAMEWORK_PATH} 
+	${CMAKE_LIBRARY_ARCHITECTURE} ${CMAKE_SYSTEM_INCLUDE_PATH})
+	message(xxx ${CMAKE_SYSTEM_INCLUDE_PATH})
+	message("MYSQL_LIBRARY:" ${MYSQL_LIBRARY})
+	message("MYSQL_INCLUDE_DIR:" ${MYSQL_INCLUDE_DIR})
+	message("MYSQLCLIENT_LIBRARY:" ${MYSQLCLIENT_LIBRARY})
+
 	set(MYSQL_LIBRARY ${MYSQL_LIBRARY} ${MYSQLCLIENT_LIBRARY})
 	  
 else()
 	find_path( MYSQL_INCLUDE_DIR
-		NAMES "mysql.h"
+		NAMES "mariadb_version.h"
 		PATHS "/usr/include/mariadb/" "/usr/include/mysql" 
 		"/usr/local/include/mariadb/"
 		"/usr/local/include/mysql/"
@@ -66,7 +76,7 @@ else()
               "/usr/local/opt/mysql-client/include/mysql/")
 	
 	find_library( MYSQL_LIBRARY
-		NAMES "mariadbclient" "mysqlclient" "mysqlclient_r"
+		NAMES "mariadbclient"
 		PATHS "/usr/local/opt/mariadb/lib"
 		  "/lib/mysql"
 			"/lib64/mysql"

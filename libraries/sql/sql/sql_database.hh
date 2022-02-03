@@ -4,11 +4,15 @@
 #include <unordered_map>
 
 namespace li {
+  
 // thread local map of sql_database<I>* -> sql_database_thread_local_data<I>*;
 // This is used to store the thread local async connection pool.
 // void* is used instead of concrete types to handle different I parameter.
-
+#ifndef _WIN32
 thread_local std::unordered_map<void*, void*> sql_thread_local_data [[gnu::weak]];
+#else
+__declspec(selectany) thread_local std::unordered_map<void*, void*> sql_thread_local_data; 
+#endif
 
 template <typename I> struct sql_database_thread_local_data {
 
@@ -122,8 +126,8 @@ template <typename I> struct sql_database {
 
     connection_data_type* data = nullptr;
     bool reuse = false;
+    time_t start_time = time(NULL);
     while (!data) {
-
       if (!pool.connections.empty()) {
         auto lock = [&pool, this] {
           if constexpr (std::is_same_v<Y, active_yield>)
@@ -156,6 +160,9 @@ template <typename I> struct sql_database {
         if (!data)
           pool.n_connections--;
       }
+
+      if (time(NULL) > start_time + 10)
+        throw std::runtime_error("Timeout: Cannot connect to the database."); 
     }
 
     assert(data);

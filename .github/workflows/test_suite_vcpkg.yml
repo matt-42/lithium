@@ -1,0 +1,51 @@
+name: lithium_vcpkg_testsuite
+on: [push, pull_request]
+jobs:
+  job:
+    name: ${{ matrix.os }}-${{ github.workflow }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - uses: matt-42/action-setup-postgres@v1.1
+        with:
+          username: postgres
+          password: lithium_test
+          database: postgres
+          port: 32768
+      - name: test-postgres
+        run: psql -U postgres --port=32768 -d postgres -c 'SELECT version()'
+        env:
+          PGPASSWORD: lithium_test
+      - uses: actions/checkout@v2
+        with:
+          submodules: true
+      - uses: shogo82148/actions-setup-mysql@v1
+        with:
+          distribution: 'mariadb'
+          mysql-version: '10.6'
+          root-password: 'lithium_test'
+          auto-start: true
+          my-cnf: port  = 14550
+      - run: mysqladmin -uroot -h'127.0.0.1' -P 14550 --password=lithium_test create mysql_test   
+      - run: mysql -uroot -h'127.0.0.1' -P 14550 --password=lithium_test -e 'SELECT version()'
+      - uses: lukka/get-cmake@latest
+  
+      - name: Restore artifacts, or setup vcpkg for building artifacts
+        uses: lukka/run-vcpkg@v10.1
+        id: runvcpkg
+
+      - name: Prints output of run-vcpkg's action.
+        run: echo "root='${{ steps.runvcpkg.outputs.RUNVCPKG_VCPKG_ROOT_OUT }}', triplet='${{ steps.runvcpkg.outputs.RUNVCPKG_VCPKG_DEFAULT_TRIPLET_OUT }}' "
+
+      - name: Run CMake+vcpkg+Ninja
+        uses: lukka/run-cmake@v10
+        id: runcmake
+        with:
+          cmakeListsTxtPath: '${{ github.workspace }}/CMakeLists.txt'
+          configurePreset: 'ninja-multi-vcpkg'
+          buildPreset: 'ninja-multi-vcpkg-debug'
+          testPreset: 'ninja-multi-vcpkg-debug'

@@ -285,11 +285,11 @@ my_static_file_server_api.add_subapi("/root", serve_directory("/path/to/the/dire
 You can also send static files directly from a handler with:
 */
 my_static_file_server_api.get("/get_file") = [&] (http_request& request, http_response& response) {
-  response.write_static_file("path/to/the/file");
+  response.write_file("path/to/the/file");
 }
 /*
 
-Note that `response.write_static_file` and `serve_directory` automatically set the Content-Type header to the mime type.
+Note that `response.write_file` and `serve_directory` automatically set the Content-Type header to the mime type.
 All mime types of this list are supported: http://svn.apache.org/repos/asf/httpd/httpd/trunk/docs/conf/mime.types
 
 .

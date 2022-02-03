@@ -10,20 +10,27 @@ WITH_LINE_DIRECTIVES = False
 
 LINUX_ONLY_HEADERS = ['sys/epoll.h']
 APPLE_ONLY_HEADERS = ['sys/event.h', 'libkern/OSByteOrder.h', 'machine/endian.h']
+WINDOWS_ONLY_HEADERS = ['WS2tcpip.h', 'WinSock2.h', 'wepoll.h', 'winsock2.h']
 
 def include_directive(d):
     linux_only = False
     apple_only = False
+    windows_only = False
     for lh in LINUX_ONLY_HEADERS:
         if lh in d:
             linux_only = True
     for ah in APPLE_ONLY_HEADERS:
         if ah in d:
             apple_only = True
+    for ah in WINDOWS_ONLY_HEADERS:
+        if ah in d:
+            windows_only = True
     if linux_only:
         return f"#if __linux__\n{d}#endif\n"
     if apple_only:
         return f"#if __APPLE__\n{d}#endif\n"
+    if windows_only:
+        return f"#if _WIN32\n{d}#endif\n"
     return d
 
 def process_file(library_name, f, processed, output):
@@ -35,7 +42,7 @@ def process_file(library_name, f, processed, output):
     if not os.path.isfile(f):
         raise Exception(f"file not found {f} when building {library_name}")
 
-    header_guard = "LITHIUM_SINGLE_HEADER_GUARD_" + re.match(".*include/(li/.+)", f).group(1).upper().replace('/', '_').replace('.', "_");
+    header_guard = "LITHIUM_SINGLE_HEADER_GUARD_" + re.match(".*include[/\\\](li[/\\\].+)", f).group(1).upper().replace('/', '_').replace('\\', '_').replace('.', "_");
     output += f"#ifndef {header_guard}\n" 
     output += f"#define {header_guard}\n"
     contiguous = False 

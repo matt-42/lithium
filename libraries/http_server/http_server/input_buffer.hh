@@ -45,7 +45,7 @@ struct input_buffer {
     assert(i1 <= &buffer_.back());
     // std::cout << (i2 - &buffer_.front()) << " " << buffer_.size() <<  << std::endl;
     assert(i2 >= buffer_.data() and i2 <= &buffer_.back() + 1);
-    free(i1 - buffer_.data(), i2 - buffer_.data());
+    free(int(i1 - buffer_.data()), int(i2 - buffer_.data()));
   }
   void free(const std::string_view& str) { free(str.data(), str.data() + str.size()); }
 

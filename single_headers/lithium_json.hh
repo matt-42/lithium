@@ -271,14 +271,19 @@ static int json_ok = json_no_error();
 namespace li {
 
 namespace internal {
-struct {
+struct reduce_add_type {
   template <typename A, typename... B> constexpr auto operator()(A&& a, B&&... b) {
     auto result = a;
     using expand_variadic_pack = int[];
     (void)expand_variadic_pack{0, ((result += b), 0)...};
     return result;
   }
-} reduce_add;
+};
+#ifdef _WIN32
+__declspec(selectany) reduce_add_type reduce_add;
+#else
+reduce_add_type reduce_add [[gnu::weak]];
+#endif
 
 } // namespace internal
 
@@ -300,7 +305,10 @@ template <typename M1, typename... Ms> struct metamap<M1, Ms...> : public M1, pu
   // metamap(self& other)
   //  : metamap(const_cast<const self&>(other)) {}
 
-  constexpr inline metamap(typename M1::_iod_value_type&& m1, typename Ms::_iod_value_type&&... members) : M1{m1}, Ms{std::forward<typename Ms::_iod_value_type>(members)}... {}
+  template <typename M>
+  using get_value_type = typename M::_iod_value_type;
+
+  constexpr inline metamap(get_value_type<M1>&& m1, get_value_type<Ms>&&... members) : M1{m1}, Ms{std::forward<get_value_type<Ms>>(members)}... {}
   constexpr inline metamap(M1&& m1, Ms&&... members) : M1(m1), Ms(std::forward<Ms>(members))... {}
   constexpr inline metamap(const M1& m1, const Ms&... members) : M1(m1), Ms((members))... {}
 
@@ -1763,14 +1771,14 @@ json_error_code json_decode2(P& p, O& obj, json_object_<S> schema) {
     int name_len;
     std::function<json_error_code(P&)> parse_value;
   };
-  constexpr int n_members = std::tuple_size<decltype(schema.schema)>();
+  constexpr int n_members = int(std::tuple_size<decltype(schema.schema)>());
   attr_info A[n_members];
   int i = 0;
   auto prepare = [&](auto m) {
     A[i].filled = false;
     A[i].required = true;
     A[i].name = symbol_string(m.name);
-    A[i].name_len = strlen(symbol_string(m.name));
+    A[i].name_len = int(strlen(symbol_string(m.name)));
 
     if constexpr (has_key(m, s::json_key)) {
       A[i].name = m.json_key;

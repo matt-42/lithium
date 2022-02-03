@@ -4,54 +4,77 @@ SET(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH}
 
 project(lithium)
 
+include(FetchContent)
 
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
-# On MacOS use -DCMAKE_PREFIX_PATH='/usr/local/opt/openssl/;/usr/local/opt/curl;/usr/local/opt/libpq
+# On MacOS use -DCMAKE_PREFIX_PATH='/usr/local/opt/openssl/;/usr/local/opt/curl;/usr/local/opt/libpq'
 # to have find_package look into brew installed locations first.
-find_package(MYSQL REQUIRED)
+
+# On windows with vcpkg, use
+# cmake ..\lithium -DCMAKE_TOOLCHAIN_FILE="C:\vcpkg\scripts\buildsystems\vcpkg.cmake" -DCMAKE_PREFIX_PATH="C:\vcpkg\installed\x86-windows"
+
+
+
+
 find_package(Boost REQUIRED context)
-find_package(SQLite3 REQUIRED)
+#find_package(SQLite3 REQUIRED)
 find_package(CURL REQUIRED)
 find_package(PostgreSQL REQUIRED)
 find_package(Threads REQUIRED)
+set(OPENSSL_USE_STATIC_LIBS TRUE)
 find_package(OpenSSL REQUIRED)
+find_package(unofficial-libmariadb CONFIG REQUIRED)
+find_package(unofficial-sqlite3 CONFIG REQUIRED)
 
-include_directories(${SQLite3_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS} ${MYSQL_INCLUDE_DIR})
-include_directories(${PostgreSQL_INCLUDE_DIRS})
-include_directories(${Boost_INCLUDE_DIRS})
-include_directories(${OPENSSL_INCLUDE_DIR})
+IF (WIN32)
+find_package(Wepoll REQUIRED)
+set(WINDOWS_LIBS wsock32 ws2_32)
+add_definitions(-DNOMINMAX)
+ENDIF()
 
-set(LIBS ${OPENSSL_LIBRARIES} ${SQLite3_LIBRARIES} ${CURL_LIBRARIES} ${MYSQL_LIBRARY} ${PostgreSQL_LIBRARIES} 
-          ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
+include_directories(${Wepoll_INCLUDE_DIR})
+
+message("WINDOWS LIBS: " ${Wepoll_LIBRARY} " -- " ${WINDOWS_LIBS})
+set(LIBS ${CMAKE_THREAD_LIBS_INIT} ${Wepoll_LIBRARY} ${WINDOWS_LIBS})
+set(LIBS ${LIBS} CURL::libcurl
+        OpenSSL::SSL OpenSSL::Crypto 
+        unofficial::libmariadb 
+        unofficial::sqlite3::sqlite3
+        PostgreSQL::PostgreSQL
+        Boost::boost
+        Boost::context)
+
 
 if (APPLE)
   # needed by mariadbclient on macos:
-  set(LIBS ${LIBS} z iconv)
+#  set(LIBS ${LIBS} z iconv)
 endif()
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 
 enable_testing()
+list(APPEND CMAKE_CTEST_ARGUMENTS "--output-on-failure")
 
 # Create the include dir in the build directory.
 file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/include/li)
 file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/single_headers)
 
 function (link_build_include lib_name target_dir)
-IF (WIN32)
-    STRING(REGEX REPLACE "/" "\\\\"  CMAKE_SOURCE_DIR_BACKSLASH ${CMAKE_SOURCE_DIR}) 
-    STRING(REGEX REPLACE "/" "\\\\"  TARGET_BS ${target_dir}) 
-    execute_process(COMMAND cmd.exe /c mklink /J ${lib_name}
-    "${CMAKE_SOURCE_DIR_BACKSLASH}${TARGET_BS}"
-    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/include/li/)
-ELSE()
-  if(NOT EXISTS "${CMAKE_BINARY_DIR}/include/li/${lib_name}")
-  execute_process(COMMAND ln -s
-                  "${CMAKE_SOURCE_DIR}${target_dir}" ${lib_name}
-                  WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/include/li/)
+  IF (WIN32)
+      STRING(REGEX REPLACE "/" "\\\\"  CMAKE_SOURCE_DIR_BACKSLASH ${CMAKE_SOURCE_DIR}) 
+      STRING(REGEX REPLACE "/" "\\\\"  TARGET_BS ${target_dir}) 
+      message("CREATE INCLUDE DIRECTORY " ${target_dir})
+      execute_process(COMMAND cmd.exe /c mklink /J ${lib_name}
+      "${CMAKE_SOURCE_DIR_BACKSLASH}${TARGET_BS}"
+      WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/include/li/)
+  ELSE()
+    if(NOT EXISTS "${CMAKE_BINARY_DIR}/include/li/${lib_name}")
+    execute_process(COMMAND ln -s
+                    "${CMAKE_SOURCE_DIR}${target_dir}" ${lib_name}
+                    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/include/li/)
+    ENDIF()
   ENDIF()
-ENDIF()
 endfunction()
 
 # Create the li/{lib}/header tree to build the tests.
@@ -68,38 +91,42 @@ include_directories(${CMAKE_BINARY_DIR}/single_headers) # tests include there he
 include_directories(${CMAKE_BINARY_DIR}/include) # just to enable vscode intellisense.
 
 #set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -march=native -mtune=native -flto") 
+if(NOT WIN32)
 add_definitions(-Wno-ignored-attributes) # to skip postgresql warnings.
+endif()
 
+########
 # Generate content type definition header file
-set(GENERATED_CONTENT_TYPES
-"${CMAKE_SOURCE_DIR}\
-/libraries/http_server/http_server\
-/content_types.hh")
+########
+set(GENERATED_CONTENT_TYPES "${CMAKE_SOURCE_DIR}/libraries/http_server/http_server/content_types.hh")
 
-add_custom_target(
-    content_types ALL
-    DEPENDS ${GENERATED_CONTENT_TYPES}
+file(DOWNLOAD http://svn.apache.org/repos/asf/httpd/httpd/trunk/docs/conf/mime.types /tmp/lithium_mime.types)
+file(READ  /tmp/lithium_mime.types mimeTypes)
+foreach(X  RANGE 1 20)
+  string(REGEX REPLACE "([^\t\n]+)[\t]+([^\n ]+) ([^\n]+)\n" "\\1\t\\2\n\\1\t\\3\n" mimeTypes "${mimeTypes}")
+endforeach()
+string(REGEX REPLACE "([^\t\n]+)[\t]+([^\n]+)" "{\"\\2\", \"\\1\"}," mimeTypes "${mimeTypes}")
+string(REGEX REPLACE "[^\n]*#[^\n]*\n" "" mimeTypes "${mimeTypes}")
+set(mimeTypes "// This file is generated do not edit it.\n"
+"#pragma once\n"
+"#include <unordered_map>\n"
+"#include <string_view>\n"
+"namespace li {\n"
+"static std::unordered_map<std::string_view, std::string_view> content_types = {\n"
+${mimeTypes}
+"}\;}\n"
 )
+file(WRITE ${GENERATED_CONTENT_TYPES} ${mimeTypes})
 
-add_custom_command(
-    OUTPUT ${GENERATED_CONTENT_TYPES}
-    COMMAND touch ${GENERATED_CONTENT_TYPES}
-    COMMAND echo \"// This file is generated do not edit it.\" >> ${GENERATED_CONTENT_TYPES}
-    COMMAND echo \"\#pragma once\" >> ${GENERATED_CONTENT_TYPES}
-    COMMAND echo \"\#include <unordered_map>\" >> ${GENERATED_CONTENT_TYPES}
-    COMMAND echo \"\#include <string_view>\" >> ${GENERATED_CONTENT_TYPES}
-    COMMAND echo \"namespace li {\" >> ${GENERATED_CONTENT_TYPES}
-    COMMAND echo \"static std::unordered_map<std::string_view, std::string_view> content_types = {\" >> ${GENERATED_CONTENT_TYPES}
-    COMMAND wget -qO- http://svn.apache.org/repos/asf/httpd/httpd/trunk/docs/conf/mime.types
-      | egrep -v ^\#
-      | awk '{for(i=2\; i<=NF\; i++) {print \"{\\\"\"$$i"\\\",\\\""$$1\"\\\"},\"}}' | sort >> ${GENERATED_CONTENT_TYPES}
-    COMMAND echo \"}\;}\" >> ${GENERATED_CONTENT_TYPES}
-)
+
+########
+# End of type definition header file
+########
 
 # Automatic symbol generation
 add_custom_target(
     symbols_generation DEPENDS li_symbol_generator
-    COMMAND ${CMAKE_BINARY_DIR}/libraries/symbol/li_symbol_generator ${CMAKE_CURRENT_SOURCE_DIR}/libraries ${CMAKE_CURRENT_SOURCE_DIR}/single_headers ${CMAKE_CURRENT_SOURCE_DIR}/docs)
+    COMMAND $<TARGET_FILE:li_symbol_generator> ${CMAKE_CURRENT_SOURCE_DIR}/libraries ${CMAKE_CURRENT_SOURCE_DIR}/single_headers ${CMAKE_CURRENT_SOURCE_DIR}/docs)
 
 
 # Automatic single header generation for release (without line directives)

@@ -169,12 +169,16 @@ struct http_client {
       curl_easy_setopt(curl_, CURLOPT_HEADERFUNCTION, curl_header_callback);
     }
 
+    // Set timeout.
+    curl_easy_setopt(curl_, CURLOPT_TIMEOUT, 10);
+
     // Send the request.
     char errbuf[CURL_ERROR_SIZE];
     curl_easy_setopt(curl_, CURLOPT_ERRORBUFFER, errbuf);
     if (curl_easy_perform(curl_) != CURLE_OK) {
       std::ostringstream errss;
       errss << "Libcurl error when sending request: " << errbuf;
+      std::cerr << errss.str() << std::endl;
       throw std::runtime_error(errss.str());
     }
     curl_slist_free_all(headers_list);
