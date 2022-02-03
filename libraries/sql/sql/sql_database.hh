@@ -126,7 +126,10 @@ template <typename I> struct sql_database {
 
     connection_data_type* data = nullptr;
     bool reuse = false;
+    time_t start_time = time(NULL);
     while (!data) {
+
+     std::cout << "Waiting for a free sql connection... " << time(NULL) - start_time << std::endl;
 
       if (!pool.connections.empty()) {
         auto lock = [&pool, this] {
@@ -160,6 +163,9 @@ template <typename I> struct sql_database {
         if (!data)
           pool.n_connections--;
       }
+
+      if (time(NULL) > start_time + 10)
+        throw std::runtime_error("Timeout: Cannot connect to the database."); 
     }
 
     assert(data);

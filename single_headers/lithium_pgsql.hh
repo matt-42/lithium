@@ -2106,7 +2106,10 @@ template <typename I> struct sql_database {
 
     connection_data_type* data = nullptr;
     bool reuse = false;
+    time_t start_time = time(NULL);
     while (!data) {
+
+     std::cout << "Waiting for a free sql connection... " << time(NULL) - start_time << std::endl;
 
       if (!pool.connections.empty()) {
         auto lock = [&pool, this] {
@@ -2140,6 +2143,9 @@ template <typename I> struct sql_database {
         if (!data)
           pool.n_connections--;
       }
+
+      if (time(NULL) > start_time + 10)
+        throw std::runtime_error("Timeout: Cannot connect to the database."); 
     }
 
     assert(data);
@@ -2236,6 +2242,7 @@ struct pgsql_database_impl {
     coninfo << "postgresql://" << user_ << ":" << passwd_ << "@" << host_ << ":" << port_ << "/"
             << database_;
     // connection = PQconnectdb(coninfo.str().c_str());
+    std::cout << "PQconnectStart" << std::endl;
     connection = PQconnectStart(coninfo.str().c_str());
     if (!connection) {
       std::cerr << "Warning: PQconnectStart returned null." << std::endl;
@@ -2264,7 +2271,10 @@ struct pgsql_database_impl {
     #endif
 
     try {
+      int start_time = time(NULL);
       while (status != PGRES_POLLING_FAILED and status != PGRES_POLLING_OK) {
+        if (time(NULL) > start_time + 10)
+          throw std::runtime_error("Timeout: Cannot connect to postresql database.");
         int new_pgsql_fd = PQsocket(connection);
         if (new_pgsql_fd != pgsql_fd) {
           pgsql_fd = new_pgsql_fd;
