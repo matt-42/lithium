@@ -1634,7 +1634,7 @@ template <typename S> struct json_parser {
 
   template <typename... T> inline json_error_code make_json_error(T&&... t) {
     if (!error_stream)
-      error_stream = new std::ostringstream();
+      error_stream = std::make_unique<std::ostringstream>();
     *error_stream << "json error: ";
     auto add = [this](auto w) { *error_stream << w; };
     apply_each(add, t...);
@@ -1708,7 +1708,7 @@ template <typename S> struct json_parser {
   }
 
   S& ss;
-  std::ostringstream* error_stream = nullptr;
+  std::unique_ptr<std::ostringstream> error_stream = nullptr;
 };
 
 template <typename P, typename O, typename S> json_error_code json_decode2(P& p, O& obj, S) {

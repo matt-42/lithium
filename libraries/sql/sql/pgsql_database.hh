@@ -80,7 +80,7 @@ struct pgsql_database_impl {
     std::stringstream coninfo;
     coninfo << "postgresql://" << user_ << ":" << passwd_ << "@" << host_ << ":" << port_ << "/"
             << database_;
-    std::cout << "Try to connect: " << coninfo.str() << std::endl;
+    // std::cout << "Try to connect: " << coninfo.str() << std::endl;
     connection = PQconnectdb(coninfo.str().c_str());
 
     if (!connection) {
@@ -97,9 +97,9 @@ struct pgsql_database_impl {
     }
 
     #if __linux__
-      fiber.epoll_mod(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
+      fiber.epoll_add(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
     #elif __APPLE__
-      fiber.epoll_mod(pgsql_fd, EVFILT_READ | EVFILT_WRITE);
+      fiber.epoll_add(pgsql_fd, EVFILT_READ | EVFILT_WRITE);
     #endif
 
     // pgsql_set_character_set(pgsql, character_set_.c_str());
@@ -113,7 +113,7 @@ struct pgsql_database_impl {
     std::stringstream coninfo;
     coninfo << "postgresql://" << user_ << ":" << passwd_ << "@" << host_ << ":" << port_ << "/"
             << database_;
-    std::cout << "Try to connect: " << coninfo.str() << std::endl;
+    //std::cout << "Try to connect: " << coninfo.str() << std::endl;
     //connection = PQconnectdb(coninfo.str().c_str());
 
     connection = PQconnectStart(coninfo.str().c_str());
