@@ -109,7 +109,7 @@ int main() {
                      s::password = "lithium_test", s::port = 14550, s::charset = "utf8");
   test_with_db(mysql_db, 12262);
 
-  auto pgsql_db = pgsql_database(s::host = "localhost", s::database = "postgres", s::user = "postgres",
+  auto pgsql_db = pgsql_database(s::host = "127.0.0.1", s::database = "postgres", s::user = "postgres",
                             s::password = "lithium_test", s::port = 32768, s::charset = "utf8");
   test_with_db(pgsql_db, 12261);
 }
