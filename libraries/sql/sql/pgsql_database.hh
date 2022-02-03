@@ -71,6 +71,8 @@ struct pgsql_database_impl {
     return PQsocket(data->pgconn_);
   }
 
+#ifndef __linux__ // Synchronized connection on Windows and MacOS because async hangs indefinitelly 
+// on these plaforms.
   template <typename Y> inline pgsql_connection_data* new_connection(Y& fiber) {
 
     PGconn* connection = nullptr;
@@ -78,8 +80,42 @@ struct pgsql_database_impl {
     std::stringstream coninfo;
     coninfo << "postgresql://" << user_ << ":" << passwd_ << "@" << host_ << ":" << port_ << "/"
             << database_;
-    // connection = PQconnectdb(coninfo.str().c_str());
-    std::cout << "PQconnectStart" << std::endl;
+    std::cout << "Try to connect: " << coninfo.str() << std::endl;
+    connection = PQconnectdb(coninfo.str().c_str());
+
+    if (!connection) {
+      std::cerr << "Warning: PQconnectdb returned null." << std::endl;
+      return nullptr;
+    }
+
+    pgsql_fd = PQsocket(connection);
+    if (pgsql_fd == -1) {
+      std::cerr << "Warning: PQsocket returned -1: " << PQerrorMessage(connection) << std::endl;
+      // If PQsocket return -1, retry later.
+      PQfinish(connection);
+      return nullptr;
+    }
+
+    #if __linux__
+      fiber.epoll_mod(pgsql_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
+    #elif __APPLE__
+      fiber.epoll_mod(pgsql_fd, EVFILT_READ | EVFILT_WRITE);
+    #endif
+
+    // pgsql_set_character_set(pgsql, character_set_.c_str());
+    return new pgsql_connection_data{connection, pgsql_fd};
+  }
+#else 
+  template <typename Y> inline pgsql_connection_data* new_connection(Y& fiber) {
+
+    PGconn* connection = nullptr;
+    int pgsql_fd = -1;
+    std::stringstream coninfo;
+    coninfo << "postgresql://" << user_ << ":" << passwd_ << "@" << host_ << ":" << port_ << "/"
+            << database_;
+    std::cout << "Try to connect: " << coninfo.str() << std::endl;
+    //connection = PQconnectdb(coninfo.str().c_str());
+
     connection = PQconnectStart(coninfo.str().c_str());
     if (!connection) {
       std::cerr << "Warning: PQconnectStart returned null." << std::endl;
@@ -111,7 +147,11 @@ struct pgsql_database_impl {
       int start_time = time(NULL);
       while (status != PGRES_POLLING_FAILED and status != PGRES_POLLING_OK) {
         if (time(NULL) > start_time + 10)
+        {
+          std::cerr << "Timeout: Cannot connect to postresql database. Make sure a PostgreSQL server is running "         << " at " << host_ << ":" << port_ << std::endl;
+
           throw std::runtime_error("Timeout: Cannot connect to postresql database.");
+        }
         int new_pgsql_fd = PQsocket(connection);
         if (new_pgsql_fd != pgsql_fd) {
           pgsql_fd = new_pgsql_fd;
@@ -145,7 +185,7 @@ struct pgsql_database_impl {
     // pgsql_set_character_set(pgsql, character_set_.c_str());
     return new pgsql_connection_data{connection, pgsql_fd};
   }
-
+#endif
   template <typename Y>
   auto scoped_connection(Y& fiber, std::shared_ptr<pgsql_connection_data>& data) {
     return pgsql_connection<Y>(fiber, data);

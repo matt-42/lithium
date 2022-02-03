@@ -128,9 +128,6 @@ template <typename I> struct sql_database {
     bool reuse = false;
     time_t start_time = time(NULL);
     while (!data) {
-
-     std::cout << "Waiting for a free sql connection... " << time(NULL) - start_time << std::endl;
-
       if (!pool.connections.empty()) {
         auto lock = [&pool, this] {
           if constexpr (std::is_same_v<Y, active_yield>)
