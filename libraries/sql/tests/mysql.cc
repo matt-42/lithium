@@ -16,8 +16,6 @@ int main() {
 
   auto query = database.connect();
 
-  // generic_sql_tests(database);
-  assert(query("SELECT 1 + 2").read<int>() == 3);
-
+  generic_sql_tests(database);
   database.clear_connections();
 }

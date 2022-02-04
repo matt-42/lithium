@@ -71,7 +71,7 @@ template <typename B> struct mysql_statement_result {
 
   void fetch_column(MYSQL_BIND* b, unsigned long real_length, std::string& v, int i);
   template <unsigned SIZE>
-  void fetch_column(MYSQL_BIND& b, unsigned long real_length, sql_varchar<SIZE>& v, int i);
+  void fetch_column(MYSQL_BIND* b, unsigned long real_length, sql_varchar<SIZE>& v, int i);
   template <typename T> int fetch(T&& o);
 
   B& mysql_wrapper_;

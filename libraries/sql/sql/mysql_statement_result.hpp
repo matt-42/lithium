@@ -23,6 +23,9 @@ void mysql_statement_result<B>::fetch_column(MYSQL_BIND* b, unsigned long real_l
   // If the string was big enough to hold the result string, return it.
   if (real_length <= v.size()) {
     v.resize(real_length);
+    memcpy(v.data(), b[i].buffer, real_length);
+    // b[i].buffer_length = v.size();
+    // b[i].buffer = v.data();
     return;
   }
   // Otherwise we need to call mysql_stmt_fetch_column again to get the result string.
@@ -30,11 +33,16 @@ void mysql_statement_result<B>::fetch_column(MYSQL_BIND* b, unsigned long real_l
   // Reserve enough space to fetch the string.
   v.resize(real_length);
   // Bind result.
-  b[i].buffer_length = v.size();
-  b[i].buffer = v.data();
+  MYSQL_BIND fetch_bind;
+  memset(&fetch_bind, 0, sizeof(MYSQL_BIND));
+  fetch_bind.buffer_type = MYSQL_TYPE_STRING;
+  fetch_bind.buffer_length = v.size();
+  fetch_bind.buffer = v.data();
+  //fetch_bind.real_length = &real_length;
+
   result_allocated_ = true;
 
-  if (mysql_stmt_fetch_column(data_.stmt_, b + i, i, 0) != 0) {
+  if (mysql_stmt_fetch_column(data_.stmt_, &fetch_bind, i, 0) != 0) {
     connection_->error_ = 1;
     throw std::runtime_error(std::string("mysql_stmt_fetch_column error: ") +
                              mysql_stmt_error(data_.stmt_));
@@ -43,9 +51,11 @@ void mysql_statement_result<B>::fetch_column(MYSQL_BIND* b, unsigned long real_l
 
 template <typename B>
 template <unsigned SIZE>
-void mysql_statement_result<B>::fetch_column(MYSQL_BIND& b, unsigned long real_length,
+void mysql_statement_result<B>::fetch_column(MYSQL_BIND* b, unsigned long real_length,
                                              sql_varchar<SIZE>& v, int i) {
   v.resize(real_length);
+  b[i].buffer_length = v.size();
+  b[i].buffer = v.data();
 }
 
 
@@ -82,22 +92,45 @@ void mysql_statement_result<B>::map(F map_callback) {
 
 
   while (this->read(row_object, bind, real_lengths)) {
+    //mysql_stmt_bind_result(data_.stmt_, bind_data.bind.data());
     if constexpr (is_tuple<TP0>::value || is_metamap<TP0>::value)
       map_callback(row_object);
     else
       std::apply(map_callback, row_object);
 
     // restore string sizes to 100.
-    if constexpr (is_tuple<std::decay_t<decltype(row_object)>>::value)
-      tuple_map(row_object, [] (auto& v) { 
-        if constexpr (std::is_same_v<std::decay_t<decltype(v)>, std::string>)
-          v.resize(100);
-      });
-    if constexpr (is_metamap<std::decay_t<decltype(row_object)>>::value)
-      map(row_object, [] (auto& k, auto& v) { 
-        if constexpr (std::is_same_v<std::decay_t<decltype(v)>, std::string>)
-          v.resize(100);
-      });
+    // if constexpr (is_tuple<std::decay_t<decltype(row_object)>>::value)
+    // {
+    //   int i = 0;
+    //   tuple_map(row_object, [&i,bind] (auto& v) { 
+    //     if constexpr (std::is_same_v<std::decay_t<decltype(v)>, std::string>)
+    //       if (v.size() < 100)
+    //       {
+    //         v.resize(100);
+    //         bind[i].buffer_length = v.size();
+    //         bind[i].buffer = v.data();
+    //       }
+    //     i++;
+    //   });
+    // }
+
+    // if constexpr (is_metamap<std::decay_t<decltype(row_object)>>::value)
+    // {
+    //   int i = 0;
+    //   map(row_object, [&i, bind] (auto& k, auto& v) { 
+    //     if constexpr (std::is_same_v<std::decay_t<decltype(v)>, std::string>)
+    //     {
+    //       if (v.size() < 100)
+    //       {
+    //         v.resize(100);
+    //         bind[i].buffer_length = v.size();
+    //         bind[i].buffer = v.data();
+    //       }
+    //     }
+
+    //     i++;
+    //   });
+    // }
   }
 
 }

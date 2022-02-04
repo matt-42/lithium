@@ -55,10 +55,13 @@ template <unsigned N> struct mysql_bind_data {
   mysql_bind_data() {
      memset(bind.data(), 0, N * sizeof(MYSQL_BIND));
      for (int i = 0; i < N; i++) bind[i].error = &errors[i];
+     for (int i = 0; i < N; i++) bind[i].buffer = prealocated_strings[i];
+     for (int i = 0; i < N; i++) bind[i].buffer_length = 100;
   }
   std::array<unsigned long, N> real_lengths;
   std::array<MYSQL_BIND, N> bind;
   std::array<char, N> errors;
+  std::array<char[100], N> prealocated_strings;
 };
 
 template <typename V> void mysql_bind_param(MYSQL_BIND& b, V& v) {
@@ -108,19 +111,15 @@ template <typename T> void mysql_bind_output(MYSQL_BIND& b, unsigned long* real_
 }
 
 inline void mysql_bind_output(MYSQL_BIND& b, unsigned long* real_length, std::string& v) {
-  v.resize(100);
+  // string are written in static buffer mysql_bind_data::preallocated_string.
   b.buffer_type = MYSQL_TYPE_STRING;
-  b.buffer_length = v.size();
-  b.buffer = v.data();
   b.length = real_length;
 }
 
 template <unsigned SIZE>
 void mysql_bind_output(MYSQL_BIND& b, unsigned long* real_length, sql_varchar<SIZE>& s) {
-  s.resize(SIZE);
-  b.buffer = &s[0];
+  // string are written in static buffer mysql_bind_data::preallocated_string.
   b.buffer_type = MYSQL_TYPE_STRING;
-  b.buffer_length = s.size();
   b.length = real_length;
 }
 

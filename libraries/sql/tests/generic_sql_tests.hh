@@ -149,6 +149,7 @@ template <typename DB, typename Q> void test_long_strings_prepared_statement(Q& 
   test_str = "";
   query.prepare("Select id,name from users_test;")().map([&](int id, std::string name) {
     // std::cout << "SQL TEST PREPARED LONG STRING id:" << id << " " << 10000 * id << " " << name.size() << std::endl;
+    // std::cout << name.size() / test_str_patern.size() << std::endl;
     EXPECT_EQUAL(name.size(), 10000 * id);
     for (int l = 0; l < 100; l++)
       test_str += test_str_patern;
