@@ -15,8 +15,6 @@ set(CMAKE_VERBOSE_MAKEFILE ON)
 # cmake ..\lithium -DCMAKE_TOOLCHAIN_FILE="C:\vcpkg\scripts\buildsystems\vcpkg.cmake" -DCMAKE_PREFIX_PATH="C:\vcpkg\installed\x86-windows"
 
 
-
-
 find_package(Boost REQUIRED context)
 #find_package(SQLite3 REQUIRED)
 find_package(CURL REQUIRED)
