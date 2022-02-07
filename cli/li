@@ -23,8 +23,7 @@ FROM buildpack-deps:focal
 RUN apt-get update && apt-get install -yqq libboost-context-dev libboost-dev wget libmariadb-dev\
             postgresql-server-dev-12 libpq-dev cmake
 RUN git clone https://github.com/matt-42/lithium.git /lithium
-RUN mkdir /lithium/build;
-RUN cd /lithium/build && cmake .. -DCMAKE_BUILD_TYPE=Release; make install -j4;"""
+RUN /lithium/install.sh /usr"""
 
   print(f"Building lithium docker image.")
 
@@ -127,10 +126,8 @@ def compile_and_run(source_files, run_args, publish_arg, build_dir = None, debug
   # Run the shell script in docker.
   # --rm delete the container after running.
   network = "--network host"
-  print(publish_arg)
   if publish_arg:
       network="-p " + publish_arg
-  print(network)
   subprocess.run(f"docker run --rm -ti {network} -v {source_dir}:/source -v {build_dir}:/build lithium_docker_image /bin/bash -c".split(" ") + [compile_run_script])
 
 
@@ -187,6 +184,8 @@ Compile and run a lithium server inside a docker container.
 Symbols generation will place a symbols.hh file in each directory
 containing C++ files. #include "symbols.hh" is then required in order to
 use lithium symbols (e.g s::symbol_name).
+
+To save compilation output, a build directory in under /tmp of the host machine.
 """,
 epilog="""
 
