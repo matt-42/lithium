@@ -64,8 +64,8 @@ jobs:
     #    and modify them (or add more) to build your code if your project
     #    uses a compiled language
 
-    - run: apt-get install ninja-build
-    
+    - run: sudo apt-get install ninja-build
+
     - name: Restore artifacts, or setup vcpkg for building artifacts
       uses: lukka/run-vcpkg@v10.1
       id: runvcpkg
