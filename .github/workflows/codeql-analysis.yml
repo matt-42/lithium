@@ -63,13 +63,21 @@ jobs:
     #    and modify them (or add more) to build your code if your project
     #    uses a compiled language
 
-    - run: |
-       sudo apt-get remove libmysqlclient-dev mysql-server;
-       sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test;
-       sudo apt-get install -qq gcc-9 g++-9;
-       sudo apt-get install -yqq libboost-context-dev libboost-filesystem-dev libboost-dev libmariadbclient-dev libmariadb-dev postgresql curl
-       sudo apt-get install -yqq libpq-dev  postgresql-server-dev-all libssl-dev libsqlite3-dev cmake libcurl4-openssl-dev
-       cmake -DCMAKE_CXX_COMPILER=g++-9 . && make -j4
+    - name: Restore artifacts, or setup vcpkg for building artifacts
+      uses: lukka/run-vcpkg@v10.1
+      id: runvcpkg
+
+    - name: Prints output of run-vcpkg's action.
+      run: echo "root='${{ steps.runvcpkg.outputs.RUNVCPKG_VCPKG_ROOT_OUT }}', triplet='${{ steps.runvcpkg.outputs.RUNVCPKG_VCPKG_DEFAULT_TRIPLET_OUT }}' "
+
+    - name: Run CMake+vcpkg+Ninja
+      uses: lukka/run-cmake@v10
+      id: runcmake
+      with:
+        cmakeListsTxtPath: '${{ github.workspace }}/CMakeLists.txt'
+        configurePreset: 'ninja-multi-vcpkg'
+        buildPreset: 'ninja-multi-vcpkg-debug'
+        testPreset: 'ninja-multi-vcpkg-debug'
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v1
