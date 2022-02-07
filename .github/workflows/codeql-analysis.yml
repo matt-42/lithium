@@ -83,3 +83,5 @@ jobs:
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v1
+      with:
+          config-file: ./.github/workflows/codeql-config.yml
