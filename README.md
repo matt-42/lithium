@@ -4,7 +4,7 @@
 <p align="center">Sponsored by: <a href="https://github.com/SamuelMarks">@SamuelMarks</a>, <a href="https://github.com/oxcug">@oxcug</a>, <a href="https://github.com/Burnett01">@Burnett01</a></p>
 
 
-![Travis](https://travis-ci.com/matt-42/lithium.svg?branch=master) ![platform](https://img.shields.io/badge/platform-Linux%20%7C%20MacOS-yellow) ![licence](https://img.shields.io/badge/licence-MIT-blue)
+![platform](https://img.shields.io/badge/platform-Linux%20%7C%20MacOS-yellow) ![licence](https://img.shields.io/badge/licence-MIT-blue)
 
 
 Documentation: [https://matt-42.github.io/lithium](https://matt-42.github.io/lithium)
