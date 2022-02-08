@@ -131,8 +131,18 @@ int main() {
       <Typography variant="h2" component="h3" style={{fontFamily: "Major Mono Display"}}>lithium's sponsors</Typography>
 
       <List>
-        <ListItem button component="a" target="_blank" href="https://github.com/Burnett01" >
-          <ListItemText primary="Steven Agyekum (Burnett01)" />
+      
+      <ListItem button component="a" target="_blank" href="https://github.com/SamuelMarks" >
+        <ListItemText primary="Samuel Marks @SamuelMarks" />
+        </ListItem>
+        <ListItem button component="a" target="_blank" href="https://github.com/oxcug" >
+        <ListItemText primary="@oxcug" />
+        </ListItem>
+      <ListItem button component="a" target="_blank" href="https://github.com/Burnett01" >
+        <ListItemText primary="Steven Agyekum @Burnett01" />
+        </ListItem>
+        <ListItem button component="a" target="_blank" href="https://github.com/ajcressman" >
+        <ListItemText primary="@ajcressman" />
         </ListItem>
       </List>
   
