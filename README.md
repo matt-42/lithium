@@ -27,6 +27,13 @@ Lithium HTTP server and SQL drivers are ranked #1 on the [TechEmpower](https://t
 If you find this project helpful, give a star to lithium or buy me a coffee!
 https://github.com/sponsors/matt-42
 
+## Sponsors
+
+- <a href="https://github.com/SamuelMarks">@SamuelMarks</a>
+- <a href="https://github.com/oxcug">@oxcug</a>
+- <a href="https://github.com/Burnett01">@Burnett01</a>
+- <a href="https://github.com/ajcressman">@ajcressman</a>
+
 # Project using Lithium
 
 If you are using lithium and would like to name your project here, please submit a PR.
