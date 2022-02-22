@@ -77,6 +77,8 @@ export const hrefPrefix = (() => {
 
 export function makeHrefUrl(path : string|null) {
   let p = path || "";
+  if (p.startsWith("https://"))
+    return p;
   if (p.startsWith("/"))
     return hrefPrefix + p;
   else
