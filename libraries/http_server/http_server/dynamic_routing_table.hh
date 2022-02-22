@@ -41,8 +41,9 @@ template <typename V> struct drt_node {
     if (it != children_.end())
       return children_[k]->find_or_create(r, c);
     else {
-      auto new_node = new drt_node();
-      children_.insert({k, new_node});
+      auto new_node = std::make_shared<drt_node>();
+      children_shared_pointers_.push_back(new_node);
+      children_.insert({k, new_node.get()});
       return new_node->find_or_create(r, c);
     }
 
@@ -101,6 +102,7 @@ template <typename V> struct drt_node {
 
   V v_;
   std::unordered_map<std::string_view, drt_node*> children_;
+  std::vector<std::shared_ptr<drt_node>> children_shared_pointers_;
 };
 } // namespace internal
 
