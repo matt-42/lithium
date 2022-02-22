@@ -7,6 +7,7 @@
 #if not defined(_WIN32)
 #include <netdb.h>
 #include <netinet/tcp.h>
+#include <arpa/inet.h>
 #endif
 
 #include <signal.h>

@@ -35,6 +35,11 @@
     LI_SYMBOL(id)
 #endif
 
+#ifndef LI_SYMBOL_ip
+#define LI_SYMBOL_ip
+    LI_SYMBOL(ip)
+#endif
+
 #ifndef LI_SYMBOL_linux_epoll
 #define LI_SYMBOL_linux_epoll
     LI_SYMBOL(linux_epoll)

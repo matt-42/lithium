@@ -3374,6 +3374,11 @@ private:
     LI_SYMBOL(id)
 #endif
 
+#ifndef LI_SYMBOL_ip
+#define LI_SYMBOL_ip
+    LI_SYMBOL(ip)
+#endif
+
 #ifndef LI_SYMBOL_linux_epoll
 #define LI_SYMBOL_linux_epoll
     LI_SYMBOL(linux_epoll)
@@ -4043,59 +4048,75 @@ inline int close_socket(socket_type sock) {
 }
 
 // Helper to create a TCP/UDP server socket.
-static socket_type create_and_bind(int port, int socktype) {
-  struct addrinfo hints;
-  struct addrinfo *result, *rp;
+static socket_type create_and_bind(const char* ip, int port, int socktype) {
   int s;
-
   socket_type sfd;
 
-  char port_str[20];
-  snprintf(port_str, sizeof(port_str), "%d", port);
-  memset(&hints, 0, sizeof(struct addrinfo));
-  
-  // On windows, setting up the dual-stack mode (ipv4/ipv6 on the same socket).
-  // https://docs.microsoft.com/en-us/windows/win32/winsock/dual-stack-sockets
-  hints.ai_family = AF_INET6;
-  hints.ai_socktype = socktype; /* We want a TCP socket */
-  hints.ai_flags = AI_PASSIVE;  /* All interfaces */
+  if (ip == nullptr) {
+    // No IP address was specified, find an appropriate one
+    struct addrinfo hints;
+    struct addrinfo *result, *rp;
 
-  s = getaddrinfo(NULL, port_str, &hints, &result);
-  if (s != 0) {
-    fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(s));
-    return -1;
-  }
+    char port_str[20];
+    snprintf(port_str, sizeof(port_str), "%d", port);
+    memset(&hints, 0, sizeof(struct addrinfo));
+    
+    // On windows, setting up the dual-stack mode (ipv4/ipv6 on the same socket).
+    // https://docs.microsoft.com/en-us/windows/win32/winsock/dual-stack-sockets
+    hints.ai_family = AF_INET6;
+    hints.ai_socktype = socktype; /* We want a TCP socket */
+    hints.ai_flags = AI_PASSIVE;  /* All interfaces */
 
-  for (rp = result; rp != NULL; rp = rp->ai_next) {
-    sfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
-    if (sfd == -1)
-      continue;
-
-    // Turn of IPV6_V6ONLY to accept ipv4.
-    // https://stackoverflow.com/questions/1618240/how-to-support-both-ipv4-and-ipv6-connections
-    int ipv6only = 0;
-    if(setsockopt(sfd, IPPROTO_IPV6, IPV6_V6ONLY, (char*)&ipv6only, sizeof(ipv6only)) != 0)
-    {
-      std::cerr << "FATAL ERROR: setsockopt error when setting IPV6_V6ONLY to 0: " << strerror(errno)
-                << std::endl;
+    s = getaddrinfo(NULL, port_str, &hints, &result);
+    if (s != 0) {
+      fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(s));
+      return -1;
     }
 
-    s = bind(sfd, rp->ai_addr, int(rp->ai_addrlen));
-    if (s == 0) {
-      /* We managed to bind successfully! */
-      break;
+    for (rp = result; rp != NULL; rp = rp->ai_next) {
+      sfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+      if (sfd == -1)
+        continue;
+
+      // Turn of IPV6_V6ONLY to accept ipv4.
+      // https://stackoverflow.com/questions/1618240/how-to-support-both-ipv4-and-ipv6-connections
+      int ipv6only = 0;
+      if(setsockopt(sfd, IPPROTO_IPV6, IPV6_V6ONLY, (char*)&ipv6only, sizeof(ipv6only)) != 0)
+      {
+        std::cerr << "FATAL ERROR: setsockopt error when setting IPV6_V6ONLY to 0: " << strerror(errno)
+                  << std::endl;
+      }
+
+      s = bind(sfd, rp->ai_addr, int(rp->ai_addrlen));
+      if (s == 0) {
+        /* We managed to bind successfully! */
+        break;
+      }
+      else {
+        close_socket(sfd);
+      }
     }
-    else {
+
+    if (rp == NULL) {
+      fprintf(stderr, "Could not bind: %s\n", strerror(errno));
+      return -1;
+    }
+
+    freeaddrinfo(result);
+  } else {
+    // Use the user specified IP address
+    struct sockaddr_in addr;
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = inet_addr(ip);
+    addr.sin_port = port;
+
+    s = bind(sfd, (struct sockaddr *)&addr, sizeof(addr));
+    if (s != 0) {
+      fprintf(stderr, "Could not bind: %s\n", strerror(errno));
       close_socket(sfd);
+      return -1;
     }
   }
-
-  if (rp == NULL) {
-    fprintf(stderr, "Could not bind: %s\n", strerror(errno));
-    return -1;
-  }
-
-  freeaddrinfo(result);
 
 #if _WIN32
   u_long set_on = 1;
@@ -4555,7 +4576,7 @@ void async_fiber_context::reassign_fd_to_this_fiber(int fd) {
 }
 
 template <typename H>
-void start_tcp_server(int port, int socktype, int nthreads, H conn_handler,
+void start_tcp_server(std::string ip, int port, int socktype, int nthreads, H conn_handler,
                       std::string ssl_key_path = "", std::string ssl_cert_path = "",
                       std::string ssl_ciphers = "") {
 
@@ -4590,7 +4611,8 @@ void start_tcp_server(int port, int socktype, int nthreads, H conn_handler,
 #endif
 
   // Start the server threads.
-  int server_fd = impl::create_and_bind(port, socktype);
+  const char *listen_ip = !ip.empty() ? ip.c_str() : nullptr;
+  int server_fd = impl::create_and_bind(listen_ip, port, socktype);
   std::vector<std::thread> ths;
   for (int i = 0; i < nthreads; i++)
     ths.push_back(std::thread([&] {
@@ -6945,6 +6967,8 @@ void http_serve(api<http_request, http_response> api, int port, O... opts) {
 
   int nthreads = get_or(options, s::nthreads, std::thread::hardware_concurrency());
 
+  std::string ip = get_or(options, s::ip, "");
+
   auto handler = [api](auto& ctx) {
     http_request rq{ctx};
     http_response resp(ctx);
@@ -6977,11 +7001,11 @@ void http_serve(api<http_request, http_response> api, int port, O... opts) {
       std::string ssl_key = options.ssl_key;
       std::string ssl_cert = options.ssl_certificate;
       std::string ssl_ciphers = get_or(options, s::ssl_ciphers, "");
-      start_tcp_server(port, SOCK_STREAM, nthreads,
+      start_tcp_server(ip, port, SOCK_STREAM, nthreads,
                        http_async_impl::make_http_processor(std::move(handler)), ssl_key,
                        ssl_cert, ssl_ciphers);
     } else {
-      start_tcp_server(port, SOCK_STREAM, nthreads,
+      start_tcp_server(ip, port, SOCK_STREAM, nthreads,
                        http_async_impl::make_http_processor(std::move(handler)));
     }
     date_thread->join();

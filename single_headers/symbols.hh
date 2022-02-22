@@ -125,6 +125,11 @@
     LI_SYMBOL(id)
 #endif
 
+#ifndef LI_SYMBOL_ip
+#define LI_SYMBOL_ip
+    LI_SYMBOL(ip)
+#endif
+
 #ifndef LI_SYMBOL_json_encoded
 #define LI_SYMBOL_json_encoded
     LI_SYMBOL(json_encoded)
