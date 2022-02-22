@@ -15,6 +15,12 @@ add_test(url_decode url_decode)
 li_add_executable(hello_world hello_world.cc)
 add_test(hello_world hello_world)
 
+li_add_executable(subapi subapi.cc)
+add_test(subapi subapi)
+
+li_add_executable(api api.cc)
+add_test(api api)
+
 li_add_executable(crud crud.cc)
 add_test(crud crud)
 

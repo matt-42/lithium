@@ -1,31 +1,28 @@
 #pragma once
 
-#include <unordered_map>
 #include <map>
-#include <string_view>
 #include <memory>
 #include <string>
+#include <string_view>
+#include <unordered_map>
 
 namespace li {
 
 namespace internal {
 
-
-
 template <typename V> struct drt_node {
 
   drt_node() : v_{0, nullptr} {}
-  
+
   struct iterator {
     const drt_node<V>* ptr;
     std::string_view first;
     V second;
 
-    auto operator-> () { return this; }
+    auto operator->() { return this; }
     bool operator==(const iterator& b) const { return this->ptr == b.ptr; }
     bool operator!=(const iterator& b) const { return this->ptr != b.ptr; }
   };
-
 
   auto end() const { return iterator{nullptr, std::string_view(), V()}; }
 
@@ -43,8 +40,7 @@ template <typename V> struct drt_node {
     auto it = children_.find(k);
     if (it != children_.end())
       return children_[k]->find_or_create(r, c);
-    else
-    {
+    else {
       auto new_node = new drt_node();
       children_.insert({k, new_node});
       return new_node->find_or_create(r, c);

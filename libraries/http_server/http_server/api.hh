@@ -98,9 +98,9 @@ template <typename Req, typename Resp> struct api {
         throw http_error::not_found("Method ", method, " not implemented on route ", route);
     }
 
-    // skip the last / of the url.
+    // skip the last / of the url and trim spaces.
     std::string_view route2(route);
-    if (route2.size() != 0 and route2[route2.size() - 1] == '/')
+    while (route2.size() > 1 and (route2[route2.size() - 1] == '/' || route2[route2.size() - 1] == ' '))
       route2 = route2.substr(0, route2.size() - 1);
 
     auto it = routes_map_.find(route2);

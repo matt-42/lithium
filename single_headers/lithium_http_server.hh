@@ -3158,22 +3158,19 @@ namespace li {
 
 namespace internal {
 
-
-
 template <typename V> struct drt_node {
 
   drt_node() : v_{0, nullptr} {}
-  
+
   struct iterator {
     const drt_node<V>* ptr;
     std::string_view first;
     V second;
 
-    auto operator-> () { return this; }
+    auto operator->() { return this; }
     bool operator==(const iterator& b) const { return this->ptr == b.ptr; }
     bool operator!=(const iterator& b) const { return this->ptr != b.ptr; }
   };
-
 
   auto end() const { return iterator{nullptr, std::string_view(), V()}; }
 
@@ -3191,8 +3188,7 @@ template <typename V> struct drt_node {
     auto it = children_.find(k);
     if (it != children_.end())
       return children_[k]->find_or_create(r, c);
-    else
-    {
+    else {
       auto new_node = new drt_node();
       children_.insert({k, new_node});
       return new_node->find_or_create(r, c);
@@ -3554,9 +3550,9 @@ template <typename Req, typename Resp> struct api {
         throw http_error::not_found("Method ", method, " not implemented on route ", route);
     }
 
-    // skip the last / of the url.
+    // skip the last / of the url and trim spaces.
     std::string_view route2(route);
-    if (route2.size() != 0 and route2[route2.size() - 1] == '/')
+    while (route2.size() > 1 and (route2[route2.size() - 1] == '/' || route2[route2.size() - 1] == ' '))
       route2 = route2.substr(0, route2.size() - 1);
 
     auto it = routes_map_.find(route2);
