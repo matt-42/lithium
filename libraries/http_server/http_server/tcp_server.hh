@@ -22,6 +22,7 @@
 
 #if defined __linux__ || defined __APPLE__
 #include <sys/socket.h>
+#include <arpa/inet.h>
 #include <sys/types.h>
 #include <unistd.h>
 #endif
