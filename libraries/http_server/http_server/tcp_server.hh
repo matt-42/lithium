@@ -115,6 +115,8 @@ static socket_type create_and_bind(const char* ip, int port, int socktype) {
 
     freeaddrinfo(result);
   } else {
+    sfd = socket(AF_INET, socktype, 0);
+
     // Use the user specified IP address
     struct sockaddr_in addr;
     addr.sin_family = AF_INET;
