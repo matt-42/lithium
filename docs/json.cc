@@ -194,7 +194,7 @@ json_object(s::test1, s::test2(li::json_key("name")))
 
 ### Pointers deferencing
 
-When `json_decode` meet an object pointer, it dereferences it and serialize the pointer object.
+When `json_decode` meet an object pointer, it dereferences it and serialize the referenced object.
 
 */
 
