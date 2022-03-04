@@ -1460,6 +1460,7 @@ template <typename T> struct json_vector_;
 template <typename V> struct json_value_;
 template <typename V> struct json_map_;
 template <typename... T> struct json_tuple_;
+template <typename... T> struct json_variant_;
 struct json_key;
 
 namespace impl {
@@ -1479,6 +1480,7 @@ template <typename V> auto to_json_schema(V v);
 template <typename... M> auto to_json_schema(const metamap<M...>& m);
 template <typename V> auto to_json_schema(const std::vector<V>& arr);
 template <typename... V> auto to_json_schema(const std::tuple<V...>& arr);
+template <typename... V> auto to_json_schema(const std::variant<V...>& v);
 template <typename K, typename V> auto to_json_schema(const std::unordered_map<K, V>& arr);
 template <typename K, typename V> auto to_json_schema(const std::map<K, V>& arr);
 template <typename... M> auto to_json_schema(const metamap<M...>& m);
@@ -1497,6 +1499,9 @@ template <typename V> auto to_json_schema(const std::vector<V>& arr) {
 
 template <typename... V> auto to_json_schema(const std::tuple<V...>& arr) {
   return json_tuple_<decltype(to_json_schema(V{}))...>(to_json_schema(V{})...);
+}
+template <typename... V> auto to_json_schema(const std::variant<V...>& v) {
+  return json_variant_<decltype(to_json_schema(V{}))...>(to_json_schema(V{})...);
 }
 template <typename K, typename V> auto to_json_schema(const std::unordered_map<K, V>& arr) {
   return json_map_<decltype(to_json_schema(V{}))>(to_json_schema(V{}));
@@ -1550,6 +1555,11 @@ template <typename... E> constexpr auto json_is_tuple(json_tuple_<E...>) -> std:
 }
 template <typename E> constexpr auto json_is_tuple(E) -> std::false_type { return {}; }
 
+template <typename... E> constexpr auto json_is_variant(json_variant_<E...>) -> std::true_type {
+  return {};
+}
+template <typename E> constexpr auto json_is_variant(E) -> std::false_type { return {}; }
+
 template <typename E> constexpr auto json_is_object(json_object_<E>) -> std::true_type {
   return {};
 }
@@ -1560,6 +1570,9 @@ template <typename E> constexpr auto json_is_object(E) -> std::false_type { retu
 
 
 template <typename E> constexpr auto json_is_value(json_object_<E>) -> std::false_type {
+  return {};
+}
+template <typename... E> constexpr auto json_is_value(json_variant_<E...>) -> std::false_type {
   return {};
 }
 template <typename E> constexpr auto json_is_value(json_vector_<E>) -> std::false_type {
@@ -1624,7 +1637,7 @@ template <typename S> struct json_parser {
     if (auto err = eat('"'))
       return err;
     key_size = 0;
-    while (!eof() and peek() != '"' and key_size < (buffer_size-1))
+    while (!eof() and peek() != '"' and key_size < (buffer_size - 1))
       buffer[key_size++] = get();
     buffer[key_size] = 0;
     if (auto err = eat('"', false))
@@ -1673,39 +1686,39 @@ template <typename S> struct json_parser {
     return fill(opt.value());
   }
 
-  template <typename... T> inline json_error_code fill(std::variant<T...>& v) {
-    if (auto err = eat('{'))
-      return err;
-    if (auto err = eat("\"idx\""))
-      return err;
-    if (auto err = eat(':'))
-      return err;
+  // template <typename... T> inline json_error_code fill(std::variant<T...>& v) {
+  //   if (auto err = eat('{'))
+  //     return err;
+  //   if (auto err = eat("\"idx\""))
+  //     return err;
+  //   if (auto err = eat(':'))
+  //     return err;
 
-    int idx = 0;
-    fill(idx);
-    if (auto err = eat(','))
-      return err;
-    if (auto err = eat("\"value\""))
-      return err;
-    if (auto err = eat(':'))
-      return err;
+  //   int idx = 0;
+  //   fill(idx);
+  //   if (auto err = eat(','))
+  //     return err;
+  //   if (auto err = eat("\"value\""))
+  //     return err;
+  //   if (auto err = eat(':'))
+  //     return err;
 
-    int cpt = 0;
-    apply_each(
-        [&](auto* x) {
-          if (cpt == idx) {
-            std::remove_pointer_t<decltype(x)> value{};
-            fill(value);
-            v = std::move(value);
-          }
-          cpt++;
-        },
-        (T*)nullptr...);
+  //   int cpt = 0;
+  //   apply_each(
+  //       [&](auto* x) {
+  //         if (cpt == idx) {
+  //           std::remove_pointer_t<decltype(x)> value{};
+  //           fill(value);
+  //           v = std::move(value);
+  //         }
+  //         cpt++;
+  //       },
+  //       (T*)nullptr...);
 
-    if (auto err = eat('}'))
-      return err;
-    return JSON_OK;
-  }
+  //   if (auto err = eat('}'))
+  //     return err;
+  //   return JSON_OK;
+  // }
 
   S& ss;
   std::unique_ptr<std::ostringstream> error_stream = nullptr;
@@ -1781,6 +1794,59 @@ json_error_code json_decode2(P& p, std::tuple<O...>& tu, json_tuple_<S...> schem
     return JSON_OK;
 }
 
+template <typename F, typename... E, typename... T, std::size_t... I>
+inline void json_decode_variant_elements(F& decode_fun, std::variant<T...>& tu,
+                                         const std::tuple<E...>& schema,
+                                         std::index_sequence<I...>) {
+  (void)std::initializer_list<int>{((void)decode_fun([] { return T(); }, std::get<I>(schema)), 0)...};
+}
+
+template <typename P, typename... O, typename... S>
+json_error_code json_decode2(P& p, std::variant<O...>& tu, json_variant_<S...> schema) {
+  if (auto err = p.eat('{'))
+    return err;
+  if (auto err = p.eat("\"idx\""))
+    return err;
+  if (auto err = p.eat(':'))
+    return err;
+
+  int idx = 0;
+  p.fill(idx);
+  if (auto err = p.eat(','))
+    return err;
+  if (auto err = p.eat("\"value\""))
+    return err;
+  if (auto err = p.eat(':'))
+    return err;
+
+  int decode_idx = -1;
+  json_error_code error = JSON_OK;
+  auto decode_one_element = [idx, &p, &tu, &error, &decode_idx](auto get_value, auto value_schema) {
+    decode_idx++;
+    if (idx == decode_idx) {
+      auto val = get_value();
+      if (auto err = json_decode2(p, val, value_schema))
+        error = err;
+      else {
+        tu = std::variant<O...>{val};
+      }
+      p.eat_spaces();
+    }
+  };
+
+
+  json_decode_variant_elements(decode_one_element, tu, schema.elements,
+                               std::make_index_sequence<sizeof...(O)>{});
+
+  if (error)
+    return error;
+
+  if (auto err = p.eat('}'))
+    return err;
+  else
+    return JSON_OK;
+}
+
 template <typename P, typename O, typename V>
 json_error_code json_decode2(json_parser<P>& p, O& obj, json_map_<V> schema) {
   if (auto err = p.eat('{'))
@@ -1789,14 +1855,13 @@ json_error_code json_decode2(json_parser<P>& p, O& obj, json_map_<V> schema) {
   p.eat_spaces();
 
   using mapped_type = typename O::mapped_type;
-  while(true)
-  {
+  while (true) {
     // Parse key:
     char key[50];
     int key_size = 0;
     if (auto err = p.eat_json_key(key, sizeof(key), key_size))
       return err;
-    
+
     std::string_view key_str(key, key_size);
 
     if (auto err = p.eat(':'))
@@ -1990,10 +2055,30 @@ template <typename T, typename C> inline void json_encode_value(C& ss, const std
     json_encode_value(ss, t.value());
 }
 
-template <typename C, typename... T>
-inline void json_encode_value(C& ss, const std::variant<T...>& t) {
+template <typename F, typename... E, typename... T, std::size_t... I>
+inline void json_encode_variant_value(F& encode_fun, const std::variant<T...>& tu,
+                                       const std::tuple<E...>& schema, std::index_sequence<I...>) {
+  (void)std::initializer_list<int>{((void)encode_fun([&tu] { return std::get<I>(tu); }, std::get<I>(schema)), 0)...};
+}
+
+template <typename C, typename... T, typename... E>
+inline void json_encode(C& ss, const std::variant<T...>& t, const json_variant_<E...>& schema) {
   ss << "{\"idx\":" << t.index() << ",\"value\":";
-  std::visit([&](auto&& value) { json_encode_value(ss, value); }, t);
+  int idx = -1;
+  auto encode_one_element = [&t, &ss, &idx](auto get_value, auto value_schema) {
+    idx++;
+    if (idx == t.index())
+    {
+      if constexpr (decltype(json_is_value(value_schema)){}) {
+        json_encode_value(ss, get_value());
+      } else
+        json_encode(ss, get_value(), value_schema);
+    }
+  };
+
+  json_encode_variant_value(encode_one_element, t, schema.elements,
+                             std::make_index_sequence<sizeof...(T)>{});
+
   ss << '}';
 }
 
@@ -2243,6 +2328,14 @@ template <typename V> struct json_map_ : public json_object_base<json_map_<V>> {
 };
 
 template <typename V> auto json_map() { return json_map_<V>(); }
+
+template <typename... T> struct json_variant_ : public json_object_base<json_variant_<T...>> {
+  json_variant_() = default;
+  json_variant_(const T&... s) : elements(s...) {}
+  std::tuple<T...> elements;
+};
+
+template <typename... S> auto json_variant(S&&... s) { return json_variant_<S...>(s...); }
 
 template <typename C, typename M> decltype(auto) json_decode(C& input, M& obj) {
   return impl::to_json_schema(obj).decode(input, obj);

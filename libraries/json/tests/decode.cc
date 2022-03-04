@@ -38,7 +38,8 @@ int main() {
     auto obj = mmm(s::test1 = int(), s::test2 = std::string());
 
     auto err = json_object(s::test1, s::test2(json_key("name"))).decode(input, obj);
-    if (err) std::cout << err.what << std::endl;
+    if (err)
+      std::cout << err.what << std::endl;
     assert(obj.test1 == 12);
     assert(obj.test2 == "John");
   }
@@ -100,11 +101,31 @@ int main() {
     // Variant.
     auto obj = mmm(s::test1 = std::variant<int, std::string>("abc"));
 
-    assert(json_decode(R"json({"test1":{"idx":1,"value":"abc"}})json", obj).good());
-    assert(std::get<std::string>(obj.test1) == "abc");
+    assert(json_decode(R"json({"test1":{"idx":1,"value":"abcd"}})json", obj).good());
+    assert(std::get<std::string>(obj.test1) == "abcd");
 
     assert(json_decode(R"json({"test1":{"idx":0,"value":42}})json", obj).good());
     assert(std::get<int>(obj.test1) == 42);
+
+    // Variant of custom objects.
+    struct X {
+      int test2;
+    };
+    struct Y {
+      int test1;
+    };
+
+    auto json_info = json_variant(json_object(s::test2), json_object(s::test1));
+
+    auto v = std::variant<X, Y>(X{23});
+    assert(v.index() == 0);
+    assert(std::get<X>(v).test2 == 23);
+    assert(json_info.decode(R"json({"idx":0,"value":{"test2":42}})json", v).good());
+    assert(std::get<X>(v).test2 == 42);
+
+    assert(json_info.decode(R"json({"idx":1,"value":{"test1":51}})json", v).good());
+    assert(std::get<Y>(v).test1 == 51);
+
   }
 
   {
@@ -115,5 +136,4 @@ int main() {
     assert(obj["test1"] == 1);
     assert(obj["test2"] == 4);
   }
-
 }

@@ -121,6 +121,23 @@ int main() {
   }
 
   {
+    // Variant of custom objects
+    struct X {
+      int test2;
+    };
+    struct Y {
+      int test1;
+    };
+
+    auto json_info = json_variant(json_object(s::test2), json_object(s::test1));
+
+    std::cout << "json_info.encode(std::variant<X, Y>(X{32}))" << std::endl;
+    std::cout << json_info.encode(std::variant<X, Y>(X{32})) << std::endl;
+    assert(json_info.encode(std::variant<X, Y>(X{32})) == R"json({"idx":0,"value":{"test2":32}})json");
+    assert(json_info.encode(std::variant<X, Y>(Y{33})) == R"json({"idx":1,"value":{"test1":33}})json");
+  }
+
+  {
     // Maps.
     std::unordered_map<std::string, int> test;
     assert(json_encode(test) == "{}");
@@ -144,7 +161,6 @@ int main() {
     auto to_encode = std::vector<int>{1, 2, 3, 4};
     std::cout << json_encode(&to_encode) << std::endl;
     assert(json_encode(&to_encode) == input);
-         
   }
 
   {

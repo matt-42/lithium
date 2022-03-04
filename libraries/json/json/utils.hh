@@ -8,6 +8,7 @@
 #include <tuple>
 #include <map>
 #include <unordered_map>
+#include <variant>
 
 namespace li {
 
@@ -18,6 +19,7 @@ template <typename T> struct json_vector_;
 template <typename V> struct json_value_;
 template <typename V> struct json_map_;
 template <typename... T> struct json_tuple_;
+template <typename... T> struct json_variant_;
 struct json_key;
 
 namespace impl {
@@ -37,6 +39,7 @@ template <typename V> auto to_json_schema(V v);
 template <typename... M> auto to_json_schema(const metamap<M...>& m);
 template <typename V> auto to_json_schema(const std::vector<V>& arr);
 template <typename... V> auto to_json_schema(const std::tuple<V...>& arr);
+template <typename... V> auto to_json_schema(const std::variant<V...>& v);
 template <typename K, typename V> auto to_json_schema(const std::unordered_map<K, V>& arr);
 template <typename K, typename V> auto to_json_schema(const std::map<K, V>& arr);
 template <typename... M> auto to_json_schema(const metamap<M...>& m);
@@ -55,6 +58,9 @@ template <typename V> auto to_json_schema(const std::vector<V>& arr) {
 
 template <typename... V> auto to_json_schema(const std::tuple<V...>& arr) {
   return json_tuple_<decltype(to_json_schema(V{}))...>(to_json_schema(V{})...);
+}
+template <typename... V> auto to_json_schema(const std::variant<V...>& v) {
+  return json_variant_<decltype(to_json_schema(V{}))...>(to_json_schema(V{})...);
 }
 template <typename K, typename V> auto to_json_schema(const std::unordered_map<K, V>& arr) {
   return json_map_<decltype(to_json_schema(V{}))>(to_json_schema(V{}));
@@ -108,6 +114,11 @@ template <typename... E> constexpr auto json_is_tuple(json_tuple_<E...>) -> std:
 }
 template <typename E> constexpr auto json_is_tuple(E) -> std::false_type { return {}; }
 
+template <typename... E> constexpr auto json_is_variant(json_variant_<E...>) -> std::true_type {
+  return {};
+}
+template <typename E> constexpr auto json_is_variant(E) -> std::false_type { return {}; }
+
 template <typename E> constexpr auto json_is_object(json_object_<E>) -> std::true_type {
   return {};
 }
@@ -118,6 +129,9 @@ template <typename E> constexpr auto json_is_object(E) -> std::false_type { retu
 
 
 template <typename E> constexpr auto json_is_value(json_object_<E>) -> std::false_type {
+  return {};
+}
+template <typename... E> constexpr auto json_is_value(json_variant_<E...>) -> std::false_type {
   return {};
 }
 template <typename E> constexpr auto json_is_value(json_vector_<E>) -> std::false_type {

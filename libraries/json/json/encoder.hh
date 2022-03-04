@@ -60,10 +60,30 @@ template <typename T, typename C> inline void json_encode_value(C& ss, const std
     json_encode_value(ss, t.value());
 }
 
-template <typename C, typename... T>
-inline void json_encode_value(C& ss, const std::variant<T...>& t) {
+template <typename F, typename... E, typename... T, std::size_t... I>
+inline void json_encode_variant_value(F& encode_fun, const std::variant<T...>& tu,
+                                       const std::tuple<E...>& schema, std::index_sequence<I...>) {
+  (void)std::initializer_list<int>{((void)encode_fun([&tu] { return std::get<I>(tu); }, std::get<I>(schema)), 0)...};
+}
+
+template <typename C, typename... T, typename... E>
+inline void json_encode(C& ss, const std::variant<T...>& t, const json_variant_<E...>& schema) {
   ss << "{\"idx\":" << t.index() << ",\"value\":";
-  std::visit([&](auto&& value) { json_encode_value(ss, value); }, t);
+  int idx = -1;
+  auto encode_one_element = [&t, &ss, &idx](auto get_value, auto value_schema) {
+    idx++;
+    if (idx == t.index())
+    {
+      if constexpr (decltype(json_is_value(value_schema)){}) {
+        json_encode_value(ss, get_value());
+      } else
+        json_encode(ss, get_value(), value_schema);
+    }
+  };
+
+  json_encode_variant_value(encode_one_element, t, schema.elements,
+                             std::make_index_sequence<sizeof...(T)>{});
+
   ss << '}';
 }
 

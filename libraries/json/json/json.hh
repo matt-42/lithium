@@ -108,6 +108,14 @@ template <typename V> struct json_map_ : public json_object_base<json_map_<V>> {
 
 template <typename V> auto json_map() { return json_map_<V>(); }
 
+template <typename... T> struct json_variant_ : public json_object_base<json_variant_<T...>> {
+  json_variant_() = default;
+  json_variant_(const T&... s) : elements(s...) {}
+  std::tuple<T...> elements;
+};
+
+template <typename... S> auto json_variant(S&&... s) { return json_variant_<S...>(s...); }
+
 template <typename C, typename M> decltype(auto) json_decode(C& input, M& obj) {
   return impl::to_json_schema(obj).decode(input, obj);
 }
