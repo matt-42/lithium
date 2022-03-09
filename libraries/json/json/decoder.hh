@@ -103,40 +103,19 @@ template <typename S> struct json_parser {
     opt.emplace();
     return fill(opt.value());
   }
+  template <typename T, std::size_t N> inline json_error_code fill(T (&opt)[N]) {
+    if (auto err = eat('['))
+      return err;
+    for (int i = 0; i < N; i++) {
+      if (i > 0)
+        if (auto err = eat(','))
+          return err;
+      fill(opt[i]);
+    }
 
-  // template <typename... T> inline json_error_code fill(std::variant<T...>& v) {
-  //   if (auto err = eat('{'))
-  //     return err;
-  //   if (auto err = eat("\"idx\""))
-  //     return err;
-  //   if (auto err = eat(':'))
-  //     return err;
-
-  //   int idx = 0;
-  //   fill(idx);
-  //   if (auto err = eat(','))
-  //     return err;
-  //   if (auto err = eat("\"value\""))
-  //     return err;
-  //   if (auto err = eat(':'))
-  //     return err;
-
-  //   int cpt = 0;
-  //   apply_each(
-  //       [&](auto* x) {
-  //         if (cpt == idx) {
-  //           std::remove_pointer_t<decltype(x)> value{};
-  //           fill(value);
-  //           v = std::move(value);
-  //         }
-  //         cpt++;
-  //       },
-  //       (T*)nullptr...);
-
-  //   if (auto err = eat('}'))
-  //     return err;
-  //   return JSON_OK;
-  // }
+    if (auto err = eat(']'))
+      return err;
+  }
 
   S& ss;
   std::unique_ptr<std::ostringstream> error_stream = nullptr;
@@ -216,7 +195,8 @@ template <typename F, typename... E, typename... T, std::size_t... I>
 inline void json_decode_variant_elements(F& decode_fun, std::variant<T...>& tu,
                                          const std::tuple<E...>& schema,
                                          std::index_sequence<I...>) {
-  (void)std::initializer_list<int>{((void)decode_fun([] { return T(); }, std::get<I>(schema)), 0)...};
+  (void)std::initializer_list<int>{
+      ((void)decode_fun([] { return T(); }, std::get<I>(schema)), 0)...};
 }
 
 template <typename P, typename... O, typename... S>
@@ -239,6 +219,7 @@ json_error_code json_decode2(P& p, std::variant<O...>& tu, json_variant_<S...> s
 
   int decode_idx = -1;
   json_error_code error = JSON_OK;
+
   auto decode_one_element = [idx, &p, &tu, &error, &decode_idx](auto get_value, auto value_schema) {
     decode_idx++;
     if (idx == decode_idx) {
@@ -248,11 +229,8 @@ json_error_code json_decode2(P& p, std::variant<O...>& tu, json_variant_<S...> s
       else {
         tu = std::variant<O...>{val};
       }
-      p.eat_spaces();
     }
   };
-
-
   json_decode_variant_elements(decode_one_element, tu, schema.elements,
                                std::make_index_sequence<sizeof...(O)>{});
 

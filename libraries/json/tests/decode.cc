@@ -74,6 +74,14 @@ int main() {
   }
 
   {
+    // static vector.
+    int arr[2];
+    json_decode(R"json( [  23 , 45 ] )json", arr);
+    assert(arr[0] == 23);
+    assert(arr[1] == 45);
+  }
+
+  {
     // tuples.
     std::string input = R"json( [  42  ,  "foo" , 0 , 4 ] )json";
 
@@ -125,7 +133,6 @@ int main() {
 
     assert(json_info.decode(R"json({"idx":1,"value":{"test1":51}})json", v).good());
     assert(std::get<Y>(v).test1 == 51);
-
   }
 
   {

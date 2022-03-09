@@ -73,6 +73,18 @@ int main() {
   }
 
   {
+    // static vectors.
+    int arr[4] = {1,2,3,4};
+    std::cout << json_encode(arr) << std::endl;
+    assert(json_encode(arr) ==  R"json([1,2,3,4])json");
+
+    li::metamap<s::test1_t::variable_t<int>> arr2[2] = {li::mmm(s::test1 = 1), li::mmm(s::test1 = 2)};
+    std::cout << json_encode(arr2) << std::endl; 
+    assert(json_encode(arr2) ==  R"json([{"test1":1},{"test1":2}])json");
+  }
+
+
+  {
     // tuples.
     std::string input = R"json([42,"foo",0])json";
     assert(json_encode(std::make_tuple(42, "foo", 0)) == input);

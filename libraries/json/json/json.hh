@@ -79,6 +79,7 @@ template <typename T> struct json_vector_ : public json_object_base<json_vector_
   json_vector_(const T& s) : schema(s) {}
   T schema;
 };
+
 template <typename T> struct is_json_vector : std::false_type {};
 template <typename T> struct is_json_vector<json_vector_<T>> : std::true_type {};
 
@@ -86,6 +87,13 @@ template <typename... S> auto json_vector(S&&... s) {
   auto obj = json_object(std::forward<S>(s)...);
   return json_vector_<decltype(obj)>{obj};
 }
+
+template <typename T, unsigned N> struct json_static_array_ : public json_object_base<json_static_array_<T, N>> {
+  enum { is_json_static_array = true };
+  json_static_array_() = default;
+  json_static_array_(const T& s) : element_schema(s) {}
+  T element_schema;
+};
 
 template <typename... T> struct json_tuple_ : public json_object_base<json_tuple_<T...>> {
   json_tuple_() = default;
@@ -124,8 +132,8 @@ template <typename C, typename M> decltype(auto) json_encode(C& output, const M&
   impl::to_json_schema(obj).encode(output, obj);
 }
 
-template <typename M> auto json_encode(const M& obj) {
-  return impl::to_json_schema(obj).encode(obj);
+template <typename M> auto json_encode(M&& obj) {
+  return impl::to_json_schema(obj).encode(std::forward<M>(obj));
 }
 
 template <typename C, typename F> decltype(auto) json_encode_generator(C& output, int N, F generator) {
