@@ -143,7 +143,7 @@ Like `json_object` it takes the member of accessor names to serialize:
 
 struct A { int age; std::string name; };
 std::vector<A> array{ {12, "John"},  {2, "Alice"},  {32, "Bob"} };
-json_str = json_vector(s::age, s::name).encode(array);
+json_str = json_object_vector(s::age, s::name).encode(array);
 // [{"age":12,"name":"John"},{"age":2,"name":"Alice"},{"age":32,"name":"Bob"}]
 
 /*
@@ -179,7 +179,7 @@ json_str = json_tuple(std::string(), json_object(s::name, s::age)).encode(t);
 
 If a member of an object is also a custom type, you can nest several definitions:
 */
-json_vector(s::id, s::info = json_object(s::name, s::age));
+json_object_vector(s::id, s::info = json_object(s::name, s::age));
 /*
 #### Custom JSON keys
 

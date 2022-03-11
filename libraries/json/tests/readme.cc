@@ -52,7 +52,7 @@ int main() {
 
   // Arrays of structs
   std::vector<A> array{{12, "John"}, {2, "Alice"}, {32, "Bob"}};
-  json_str = json_vector(s::age, s::name).encode(array);
+  json_str = json_object_vector(s::age, s::name).encode(array);
 
   std::cout << json_str << std::endl;
   // [{"age":12,"name":"John"},{"age":2,"name":"Alice"},{"age":32,"name":"Bob"}]

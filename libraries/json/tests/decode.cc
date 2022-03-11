@@ -56,6 +56,18 @@ int main() {
     assert(v[1] == 2);
     assert(v[2] == 3);
     assert(v[3] == 4);
+
+    struct {
+      std::vector<char> a;
+    } a;
+    std::string input2 = R"json({"a":[1,2,3,4]})json";
+    auto err2 = json_object(s::a).decode(input2, a);
+    assert(!err2);
+    assert(a.a.size() == 4);
+    assert(a.a[0] == 1);
+    assert(a.a[1] == 2);
+    assert(a.a[2] == 3);
+    assert(a.a[3] == 4);
   }
 
   {
@@ -67,7 +79,7 @@ int main() {
     };
 
     std::vector<A> v;
-    auto err = json_vector(s::test1).decode(input, v);
+    auto err = json_object_vector(s::test1).decode(input, v);
     assert(!err);
     assert(v.size() == 1);
     assert(v[0].test1 == 12);

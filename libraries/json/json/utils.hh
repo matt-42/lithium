@@ -114,6 +114,9 @@ template <typename T> struct json_object_;
 
 template <typename O> struct json_vector_;
 
+template <typename T> struct is_json_vector : std::false_type {};
+template <typename T> struct is_json_vector<json_vector_<T>> : std::true_type {};
+
 template <typename E> constexpr auto json_is_vector(json_vector_<E>) -> std::true_type {
   return {};
 }

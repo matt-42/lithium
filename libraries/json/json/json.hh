@@ -80,12 +80,12 @@ template <typename T> struct json_vector_ : public json_object_base<json_vector_
   T schema;
 };
 
-template <typename T> struct is_json_vector : std::false_type {};
-template <typename T> struct is_json_vector<json_vector_<T>> : std::true_type {};
-
-template <typename... S> auto json_vector(S&&... s) {
+template <typename... S> auto json_object_vector(S&&... s) {
   auto obj = json_object(std::forward<S>(s)...);
   return json_vector_<decltype(obj)>{obj};
+}
+template <typename E> auto json_vector(E&& element) {
+  return json_vector_<decltype(element)>{element};
 }
 
 template <typename T, unsigned N> struct json_static_array_ : public json_object_base<json_static_array_<T, N>> {
@@ -94,6 +94,11 @@ template <typename T, unsigned N> struct json_static_array_ : public json_object
   json_static_array_(const T& s) : element_schema(s) {}
   T element_schema;
 };
+
+template <unsigned N, typename... S> auto json_static_array(S&&... s) {
+  auto obj = json_object(std::forward<S>(s)...);
+  return json_static_array_<decltype(obj), N>{obj};
+}
 
 template <typename... T> struct json_tuple_ : public json_object_base<json_tuple_<T...>> {
   json_tuple_() = default;

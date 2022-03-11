@@ -63,7 +63,7 @@ int main() {
       s::range = li::json_object(s::from, s::to, s::raw = li::json_object(s::from, s::to)),
       s::rangeRaw = li::json_object(s::from, s::to), 
       s::interval, s::intervalMs,
-      s::targets = li::json_vector(s::target, s::refId, s::type),
+      s::targets = li::json_object_vector(s::target, s::refId, s::type),
       s::adhocFilters = li::json_map<std::string>(), 
       s::format, s::maxDataPoints);
 

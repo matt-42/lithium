@@ -115,6 +115,7 @@ template <typename S> struct json_parser {
 
     if (auto err = eat(']'))
       return err;
+    return JSON_OK;
   }
 
   S& ss;
@@ -129,8 +130,13 @@ template <typename P, typename O, typename S> json_error_code json_decode2(P& p,
     return JSON_OK;
 }
 
+template <typename S>
+struct json_vector_element_type { typedef json_value_<int> type; };
+template <typename S>
+struct json_vector_element_type<json_vector_<S>> { typedef std::remove_reference_t<S> type; };
+
 template <typename P, typename O, typename S>
-json_error_code json_decode2(P& p, O& obj, json_vector_<S> schema) {
+json_error_code json_decode2(P& p, std::vector<O>& obj, S schema) {
   obj.clear();
   bool first = true;
   auto err = p.eat('[');
@@ -146,7 +152,12 @@ json_error_code json_decode2(P& p, O& obj, json_vector_<S> schema) {
     first = false;
 
     obj.resize(obj.size() + 1);
-    if ((err = json_decode2(p, obj.back(), S{})))
+    auto element_schema = [&schema] () {
+      if constexpr (is_json_vector<S>::value) return schema.schema;
+      else return json_value_<O>();
+    }();
+
+    if ((err = json_decode2(p, obj.back(), element_schema)))
       return err;
     p.eat_spaces();
   }
@@ -156,6 +167,33 @@ json_error_code json_decode2(P& p, O& obj, json_vector_<S> schema) {
   else
     return JSON_OK;
 }
+// template <typename P, typename O, typename S>
+// json_error_code json_decode2(P& p, std::vector<O>& obj, S schema) {
+//   obj.clear();
+//   bool first = true;
+//   auto err = p.eat('[');
+//   if (err)
+//     return err;
+
+//   p.eat_spaces();
+//   while (p.peek() != ']') {
+//     if (!first) {
+//       if ((err = p.eat(',')))
+//         return err;
+//     }
+//     first = false;
+
+//     obj.resize(obj.size() + 1);
+//     if ((err = json_decode2(p, obj.back(), p)))
+//       return err;
+//     p.eat_spaces();
+//   }
+
+//   if ((err = p.eat(']')))
+//     return err;
+//   else
+//     return JSON_OK;
+// }
 
 template <typename F, typename... E, typename... T, std::size_t... I>
 inline void json_decode_tuple_elements(F& decode_fun, std::tuple<T...>& tu,
@@ -316,17 +354,17 @@ json_error_code json_decode2(P& p, O& obj, json_object_<S> schema) {
       using V = decltype(symbol_member_or_getter_access(obj, m.name));
       using VS = decltype(get_or(m, s::type, json_value_<V>{}));
 
-      if constexpr (decltype(json_is_value(VS{})){}) {
-        if (auto err = p.fill(symbol_member_or_getter_access(obj, m.name)))
+      // if constexpr (decltype(json_is_value(VS{})){}) {
+      //   if (auto err = p.fill(symbol_member_or_getter_access(obj, m.name)))
+      //     return err;
+      //   else
+      //     return JSON_OK;
+      // } else {
+        if (auto err = json_decode2(p, symbol_member_or_getter_access(obj, m.name), get_or(m, s::type, obj)))
           return err;
         else
           return JSON_OK;
-      } else {
-        if (auto err = json_decode2(p, symbol_member_or_getter_access(obj, m.name), m.type))
-          return err;
-        else
-          return JSON_OK;
-      }
+      // }
     };
 
     i++;

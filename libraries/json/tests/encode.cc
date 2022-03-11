@@ -6,7 +6,7 @@
 using namespace li;
 
 int main() {
-
+  
   {
     std::string input = R"json({"test1":12,"test2":"John"})json";
 
@@ -33,7 +33,7 @@ int main() {
   {
     // Arrays;
     std::string input =
-        R"json({"test1":2,"test2":[{"test1":11,"test2":"Bob"},{"test1":12,"test2":"John"}]})json";
+        R"json({"test1":2,"test2":[{"test1":11,"test2":"Bob"},{"test1":12,"test2":"John"}],"test3":[0,1,2]})json";
 
     struct A {
       int test1;
@@ -42,9 +42,16 @@ int main() {
     struct {
       int test1;
       std::vector<A> test2;
-    } obj{2, {{11, "Bob"}, {12, "John"}}};
+      std::vector<int> test3;
+    } obj{2, {{11, "Bob"}, {12, "John"}}, {0,1,2}};
 
-    assert(json_object(s::test1, s::test2 = json_vector(s::test1, s::test2)).encode(obj) == input);
+    std::cout << json_object(s::test1, 
+    s::test2 = json_object_vector(s::test1, s::test2),
+    s::test3).encode(obj) << std::endl;
+    assert(json_object(s::test1, 
+    s::test2 = json_object_vector(s::test1, s::test2),
+    s::test3).encode(obj) == input);
+
   }
 
   {
@@ -70,6 +77,8 @@ int main() {
     // plain vectors.
     std::string input = R"json([1,2,3,4])json";
     assert(json_encode(std::vector<int>{1, 2, 3, 4}) == input);
+    assert(json_encode(std::vector<char>{1, 2, 3, 4}) == input);
+    assert(json_encode(std::vector<uint8_t>{1, 2, 3, 4}) == input);
   }
 
   {
@@ -81,6 +90,17 @@ int main() {
     li::metamap<s::test1_t::variable_t<int>> arr2[2] = {li::mmm(s::test1 = 1), li::mmm(s::test1 = 2)};
     std::cout << json_encode(arr2) << std::endl; 
     assert(json_encode(arr2) ==  R"json([{"test1":1},{"test1":2}])json");
+  
+    struct X { float t1; }; 
+    X arr3[] = { {1.2}, {2.1} };
+    std::cout << json_static_array<2>(s::t1 = float()).encode(arr3) << std::endl; 
+    assert(json_static_array<2>(s::t1).encode(arr3) ==  R"json([{"t1":1.2},{"t1":2.1}])json");
+
+    struct X2 { float t1[2]; }; 
+    X2 testX2{ {1.234, 2.3} };
+    std::cout << json_object(s::t1).encode(testX2) << std::endl;
+    assert(json_object(s::t1).encode(testX2) ==  R"json({"t1":[1.234,2.3]})json");
+
   }
 
 
