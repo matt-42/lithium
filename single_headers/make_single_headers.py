@@ -8,7 +8,7 @@ from os.path import join
 
 WITH_LINE_DIRECTIVES = False
 
-LINUX_ONLY_HEADERS = ['sys/epoll.h']
+LINUX_ONLY_HEADERS = ['sys/epoll.h', 'sys/sendfile.h']
 APPLE_ONLY_HEADERS = ['sys/event.h', 'libkern/OSByteOrder.h', 'machine/endian.h']
 WINDOWS_ONLY_HEADERS = ['WS2tcpip.h', 'WinSock2.h', 'wepoll.h', 'winsock2.h']
 
