@@ -50,7 +50,9 @@
 #include <sys/event.h>
 #endif
 #include <sys/mman.h>
+#if __linux__
 #include <sys/sendfile.h>
+#endif
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
