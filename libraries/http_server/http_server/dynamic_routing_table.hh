@@ -72,6 +72,9 @@ template <typename V> struct drt_node {
     if (r[c] == '/')
       c++; // skip the first /
 
+    if (c >= r.size())
+      return end();
+
     // Find the next /.
     int s = c;
     while (c < r.size() and r[c] != '/')
