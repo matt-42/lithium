@@ -1,10 +1,12 @@
 #include <cassert>
+#include <cstdint>
 #include <iomanip>
 #include <iostream>
 #include <lithium_json.hh>
 
+template <typename I>
 int test_integer(const char* str) {
-  int f;
+  I f;
   const char* end;
   li::internal::parse_int(&f, str, &end);
 
@@ -23,10 +25,11 @@ double test_float(const char* str) {
   return f;
 }
 
-#define TEST(N) assert(test_integer(#N) == N);
+#define TEST(N) assert(test_integer<int>(#N) == N);
 #define TESTF(N) assert(std::abs(test_float(#N) - N) < 1e-5);
 
 int main() {
+  assert(test_integer<uint64_t>("18446744073709551615") == 18446744073709551615ULL);
   TEST(0);
   TEST(1);
   TEST(-1);

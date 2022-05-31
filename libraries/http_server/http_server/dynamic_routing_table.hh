@@ -60,6 +60,8 @@ template <typename V> struct drt_node {
         pair.second->for_all_routes(f, prefix + std::string(pair.first));
     }
   }
+
+  // Find a route.
   iterator find(const std::string_view& r, unsigned int c) const {
     // We found the route r.
     if ((c == r.size() and v_.handler != nullptr) or (children_.size() == 0))
@@ -72,16 +74,15 @@ template <typename V> struct drt_node {
     if (r[c] == '/')
       c++; // skip the first /
 
-    if (c >= r.size())
-      return end();
-
     // Find the next /.
-    int s = c;
+    int url_part_start = c;
     while (c < r.size() and r[c] != '/')
       c++;
 
     // k is the string between the 2 /.
-    std::string_view k(&r[s], c - s);
+    std::string_view k;
+    if (url_part_start < r.size() && url_part_start != c)
+      k = std::string_view(&r[url_part_start], c - url_part_start);
 
     // look for k in the children.
     auto it = children_.find(k);

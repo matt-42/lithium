@@ -19,6 +19,7 @@ int main() {
   my_api.add_subapi("/sub", my_api2);
 
   http_serve(my_api, 12334, s::non_blocking);
+  assert(http_get("http://localhost:12334").body == "hello world.");
   assert(http_get("http://localhost:12334/").body == "hello world.");
   assert(http_get("http://localhost:12334/sub/hello_world").body == "hello world2.");
 }

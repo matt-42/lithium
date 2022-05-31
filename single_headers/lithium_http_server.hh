@@ -3380,6 +3380,8 @@ template <typename V> struct drt_node {
         pair.second->for_all_routes(f, prefix + std::string(pair.first));
     }
   }
+
+  // Find a route.
   iterator find(const std::string_view& r, unsigned int c) const {
     // We found the route r.
     if ((c == r.size() and v_.handler != nullptr) or (children_.size() == 0))
@@ -3393,12 +3395,14 @@ template <typename V> struct drt_node {
       c++; // skip the first /
 
     // Find the next /.
-    int s = c;
+    int url_part_start = c;
     while (c < r.size() and r[c] != '/')
       c++;
 
     // k is the string between the 2 /.
-    std::string_view k(&r[s], c - s);
+    std::string_view k;
+    if (url_part_start < r.size() && url_part_start != c)
+      k = std::string_view(&r[url_part_start], c - url_part_start);
 
     // look for k in the children.
     auto it = children_.find(k);
@@ -4870,7 +4874,6 @@ static std::unordered_map<std::string_view, std::string_view> content_types = {
 {"jar", "application/java-archive"},
 {"ser", "application/java-serialized-object"},
 {"class", "application/java-vm"},
-{"js", "application/javascript"},
 {"json", "application/json"},
 {"jsonml", "application/jsonml+json"},
 {"lostxml", "application/lost+xml"},
@@ -5706,6 +5709,8 @@ static std::unordered_map<std::string_view, std::string_view> content_types = {
 {"csv", "text/csv"},
 {"html", "text/html"},
 {"htm", "text/html"},
+{"js", "text/javascript"},
+{"mjs", "text/javascript"},
 {"n3", "text/n3"},
 {"txt", "text/plain"},
 {"text", "text/plain"},
