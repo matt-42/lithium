@@ -52,6 +52,7 @@ inline auto serve_file(const std::string& root, std::string_view path, http_resp
   if (!path.empty() && path[0] == slash) {
     path = std::string_view(path.data() + 1, path.size() - 1); // erase(0, 1);
   }
+  if (path[0] == ' ') path = "index.html";
 
   // Directory listing not supported.
   std::string full_path(root + std::string(path));
@@ -87,9 +88,15 @@ inline auto serve_directory(const std::string& root) {
 
   // Ensure the root ends with a /
   std::string real_root(realpath_out);
+#if _WIN32
+  if (real_root.back() != '\\') {
+    real_root.push_back('\\');
+  }
+#else
   if (real_root.back() != '/') {
     real_root.push_back('/');
   }
+#endif
 
   http_api api;
   api.get("/{{path...}}") = [real_root](http_request& request, http_response& response) {
