@@ -14,7 +14,7 @@ struct input_buffer {
   int cursor = 0; // First index of the currently used buffer area
   int end = 0;    // Index of the last read character
 
-  input_buffer() : buffer_(50 * 1024), cursor(0), end(0) {}
+  input_buffer() : buffer_(500 * 1024), cursor(0), end(0) {}
 
   // Free unused space in the buffer in [i1, i2[.
   // This may move data in [i2, end[ if needed.

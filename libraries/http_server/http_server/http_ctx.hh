@@ -56,13 +56,13 @@ template <typename FIBER> struct generic_http_ctx {
     get_parameters_map.reserve(10);
     response_headers.reserve(20);
 
-    output_stream = output_buffer(50 * 1024, [&](const char* d, int s) { fiber.write(d, s); });
+    output_stream = output_buffer(1024 * 1024, [&](const char* d, int s) { fiber.write(d, s); });
 
     headers_stream =
         output_buffer(1000, [&](const char* d, int s) { output_stream << std::string_view(d, s); });
 
     json_stream = output_buffer(
-        50 * 1024, [&](const char* d, int s) { output_stream << std::string_view(d, s); });
+        1024 * 1024, [&](const char* d, int s) { output_stream << std::string_view(d, s); });
   }
 
   generic_http_ctx& operator=(const generic_http_ctx&) = delete;
@@ -361,33 +361,43 @@ template <typename FIBER> struct generic_http_ctx {
     close(fd);
 
 #else // Windows impl with basic read write.
-
+	size_t ext_pos = std::string_view(path).rfind('.');
+	std::string_view content_type;
+	if (ext_pos != std::string::npos) {
+	  auto type_itr = content_types.find(std::string_view(path).substr(ext_pos + 1).data());
+	  if (type_itr != content_types.end()) {
+		content_type = type_itr->second; set_header("Content-Type", content_type);
+		set_header("Cache-Control", "max-age=54000,immutable");
+	  }
+	}
     // Open file.
-    FILE* fd = fopen(path, "r");
-    if (fd == nullptr)
-      throw http_error::not_found("File not found.");
-
+    FILE* fd; if( (fd  = fopen(path, "r" )) == NULL ) // C4996
+        throw http_error::not_found("File not found.");
+    fseek(fd,0L,SEEK_END);
     // Get file size.
-    DWORD file_size = 0;
-    GetFileSize(fd, &file_size);
+    long file_size = ftell(fd);
     // Writing the http headers.
     response_written_ = true;
     format_top_headers(output_stream);
     headers_stream.flush(); // flushes to output_stream.
     output_stream << "Content-Length: " << file_size << "\r\n\r\n"; // Add body
     output_stream.flush();
-
+    rewind(fd);
     // Read the file and write it to the socket.
     size_t nread = 1;
     size_t offset = 0;
     while (nread != 0) {
       char buffer[4096];
-      nread = _fread_nolock(buffer, sizeof(buffer), file_size - offset, fd);
-      offset += nread;
-      this->fiber.write(buffer, nread);
+      nread = _fread_nolock(buffer, sizeof(buffer), 1, fd);
+      offset += sizeof(buffer);
+      this->fiber.write(buffer, sizeof(buffer));
     }
+    char buffer[4096];
+    nread = _fread_nolock(buffer, file_size - offset, 1, fd);
+    this->fiber.write(buffer, file_size - offset);
     if (!feof(fd))
       throw http_error::not_found("Internal error: Could not reach the end of file.");
+    fclose(fd);
 
 #endif
   }

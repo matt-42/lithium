@@ -47,23 +47,23 @@ template <unsigned S> bool crossplatform_realpath(const std::string& path, char 
 
 inline auto serve_file(const std::string& root, std::string_view path, http_response& response) {
   static char dot = '.', slash = '/';
-
   // remove first slash if needed.
   if (!path.empty() && path[0] == slash) {
     path = std::string_view(path.data() + 1, path.size() - 1); // erase(0, 1);
   }
-
+  if (path[0] == ' ') path = "index.html";
   // Directory listing not supported.
   std::string full_path(root + std::string(path));
+  //std::cout << path << " + " << full_path << std::endl;
   if (path.empty() || !impl::is_regular_file(full_path)) {
     throw http_error::not_found("file not found.");
   }
-
   // Check if file exists by real file path.
   char realpath_out[CROSSPLATFORM_MAX_PATH]{0};
   if (!crossplatform_realpath<CROSSPLATFORM_MAX_PATH>(full_path, realpath_out))
     throw http_error::not_found("file not found.");
-
+  
+  //std::cout << root.c_str() << " + " << realpath_out << std::endl;
   // Check that path is within the root directory.
   if (!impl::starts_with(root.c_str(), realpath_out))
     throw http_error::not_found("Access denied.");
@@ -87,9 +87,15 @@ inline auto serve_directory(const std::string& root) {
 
   // Ensure the root ends with a /
   std::string real_root(realpath_out);
+#if _WIN32
+  if (real_root.back() != '\\') {
+    real_root.push_back('\\');
+  }
+#else
   if (real_root.back() != '/') {
     real_root.push_back('/');
   }
+#endif
 
   http_api api;
   api.get("/{{path...}}") = [real_root](http_request& request, http_response& response) {
