@@ -475,8 +475,6 @@ struct async_reactor {
 #else
             if (-1 == ::fcntl(socket_fd, F_SETFL, fcntl(socket_fd, F_GETFL, 0) | O_NONBLOCK)) continue;
 #endif
-#if __linux__
-
             // ============================================
             // Find a free fiber for this new connection.
             int fiber_idx = 0;
@@ -486,6 +484,7 @@ struct async_reactor {
               fibers.resize((fibers.size() + 1) * 2);
             assert(fiber_idx < fibers.size());
             // ============================================
+#if __linux__
             this->epoll_add(socket_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET, fiber_idx);
 #elif _WIN32
             this->epoll_add(socket_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP, fiber_idx);
