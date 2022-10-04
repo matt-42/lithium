@@ -285,6 +285,7 @@ struct async_reactor {
 
 #if defined _WIN32
   typedef HANDLE epoll_handle_t;
+  u_long iMode = 0;
 #else
   typedef int epoll_handle_t;
 #endif
@@ -445,8 +446,9 @@ struct async_reactor {
         }
         // Handle new connections.
         else if (listen_fd == event_fd) {
+#ifndef _WIN32
           while (true) {
-
+#endif
             // ============================================
             // ACCEPT INCOMMING CONNECTION
             sockaddr_storage in_addr_storage;
@@ -467,6 +469,13 @@ struct async_reactor {
             // ============================================
 
             // ============================================
+            // Subscribe epoll to the socket file descriptor.
+#if _WIN32
+            if (ioctlsocket(socket_fd, FIONBIO, &iMode) != NO_ERROR) continue;
+#else
+            if (-1 == ::fcntl(socket_fd, F_SETFL, fcntl(socket_fd, F_GETFL, 0) | O_NONBLOCK)) continue;
+#endif
+            // ============================================
             // Find a free fiber for this new connection.
             int fiber_idx = 0;
             while (fiber_idx < fibers.size() && fibers[fiber_idx])
@@ -475,12 +484,6 @@ struct async_reactor {
               fibers.resize((fibers.size() + 1) * 2);
             assert(fiber_idx < fibers.size());
             // ============================================
-
-            // ============================================
-            // Subscribe epoll to the socket file descriptor.
-            // FIXME Duplicate ??
-            // if (-1 == fcntl(socket_fd, F_SETFL, fcntl(socket_fd, F_GETFL, 0) | O_NONBLOCK))
-            //   continue;
 #if __linux__
             this->epoll_add(socket_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET, fiber_idx);
 #elif _WIN32
@@ -528,7 +531,9 @@ struct async_reactor {
               return std::move(ctx.sink);
             });
             // =============================================
-          }
+#ifndef _WIN32
+		  }
+#endif
         } else // Data available on existing sockets. Wake up the fiber associated with
                // event_fd.
         {
