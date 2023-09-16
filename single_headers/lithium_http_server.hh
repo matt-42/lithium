@@ -3695,7 +3695,9 @@ template <typename Req, typename Resp> struct api {
 
   void add_subapi(std::string prefix, const self& subapi) {
     subapi.routes_map_.for_all_routes([this, prefix](auto r, VH h) {
-      if (!r.empty() && r.back() == '/')
+      if (r.empty() || r == "/")
+        h.url_spec = prefix;
+      else if (r.back() == '/')
         h.url_spec = prefix + r;
       else
         h.url_spec = prefix + '/' + r;
