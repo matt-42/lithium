@@ -14,6 +14,7 @@
 #include <cassert>
 #include <cstring>
 #include <deque>
+#include <functional>
 #include <iostream>
 #if __APPLE__
 #include <libkern/OSByteOrder.h>
@@ -2192,6 +2193,7 @@ template <typename I> struct sql_database {
 };
 
 }
+
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_DATABASE_HH
 
 
