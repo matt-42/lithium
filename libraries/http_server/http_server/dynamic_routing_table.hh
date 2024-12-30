@@ -5,6 +5,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace li {
 
@@ -114,14 +115,14 @@ template <typename V> struct dynamic_routing_table {
 
   // Find a route and return reference to a procedure.
   auto& operator[](const std::string_view& r) {
-    strings.push_back(std::make_shared<std::string>(r));
-    std::string_view r2(*strings.back());
+    auto [itr, is_inserted] = strings.emplace(std::string(r));
+    std::string_view r2(*itr);
     return root.find_or_create(r2, 0);
   }
-  auto& operator[](const std::string& r) {
-    strings.push_back(std::make_shared<std::string>(r));
-    std::string_view r2(*strings.back());
-    return root.find_or_create(r2, 0);
+  auto& operator[](const std::string& s) {
+    auto [itr, is_inserted] = strings.emplace(s);
+    std::string_view r(*itr);
+    return root.find_or_create(r, 0);
   }
 
   // Find a route and return an iterator.
@@ -130,7 +131,7 @@ template <typename V> struct dynamic_routing_table {
   template <typename F> void for_all_routes(F f) const { root.for_all_routes(f); }
   auto end() const { return root.end(); }
 
-  std::vector<std::shared_ptr<std::string>> strings;
+  std::unordered_set<std::string> strings;
   internal::drt_node<V> root;
 };
 
