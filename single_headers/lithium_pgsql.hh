@@ -14,6 +14,7 @@
 #include <cassert>
 #include <cstring>
 #include <deque>
+#include <functional>
 #include <iostream>
 #if __APPLE__
 #include <libkern/OSByteOrder.h>
