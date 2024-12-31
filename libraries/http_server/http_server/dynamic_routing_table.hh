@@ -11,9 +11,21 @@ namespace li {
 
 namespace internal {
 
-template <typename V> struct drt_node {
+// A simple memory pool for drt_node objects
+template <typename T> struct drt_node_pool {
+  template <typename... Args> T* allocate(Args&&... args) {
+    auto new_node = std::make_unique<T>(std::forward<Args>(args)...);
+    T* ptr = new_node.get();
+    pool_.emplace_back(std::move(new_node));
+    return ptr;
+  }
 
-  drt_node() : v_{0, nullptr} {}
+  std::vector<std::unique_ptr<T>> pool_;
+};
+
+template <typename V> struct drt_node {
+  drt_node() : pool_(nullptr), v_{0, nullptr} {}
+  drt_node(drt_node_pool<drt_node>& pool) : pool_(pool), v_{0, nullptr} {}
 
   struct iterator {
     const drt_node<V>* ptr;
@@ -38,17 +50,10 @@ template <typename V> struct drt_node {
       c++;
     std::string_view k = r.substr(s, c - s);
 
-    auto it = children_.find(k);
-    if (it != children_.end())
-      return children_[k]->find_or_create(r, c);
-    else {
-      auto new_node = std::make_shared<drt_node>();
-      children_shared_pointers_.push_back(new_node);
-      children_.insert({k, new_node.get()});
-      return new_node->find_or_create(r, c);
+    if (children_.find(k) == children_.end()) {
+      children_[k] = pool_.allocate(pool_);
     }
-
-    return v_;
+    return children_[k]->find_or_create(r, c);
   }
 
   template <typename F> void for_all_routes(F f, std::string prefix = "") const {
@@ -57,8 +62,8 @@ template <typename V> struct drt_node {
     else {
       if (prefix.size() && prefix.back() != '/')
         prefix += '/';
-      for (auto pair : children_)
-        pair.second->for_all_routes(f, prefix + std::string(pair.first));
+      for (const auto& kv : children_)
+        kv.second->for_all_routes(f, prefix + std::string(kv.first));
     }
   }
 
@@ -95,7 +100,7 @@ template <typename V> struct drt_node {
 
     {
       // if one child is a url param {{param_name}}, choose it
-      for (auto& kv : children_) {
+      for (const auto& kv : children_) {
         auto name = kv.first;
         if (name.size() > 4 and name[0] == '{' and name[1] == '{' and
             name[name.size() - 2] == '}' and name[name.size() - 1] == '}')
@@ -107,11 +112,11 @@ template <typename V> struct drt_node {
 
   V v_;
   std::unordered_map<std::string_view, drt_node*> children_;
-  std::vector<std::shared_ptr<drt_node>> children_shared_pointers_;
+  drt_node_pool<drt_node>& pool_;
 };
-} // namespace internal
 
-template <typename V> struct dynamic_routing_table {
+template <typename V> struct dynamic_routing_table_impl {
+  dynamic_routing_table_impl() : root(pool) {}
 
   // Find a route and return reference to a procedure.
   auto& operator[](const std::string_view& r) {
@@ -132,7 +137,35 @@ template <typename V> struct dynamic_routing_table {
   auto end() const { return root.end(); }
 
   std::unordered_set<std::string> strings;
-  internal::drt_node<V> root;
+  drt_node_pool<drt_node<V>> pool;
+  drt_node<V> root;
+};
+} // namespace internal
+
+template <typename V> struct dynamic_routing_table {
+  dynamic_routing_table() : impl_(std::make_shared<internal::dynamic_routing_table_impl<V>>()) {}
+  dynamic_routing_table(const dynamic_routing_table& other) : impl_(other.impl_) {}
+
+  // Assignment operator
+  dynamic_routing_table& operator=(const dynamic_routing_table& other) {
+    if (this != &other) {
+      impl_ = other.impl_;
+    }
+    return *this;
+  }
+
+  // Find a route and return reference to a procedure.
+  auto& operator[](const std::string_view& r) { return impl_->operator[](r); }
+  auto& operator[](const std::string& s) { return impl_->operator[](s); }
+
+  // Find a route and return an iterator.
+  auto find(const std::string_view& r) const { return impl_->find(r); }
+
+  template <typename F> void for_all_routes(F f) const { impl_->for_all_routes(f); }
+  auto end() const { return impl_->end(); }
+
+  private:
+  std::shared_ptr<internal::dynamic_routing_table_impl<V>> impl_;
 };
 
 } // namespace li
