@@ -4056,12 +4056,20 @@ struct output_buffer {
   }
 
   output_buffer& operator<<(std::string_view s) {
-    if (cursor_ + s.size() >= end_)
-      flush();
-
-    assert(cursor_ + s.size() < end_);
-    memcpy(cursor_, s.data(), s.size());
-    cursor_ += s.size();
+    size_t pos = 0;
+    while (pos < s.size()) {
+      size_t space = end_ - cursor_;
+      if (space == 0) {
+        flush();
+        space = end_ - cursor_;
+      }
+      assert(pos < s.size());
+      assert(space > 0);
+      size_t n = std::min(s.size() - pos, space);
+      memcpy(cursor_, s.data() + pos, n);
+      cursor_ += n;
+      pos += n;
+    }
     return *this;
   }
 
