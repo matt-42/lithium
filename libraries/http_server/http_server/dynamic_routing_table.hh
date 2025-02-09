@@ -11,9 +11,11 @@ namespace li {
 
 namespace internal {
 
-// A simple memory pool for drt_node objects
+/**
+ * A memory pool for drt_node objects that manages node allocation and lifetime
+ */
 template <typename T> struct drt_node_pool {
-  template <typename... Args> T* allocate(Args&&... args) {
+  template <typename... Args> T* allocate(Args&&... args) noexcept {
     auto new_node = std::make_unique<T>(std::forward<Args>(args)...);
     T* ptr = new_node.get();
     pool_.emplace_back(std::move(new_node));
@@ -24,20 +26,20 @@ template <typename T> struct drt_node_pool {
 };
 
 template <typename V> struct drt_node {
-  drt_node() : pool_(nullptr), v_{0, nullptr} {}
-  drt_node(drt_node_pool<drt_node>& pool) : pool_(pool), v_{0, nullptr} {}
+  drt_node() noexcept : pool_(nullptr), v_{0, nullptr} {}
+  drt_node(drt_node_pool<drt_node>& pool) noexcept : pool_(pool), v_{0, nullptr} {}
 
   struct iterator {
     const drt_node<V>* ptr;
     std::string_view first;
     V second;
 
-    auto operator->() { return this; }
-    bool operator==(const iterator& b) const { return this->ptr == b.ptr; }
-    bool operator!=(const iterator& b) const { return this->ptr != b.ptr; }
+    auto operator->() noexcept { return this; }
+    bool operator==(const iterator& b) const noexcept { return this->ptr == b.ptr; }
+    bool operator!=(const iterator& b) const noexcept { return this->ptr != b.ptr; }
   };
 
-  auto end() const { return iterator{nullptr, std::string_view(), V()}; }
+  auto end() const noexcept { return iterator{nullptr, std::string_view(), V()}; }
 
   auto& find_or_create(std::string_view r, unsigned int c) {
     if (c == r.size())
@@ -68,7 +70,7 @@ template <typename V> struct drt_node {
   }
 
   // Find a route.
-  iterator find(const std::string_view& r, unsigned int c) const {
+  iterator find(const std::string_view& r, unsigned int c) const noexcept {
     // We found the route r.
     if ((c == r.size() and v_.handler != nullptr) or (children_.size() == 0))
       return iterator{this, r, v_};
@@ -116,9 +118,8 @@ template <typename V> struct drt_node {
 };
 
 template <typename V> struct dynamic_routing_table_impl {
-  dynamic_routing_table_impl() : root(pool) {}
+  dynamic_routing_table_impl() noexcept : root(pool) {}
 
-  // Find a route and return reference to a procedure.
   auto& operator[](const std::string_view& r) {
     auto [itr, is_inserted] = strings.emplace(std::string(r));
     std::string_view r2(*itr);
@@ -130,11 +131,10 @@ template <typename V> struct dynamic_routing_table_impl {
     return root.find_or_create(r, 0);
   }
 
-  // Find a route and return an iterator.
-  auto find(const std::string_view& r) const { return root.find(r, 0); }
+  auto find(const std::string_view& r) const noexcept { return root.find(r, 0); }
 
   template <typename F> void for_all_routes(F f) const { root.for_all_routes(f); }
-  auto end() const { return root.end(); }
+  auto end() const noexcept { return root.end(); }
 
   std::unordered_set<std::string> strings;
   drt_node_pool<drt_node<V>> pool;
@@ -142,29 +142,29 @@ template <typename V> struct dynamic_routing_table_impl {
 };
 } // namespace internal
 
+/**
+ * A dynamic routing table that supports route registration and lookup.
+ */
 template <typename V> struct dynamic_routing_table {
-  dynamic_routing_table() : impl_(std::make_shared<internal::dynamic_routing_table_impl<V>>()) {}
-  dynamic_routing_table(const dynamic_routing_table& other) : impl_(other.impl_) {}
+  dynamic_routing_table() noexcept
+      : impl_(std::make_shared<internal::dynamic_routing_table_impl<V>>()) {}
+  dynamic_routing_table(const dynamic_routing_table& other) noexcept : impl_(other.impl_) {}
 
-  // Assignment operator
-  dynamic_routing_table& operator=(const dynamic_routing_table& other) {
+  dynamic_routing_table& operator=(const dynamic_routing_table& other) noexcept {
     if (this != &other) {
       impl_ = other.impl_;
     }
     return *this;
   }
 
-  // Find a route and return reference to a procedure.
   auto& operator[](const std::string_view& r) { return impl_->operator[](r); }
   auto& operator[](const std::string& s) { return impl_->operator[](s); }
 
-  // Find a route and return an iterator.
-  auto find(const std::string_view& r) const { return impl_->find(r); }
-
+  auto find(const std::string_view& r) const noexcept { return impl_->find(r); }
   template <typename F> void for_all_routes(F f) const { impl_->for_all_routes(f); }
-  auto end() const { return impl_->end(); }
+  auto end() const noexcept { return impl_->end(); }
 
-  private:
+private:
   std::shared_ptr<internal::dynamic_routing_table_impl<V>> impl_;
 };
 
