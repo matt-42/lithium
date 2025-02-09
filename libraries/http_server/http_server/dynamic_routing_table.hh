@@ -117,28 +117,14 @@ template <typename V> struct drt_node {
   drt_node_pool<drt_node>& pool_;
 };
 
-template <typename V> struct dynamic_routing_table_impl {
-  dynamic_routing_table_impl() noexcept : root(pool) {}
+template <typename V> struct dynamic_routing_table_data {
+  dynamic_routing_table_data() noexcept : root(pool_) {}
 
-  auto& operator[](const std::string_view& r) {
-    auto [itr, is_inserted] = strings.emplace(std::string(r));
-    std::string_view r2(*itr);
-    return root.find_or_create(r2, 0);
-  }
-  auto& operator[](const std::string& s) {
-    auto [itr, is_inserted] = strings.emplace(s);
-    std::string_view r(*itr);
-    return root.find_or_create(r, 0);
-  }
-
-  auto find(const std::string_view& r) const noexcept { return root.find(r, 0); }
-
-  template <typename F> void for_all_routes(F f) const { root.for_all_routes(f); }
-  auto end() const noexcept { return root.end(); }
-
-  std::unordered_set<std::string> strings;
-  drt_node_pool<drt_node<V>> pool;
+  std::unordered_set<std::string> paths;
   drt_node<V> root;
+
+private:
+  drt_node_pool<drt_node<V>> pool_;
 };
 } // namespace internal
 
@@ -147,25 +133,27 @@ template <typename V> struct dynamic_routing_table_impl {
  */
 template <typename V> struct dynamic_routing_table {
   dynamic_routing_table() noexcept
-      : impl_(std::make_shared<internal::dynamic_routing_table_impl<V>>()) {}
-  dynamic_routing_table(const dynamic_routing_table& other) noexcept : impl_(other.impl_) {}
+      : data_(std::make_shared<internal::dynamic_routing_table_data<V>>()) {}
+  dynamic_routing_table(const dynamic_routing_table& other) noexcept : data_(other.data_) {}
 
   dynamic_routing_table& operator=(const dynamic_routing_table& other) noexcept {
     if (this != &other) {
-      impl_ = other.impl_;
+      data_ = other.data_;
     }
     return *this;
   }
 
-  auto& operator[](const std::string_view& r) { return impl_->operator[](r); }
-  auto& operator[](const std::string& s) { return impl_->operator[](s); }
-
-  auto find(const std::string_view& r) const noexcept { return impl_->find(r); }
-  template <typename F> void for_all_routes(F f) const { impl_->for_all_routes(f); }
-  auto end() const noexcept { return impl_->end(); }
+  auto& operator[](const std::string_view& r) { return this->operator[](std::string(r)); }
+  auto& operator[](const std::string& s) {
+    auto [itr, is_inserted] = data_->paths.emplace(s);
+    return data_->root.find_or_create(*itr, 0);
+  }
+  auto find(const std::string_view& r) const noexcept { return data_->root.find(r, 0); }
+  template <typename F> void for_all_routes(F f) const { data_->root.for_all_routes(f); }
+  auto end() const noexcept { return data_->root.end(); }
 
 private:
-  std::shared_ptr<internal::dynamic_routing_table_impl<V>> impl_;
+  std::shared_ptr<internal::dynamic_routing_table_data<V>> data_;
 };
 
 } // namespace li
