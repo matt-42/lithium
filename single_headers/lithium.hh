@@ -7236,12 +7236,20 @@ struct output_buffer {
   }
 
   output_buffer& operator<<(std::string_view s) {
-    if (cursor_ + s.size() >= end_)
-      flush();
 
-    assert(cursor_ + s.size() < end_);
-    memcpy(cursor_, s.data(), s.size());
-    cursor_ += s.size();
+    size_t pos = 0;
+    while (pos < s.size()) {
+      size_t space = end_ - cursor_;
+      if (space == 0) {
+        flush();
+        space = end_ - cursor_;
+      }
+      assert(pos < s.size());
+      size_t n = std::min(s.size() - pos, space);
+      memcpy(cursor_, s.data() + pos, n);
+      cursor_ += n;
+      pos += n;
+    }
     return *this;
   }
 
@@ -8270,6 +8278,7 @@ static std::unordered_map<std::string_view, std::string_view> content_types = {
 {"fzs", "application/vnd.fuzzysheet"},
 {"txd", "application/vnd.genomatix.tuxedo"},
 {"ggb", "application/vnd.geogebra.file"},
+{"ggs", "application/vnd.geogebra.slides"},
 {"ggt", "application/vnd.geogebra.tool"},
 {"gex", "application/vnd.geometry-explorer"},
 {"gre", "application/vnd.geometry-explorer"},
@@ -8574,6 +8583,7 @@ static std::unordered_map<std::string_view, std::string_view> content_types = {
 {"zirz", "application/vnd.zul"},
 {"zaz", "application/vnd.zzazz.deck+xml"},
 {"vxml", "application/voicexml+xml"},
+{"wasm", "application/wasm"},
 {"wgt", "application/widget"},
 {"hlp", "application/winhlp"},
 {"wsdl", "application/wsdl+xml"},
@@ -8802,6 +8812,7 @@ static std::unordered_map<std::string_view, std::string_view> content_types = {
 {"ttf", "font/ttf"},
 {"woff", "font/woff"},
 {"woff2", "font/woff2"},
+{"avif", "image/avif"},
 {"bmp", "image/bmp"},
 {"cgm", "image/cgm"},
 {"g3", "image/g3fax"},
@@ -8810,6 +8821,7 @@ static std::unordered_map<std::string_view, std::string_view> content_types = {
 {"jpeg", "image/jpeg"},
 {"jpg", "image/jpeg"},
 {"jpe", "image/jpeg"},
+{"jxl", "image/jxl"},
 {"ktx", "image/ktx"},
 {"png", "image/png"},
 {"btif", "image/prs.btif"},
@@ -8872,7 +8884,6 @@ static std::unordered_map<std::string_view, std::string_view> content_types = {
 {"dwf", "model/vnd.dwf"},
 {"gdl", "model/vnd.gdl"},
 {"gtw", "model/vnd.gtw"},
-{"mts", "model/vnd.mts"},
 {"vtu", "model/vnd.vtu"},
 {"wrl", "model/vrml"},
 {"vrml", "model/vrml"},
@@ -8961,6 +8972,10 @@ static std::unordered_map<std::string_view, std::string_view> content_types = {
 {"jpgm", "video/jpm"},
 {"mj2", "video/mj2"},
 {"mjp2", "video/mj2"},
+{"ts", "video/mp2t"},
+{"m2t", "video/mp2t"},
+{"m2ts", "video/mp2t"},
+{"mts", "video/mp2t"},
 {"mp4", "video/mp4"},
 {"mp4v", "video/mp4"},
 {"mpg4", "video/mp4"},
