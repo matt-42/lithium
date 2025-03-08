@@ -1821,7 +1821,9 @@ struct sqlite_database {
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_CLIENT_HTTP_CLIENT_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_CLIENT_HTTP_CLIENT_HH
+#ifndef CURL_STATICLIB
 #define CURL_STATICLIB
+#endif  // CURL_STATICLIB
 #pragma comment(lib, "crypt32")
 #pragma comment(lib, "ws2_32.lib")
 #pragma comment(lib, "Wldap32.lib")
@@ -5490,6 +5492,7 @@ template <typename I> struct sql_database {
 };
 
 }
+
 #endif // LITHIUM_SINGLE_HEADER_GUARD_LI_SQL_SQL_DATABASE_HH
 
 
@@ -6834,7 +6837,7 @@ template <typename Req, typename Resp> struct api {
 
   typedef api<Req, Resp> self;
 
-  api(): is_global_handler(false), global_handler_(nullptr) { }
+  api() : is_global_handler(false), global_handler_(nullptr) {}
 
   using H = std::function<void(Req&, Resp&)>;
   struct VH {
@@ -6875,7 +6878,9 @@ template <typename Req, typename Resp> struct api {
 
   void add_subapi(std::string prefix, const self& subapi) {
     subapi.routes_map_.for_all_routes([this, prefix](auto r, VH h) {
-      if (!r.empty() && r.back() == '/')
+      if (r.empty() || r == "/")
+        h.url_spec = prefix;
+      else if (r.back() == '/')
         h.url_spec = prefix + r;
       else
         h.url_spec = prefix + '/' + r;
@@ -6893,13 +6898,11 @@ template <typename Req, typename Resp> struct api {
     std::cout << std::endl;
   }
   auto call(std::string_view method, std::string_view route, Req& request, Resp& response) const {
-    if(is_global_handler)
-    {
-        global_handler_(request, response);
-        return;
+    if (is_global_handler) {
+      global_handler_(request, response);
+      return;
     }
-    if (route == last_called_route_)
-    {
+    if (route == last_called_route_) {
       if (last_handler_.verb == ANY or parse_verb(method) == last_handler_.verb) {
         request.url_spec = last_handler_.url_spec;
         last_handler_.handler(request, response);
@@ -6910,7 +6913,8 @@ template <typename Req, typename Resp> struct api {
 
     // skip the last / of the url and trim spaces.
     std::string_view route2(route);
-    while (route2.size() > 1 and (route2[route2.size() - 1] == '/' || route2[route2.size() - 1] == ' '))
+    while (route2.size() > 1 and
+           (route2[route2.size() - 1] == '/' || route2[route2.size() - 1] == ' '))
       route2 = route2.substr(0, route2.size() - 1);
 
     auto it = routes_map_.find(route2);

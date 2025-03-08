@@ -32,7 +32,9 @@
 
 #ifndef LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_CLIENT_HTTP_CLIENT_HH
 #define LITHIUM_SINGLE_HEADER_GUARD_LI_HTTP_CLIENT_HTTP_CLIENT_HH
+#ifndef CURL_STATICLIB
 #define CURL_STATICLIB
+#endif  // CURL_STATICLIB
 #pragma comment(lib, "crypt32")
 #pragma comment(lib, "ws2_32.lib")
 #pragma comment(lib, "Wldap32.lib")

@@ -1,5 +1,7 @@
 #pragma once
+#ifndef CURL_STATICLIB
 #define CURL_STATICLIB
+#endif  // CURL_STATICLIB
 #pragma comment(lib, "crypt32")
 #pragma comment(lib, "ws2_32.lib")
 #pragma comment(lib, "Wldap32.lib")
