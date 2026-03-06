@@ -4455,6 +4455,7 @@ struct async_reactor {
 
 #if defined _WIN32
   typedef HANDLE epoll_handle_t;
+  u_long iMode = 0;
 #else
   typedef int epoll_handle_t;
 #endif
@@ -4615,8 +4616,9 @@ struct async_reactor {
         }
         // Handle new connections.
         else if (listen_fd == event_fd) {
+#ifndef _WIN32
           while (true) {
-
+#endif
             // ============================================
             // ACCEPT INCOMMING CONNECTION
             sockaddr_storage in_addr_storage;
@@ -4637,6 +4639,13 @@ struct async_reactor {
             // ============================================
 
             // ============================================
+            // Subscribe epoll to the socket file descriptor.
+#if _WIN32
+            if (ioctlsocket(socket_fd, FIONBIO, &iMode) != NO_ERROR) continue;
+#else
+            if (-1 == ::fcntl(socket_fd, F_SETFL, fcntl(socket_fd, F_GETFL, 0) | O_NONBLOCK)) continue;
+#endif
+            // ============================================
             // Find a free fiber for this new connection.
             int fiber_idx = 0;
             while (fiber_idx < fibers.size() && fibers[fiber_idx])
@@ -4645,12 +4654,6 @@ struct async_reactor {
               fibers.resize((fibers.size() + 1) * 2);
             assert(fiber_idx < fibers.size());
             // ============================================
-
-            // ============================================
-            // Subscribe epoll to the socket file descriptor.
-            // FIXME Duplicate ??
-            // if (-1 == fcntl(socket_fd, F_SETFL, fcntl(socket_fd, F_GETFL, 0) | O_NONBLOCK))
-            //   continue;
 #if __linux__
             this->epoll_add(socket_fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET, fiber_idx);
 #elif _WIN32
@@ -4698,7 +4701,9 @@ struct async_reactor {
               return std::move(ctx.sink);
             });
             // =============================================
-          }
+#ifndef _WIN32
+		  }
+#endif
         } else // Data available on existing sockets. Wake up the fiber associated with
                // event_fd.
         {
@@ -5334,6 +5339,8 @@ static std::unordered_map<std::string_view, std::string_view> content_types = {
 {"sdkd", "application/vnd.solent.sdkm+xml"},
 {"dxp", "application/vnd.spotfire.dxp"},
 {"sfs", "application/vnd.spotfire.sfs"},
+{"sqlite", "application/vnd.sqlite3"},
+{"sqlite3", "application/vnd.sqlite3"},
 {"sdc", "application/vnd.stardivision.calc"},
 {"sda", "application/vnd.stardivision.draw"},
 {"sdd", "application/vnd.stardivision.impress"},
@@ -5638,6 +5645,10 @@ static std::unordered_map<std::string_view, std::string_view> content_types = {
 {"cgm", "image/cgm"},
 {"g3", "image/g3fax"},
 {"gif", "image/gif"},
+{"heic", "image/heic"},
+{"heics", "image/heic-sequence"},
+{"heif", "image/heif"},
+{"heifs", "image/heif-sequence"},
 {"ief", "image/ief"},
 {"jpeg", "image/jpeg"},
 {"jpg", "image/jpeg"},
@@ -6193,15 +6204,24 @@ template <typename FIBER> struct generic_http_ctx {
     close(fd);
 
 #else // Windows impl with basic read write.
+    size_t ext_pos = std::string_view(path).rfind('.');
+    std::string_view content_type;
+    if (ext_pos != std::string::npos) {
+      auto type_itr = content_types.find(std::string_view(path).substr(ext_pos + 1).data());
+      if (type_itr != content_types.end()) {
+      content_type = type_itr->second; set_header("Content-Type", content_type);
+      set_header("Cache-Control", "max-age=54000,immutable");
+      }
+    }
 
     // Open file.
-    FILE* fd = fopen(path, "r");
-    if (fd == nullptr)
-      throw http_error::not_found("File not found.");
+    FILE* fd;
+    if( (fd  = fopen(path, "r" )) == NULL ) // C4996
+        throw http_error::not_found("File not found.");
+    fseek(fd, 0L, SEEK_END);
 
     // Get file size.
-    DWORD file_size = 0;
-    GetFileSize(fd, &file_size);
+    long file_size = ftell(fd);
     // Writing the http headers.
     response_written_ = true;
     format_top_headers(output_stream);
@@ -6209,17 +6229,22 @@ template <typename FIBER> struct generic_http_ctx {
     output_stream << "Content-Length: " << file_size << "\r\n\r\n"; // Add body
     output_stream.flush();
 
+    rewind(fd);
     // Read the file and write it to the socket.
     size_t nread = 1;
     size_t offset = 0;
     while (nread != 0) {
       char buffer[4096];
-      nread = _fread_nolock(buffer, sizeof(buffer), file_size - offset, fd);
-      offset += nread;
-      this->fiber.write(buffer, nread);
+      nread = _fread_nolock(buffer, sizeof(buffer), 1, fd);
+      offset += sizeof(buffer);
+      this->fiber.write(buffer, sizeof(buffer));
     }
-    if (!feof(fd))
-      throw http_error::not_found("Internal error: Could not reach the end of file.");
+    char buffer[4096];
+    nread = _fread_nolock(buffer, file_size - offset, 1, fd);
+    this->fiber.write(buffer, file_size - offset);
+    fclose(fd);
+    // if (!feof(fd))
+    //   throw http_error::not_found("Internal error: Could not reach the end of file.");
 
 #endif
   }
@@ -7558,6 +7583,7 @@ inline auto serve_file(const std::string& root, std::string_view path, http_resp
   if (!path.empty() && path[0] == slash) {
     path = std::string_view(path.data() + 1, path.size() - 1); // erase(0, 1);
   }
+  if (path[0] == ' ') path = "index.html";
 
   // Directory listing not supported.
   std::string full_path(root + std::string(path));
@@ -7593,9 +7619,15 @@ inline auto serve_directory(const std::string& root) {
 
   // Ensure the root ends with a /
   std::string real_root(realpath_out);
+#if _WIN32
+  if (real_root.back() != '\\') {
+    real_root.push_back('\\');
+  }
+#else
   if (real_root.back() != '/') {
     real_root.push_back('/');
   }
+#endif
 
   http_api api;
   api.get("/{{path...}}") = [real_root](http_request& request, http_response& response) {
