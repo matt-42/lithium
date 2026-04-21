@@ -70,6 +70,11 @@
     LI_SYMBOL(id2)
 #endif
 
+#ifndef LI_SYMBOL_idle_timeout_seconds
+#define LI_SYMBOL_idle_timeout_seconds
+    LI_SYMBOL(idle_timeout_seconds)
+#endif
+
 #ifndef LI_SYMBOL_json_encoded
 #define LI_SYMBOL_json_encoded
     LI_SYMBOL(json_encoded)
