@@ -3,6 +3,7 @@
 #include <cstring>
 #include <functional>
 #include <iostream>
+#include <random>
 #include <string_view>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -44,6 +45,32 @@ using ::li::content_types; // static std::unordered_map<std::string_view, std::s
 static thread_local std::unordered_map<std::string, std::pair<std::string_view, std::string_view>>
     static_files;
 
+struct secure_string_view_hash {
+  static uint64_t process_seed() {
+    static const uint64_t seed = []() {
+      std::random_device rd;
+      uint64_t s = (uint64_t(rd()) << 32) ^ uint64_t(rd());
+      return s ? s : UINT64_C(0x9e3779b97f4a7c15);
+    }();
+    return seed;
+  }
+
+  std::size_t operator()(std::string_view key) const {
+    uint64_t h = process_seed() ^ (uint64_t(key.size()) * UINT64_C(0x9e3779b97f4a7c15));
+    for (unsigned char c : key)
+      h ^= (uint64_t(c) + UINT64_C(0x9e3779b97f4a7c15) + (h << 6) + (h >> 2));
+    h ^= h >> 30;
+    h *= UINT64_C(0xbf58476d1ce4e5b9);
+    h ^= h >> 27;
+    h *= UINT64_C(0x94d049bb133111eb);
+    h ^= h >> 31;
+    return std::size_t(h);
+  }
+};
+
+using request_kv_map =
+    std::unordered_map<std::string_view, std::string_view, secure_string_view_hash>;
+
 #ifndef _WIN32
 http_top_header_builder http_top_header [[gnu::weak]];
 #else
@@ -71,13 +98,15 @@ template <typename FIBER> struct generic_http_ctx {
   std::string_view header(const char* key) {
     if (!header_map.size())
       index_headers();
-    return header_map[key];
+    auto it = header_map.find(key);
+    return it == header_map.end() ? std::string_view() : it->second;
   }
 
   std::string_view cookie(const char* key) {
     if (!cookie_map.size())
       index_cookies();
-    return cookie_map[key];
+    auto it = cookie_map.find(key);
+    return it == cookie_map.end() ? std::string_view() : it->second;
   }
 
   std::string_view get_parameter(const char* key) {
@@ -472,13 +501,15 @@ template <typename FIBER> struct generic_http_ctx {
   }
 
   void index_headers() {
+    if (header_lines.size() > 1)
+      header_map.reserve(header_lines.size() - 1);
     for (int i = 1; i < header_lines.size() - 1; i++) {
       const char* line_end = header_lines[i + 1]; // last line is just an empty line.
       const char* cur = header_lines[i];
 
       std::string_view key = split(cur, line_end, ':');
       std::string_view value = split(cur, line_end, '\r');
-      while (value[0] == ' ')
+      while (!value.empty() && value[0] == ' ')
         value = std::string_view(value.data() + 1, value.size() - 1);
       header_map[key] = value;
       // std::cout << key << " -> " << value << std::endl;
@@ -487,15 +518,16 @@ template <typename FIBER> struct generic_http_ctx {
 
   void index_cookies() {
     std::string_view cookies = header("Cookie");
-    if (!cookies.data())
+    if (!cookies.data() || cookies.empty())
       return;
+    cookie_map.reserve(cookies.size() / 8 + 1);
     const char* line_end = &cookies.back() + 1;
     const char* cur = &cookies.front();
     while (cur < line_end) {
 
       std::string_view key = split(cur, line_end, '=');
       std::string_view value = split(cur, line_end, ';');
-      while (key[0] == ' ')
+      while (!key.empty() && key[0] == ' ')
         key = std::string_view(key.data() + 1, key.size() - 1);
       cookie_map[key] = value;
     }
@@ -645,7 +677,7 @@ template <typename FIBER> struct generic_http_ctx {
   }
 
   // Read post parameters in the body.
-  std::unordered_map<std::string_view, std::string_view> post_parameters() {
+  request_kv_map post_parameters() {
     if (content_type_ == "application/x-www-form-urlencoded") {
       if (!is_body_read_)
         read_whole_body();
@@ -695,11 +727,11 @@ template <typename FIBER> struct generic_http_ctx {
   std::string_view content_type_;
   bool chunked_;
   int content_length_;
-  std::unordered_map<std::string_view, std::string_view> header_map;
-  std::unordered_map<std::string_view, std::string_view> cookie_map;
+  request_kv_map header_map;
+  request_kv_map cookie_map;
   std::vector<std::pair<std::string_view, std::string_view>> response_headers;
-  std::unordered_map<std::string_view, std::string_view> get_parameters_map;
-  std::unordered_map<std::string_view, std::string_view> post_parameters_map;
+  request_kv_map get_parameters_map;
+  request_kv_map post_parameters_map;
   std::string_view get_parameters_string_;
   // std::vector<std::string> strings_saver;
 
