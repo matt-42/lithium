@@ -16,9 +16,10 @@ jobs:
           username: postgres
           password: lithium_test
           database: postgres
+          postgres-version: '18'
           port: 32768
       - name: test-postgres
-        run: psql -U postgres --port=32768 -d postgres -c 'SELECT version()'
+        run: psql ${{ steps.postgres.outputs.connection-uri }} -c 'SELECT version()'
         env:
           PGPASSWORD: lithium_test
       - uses: actions/checkout@v2
