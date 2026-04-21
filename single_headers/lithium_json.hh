@@ -1554,8 +1554,12 @@ namespace li {
 namespace impl {
 
 template <typename S> struct json_parser {
-  inline json_parser(S&& s) : ss(s) {}
-  inline json_parser(S& s) : ss(s) {}
+  static constexpr int default_max_depth = 100;
+
+  inline json_parser(S&& s, int max_depth_ = default_max_depth)
+      : ss(s), max_depth(max_depth_ > 0 ? max_depth_ : default_max_depth) {}
+  inline json_parser(S& s, int max_depth_ = default_max_depth)
+      : ss(s), max_depth(max_depth_ > 0 ? max_depth_ : default_max_depth) {}
 
   inline decltype(auto) peek() { return ss.peek(); }
   inline decltype(auto) get() { return ss.get(); }
@@ -1613,6 +1617,18 @@ template <typename S> struct json_parser {
       ss.get();
   }
 
+  inline json_error_code push_depth() {
+    if (current_depth >= max_depth)
+      return make_json_error("Maximum JSON nesting depth exceeded (", max_depth, ").");
+    current_depth++;
+    return JSON_OK;
+  }
+
+  inline void pop_depth() {
+    if (current_depth > 0)
+      current_depth--;
+  }
+
   template <typename X> struct JSON_INVALID_TYPE;
 
   // Integers and floating points.
@@ -1656,7 +1672,27 @@ template <typename S> struct json_parser {
   }
 
   S& ss;
+  int max_depth;
+  int current_depth = 0;
   std::unique_ptr<std::ostringstream> error_stream = nullptr;
+};
+
+template <typename P> struct json_depth_guard {
+  json_depth_guard(P& parser) : p(parser) {}
+
+  inline json_error_code enter() {
+    auto err = p.push_depth();
+    active = !err;
+    return err;
+  }
+
+  inline ~json_depth_guard() {
+    if (active)
+      p.pop_depth();
+  }
+
+  P& p;
+  bool active = false;
 };
 
 template <typename P, typename O, typename S> json_error_code json_decode2(P& p, O& obj, S) {
@@ -1674,6 +1710,10 @@ struct json_vector_element_type<json_vector_<S>> { typedef std::remove_reference
 
 template <typename P, typename O, typename S>
 json_error_code json_decode2(P& p, std::vector<O>& obj, S schema) {
+  json_depth_guard<P> depth_guard(p);
+  if (auto err = depth_guard.enter())
+    return err;
+
   obj.clear();
   bool first = true;
   auto err = p.eat('[');
@@ -1740,6 +1780,10 @@ inline void json_decode_tuple_elements(F& decode_fun, std::tuple<T...>& tu,
 
 template <typename P, typename... O, typename... S>
 json_error_code json_decode2(P& p, std::tuple<O...>& tu, json_tuple_<S...> schema) {
+  json_depth_guard<P> depth_guard(p);
+  if (auto err = depth_guard.enter())
+    return err;
+
   bool first = true;
   auto err = p.eat('[');
   if (err)
@@ -1776,6 +1820,10 @@ inline void json_decode_variant_elements(F& decode_fun, std::variant<T...>& tu,
 
 template <typename P, typename... O, typename... S>
 json_error_code json_decode2(P& p, std::variant<O...>& tu, json_variant_<S...> schema) {
+  json_depth_guard<P> depth_guard(p);
+  if (auto err = depth_guard.enter())
+    return err;
+
   if (auto err = p.eat('{'))
     return err;
   if (auto err = p.eat("\"idx\""))
@@ -1820,6 +1868,10 @@ json_error_code json_decode2(P& p, std::variant<O...>& tu, json_variant_<S...> s
 
 template <typename P, typename O, typename V>
 json_error_code json_decode2(json_parser<P>& p, O& obj, json_map_<V> schema) {
+  json_depth_guard<json_parser<P>> depth_guard(p);
+  if (auto err = depth_guard.enter())
+    return err;
+
   if (auto err = p.eat('{'))
     return err;
 
@@ -1858,6 +1910,10 @@ json_error_code json_decode2(json_parser<P>& p, O& obj, json_map_<V> schema) {
 
 template <typename P, typename O, typename S>
 json_error_code json_decode2(P& p, O& obj, json_object_<S> schema) {
+  json_depth_guard<P> depth_guard(p);
+  if (auto err = depth_guard.enter())
+    return err;
+
   json_error_code err;
   if ((err = p.eat('{')))
     return err;
@@ -1956,13 +2012,18 @@ json_error_code json_decode2(P& p, O& obj, json_object_<S> schema) {
   return JSON_OK;
 }
 
-template <typename C, typename O, typename S> json_error json_decode(C& input, O& obj, S schema) {
+template <typename C, typename O, typename S>
+json_error json_decode(C& input, O& obj, S schema, int max_depth) {
   auto stream = decode_stringstream(input);
-  json_parser<decode_stringstream> p(stream);
+  json_parser<decode_stringstream> p(stream, max_depth);
   if (json_decode2(p, obj, schema))
     return json_error{1, p.error_stream ? p.error_stream->str() : "Json error"};
   else
     return json_error{0};
+}
+
+template <typename C, typename O, typename S> json_error json_decode(C& input, O& obj, S schema) {
+  return json_decode(input, obj, schema, json_parser<decode_stringstream>::default_max_depth);
 }
 
 } // namespace impl
@@ -2272,6 +2333,10 @@ public:
     return impl::json_decode(input, obj, *downcast());
   }
 
+  template <typename C, typename O> json_error decode(C& input, O& obj, int max_depth) const {
+    return impl::json_decode(input, obj, *downcast(), max_depth);
+  }
+
   template <typename C, typename... M> auto decode(C& input) const {
     auto map = impl::json_object_to_metamap(*downcast());
     impl::json_decode(input, map, *downcast());
@@ -2354,6 +2419,10 @@ template <typename... S> auto json_variant(S&&... s) { return json_variant_<S...
 
 template <typename C, typename M> decltype(auto) json_decode(C& input, M& obj) {
   return impl::to_json_schema(obj).decode(input, obj);
+}
+
+template <typename C, typename M> decltype(auto) json_decode(C& input, M& obj, int max_depth) {
+  return impl::to_json_schema(obj).decode(input, obj, max_depth);
 }
 
 template <typename C, typename M> decltype(auto) json_encode(C& output, const M& obj) {

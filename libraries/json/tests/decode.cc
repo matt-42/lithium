@@ -106,6 +106,18 @@ int main() {
   }
 
   {
+    // Maximum nesting depth.
+    std::tuple<std::tuple<int>> tu;
+
+    auto err = json_decode("[[1]]", tu, 1);
+    assert(err);
+
+    err = json_decode("[[1]]", tu, 2);
+    assert(!err);
+    assert(std::get<0>(std::get<0>(tu)) == 1);
+  }
+
+  {
     // optional.
     auto obj = mmm(s::test1 = std::optional<std::string>());
     auto err = json_decode("{}", obj);

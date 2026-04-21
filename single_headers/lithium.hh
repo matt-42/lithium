@@ -2667,8 +2667,12 @@ namespace li {
 namespace impl {
 
 template <typename S> struct json_parser {
-  inline json_parser(S&& s) : ss(s) {}
-  inline json_parser(S& s) : ss(s) {}
+  static constexpr int default_max_depth = 100;
+
+  inline json_parser(S&& s, int max_depth_ = default_max_depth)
+      : ss(s), max_depth(max_depth_ > 0 ? max_depth_ : default_max_depth) {}
+  inline json_parser(S& s, int max_depth_ = default_max_depth)
+      : ss(s), max_depth(max_depth_ > 0 ? max_depth_ : default_max_depth) {}
 
   inline decltype(auto) peek() { return ss.peek(); }
   inline decltype(auto) get() { return ss.get(); }
@@ -2726,6 +2730,18 @@ template <typename S> struct json_parser {
       ss.get();
   }
 
+  inline json_error_code push_depth() {
+    if (current_depth >= max_depth)
+      return make_json_error("Maximum JSON nesting depth exceeded (", max_depth, ").");
+    current_depth++;
+    return JSON_OK;
+  }
+
+  inline void pop_depth() {
+    if (current_depth > 0)
+      current_depth--;
+  }
+
   template <typename X> struct JSON_INVALID_TYPE;
 
   // Integers and floating points.
@@ -2769,7 +2785,27 @@ template <typename S> struct json_parser {
   }
 
   S& ss;
+  int max_depth;
+  int current_depth = 0;
   std::unique_ptr<std::ostringstream> error_stream = nullptr;
+};
+
+template <typename P> struct json_depth_guard {
+  json_depth_guard(P& parser) : p(parser) {}
+
+  inline json_error_code enter() {
+    auto err = p.push_depth();
+    active = !err;
+    return err;
+  }
+
+  inline ~json_depth_guard() {
+    if (active)
+      p.pop_depth();
+  }
+
+  P& p;
+  bool active = false;
 };
 
 template <typename P, typename O, typename S> json_error_code json_decode2(P& p, O& obj, S) {
@@ -2787,6 +2823,10 @@ struct json_vector_element_type<json_vector_<S>> { typedef std::remove_reference
 
 template <typename P, typename O, typename S>
 json_error_code json_decode2(P& p, std::vector<O>& obj, S schema) {
+  json_depth_guard<P> depth_guard(p);
+  if (auto err = depth_guard.enter())
+    return err;
+
   obj.clear();
   bool first = true;
   auto err = p.eat('[');
@@ -2853,6 +2893,10 @@ inline void json_decode_tuple_elements(F& decode_fun, std::tuple<T...>& tu,
 
 template <typename P, typename... O, typename... S>
 json_error_code json_decode2(P& p, std::tuple<O...>& tu, json_tuple_<S...> schema) {
+  json_depth_guard<P> depth_guard(p);
+  if (auto err = depth_guard.enter())
+    return err;
+
   bool first = true;
   auto err = p.eat('[');
   if (err)
@@ -2889,6 +2933,10 @@ inline void json_decode_variant_elements(F& decode_fun, std::variant<T...>& tu,
 
 template <typename P, typename... O, typename... S>
 json_error_code json_decode2(P& p, std::variant<O...>& tu, json_variant_<S...> schema) {
+  json_depth_guard<P> depth_guard(p);
+  if (auto err = depth_guard.enter())
+    return err;
+
   if (auto err = p.eat('{'))
     return err;
   if (auto err = p.eat("\"idx\""))
@@ -2933,6 +2981,10 @@ json_error_code json_decode2(P& p, std::variant<O...>& tu, json_variant_<S...> s
 
 template <typename P, typename O, typename V>
 json_error_code json_decode2(json_parser<P>& p, O& obj, json_map_<V> schema) {
+  json_depth_guard<json_parser<P>> depth_guard(p);
+  if (auto err = depth_guard.enter())
+    return err;
+
   if (auto err = p.eat('{'))
     return err;
 
@@ -2971,6 +3023,10 @@ json_error_code json_decode2(json_parser<P>& p, O& obj, json_map_<V> schema) {
 
 template <typename P, typename O, typename S>
 json_error_code json_decode2(P& p, O& obj, json_object_<S> schema) {
+  json_depth_guard<P> depth_guard(p);
+  if (auto err = depth_guard.enter())
+    return err;
+
   json_error_code err;
   if ((err = p.eat('{')))
     return err;
@@ -3069,13 +3125,18 @@ json_error_code json_decode2(P& p, O& obj, json_object_<S> schema) {
   return JSON_OK;
 }
 
-template <typename C, typename O, typename S> json_error json_decode(C& input, O& obj, S schema) {
+template <typename C, typename O, typename S>
+json_error json_decode(C& input, O& obj, S schema, int max_depth) {
   auto stream = decode_stringstream(input);
-  json_parser<decode_stringstream> p(stream);
+  json_parser<decode_stringstream> p(stream, max_depth);
   if (json_decode2(p, obj, schema))
     return json_error{1, p.error_stream ? p.error_stream->str() : "Json error"};
   else
     return json_error{0};
+}
+
+template <typename C, typename O, typename S> json_error json_decode(C& input, O& obj, S schema) {
+  return json_decode(input, obj, schema, json_parser<decode_stringstream>::default_max_depth);
 }
 
 } // namespace impl
@@ -3385,6 +3446,10 @@ public:
     return impl::json_decode(input, obj, *downcast());
   }
 
+  template <typename C, typename O> json_error decode(C& input, O& obj, int max_depth) const {
+    return impl::json_decode(input, obj, *downcast(), max_depth);
+  }
+
   template <typename C, typename... M> auto decode(C& input) const {
     auto map = impl::json_object_to_metamap(*downcast());
     impl::json_decode(input, map, *downcast());
@@ -3467,6 +3532,10 @@ template <typename... S> auto json_variant(S&&... s) { return json_variant_<S...
 
 template <typename C, typename M> decltype(auto) json_decode(C& input, M& obj) {
   return impl::to_json_schema(obj).decode(input, obj);
+}
+
+template <typename C, typename M> decltype(auto) json_decode(C& input, M& obj, int max_depth) {
+  return impl::to_json_schema(obj).decode(input, obj, max_depth);
 }
 
 template <typename C, typename M> decltype(auto) json_encode(C& output, const M& obj) {
@@ -6891,6 +6960,11 @@ private:
     LI_SYMBOL(id)
 #endif
 
+#ifndef LI_SYMBOL_idle_timeout_seconds
+#define LI_SYMBOL_idle_timeout_seconds
+    LI_SYMBOL(idle_timeout_seconds)
+#endif
+
 #ifndef LI_SYMBOL_ip
 #define LI_SYMBOL_ip
     LI_SYMBOL(ip)
@@ -7766,18 +7840,29 @@ struct async_fiber_context {
 
   inline void defer(const std::function<void()>& fun);
   inline void defer_fiber_resume(int fiber_id);
+  inline void mark_activity();
 
   inline int read_impl(char* buf, int size) {
+    int ret;
     if (ssl)
-      return SSL_read(ssl, buf, size);
+      ret = SSL_read(ssl, buf, size);
     else
-      return ::recv(socket_fd, buf, size, 0);
+      ret = ::recv(socket_fd, buf, size, 0);
+
+    if (ret > 0)
+      mark_activity();
+    return ret;
   }
   inline int write_impl(const char* buf, int size) {
+    int ret;
     if (ssl)
-      return SSL_write(ssl, buf, size);
+      ret = SSL_write(ssl, buf, size);
     else
-      return ::send(socket_fd, buf, size, 0);
+      ret = ::send(socket_fd, buf, size, 0);
+
+    if (ret > 0)
+      mark_activity();
+    return ret;
   }
 
   inline int read(char* buf, int max_size) {
@@ -7816,6 +7901,7 @@ struct async_fiber_context {
 struct async_reactor {
 
   typedef boost::context::continuation continuation;
+  typedef std::chrono::steady_clock clock_t;
 
 #if defined _WIN32
   typedef HANDLE epoll_handle_t;
@@ -7827,9 +7913,64 @@ struct async_reactor {
   epoll_handle_t epoll_fd;
   std::vector<continuation> fibers;
   std::vector<int> fd_to_fiber_idx;
+  std::vector<clock_t::time_point> fd_last_activity;
   std::unique_ptr<ssl_context> ssl_ctx = nullptr;
   std::vector<std::function<void()>> defered_functions;
   std::deque<int> defered_resume;
+  std::chrono::seconds idle_timeout = std::chrono::seconds(30);
+
+  inline void set_idle_timeout(std::chrono::seconds timeout) {
+    if (timeout.count() > 0)
+      idle_timeout = timeout;
+  }
+
+  inline void mark_socket_activity(int fd) {
+    if (fd < 0)
+      return;
+    if (int(fd_last_activity.size()) < fd + 1)
+      fd_last_activity.resize((fd + 1) * 2, clock_t::time_point{});
+    fd_last_activity[fd] = clock_t::now();
+  }
+
+  inline void clear_socket_activity(int fd) {
+    if (fd >= 0 && fd < fd_last_activity.size())
+      fd_last_activity[fd] = clock_t::time_point{};
+  }
+
+  inline void close_idle_connections(int listen_fd, clock_t::time_point now) {
+    if (idle_timeout.count() <= 0)
+      return;
+
+    std::vector<int> timed_out_fds;
+    for (int fd = 0; fd < int(fd_to_fiber_idx.size()); fd++) {
+      if (fd == listen_fd)
+        continue;
+      int fiber_idx = fd_to_fiber_idx[fd];
+      if (fiber_idx < 0)
+        continue;
+      if (fd >= int(fd_last_activity.size()))
+        continue;
+      auto last_activity = fd_last_activity[fd];
+      if (last_activity == clock_t::time_point{})
+        continue;
+      if (now - last_activity >= idle_timeout)
+        timed_out_fds.push_back(fd);
+    }
+
+    for (int fd : timed_out_fds) {
+      continuation& fiber = fd_to_fiber(fd);
+      if (fiber)
+        fiber = fiber.resume_with(std::move([](auto&& sink) {
+          throw fiber_exception(std::move(sink), "IDLE_TIMEOUT");
+          return std::move(sink);
+        }));
+      else {
+        epoll_del(fd);
+        clear_socket_activity(fd);
+        impl::close_socket(fd);
+      }
+    }
+  }
 
   inline continuation& fd_to_fiber(int fd) {
     assert(fd >= 0 and fd < fd_to_fiber_idx.size());
@@ -7872,6 +8013,7 @@ struct async_reactor {
     if (int(fd_to_fiber_idx.size()) < new_fd + 1)
       fd_to_fiber_idx.resize((new_fd + 1) * 2, -1);
     fd_to_fiber_idx[new_fd] = fiber_idx;
+    mark_socket_activity(new_fd);
   }
 
   inline void epoll_del(int fd) {
@@ -7880,6 +8022,9 @@ struct async_reactor {
 #elif __APPLE__
     epoll_ctl(epoll_fd, fd, EV_DELETE, 0);
 #endif
+    if (fd >= 0 && fd < fd_to_fiber_idx.size())
+      fd_to_fiber_idx[fd] = -1;
+    clear_socket_activity(fd);
   }
 
   inline void epoll_mod(int fd, int flags) {
@@ -7919,6 +8064,7 @@ struct async_reactor {
 #endif
 
     // Main loop.
+    auto last_idle_sweep = clock_t::now();
     while (!quit_signal_catched) {
 
 #if __linux__ || _WIN32
@@ -7932,6 +8078,12 @@ struct async_reactor {
 
       if (quit_signal_catched)
         break;
+
+      auto now = clock_t::now();
+      if (now - last_idle_sweep >= std::chrono::seconds(1)) {
+        close_idle_connections(listen_fd, now);
+        last_idle_sweep = now;
+      }
 
       if (n_events == 0)
         for (int i = 0; i < fibers.size(); i++)
@@ -8080,6 +8232,13 @@ struct async_reactor {
                // event_fd.
         {
           if (event_fd >= 0 && event_fd < fd_to_fiber_idx.size()) {
+#if __linux__ || _WIN32
+            if (event_flags & EPOLLIN)
+              mark_socket_activity(event_fd);
+#elif __APPLE__
+            if (events[i].filter == EVFILT_READ)
+              mark_socket_activity(event_fd);
+#endif
             auto& fiber = fd_to_fiber(event_fd);
             if (fiber)
               fiber = fiber.resume();
@@ -8133,6 +8292,8 @@ void async_fiber_context::defer_fiber_resume(int fiber_id) {
   this->reactor->defered_resume.push_back(fiber_id);
 }
 
+void async_fiber_context::mark_activity() { this->reactor->mark_socket_activity(this->socket_fd); }
+
 void async_fiber_context::reassign_fd_to_this_fiber(int fd) {
   this->reactor->reassign_fd_to_fiber(fd, this->fiber_id);
 }
@@ -8140,7 +8301,7 @@ void async_fiber_context::reassign_fd_to_this_fiber(int fd) {
 template <typename H>
 void start_tcp_server(std::string ip, int port, int socktype, int nthreads, H conn_handler,
                       std::string ssl_key_path = "", std::string ssl_cert_path = "",
-                      std::string ssl_ciphers = "") {
+                      std::string ssl_ciphers = "", int idle_timeout_seconds = 30) {
 
 // Start the winsock DLL
 #ifdef _WIN32
@@ -8179,6 +8340,7 @@ void start_tcp_server(std::string ip, int port, int socktype, int nthreads, H co
   for (int i = 0; i < nthreads; i++)
     ths.push_back(std::thread([&] {
       async_reactor reactor;
+      reactor.set_idle_timeout(std::chrono::seconds(idle_timeout_seconds));
       if (ssl_cert_path.size()) // Initialize the SSL/TLS context.
         reactor.ssl_ctx = std::make_unique<ssl_context>(ssl_key_path, ssl_cert_path, ssl_ciphers);
       reactor.event_loop(server_fd, conn_handler);
@@ -10556,6 +10718,7 @@ void http_serve(api<http_request, http_response> api, int port, O... opts) {
   auto options = mmm(opts...);
 
   int nthreads = get_or(options, s::nthreads, std::thread::hardware_concurrency());
+  int idle_timeout_seconds = get_or(options, s::idle_timeout_seconds, 30);
 
   std::string ip = get_or(options, s::ip, "");
 
@@ -10593,10 +10756,11 @@ void http_serve(api<http_request, http_response> api, int port, O... opts) {
       std::string ssl_ciphers = get_or(options, s::ssl_ciphers, "");
       start_tcp_server(ip, port, SOCK_STREAM, nthreads,
                        http_async_impl::make_http_processor(std::move(handler)), ssl_key,
-                       ssl_cert, ssl_ciphers);
+                       ssl_cert, ssl_ciphers, idle_timeout_seconds);
     } else {
       start_tcp_server(ip, port, SOCK_STREAM, nthreads,
-                       http_async_impl::make_http_processor(std::move(handler)));
+                       http_async_impl::make_http_processor(std::move(handler)), "", "", "",
+                       idle_timeout_seconds);
     }
     date_thread->join();
   });
