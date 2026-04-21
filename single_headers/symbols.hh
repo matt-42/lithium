@@ -125,6 +125,11 @@
     LI_SYMBOL(id)
 #endif
 
+#ifndef LI_SYMBOL_idle_timeout_seconds
+#define LI_SYMBOL_idle_timeout_seconds
+    LI_SYMBOL(idle_timeout_seconds)
+#endif
+
 #ifndef LI_SYMBOL_ip
 #define LI_SYMBOL_ip
     LI_SYMBOL(ip)
