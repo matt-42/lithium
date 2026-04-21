@@ -72,6 +72,20 @@ inline mysql_connection_data* mysql_database_impl::new_connection(Y& fiber) {
 
   mysql = mysql_init(nullptr);
 
+  // Local test servers often run without TLS. Explicitly disable SSL unless
+  // callers configure a secure setup at a higher level.
+#if defined(MYSQL_OPT_SSL_MODE) && defined(SSL_MODE_DISABLED)
+  {
+    const auto ssl_mode = SSL_MODE_DISABLED;
+    mysql_options(mysql, MYSQL_OPT_SSL_MODE, &ssl_mode);
+  }
+#elif defined(MYSQL_OPT_SSL_ENFORCE)
+  {
+    bool ssl_enforce = false;
+    mysql_options(mysql, MYSQL_OPT_SSL_ENFORCE, &ssl_enforce);
+  }
+#endif
+
   if constexpr (std::is_same_v<Y, active_yield>) { // Synchronous connection
     connection = mysql;
     connection = mysql_real_connect(connection, host_.c_str(), user_.c_str(), passwd_.c_str(),
