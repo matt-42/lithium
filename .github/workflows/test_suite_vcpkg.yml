@@ -35,6 +35,9 @@ jobs:
           my-cnf: port  = 14550
       - run: mysqladmin -uroot -h'127.0.0.1' -P 14550 --password=lithium_test create mysql_test   
       - run: mysql -uroot -h'127.0.0.1' -P 14550 --password=lithium_test -e 'SELECT version()'
+      - name: Install macOS build prerequisites
+        if: runner.os == 'macOS'
+        run: brew install autoconf
       - uses: lukka/get-cmake@latest
   
       - name: Restore artifacts, or setup vcpkg for building artifacts
