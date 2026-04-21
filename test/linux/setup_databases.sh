@@ -37,10 +37,25 @@ sudo -u mysql mkdir -p $TMPDIR
 CONF=/lithium/libraries/sql/tests/test_mariadb.cnf
 basedir="/usr"
 sudo -u mysql mysql_install_db --auth-root-authentication-method=normal --defaults-file=$CONF --skip-test-db --basedir=$basedir
-#sudo -u mysql mysqld --defaults-file=$CONF &
-mysqld --defaults-file=$CONF --user=root &
+if command -v mariadbd >/dev/null 2>&1; then
+	MYSQLD_BIN="$(command -v mariadbd)"
+else
+	MYSQLD_BIN="$(command -v mysqld)"
+fi
 
-sleep 2 # wait for server to start 
+# Keep server alive after this setup script exits.
+nohup "$MYSQLD_BIN" --defaults-file=$CONF --user=mysql >/tmp/lithium_mariadb_test/mysqld.stdout.log 2>&1 &
 
-sudo -u mysql mysqladmin --defaults-file=$CONF -u root password 'lithium_test' # root password
-sudo -u mysql mysqladmin --defaults-file=$CONF -u root --password=lithium_test create mysql_test # create test database
+i=0
+while [ $i -lt 30 ]; do
+	if sudo -u mysql mysqladmin --defaults-file=$CONF --protocol=tcp -h 127.0.0.1 -P 14550 -u root ping >/dev/null 2>&1; then
+		break
+	fi
+	i=$((i + 1))
+	sleep 1
+done
+
+sudo -u mysql mysqladmin --defaults-file=$CONF --protocol=tcp -h 127.0.0.1 -P 14550 -u root ping
+sudo -u mysql mysqladmin --defaults-file=$CONF --protocol=tcp -h 127.0.0.1 -P 14550 -u root password 'lithium_test' # root password
+sudo -u mysql mysqladmin --defaults-file=$CONF --protocol=tcp -h 127.0.0.1 -P 14550 -u root --password=lithium_test ping
+sudo -u mysql mysqladmin --defaults-file=$CONF --protocol=tcp -h 127.0.0.1 -P 14550 -u root --password=lithium_test create mysql_test # create test database
