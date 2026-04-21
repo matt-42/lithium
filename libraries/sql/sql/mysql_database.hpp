@@ -77,7 +77,11 @@ inline mysql_connection_data* mysql_database_impl::new_connection(Y& fiber) {
     connection = mysql_real_connect(connection, host_.c_str(), user_.c_str(), passwd_.c_str(),
                                     database_.c_str(), port_, NULL, 0);
     if (!connection)
+    {
+      // print error message from mysql_error(mysql) before closing the connection.
+      std::cerr << "Error connecting to mysql: " << mysql_error(mysql) << std::endl;
       return nullptr;
+    }
   } else { // Async connection.
     mysql_options(mysql, MYSQL_OPT_NONBLOCK, 0);
     connection = nullptr;
