@@ -49,6 +49,10 @@ public:
     return impl::json_decode(input, obj, *downcast());
   }
 
+  template <typename C, typename O> json_error decode(C& input, O& obj, int max_depth) const {
+    return impl::json_decode(input, obj, *downcast(), max_depth);
+  }
+
   template <typename C, typename... M> auto decode(C& input) const {
     auto map = impl::json_object_to_metamap(*downcast());
     impl::json_decode(input, map, *downcast());
@@ -131,6 +135,10 @@ template <typename... S> auto json_variant(S&&... s) { return json_variant_<S...
 
 template <typename C, typename M> decltype(auto) json_decode(C& input, M& obj) {
   return impl::to_json_schema(obj).decode(input, obj);
+}
+
+template <typename C, typename M> decltype(auto) json_decode(C& input, M& obj, int max_depth) {
+  return impl::to_json_schema(obj).decode(input, obj, max_depth);
 }
 
 template <typename C, typename M> decltype(auto) json_encode(C& output, const M& obj) {
