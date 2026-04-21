@@ -13,3 +13,5 @@ build_release_with_debug_info
 cli/lithium_install
 test_install
 builds
+build-linux
+vcpkg_installed

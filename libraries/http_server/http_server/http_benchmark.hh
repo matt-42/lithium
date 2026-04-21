@@ -1,9 +1,13 @@
 #pragma once
 
 #include <atomic>
+#include <chrono>
 #include <boost/context/continuation.hpp>
+#include <cstring>
 #include <iostream>
+#include <string>
 #include <thread>
+#include <vector>
 
 #include <li/http_server/timer.hh>
 namespace ctx = boost::context;
@@ -198,6 +202,107 @@ inline float http_benchmark(const std::vector<int>& sockets, int NTHREADS, int d
 
   global_timer.end();
   return (1000. * nmessages / global_timer.ms());
+}
+
+inline float http_benchmark_new_connections(int NTHREADS, int duration_in_ms, int port,
+                                            std::string_view req) {
+  auto parse_content_length = [](std::string_view headers) {
+    const std::string key = "Content-Length:";
+    size_t key_pos = headers.find(key);
+    if (key_pos == std::string::npos)
+      return size_t(0);
+
+    size_t cur = key_pos + key.size();
+    while (cur < headers.size() && headers[cur] == ' ')
+      cur++;
+
+    size_t end = cur;
+    while (end < headers.size() && headers[end] >= '0' && headers[end] <= '9')
+      end++;
+
+    if (end == cur)
+      return size_t(0);
+    return size_t(std::strtoull(headers.substr(cur, end - cur).data(), nullptr, 10));
+  };
+
+  auto recv_one_http_response = [&](int fd) {
+    std::string resp;
+    resp.reserve(4096);
+
+    char tmp[4096];
+    while (true) {
+      ssize_t rd = ::recv(fd, tmp, sizeof(tmp), 0);
+      if (rd <= 0)
+        return false;
+
+      resp.append(tmp, rd);
+      size_t header_end = resp.find("\r\n\r\n");
+      if (header_end == std::string::npos)
+        continue;
+
+      size_t body_len = parse_content_length(std::string_view(resp.data(), header_end + 4));
+      size_t expected_size = header_end + 4 + body_len;
+      while (resp.size() < expected_size) {
+        rd = ::recv(fd, tmp, sizeof(tmp), 0);
+        if (rd <= 0)
+          return false;
+        resp.append(tmp, rd);
+      }
+      return true;
+    }
+  };
+
+  std::atomic<int64_t> nmessages = 0;
+  std::vector<std::thread> ths;
+  ths.reserve(NTHREADS);
+
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(duration_in_ms);
+
+  for (int t = 0; t < NTHREADS; t++) {
+    ths.emplace_back([&, deadline] {
+      sockaddr_in server;
+      std::memset(&server, 0, sizeof(server));
+      server.sin_addr.s_addr = inet_addr("127.0.0.1");
+      server.sin_family = AF_INET;
+      server.sin_port = htons(port);
+
+      while (std::chrono::steady_clock::now() < deadline) {
+        int fd = ::socket(AF_INET, SOCK_STREAM, 0);
+        if (fd < 0)
+          continue;
+
+        if (::connect(fd, (const sockaddr*)&server, sizeof(server)) != 0) {
+          ::close(fd);
+          continue;
+        }
+
+        const char* buf = req.data();
+        size_t rem = req.size();
+        bool ok = true;
+        while (rem > 0) {
+          ssize_t wr = ::send(fd, buf, rem, 0);
+          if (wr <= 0) {
+            ok = false;
+            break;
+          }
+          buf += wr;
+          rem -= wr;
+        }
+
+        if (ok && recv_one_http_response(fd))
+          nmessages++;
+
+        ::close(fd);
+      }
+    });
+  }
+
+  for (auto& th : ths)
+    th.join();
+
+  if (duration_in_ms <= 0)
+    return 0.f;
+  return (1000.f * float(nmessages.load()) / float(duration_in_ms));
 }
 
 } // namespace li
