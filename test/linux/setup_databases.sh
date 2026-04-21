@@ -44,26 +44,24 @@ else
 fi
 
 MYSQL_SSL_ARGS=""
-if [ "${LI_MYSQL_SSL:-0}" = "1" ]; then
-	SSL_DIR="$TMPDIR/ssl"
-	mkdir -p "$SSL_DIR"
+SSL_DIR="$TMPDIR/ssl"
+mkdir -p "$SSL_DIR"
 
-	# Self-signed CA and server certs for local test usage.
-	openssl req -newkey rsa:2048 -nodes -x509 -days 3650 \
-		-subj "/CN=lithium-test-ca" \
-		-keyout "$SSL_DIR/ca-key.pem" -out "$SSL_DIR/ca.pem" >/dev/null 2>&1
-	openssl req -newkey rsa:2048 -nodes -days 3650 \
-		-subj "/CN=127.0.0.1" \
-		-keyout "$SSL_DIR/server-key.pem" -out "$SSL_DIR/server-req.pem" >/dev/null 2>&1
-	openssl x509 -req -in "$SSL_DIR/server-req.pem" -days 3650 \
-		-CA "$SSL_DIR/ca.pem" -CAkey "$SSL_DIR/ca-key.pem" -set_serial 01 \
-		-out "$SSL_DIR/server-cert.pem" >/dev/null 2>&1
+# Self-signed CA and server certs for local test usage.
+openssl req -newkey rsa:2048 -nodes -x509 -days 3650 \
+    -subj "/CN=lithium-test-ca" \
+    -keyout "$SSL_DIR/ca-key.pem" -out "$SSL_DIR/ca.pem" >/dev/null 2>&1
+openssl req -newkey rsa:2048 -nodes -days 3650 \
+    -subj "/CN=127.0.0.1" \
+    -keyout "$SSL_DIR/server-key.pem" -out "$SSL_DIR/server-req.pem" >/dev/null 2>&1
+openssl x509 -req -in "$SSL_DIR/server-req.pem" -days 3650 \
+    -CA "$SSL_DIR/ca.pem" -CAkey "$SSL_DIR/ca-key.pem" -set_serial 01 \
+    -out "$SSL_DIR/server-cert.pem" >/dev/null 2>&1
 
-	chmod 600 "$SSL_DIR/"*.pem
-	chown -R mysql:mysql "$SSL_DIR"
+chmod 600 "$SSL_DIR/"*.pem
+chown -R mysql:mysql "$SSL_DIR"
 
-	MYSQL_SSL_ARGS="--ssl-ca=$SSL_DIR/ca.pem --ssl-cert=$SSL_DIR/server-cert.pem --ssl-key=$SSL_DIR/server-key.pem"
-fi
+MYSQL_SSL_ARGS="--ssl-ca=$SSL_DIR/ca.pem --ssl-cert=$SSL_DIR/server-cert.pem --ssl-key=$SSL_DIR/server-key.pem"
 
 # Keep server alive after this setup script exits.
 if [ -n "$MYSQL_SSL_ARGS" ]; then
@@ -84,5 +82,9 @@ done
 
 sudo -u mysql mysqladmin --defaults-file=$CONF --protocol=tcp -h 127.0.0.1 -P 14550 -u root ping
 sudo -u mysql mysqladmin --defaults-file=$CONF --protocol=tcp -h 127.0.0.1 -P 14550 -u root password 'lithium_test' # root password
+# test if SSL is enabled and working by connecting with SSL parameters. If SSL is not enabled, this will fail and print an error message.
+# if [ -n "$MYSQL_SSL_ARGS" ]; then
+#     sudo -u mysql mysqladmin --defaults-file=$CONF --protocol=tcp -h 127.0.0.1 -P 14550 -u root --password=lithium_test ping --ssl-mode=VERIFY_CA --ssl-ca="$SSL_DIR/ca.pem" --ssl-cert="$SSL_DIR/server-cert.pem" --ssl-key="$SSL_DIR/server-key.pem"
+# fi
 sudo -u mysql mysqladmin --defaults-file=$CONF --protocol=tcp -h 127.0.0.1 -P 14550 -u root --password=lithium_test ping
 sudo -u mysql mysqladmin --defaults-file=$CONF --protocol=tcp -h 127.0.0.1 -P 14550 -u root --password=lithium_test create mysql_test # create test database
