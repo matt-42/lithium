@@ -10,13 +10,8 @@ jobs:
         os: [ubuntu-latest, macos-latest]
 
     steps:
-      - name: Install PostgreSQL tools on macOS
-        if: runner.os == 'macOS'
-        run: |
-          brew install postgresql@16
-          echo "$(brew --prefix postgresql@16)/bin" >> "$GITHUB_PATH"
 
-      - uses: matt-42/action-setup-postgres@v1.1
+      - uses: ikalnytskyi/action-setup-postgres@v8
         with:
           username: postgres
           password: lithium_test
