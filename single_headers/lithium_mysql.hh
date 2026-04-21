@@ -1713,9 +1713,16 @@ template <typename B> struct mysql_statement_result {
 
   inline void flush_results() {
     // if (result_allocated_)
-    if (connection_ && data_.metadata_) // connection is null if this has been moved in another instance.
+    try {
+
+      if (connection_ && data_.metadata_) // connection is null if this has been moved in another instance.
       mysql_wrapper_.mysql_stmt_free_result(connection_->error_, data_.stmt_);
-    // result_allocated_ = false;
+      // result_allocated_ = false;
+    } catch (const std::exception& e) {
+      std::cerr << "Warning: exception thrown during mysql_statement_result flush: " << e.what()
+                << std::endl;
+    }
+
   }
 
   // Read std::tuple and li::metamap.
@@ -2633,7 +2640,11 @@ inline mysql_connection_data* mysql_database_impl::new_connection(Y& fiber) {
     connection = mysql_real_connect(connection, host_.c_str(), user_.c_str(), passwd_.c_str(),
                                     database_.c_str(), port_, NULL, 0);
     if (!connection)
+    {
+      // print error message from mysql_error(mysql) before closing the connection.
+      std::cerr << "Error connecting to mysql: " << mysql_error(mysql) << std::endl;
       return nullptr;
+    }
   } else { // Async connection.
     mysql_options(mysql, MYSQL_OPT_NONBLOCK, 0);
     connection = nullptr;

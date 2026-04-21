@@ -36,9 +36,16 @@ template <typename B> struct mysql_statement_result {
 
   inline void flush_results() {
     // if (result_allocated_)
-    if (connection_ && data_.metadata_) // connection is null if this has been moved in another instance.
+    try {
+
+      if (connection_ && data_.metadata_) // connection is null if this has been moved in another instance.
       mysql_wrapper_.mysql_stmt_free_result(connection_->error_, data_.stmt_);
-    // result_allocated_ = false;
+      // result_allocated_ = false;
+    } catch (const std::exception& e) {
+      std::cerr << "Warning: exception thrown during mysql_statement_result flush: " << e.what()
+                << std::endl;
+    }
+
   }
 
   // Read std::tuple and li::metamap.
