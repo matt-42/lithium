@@ -4369,6 +4369,19 @@ static socket_type create_and_bind(const char* ip, int port, int socktype) {
   int s;
   socket_type sfd;
 
+  auto configure_listen_socket = [&](socket_type fd) {
+    int on = 1;
+    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char*)&on, sizeof(on)) != 0) {
+      std::cerr << "Warning: setsockopt(SO_REUSEADDR) failed: " << strerror(errno) << std::endl;
+    }
+#if __linux__
+    // Best-effort: lets all worker threads accept on the same port more efficiently.
+    if (setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, (char*)&on, sizeof(on)) != 0) {
+      std::cerr << "Warning: setsockopt(SO_REUSEPORT) failed: " << strerror(errno) << std::endl;
+    }
+#endif
+  };
+
   if (ip == nullptr) {
     // No IP address was specified, find an appropriate one
     struct addrinfo hints;
@@ -4394,6 +4407,8 @@ static socket_type create_and_bind(const char* ip, int port, int socktype) {
       sfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
       if (sfd == -1)
         continue;
+
+      configure_listen_socket(sfd);
 
       // Turn of IPV6_V6ONLY to accept ipv4.
       // https://stackoverflow.com/questions/1618240/how-to-support-both-ipv4-and-ipv6-connections
@@ -4422,6 +4437,12 @@ static socket_type create_and_bind(const char* ip, int port, int socktype) {
     freeaddrinfo(result);
   } else {
     sfd = socket(AF_INET, socktype, 0);
+    if (sfd == -1) {
+      fprintf(stderr, "Could not create socket: %s\n", strerror(errno));
+      return -1;
+    }
+
+    configure_listen_socket(sfd);
 
     // Use the user specified IP address
     struct sockaddr_in addr;
@@ -4760,10 +4781,18 @@ struct async_reactor {
             socklen_t in_len;
             int socket_fd;
             in_len = sizeof(sockaddr_storage);
+#if __linux__
+            socket_fd = accept4(listen_fd, in_addr, &in_len, SOCK_NONBLOCK | SOCK_CLOEXEC);
+#else
             socket_fd = accept(listen_fd, in_addr, &in_len);
+#endif
             //socket_fd = accept(listen_fd, nullptr, nullptr);
             if (socket_fd == -1)
             {
+#if __linux__
+              if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR)
+                std::cerr << "accept4 error: " << strerror(errno) << std::endl;
+#endif
               // if (errno != EAGAIN && errno != EWOULDBLOCK) {
               //   std::cerr << "accept error: " << strerror(errno) << std::endl;
               //   std::cerr << "accept error: " << WSAGetLastError() << std::endl;
@@ -4776,7 +4805,7 @@ struct async_reactor {
             // Subscribe epoll to the socket file descriptor.
 #if _WIN32
             if (ioctlsocket(socket_fd, FIONBIO, &iMode) != NO_ERROR) continue;
-#else
+#elif !__linux__
             if (-1 == ::fcntl(socket_fd, F_SETFL, fcntl(socket_fd, F_GETFL, 0) | O_NONBLOCK)) continue;
 #endif
             // ============================================
