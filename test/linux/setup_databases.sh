@@ -1,5 +1,7 @@
 #! /bin/sh
 
+set -eu
+
 
 rm -rf /usr/local/var/postgres
 mkdir -p /usr/local/var/postgres
@@ -7,9 +9,25 @@ chown postgres:postgres /usr/local/var/postgres
 
 # docker build -t docker_linux_test .
 #docker run -it -v $HOME/lithium:/lithium docker_linux_test
-sudo -u postgres /usr/lib/postgresql/12/bin/initdb /usr/local/var/postgres;
-sudo -u postgres /usr/lib/postgresql/12/bin/pg_ctl -D /usr/local/var/postgres -o "-p 32768" start;
-sudo -u postgres /usr/lib/postgresql/12/bin/psql -p 32768 -c "ALTER ROLE postgres WITH LOGIN ENCRYPTED PASSWORD 'lithium_test';" postgres;
+PG_BINDIR="/usr/lib/postgresql/14/bin"
+if [ ! -x "$PG_BINDIR/pg_ctl" ]; then
+	PG_BINDIR="$(dirname "$(command -v pg_ctl)")"
+fi
+
+sudo -u postgres "$PG_BINDIR/initdb" /usr/local/var/postgres
+sudo -u postgres "$PG_BINDIR/pg_ctl" -D /usr/local/var/postgres -o "-p 32768" start
+
+i=0
+while [ $i -lt 30 ]; do
+	if sudo -u postgres "$PG_BINDIR/pg_isready" -h 127.0.0.1 -p 32768 >/dev/null 2>&1; then
+		break
+	fi
+	i=$((i + 1))
+	sleep 1
+done
+
+sudo -u postgres "$PG_BINDIR/pg_isready" -h 127.0.0.1 -p 32768
+sudo -u postgres "$PG_BINDIR/psql" -p 32768 -c "ALTER ROLE postgres WITH LOGIN ENCRYPTED PASSWORD 'lithium_test';" postgres
 
 
 TMPDIR=/tmp/lithium_mariadb_test
