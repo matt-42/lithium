@@ -4422,7 +4422,8 @@ struct mysql_statement_data : std::enable_shared_from_this<mysql_statement_data>
   ~mysql_statement_data() {
     if (metadata_)
       mysql_free_result(metadata_);
-    mysql_stmt_free_result(stmt_);
+    if (metadata_)
+      mysql_stmt_free_result(stmt_);
     if (mysql_stmt_close(stmt_))
       std::cerr << "Error: could not free mysql statement" << std::endl;
     // std::cout << "delete statement " << std::endl;
@@ -4687,7 +4688,7 @@ template <typename B> struct mysql_statement_result {
 
   inline void flush_results() {
     // if (result_allocated_)
-    if (connection_) // connection is null if this has been moved in another instance.
+    if (connection_ && data_.metadata_) // connection is null if this has been moved in another instance.
       mysql_wrapper_.mysql_stmt_free_result(connection_->error_, data_.stmt_);
     // result_allocated_ = false;
   }

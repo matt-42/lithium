@@ -36,7 +36,7 @@ template <typename B> struct mysql_statement_result {
 
   inline void flush_results() {
     // if (result_allocated_)
-    if (connection_) // connection is null if this has been moved in another instance.
+    if (connection_ && data_.metadata_) // connection is null if this has been moved in another instance.
       mysql_wrapper_.mysql_stmt_free_result(connection_->error_, data_.stmt_);
     // result_allocated_ = false;
   }

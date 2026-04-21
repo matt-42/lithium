@@ -101,14 +101,17 @@ int main() {
     // assert(http_get("http://localhost:12345/hello_world").body == "hello world.");
   };
 
+  std::cout << "Testing sqlite..." << std::endl;
   auto sqlite_db = sqlite_database("iod_sqlite_orm_test.db");
   test_with_db(sqlite_db, 12258);
 
+  std::cout << "Testing mysql..." << std::endl;
   auto mysql_db =
       mysql_database(s::host = "127.0.0.1", s::database = "mysql_test", s::user = "root",
                      s::password = "lithium_test", s::port = 14550, s::charset = "utf8");
   test_with_db(mysql_db, 12262);
 
+  std::cout << "Testing postgresql..." << std::endl;
   auto pgsql_db = pgsql_database(s::host = "127.0.0.1", s::database = "postgres", s::user = "postgres",
                             s::password = "lithium_test", s::port = 32768, s::charset = "utf8");
   test_with_db(pgsql_db, 12261);

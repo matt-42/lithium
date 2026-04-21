@@ -1,6 +1,7 @@
 #pragma once
 
 #include <mysql.h>
+#include <iostream>
 #include <memory>
 
 /**
@@ -27,7 +28,8 @@ struct mysql_statement_data : std::enable_shared_from_this<mysql_statement_data>
   ~mysql_statement_data() {
     if (metadata_)
       mysql_free_result(metadata_);
-    mysql_stmt_free_result(stmt_);
+    if (metadata_)
+      mysql_stmt_free_result(stmt_);
     if (mysql_stmt_close(stmt_))
       std::cerr << "Error: could not free mysql statement" << std::endl;
     // std::cout << "delete statement " << std::endl;
