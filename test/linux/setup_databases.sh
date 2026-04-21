@@ -43,8 +43,35 @@ else
 	MYSQLD_BIN="$(command -v mysqld)"
 fi
 
+MYSQL_SSL_ARGS=""
+if [ "${LI_MYSQL_SSL:-0}" = "1" ]; then
+	SSL_DIR="$TMPDIR/ssl"
+	mkdir -p "$SSL_DIR"
+
+	# Self-signed CA and server certs for local test usage.
+	openssl req -newkey rsa:2048 -nodes -x509 -days 3650 \
+		-subj "/CN=lithium-test-ca" \
+		-keyout "$SSL_DIR/ca-key.pem" -out "$SSL_DIR/ca.pem" >/dev/null 2>&1
+	openssl req -newkey rsa:2048 -nodes -days 3650 \
+		-subj "/CN=127.0.0.1" \
+		-keyout "$SSL_DIR/server-key.pem" -out "$SSL_DIR/server-req.pem" >/dev/null 2>&1
+	openssl x509 -req -in "$SSL_DIR/server-req.pem" -days 3650 \
+		-CA "$SSL_DIR/ca.pem" -CAkey "$SSL_DIR/ca-key.pem" -set_serial 01 \
+		-out "$SSL_DIR/server-cert.pem" >/dev/null 2>&1
+
+	chmod 600 "$SSL_DIR/"*.pem
+	chown -R mysql:mysql "$SSL_DIR"
+
+	MYSQL_SSL_ARGS="--ssl-ca=$SSL_DIR/ca.pem --ssl-cert=$SSL_DIR/server-cert.pem --ssl-key=$SSL_DIR/server-key.pem"
+fi
+
 # Keep server alive after this setup script exits.
-nohup "$MYSQLD_BIN" --defaults-file=$CONF --user=mysql >/tmp/lithium_mariadb_test/mysqld.stdout.log 2>&1 &
+if [ -n "$MYSQL_SSL_ARGS" ]; then
+	# shellcheck disable=SC2086
+	nohup "$MYSQLD_BIN" --defaults-file=$CONF --user=mysql $MYSQL_SSL_ARGS >/tmp/lithium_mariadb_test/mysqld.stdout.log 2>&1 &
+else
+	nohup "$MYSQLD_BIN" --defaults-file=$CONF --user=mysql >/tmp/lithium_mariadb_test/mysqld.stdout.log 2>&1 &
+fi
 
 i=0
 while [ $i -lt 30 ]; do
