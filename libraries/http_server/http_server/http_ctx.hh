@@ -22,6 +22,7 @@
 
 #include <boost/lexical_cast.hpp>
 
+#include <li/http_server/siphash.hh>
 #include <li/http_server/error.hh>
 #include <li/http_server/http_top_header_builder.hh>
 #include <li/http_server/input_buffer.hh>
@@ -45,31 +46,7 @@ using ::li::content_types; // static std::unordered_map<std::string_view, std::s
 static thread_local std::unordered_map<std::string, std::pair<std::string_view, std::string_view>>
     static_files;
 
-struct secure_string_view_hash {
-  static uint64_t process_seed() {
-    static const uint64_t seed = []() {
-      std::random_device rd;
-      uint64_t s = (uint64_t(rd()) << 32) ^ uint64_t(rd());
-      return s ? s : UINT64_C(0x9e3779b97f4a7c15);
-    }();
-    return seed;
-  }
-
-  std::size_t operator()(std::string_view key) const {
-    uint64_t h = process_seed() ^ (uint64_t(key.size()) * UINT64_C(0x9e3779b97f4a7c15));
-    for (unsigned char c : key)
-      h ^= (uint64_t(c) + UINT64_C(0x9e3779b97f4a7c15) + (h << 6) + (h >> 2));
-    h ^= h >> 30;
-    h *= UINT64_C(0xbf58476d1ce4e5b9);
-    h ^= h >> 27;
-    h *= UINT64_C(0x94d049bb133111eb);
-    h ^= h >> 31;
-    return std::size_t(h);
-  }
-};
-
-using request_kv_map =
-    std::unordered_map<std::string_view, std::string_view, secure_string_view_hash>;
+using request_kv_map = std::unordered_map<std::string_view, std::string_view, li::siphash>;
 
 #ifndef _WIN32
 http_top_header_builder http_top_header [[gnu::weak]];

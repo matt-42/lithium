@@ -3,6 +3,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <random>
 #include <string>
 
 namespace li {
@@ -156,23 +157,21 @@ inline int siphash(const void* in, const size_t inlen, const void* k, uint8_t* o
   return 0;
 }
 
-static char* generate_random_string(int length) {
-    char* str = new char[length + 1];
-    const char characters[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    int max_index = sizeof(characters) - 1;
-
-    for (int i = 0; i < length; ++i) {
-        int random_index = rand() % max_index;
-        str[i] = characters[random_index];
+inline std::string generate_random_key(int length) {
+    std::random_device rd;
+    std::string key(length, '\0');
+    // Fill with raw random bytes from random_device.
+    for (int i = 0; i < length; i += 4) {
+        uint32_t r = rd();
+        for (int j = 0; j < 4 && i + j < length; ++j)
+            key[i + j] = static_cast<char>((r >> (j * 8)) & 0xFF);
     }
-
-    str[length] = '\0'; // Null-terminate the string
-    return str;
+    return key;
 }
 
 } // namespace internal
 
-static const std::string siphashkey = internal::generate_random_string(16);
+static const std::string siphashkey = internal::generate_random_key(16);
 
 struct siphash {
 
