@@ -15,6 +15,9 @@ add_test(url_decode url_decode)
 li_add_executable(hello_world hello_world.cc)
 add_test(hello_world hello_world)
 
+li_add_executable(idle_timeout idle_timeout.cc)
+add_test(idle_timeout idle_timeout)
+
 li_add_executable(subapi subapi.cc)
 add_test(subapi subapi)
 

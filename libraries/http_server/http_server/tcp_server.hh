@@ -35,6 +35,7 @@
 #endif
 
 #include <deque>
+#include <chrono>
 #include <thread>
 #include <vector>
 
@@ -232,18 +233,29 @@ struct async_fiber_context {
 
   inline void defer(const std::function<void()>& fun);
   inline void defer_fiber_resume(int fiber_id);
+  inline void mark_activity();
 
   inline int read_impl(char* buf, int size) {
+    int ret;
     if (ssl)
-      return SSL_read(ssl, buf, size);
+      ret = SSL_read(ssl, buf, size);
     else
-      return ::recv(socket_fd, buf, size, 0);
+      ret = ::recv(socket_fd, buf, size, 0);
+
+    if (ret > 0)
+      mark_activity();
+    return ret;
   }
   inline int write_impl(const char* buf, int size) {
+    int ret;
     if (ssl)
-      return SSL_write(ssl, buf, size);
+      ret = SSL_write(ssl, buf, size);
     else
-      return ::send(socket_fd, buf, size, 0);
+      ret = ::send(socket_fd, buf, size, 0);
+
+    if (ret > 0)
+      mark_activity();
+    return ret;
   }
 
   inline int read(char* buf, int max_size) {
@@ -282,6 +294,7 @@ struct async_fiber_context {
 struct async_reactor {
 
   typedef boost::context::continuation continuation;
+  typedef std::chrono::steady_clock clock_t;
 
 #if defined _WIN32
   typedef HANDLE epoll_handle_t;
@@ -293,9 +306,64 @@ struct async_reactor {
   epoll_handle_t epoll_fd;
   std::vector<continuation> fibers;
   std::vector<int> fd_to_fiber_idx;
+  std::vector<clock_t::time_point> fd_last_activity;
   std::unique_ptr<ssl_context> ssl_ctx = nullptr;
   std::vector<std::function<void()>> defered_functions;
   std::deque<int> defered_resume;
+  std::chrono::seconds idle_timeout = std::chrono::seconds(30);
+
+  inline void set_idle_timeout(std::chrono::seconds timeout) {
+    if (timeout.count() > 0)
+      idle_timeout = timeout;
+  }
+
+  inline void mark_socket_activity(int fd) {
+    if (fd < 0)
+      return;
+    if (int(fd_last_activity.size()) < fd + 1)
+      fd_last_activity.resize((fd + 1) * 2, clock_t::time_point{});
+    fd_last_activity[fd] = clock_t::now();
+  }
+
+  inline void clear_socket_activity(int fd) {
+    if (fd >= 0 && fd < fd_last_activity.size())
+      fd_last_activity[fd] = clock_t::time_point{};
+  }
+
+  inline void close_idle_connections(int listen_fd, clock_t::time_point now) {
+    if (idle_timeout.count() <= 0)
+      return;
+
+    std::vector<int> timed_out_fds;
+    for (int fd = 0; fd < int(fd_to_fiber_idx.size()); fd++) {
+      if (fd == listen_fd)
+        continue;
+      int fiber_idx = fd_to_fiber_idx[fd];
+      if (fiber_idx < 0)
+        continue;
+      if (fd >= int(fd_last_activity.size()))
+        continue;
+      auto last_activity = fd_last_activity[fd];
+      if (last_activity == clock_t::time_point{})
+        continue;
+      if (now - last_activity >= idle_timeout)
+        timed_out_fds.push_back(fd);
+    }
+
+    for (int fd : timed_out_fds) {
+      continuation& fiber = fd_to_fiber(fd);
+      if (fiber)
+        fiber = fiber.resume_with(std::move([](auto&& sink) {
+          throw fiber_exception(std::move(sink), "IDLE_TIMEOUT");
+          return std::move(sink);
+        }));
+      else {
+        epoll_del(fd);
+        clear_socket_activity(fd);
+        impl::close_socket(fd);
+      }
+    }
+  }
 
   inline continuation& fd_to_fiber(int fd) {
     assert(fd >= 0 and fd < fd_to_fiber_idx.size());
@@ -338,6 +406,7 @@ struct async_reactor {
     if (int(fd_to_fiber_idx.size()) < new_fd + 1)
       fd_to_fiber_idx.resize((new_fd + 1) * 2, -1);
     fd_to_fiber_idx[new_fd] = fiber_idx;
+    mark_socket_activity(new_fd);
   }
 
   inline void epoll_del(int fd) {
@@ -346,6 +415,9 @@ struct async_reactor {
 #elif __APPLE__
     epoll_ctl(epoll_fd, fd, EV_DELETE, 0);
 #endif
+    if (fd >= 0 && fd < fd_to_fiber_idx.size())
+      fd_to_fiber_idx[fd] = -1;
+    clear_socket_activity(fd);
   }
 
   inline void epoll_mod(int fd, int flags) {
@@ -385,6 +457,7 @@ struct async_reactor {
 #endif
 
     // Main loop.
+    auto last_idle_sweep = clock_t::now();
     while (!quit_signal_catched) {
 
 #if __linux__ || _WIN32
@@ -398,6 +471,12 @@ struct async_reactor {
 
       if (quit_signal_catched)
         break;
+
+      auto now = clock_t::now();
+      if (now - last_idle_sweep >= std::chrono::seconds(1)) {
+        close_idle_connections(listen_fd, now);
+        last_idle_sweep = now;
+      }
 
       if (n_events == 0)
         for (int i = 0; i < fibers.size(); i++)
@@ -538,6 +617,13 @@ struct async_reactor {
                // event_fd.
         {
           if (event_fd >= 0 && event_fd < fd_to_fiber_idx.size()) {
+#if __linux__ || _WIN32
+            if (event_flags & EPOLLIN)
+              mark_socket_activity(event_fd);
+#elif __APPLE__
+            if (events[i].filter == EVFILT_READ)
+              mark_socket_activity(event_fd);
+#endif
             auto& fiber = fd_to_fiber(event_fd);
             if (fiber)
               fiber = fiber.resume();
@@ -591,6 +677,8 @@ void async_fiber_context::defer_fiber_resume(int fiber_id) {
   this->reactor->defered_resume.push_back(fiber_id);
 }
 
+void async_fiber_context::mark_activity() { this->reactor->mark_socket_activity(this->socket_fd); }
+
 void async_fiber_context::reassign_fd_to_this_fiber(int fd) {
   this->reactor->reassign_fd_to_fiber(fd, this->fiber_id);
 }
@@ -598,7 +686,7 @@ void async_fiber_context::reassign_fd_to_this_fiber(int fd) {
 template <typename H>
 void start_tcp_server(std::string ip, int port, int socktype, int nthreads, H conn_handler,
                       std::string ssl_key_path = "", std::string ssl_cert_path = "",
-                      std::string ssl_ciphers = "") {
+                      std::string ssl_ciphers = "", int idle_timeout_seconds = 30) {
 
 // Start the winsock DLL
 #ifdef _WIN32
@@ -637,6 +725,7 @@ void start_tcp_server(std::string ip, int port, int socktype, int nthreads, H co
   for (int i = 0; i < nthreads; i++)
     ths.push_back(std::thread([&] {
       async_reactor reactor;
+      reactor.set_idle_timeout(std::chrono::seconds(idle_timeout_seconds));
       if (ssl_cert_path.size()) // Initialize the SSL/TLS context.
         reactor.ssl_ctx = std::make_unique<ssl_context>(ssl_key_path, ssl_cert_path, ssl_ciphers);
       reactor.event_loop(server_fd, conn_handler);

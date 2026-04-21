@@ -38,6 +38,7 @@ void http_serve(api<http_request, http_response> api, int port, O... opts) {
   auto options = mmm(opts...);
 
   int nthreads = get_or(options, s::nthreads, std::thread::hardware_concurrency());
+  int idle_timeout_seconds = get_or(options, s::idle_timeout_seconds, 30);
 
   std::string ip = get_or(options, s::ip, "");
 
@@ -75,10 +76,11 @@ void http_serve(api<http_request, http_response> api, int port, O... opts) {
       std::string ssl_ciphers = get_or(options, s::ssl_ciphers, "");
       start_tcp_server(ip, port, SOCK_STREAM, nthreads,
                        http_async_impl::make_http_processor(std::move(handler)), ssl_key,
-                       ssl_cert, ssl_ciphers);
+                       ssl_cert, ssl_ciphers, idle_timeout_seconds);
     } else {
       start_tcp_server(ip, port, SOCK_STREAM, nthreads,
-                       http_async_impl::make_http_processor(std::move(handler)));
+                       http_async_impl::make_http_processor(std::move(handler)), "", "", "",
+                       idle_timeout_seconds);
     }
     date_thread->join();
   });
