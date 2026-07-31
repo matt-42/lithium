@@ -15,3 +15,4 @@ test_install
 builds
 build-linux
 vcpkg_installed
+.DS_Store
