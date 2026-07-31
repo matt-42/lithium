@@ -7206,7 +7206,14 @@ template <typename F> auto make_http_processor(F handler) {
       ctx.flush_responses();
   }
 }
-catch (const std::runtime_error& e) {
+catch (fiber_exception&) {
+  // Used internally (e.g. idle timeout, EPOLLRDHUP) to unwind the fiber via
+  // boost::context's exception-forwarding protocol. Must propagate to the
+  // callcc entry point in tcp_server.hh, which returns the continuation
+  // carried by the exception. Swallowing it here leaves boost::context's
+  // bookkeeping inconsistent and later crashes with a forced_unwind.
+  throw;
+} catch (const std::runtime_error& e) {
   std::cerr << "Error: " << e.what() << std::endl;
   return;
 } catch (...) {
