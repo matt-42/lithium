@@ -150,9 +150,13 @@ template <typename F> void parse_float(F* f, const char* str, const char** end) 
 class decode_stringstream {
 public:
   inline decode_stringstream(std::string_view buffer_)
-      : cur(buffer_.data()), bad_(false), buffer(buffer_) {}
+      : cur(buffer_.empty() ? empty_sentinel : buffer_.data()), bad_(false),
+        // An empty/default string_view (e.g. an empty HTTP body) has a null data()
+        // pointer. Redirect cur/buffer to a real, null-terminated byte so peek()/eof()
+        // never dereference nullptr and behave like parsing an empty std::string.
+        buffer(buffer_.empty() ? std::string_view(empty_sentinel, 0) : buffer_) {}
 
-  inline bool eof() const { return cur > &buffer.back(); }
+  inline bool eof() const { return cur >= buffer.data() + buffer.size(); }
   inline const char peek() const { return *cur; }
   inline const char get() { return *(cur++); }
   inline int bad() const { return bad_; }
@@ -223,6 +227,8 @@ private:
     while (peek() < 33)
       ++cur;
   }
+
+  static constexpr char empty_sentinel[1] = {'\0'};
 
   int bad_;
   const char* cur;
