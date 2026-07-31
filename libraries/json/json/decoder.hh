@@ -76,7 +76,7 @@ template <typename S> struct json_parser {
     return JSON_KO;
   }
   inline void eat_spaces() {
-    while (ss.peek() >= 0 and ss.peek() < 33)
+    while (!eof() and ss.peek() >= 0 and ss.peek() < 33)
       ss.get();
   }
 

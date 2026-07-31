@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <cstring>
@@ -360,30 +361,36 @@ namespace li {
 using std::string_view;
 
 namespace internal {
-template <typename I> void parse_uint(I* val_, const char* str, const char** end) {
+// buffer_end bounds every read: str must never be dereferenced once it reaches
+// the end of the underlying decode_stringstream buffer (e.g. a number with no
+// trailing delimiter at the very end of an HTTP body must not read past it).
+template <typename I> void parse_uint(I* val_, const char* str, const char* buffer_end, const char** end) {
   I& val = *val_;
   val = 0;
+  // Compute the byte budget once instead of comparing str < buffer_end on every
+  // iteration, so the bounds check costs nothing extra in the hot digit loop.
+  int max_i = str < buffer_end ? int(std::min<long long>(40, buffer_end - str)) : 0;
   int i = 0;
-  while (i < 40) {
-    char c = *str;
+  while (i < max_i) {
+    char c = str[i];
     if (c < '0' or c > '9')
       break;
     val = val * 10 + c - '0';
-    str++;
     i++;
   }
+  str += i;
   if (end)
     *end = str;
 }
 
-template <typename I> void parse_int(I* val, const char* str, const char** end) {
+template <typename I> void parse_int(I* val, const char* str, const char* buffer_end, const char** end) {
   bool neg = false;
 
-  if (str[0] == '-') {
+  if (str < buffer_end and str[0] == '-') {
     neg = true;
     str++;
   }
-  parse_uint(val, str, end);
+  parse_uint(val, str, buffer_end, end);
   if constexpr (!std::is_same<I, bool>::value) {
     if (neg)
       *val = -(*val);
@@ -416,20 +423,20 @@ inline unsigned long long pow10(unsigned int e) {
     return 0;
 }
 
-template <typename F> void parse_float(F* f, const char* str, const char** end) {
+template <typename F> void parse_float(F* f, const char* str, const char* buffer_end, const char** end) {
   // 1.234e-10
   // [sign][int][decimal_part][exp]
 
   const char* it = str;
   int integer_part;
-  parse_int(&integer_part, it, &it);
+  parse_int(&integer_part, it, buffer_end, &it);
   int sign = integer_part >= 0 ? 1 : -1;
   *f = integer_part;
-  if (*it == '.') {
+  if (it < buffer_end and *it == '.') {
     it++;
     unsigned long long decimal_part;
     const char* dec_end;
-    parse_uint(&decimal_part, it, &dec_end);
+    parse_uint(&decimal_part, it, buffer_end, &dec_end);
 
     if (dec_end > it)
       *f += (F(decimal_part) / pow10(dec_end - it)) * sign;
@@ -437,16 +444,16 @@ template <typename F> void parse_float(F* f, const char* str, const char** end) 
     it = dec_end;
   }
 
-  if (*it == 'e' || *it == 'E') {
+  if (it < buffer_end and (*it == 'e' || *it == 'E')) {
     it++;
     bool neg = false;
-    if (*it == '-') {
+    if (it < buffer_end and *it == '-') {
       neg = true;
       it++;
     }
 
     unsigned int exp = 0;
-    parse_uint(&exp, it, &it);
+    parse_uint(&exp, it, buffer_end, &it);
     if (neg)
       *f = *f / pow10(exp);
     else
@@ -469,8 +476,15 @@ public:
         buffer(buffer_.empty() ? std::string_view(empty_sentinel, 0) : buffer_) {}
 
   inline bool eof() const { return cur >= buffer.data() + buffer.size(); }
-  inline const char peek() const { return *cur; }
-  inline const char get() { return *(cur++); }
+  // Never dereference past the buffer: malformed/truncated input (a JSON value
+  // missing its closing token) must yield a decode error, not an out-of-bounds read.
+  inline const char peek() const { return eof() ? '\0' : *cur; }
+  inline const char get() {
+    char c = peek();
+    if (!eof())
+      cur++;
+    return c;
+  }
   inline int bad() const { return bad_; }
   inline int good() const { return !bad_ && !eof(); }
 
@@ -478,7 +492,7 @@ public:
     const char* start = cur;
     const char* end = cur;
     const char* buffer_end = buffer.data() + buffer.size();
-    while (until(*end) && end < buffer_end)
+    while (end < buffer_end && until(*end))
       end++;
 
     output.append(std::string_view(start, end - start));
@@ -491,14 +505,14 @@ public:
       // Decode floating point.
       eat_spaces();
       const char* end = nullptr;
-      internal::parse_float(&value, cur, &end);
+      internal::parse_float(&value, cur, buffer.data() + buffer.size(), &end);
       if (end == cur)
         bad_ = true;
       cur = end;
     } else if constexpr (std::is_integral<T>::value) {
       // Decode integer.
       const char* end = nullptr;
-      internal::parse_int(&value, cur, &end);
+      internal::parse_int(&value, cur, buffer.data() + buffer.size(), &end);
       if (end == cur)
         bad_ = true;
       cur = end;
@@ -514,16 +528,23 @@ public:
       }
 
       const char* start = cur;
-      bool escaped = false;
 
-      while (peek() != '\0' and (escaped or peek() != '"')) {
-        int nb = 0;
-        while (peek() == '\\')
-          nb++;
-
-        escaped = nb % 2;
-        cur++;
+      while (!eof() and peek() != '"') {
+        if (peek() == '\\') {
+          cur++;      // Skip the backslash.
+          if (!eof())
+            cur++; // Skip the escaped char so a literal \" does not end the scan early.
+        } else
+          cur++;
       }
+
+      if (eof()) {
+        // Missing closing quote: report an error instead of returning a
+        // string_view that runs past the end of the input.
+        bad_ = true;
+        return;
+      }
+
       const char* end = cur;
       value = string_view(start, end - start);
 
@@ -536,7 +557,7 @@ public:
 
 private:
   inline void eat_spaces() {
-    while (peek() < 33)
+    while (!eof() and peek() < 33)
       ++cur;
   }
 
@@ -1226,7 +1247,9 @@ template <typename S, typename T> auto json_to_utf8(S&& s, T&& o) {
 
   while (true) {
     // Copy until we find the escaping backslash or the end of the string (double quote).
-    while (s.peek() != EOF and s.peek() != '"' and s.peek() != '\\')
+    // !s.eof() must be checked explicitly: a missing closing quote must stop this
+    // loop, not spin forever appending the stream's end-of-input sentinel byte.
+    while (!s.eof() and s.peek() != '"' and s.peek() != '\\')
       o.append(s.get());
 
     // If eof found before the end of the string, return an error.
@@ -1683,7 +1706,7 @@ template <typename S> struct json_parser {
     return JSON_KO;
   }
   inline void eat_spaces() {
-    while (ss.peek() >= 0 and ss.peek() < 33)
+    while (!eof() and ss.peek() >= 0 and ss.peek() < 33)
       ss.get();
   }
 

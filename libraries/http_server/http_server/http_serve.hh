@@ -54,6 +54,14 @@ void http_serve(api<http_request, http_response> api, int port, O... opts) {
       std::cerr << "INTERNAL SERVER ERROR: " << e.what() << std::endl;
       ctx.set_status(500);
       ctx.respond("Internal server error.");
+    } catch (...) {
+      // http_error does not derive from std::exception, and a handler could throw
+      // anything else too (bad_alloc, a user type...). Without this, such an
+      // exception escapes uncaught past this point and terminates the whole
+      // process instead of just failing this one request.
+      std::cerr << "INTERNAL SERVER ERROR: unknown exception" << std::endl;
+      ctx.set_status(500);
+      ctx.respond("Internal server error.");
     }
     ctx.respond_if_needed();
   };

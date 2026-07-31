@@ -8,7 +8,7 @@ template <typename I>
 int test_integer(const char* str) {
   I f;
   const char* end;
-  li::internal::parse_int(&f, str, &end);
+  li::internal::parse_int(&f, str, str + strlen(str), &end);
 
   std::cout << f << std::endl;
   assert((end - str) == strlen(str));
@@ -18,7 +18,7 @@ int test_integer(const char* str) {
 double test_float(const char* str) {
   double f;
   const char* end;
-  li::internal::parse_float(&f, str, &end);
+  li::internal::parse_float(&f, str, str + strlen(str), &end);
   std::cout << std::string(str, end) << " -> " << std::setprecision(20) << std::fixed << f
             << std::endl;
   assert((end - str) == strlen(str));

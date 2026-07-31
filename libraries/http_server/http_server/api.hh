@@ -89,14 +89,6 @@ template <typename Req, typename Resp> struct api {
       global_handler_(request, response);
       return;
     }
-    if (route == last_called_route_) {
-      if (last_handler_.verb == ANY or parse_verb(method) == last_handler_.verb) {
-        request.url_spec = last_handler_.url_spec;
-        last_handler_.handler(request, response);
-        return;
-      } else
-        throw http_error::not_found("Method ", method, " not implemented on route ", route);
-    }
 
     // skip the last / of the url and trim spaces.
     std::string_view route2(route);
@@ -107,8 +99,6 @@ template <typename Req, typename Resp> struct api {
     auto it = routes_map_.find(route2);
     if (it != routes_map_.end()) {
       if (it->second.verb == ANY or parse_verb(method) == it->second.verb) {
-        const_cast<self*>(this)->last_called_route_ = route;
-        const_cast<self*>(this)->last_handler_ = it->second;
         request.url_spec = it->second.url_spec;
         it->second.handler(request, response);
       } else
@@ -118,8 +108,6 @@ template <typename Req, typename Resp> struct api {
   }
 
   dynamic_routing_table<VH> routes_map_;
-  std::string last_called_route_;
-  VH last_handler_;
   H global_handler_;
   bool is_global_handler;
 };
