@@ -77,6 +77,12 @@ struct output_buffer {
 
   output_buffer& operator<<(const char* s) { return operator<<(std::string_view(s, strlen(s))); }
   output_buffer& operator<<(char v) {
+    // Must flush like the string_view overload: writing unconditionally once
+    // cursor_ == end_ pushes cursor_ past end_, and the next `end_ - cursor_`
+    // (an unsigned subtraction) underflows to a huge value, defeating the
+    // string_view overload's own bounds check and causing an OOB memcpy.
+    if (cursor_ == end_)
+      flush();
     cursor_[0] = v;
     cursor_++;
     return *this;

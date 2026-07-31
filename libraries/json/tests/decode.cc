@@ -167,4 +167,18 @@ int main() {
     assert(obj["test1"] == 1);
     assert(obj["test2"] == 4);
   }
+
+  {
+    // Empty/null input (e.g. an HTTP request with no body) must be reported
+    // as a decode error, not crash with a null pointer dereference.
+    // Regression test for GHSA-2gpv-cqgh-vwwg.
+    std::string_view empty_input; // default-constructed: data() == nullptr
+
+    auto obj = mmm(s::test1 = int());
+    assert(json_decode(empty_input, obj));
+
+    std::string_view null_input = std::string_view();
+    auto obj2 = mmm(s::test1 = int());
+    assert(json_decode(null_input, obj2));
+  }
 }

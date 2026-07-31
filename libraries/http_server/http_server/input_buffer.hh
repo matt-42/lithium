@@ -4,6 +4,7 @@
 #include <vector>
 #include <memory>
 #include <cassert>
+#include <stdexcept>
 
 
 namespace li {
@@ -78,6 +79,14 @@ struct input_buffer {
   }
 
   template <typename F> std::string_view read_n(F&& fiber, const char* start, int size) {
+    // A negative or oversized `size` (e.g. a bogus Content-Length or an
+    // attacker-crafted chunk-size line) must never reach the pointer
+    // arithmetic below: size_t(negative) becomes a huge length, and a size
+    // that overflows `str_start + size` silently defeats the `end < str_end`
+    // bounds check, producing a fabricated string_view far larger than this
+    // buffer that callers then memcpy/memmove out of.
+    if (size < 0 or size > int(buffer_.size()))
+      throw std::runtime_error("Error: invalid body/chunk size.");
     int str_start = start - buffer_.data();
     int str_end = size + str_start;
     if (end < str_end) {

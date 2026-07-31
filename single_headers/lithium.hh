@@ -21,9 +21,11 @@
 #include <boost/lexical_cast.hpp>
 #include <cassert>
 #include <chrono>
+#include <climits>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <curl/curl.h>
 #include <deque>
@@ -52,6 +54,7 @@
 #include <signal.h>
 #include <sqlite3.h>
 #include <sstream>
+#include <stdexcept>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1905,30 +1908,36 @@ namespace li {
 using std::string_view;
 
 namespace internal {
-template <typename I> void parse_uint(I* val_, const char* str, const char** end) {
+// buffer_end bounds every read: str must never be dereferenced once it reaches
+// the end of the underlying decode_stringstream buffer (e.g. a number with no
+// trailing delimiter at the very end of an HTTP body must not read past it).
+template <typename I> void parse_uint(I* val_, const char* str, const char* buffer_end, const char** end) {
   I& val = *val_;
   val = 0;
+  // Compute the byte budget once instead of comparing str < buffer_end on every
+  // iteration, so the bounds check costs nothing extra in the hot digit loop.
+  int max_i = str < buffer_end ? int(std::min<long long>(40, buffer_end - str)) : 0;
   int i = 0;
-  while (i < 40) {
-    char c = *str;
+  while (i < max_i) {
+    char c = str[i];
     if (c < '0' or c > '9')
       break;
     val = val * 10 + c - '0';
-    str++;
     i++;
   }
+  str += i;
   if (end)
     *end = str;
 }
 
-template <typename I> void parse_int(I* val, const char* str, const char** end) {
+template <typename I> void parse_int(I* val, const char* str, const char* buffer_end, const char** end) {
   bool neg = false;
 
-  if (str[0] == '-') {
+  if (str < buffer_end and str[0] == '-') {
     neg = true;
     str++;
   }
-  parse_uint(val, str, end);
+  parse_uint(val, str, buffer_end, end);
   if constexpr (!std::is_same<I, bool>::value) {
     if (neg)
       *val = -(*val);
@@ -1961,20 +1970,20 @@ inline unsigned long long pow10(unsigned int e) {
     return 0;
 }
 
-template <typename F> void parse_float(F* f, const char* str, const char** end) {
+template <typename F> void parse_float(F* f, const char* str, const char* buffer_end, const char** end) {
   // 1.234e-10
   // [sign][int][decimal_part][exp]
 
   const char* it = str;
   int integer_part;
-  parse_int(&integer_part, it, &it);
+  parse_int(&integer_part, it, buffer_end, &it);
   int sign = integer_part >= 0 ? 1 : -1;
   *f = integer_part;
-  if (*it == '.') {
+  if (it < buffer_end and *it == '.') {
     it++;
     unsigned long long decimal_part;
     const char* dec_end;
-    parse_uint(&decimal_part, it, &dec_end);
+    parse_uint(&decimal_part, it, buffer_end, &dec_end);
 
     if (dec_end > it)
       *f += (F(decimal_part) / pow10(dec_end - it)) * sign;
@@ -1982,16 +1991,16 @@ template <typename F> void parse_float(F* f, const char* str, const char** end) 
     it = dec_end;
   }
 
-  if (*it == 'e' || *it == 'E') {
+  if (it < buffer_end and (*it == 'e' || *it == 'E')) {
     it++;
     bool neg = false;
-    if (*it == '-') {
+    if (it < buffer_end and *it == '-') {
       neg = true;
       it++;
     }
 
     unsigned int exp = 0;
-    parse_uint(&exp, it, &it);
+    parse_uint(&exp, it, buffer_end, &it);
     if (neg)
       *f = *f / pow10(exp);
     else
@@ -2007,11 +2016,22 @@ template <typename F> void parse_float(F* f, const char* str, const char** end) 
 class decode_stringstream {
 public:
   inline decode_stringstream(std::string_view buffer_)
-      : cur(buffer_.data()), bad_(false), buffer(buffer_) {}
+      : cur(buffer_.empty() ? empty_sentinel : buffer_.data()), bad_(false),
+        // An empty/default string_view (e.g. an empty HTTP body) has a null data()
+        // pointer. Redirect cur/buffer to a real, null-terminated byte so peek()/eof()
+        // never dereference nullptr and behave like parsing an empty std::string.
+        buffer(buffer_.empty() ? std::string_view(empty_sentinel, 0) : buffer_) {}
 
-  inline bool eof() const { return cur > &buffer.back(); }
-  inline const char peek() const { return *cur; }
-  inline const char get() { return *(cur++); }
+  inline bool eof() const { return cur >= buffer.data() + buffer.size(); }
+  // Never dereference past the buffer: malformed/truncated input (a JSON value
+  // missing its closing token) must yield a decode error, not an out-of-bounds read.
+  inline const char peek() const { return eof() ? '\0' : *cur; }
+  inline const char get() {
+    char c = peek();
+    if (!eof())
+      cur++;
+    return c;
+  }
   inline int bad() const { return bad_; }
   inline int good() const { return !bad_ && !eof(); }
 
@@ -2019,7 +2039,7 @@ public:
     const char* start = cur;
     const char* end = cur;
     const char* buffer_end = buffer.data() + buffer.size();
-    while (until(*end) && end < buffer_end)
+    while (end < buffer_end && until(*end))
       end++;
 
     output.append(std::string_view(start, end - start));
@@ -2032,14 +2052,14 @@ public:
       // Decode floating point.
       eat_spaces();
       const char* end = nullptr;
-      internal::parse_float(&value, cur, &end);
+      internal::parse_float(&value, cur, buffer.data() + buffer.size(), &end);
       if (end == cur)
         bad_ = true;
       cur = end;
     } else if constexpr (std::is_integral<T>::value) {
       // Decode integer.
       const char* end = nullptr;
-      internal::parse_int(&value, cur, &end);
+      internal::parse_int(&value, cur, buffer.data() + buffer.size(), &end);
       if (end == cur)
         bad_ = true;
       cur = end;
@@ -2055,16 +2075,23 @@ public:
       }
 
       const char* start = cur;
-      bool escaped = false;
 
-      while (peek() != '\0' and (escaped or peek() != '"')) {
-        int nb = 0;
-        while (peek() == '\\')
-          nb++;
-
-        escaped = nb % 2;
-        cur++;
+      while (!eof() and peek() != '"') {
+        if (peek() == '\\') {
+          cur++;      // Skip the backslash.
+          if (!eof())
+            cur++; // Skip the escaped char so a literal \" does not end the scan early.
+        } else
+          cur++;
       }
+
+      if (eof()) {
+        // Missing closing quote: report an error instead of returning a
+        // string_view that runs past the end of the input.
+        bad_ = true;
+        return;
+      }
+
       const char* end = cur;
       value = string_view(start, end - start);
 
@@ -2077,9 +2104,11 @@ public:
 
 private:
   inline void eat_spaces() {
-    while (peek() < 33)
+    while (!eof() and peek() < 33)
       ++cur;
   }
+
+  static constexpr char empty_sentinel[1] = {'\0'};
 
   int bad_;
   const char* cur;
@@ -2271,7 +2300,9 @@ template <typename S, typename T> auto json_to_utf8(S&& s, T&& o) {
 
   while (true) {
     // Copy until we find the escaping backslash or the end of the string (double quote).
-    while (s.peek() != EOF and s.peek() != '"' and s.peek() != '\\')
+    // !s.eof() must be checked explicitly: a missing closing quote must stop this
+    // loop, not spin forever appending the stream's end-of-input sentinel byte.
+    while (!s.eof() and s.peek() != '"' and s.peek() != '\\')
       o.append(s.get());
 
     // If eof found before the end of the string, return an error.
@@ -2728,7 +2759,7 @@ template <typename S> struct json_parser {
     return JSON_KO;
   }
   inline void eat_spaces() {
-    while (ss.peek() >= 0 and ss.peek() < 33)
+    while (!eof() and ss.peek() >= 0 and ss.peek() < 33)
       ss.get();
   }
 
@@ -7138,14 +7169,6 @@ template <typename Req, typename Resp> struct api {
       global_handler_(request, response);
       return;
     }
-    if (route == last_called_route_) {
-      if (last_handler_.verb == ANY or parse_verb(method) == last_handler_.verb) {
-        request.url_spec = last_handler_.url_spec;
-        last_handler_.handler(request, response);
-        return;
-      } else
-        throw http_error::not_found("Method ", method, " not implemented on route ", route);
-    }
 
     // skip the last / of the url and trim spaces.
     std::string_view route2(route);
@@ -7156,8 +7179,6 @@ template <typename Req, typename Resp> struct api {
     auto it = routes_map_.find(route2);
     if (it != routes_map_.end()) {
       if (it->second.verb == ANY or parse_verb(method) == it->second.verb) {
-        const_cast<self*>(this)->last_called_route_ = route;
-        const_cast<self*>(this)->last_handler_ = it->second;
         request.url_spec = it->second.url_spec;
         it->second.handler(request, response);
       } else
@@ -7167,8 +7188,6 @@ template <typename Req, typename Resp> struct api {
   }
 
   dynamic_routing_table<VH> routes_map_;
-  std::string last_called_route_;
-  VH last_handler_;
   H global_handler_;
   bool is_global_handler;
 };
@@ -7353,6 +7372,14 @@ struct input_buffer {
   }
 
   template <typename F> std::string_view read_n(F&& fiber, const char* start, int size) {
+    // A negative or oversized `size` (e.g. a bogus Content-Length or an
+    // attacker-crafted chunk-size line) must never reach the pointer
+    // arithmetic below: size_t(negative) becomes a huge length, and a size
+    // that overflows `str_start + size` silently defeats the `end < str_end`
+    // bounds check, producing a fabricated string_view far larger than this
+    // buffer that callers then memcpy/memmove out of.
+    if (size < 0 or size > int(buffer_.size()))
+      throw std::runtime_error("Error: invalid body/chunk size.");
     int str_start = start - buffer_.data();
     int str_end = size + str_start;
     if (end < str_end) {
@@ -7495,6 +7522,12 @@ struct output_buffer {
 
   output_buffer& operator<<(const char* s) { return operator<<(std::string_view(s, strlen(s))); }
   output_buffer& operator<<(char v) {
+    // Must flush like the string_view overload: writing unconditionally once
+    // cursor_ == end_ pushes cursor_ past end_, and the next `end_ - cursor_`
+    // (an unsigned subtraction) underflows to a huge value, defeating the
+    // string_view overload's own bounds check and causing an OOB memcpy.
+    if (cursor_ == end_)
+      flush();
     cursor_[0] = v;
     cursor_++;
     return *this;
@@ -9740,23 +9773,31 @@ template <typename FIBER> struct generic_http_ctx {
       const char* line_end = header_lines[i + 1]; // last line is just an empty line.
       const char* cur = header_lines[i];
 
-      if (*cur != 'C' and *cur != 'c')
+      if (*cur != 'C' and *cur != 'c' and *cur != 'T' and *cur != 't')
         continue;
 
       std::string_view key = split(cur, line_end, ':');
 
       auto get_value = [&] {
         std::string_view value = split(cur, line_end, '\r');
-        while (value[0] == ' ')
+        while (value.size() and value[0] == ' ')
           value = std::string_view(value.data() + 1, value.size() - 1);
         return value;
       };
 
-      if (key == "Content-Length")
-        content_length_ = atoi(get_value().data());
-      else if (key == "Content-Type") {
+      if (key == "Content-Length") {
+        std::string_view v = get_value();
+        char* parse_end = nullptr;
+        long l = v.size() ? strtol(v.data(), &parse_end, 10) : 0;
+        // A negative, non-numeric or absurdly large Content-Length must never
+        // reach read_whole_body()/read_body(): it is used to size a
+        // std::string_view over the read buffer, and a bad value there
+        // fabricates an out-of-bounds view (e.g. size_t(-1) bytes long).
+        content_length_ = (parse_end != v.data() and l > 0 and l <= INT_MAX) ? int(l) : 0;
+      } else if (key == "Content-Type") {
         content_type_ = get_value();
-        chunked_ = (content_type_ == "chunked");
+      } else if (key == "Transfer-Encoding") {
+        chunked_ = (get_value() == "chunked");
       }
     }
   }
@@ -10377,6 +10418,12 @@ template <typename F> auto make_http_processor(F handler) {
 catch (const std::runtime_error& e) {
   std::cerr << "Error: " << e.what() << std::endl;
   return;
+} catch (...) {
+  // Last line of defense: an exception escaping here would unwind out of the
+  // fiber and terminate the whole process instead of just closing this
+  // connection.
+  std::cerr << "Error: unknown exception" << std::endl;
+  return;
 }
 };
 }
@@ -10934,6 +10981,14 @@ void http_serve(api<http_request, http_response> api, int port, O... opts) {
       std::cerr << "INTERNAL SERVER ERROR: " << e.what() << std::endl;
       ctx.set_status(500);
       ctx.respond("Internal server error.");
+    } catch (...) {
+      // http_error does not derive from std::exception, and a handler could throw
+      // anything else too (bad_alloc, a user type...). Without this, such an
+      // exception escapes uncaught past this point and terminates the whole
+      // process instead of just failing this one request.
+      std::cerr << "INTERNAL SERVER ERROR: unknown exception" << std::endl;
+      ctx.set_status(500);
+      ctx.respond("Internal server error.");
     }
     ctx.respond_if_needed();
   };
@@ -11008,7 +11063,6 @@ inline std::string random_cookie(http_request& request, http_response& response,
     token = generate_secret_tracking_id();
     response.set_cookie(key, token);
   } else {
-    std::cout << "got token " << token_ << std::endl;
     token = token_;
   }
 

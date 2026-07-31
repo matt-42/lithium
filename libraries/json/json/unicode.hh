@@ -123,7 +123,9 @@ template <typename S, typename T> auto json_to_utf8(S&& s, T&& o) {
 
   while (true) {
     // Copy until we find the escaping backslash or the end of the string (double quote).
-    while (s.peek() != EOF and s.peek() != '"' and s.peek() != '\\')
+    // !s.eof() must be checked explicitly: a missing closing quote must stop this
+    // loop, not spin forever appending the stream's end-of-input sentinel byte.
+    while (!s.eof() and s.peek() != '"' and s.peek() != '\\')
       o.append(s.get());
 
     // If eof found before the end of the string, return an error.

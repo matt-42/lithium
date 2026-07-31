@@ -22,7 +22,6 @@ inline std::string random_cookie(http_request& request, http_response& response,
     token = generate_secret_tracking_id();
     response.set_cookie(key, token);
   } else {
-    std::cout << "got token " << token_ << std::endl;
     token = token_;
   }
 

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <climits>
+#include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <iostream>
@@ -172,23 +174,31 @@ template <typename FIBER> struct generic_http_ctx {
       const char* line_end = header_lines[i + 1]; // last line is just an empty line.
       const char* cur = header_lines[i];
 
-      if (*cur != 'C' and *cur != 'c')
+      if (*cur != 'C' and *cur != 'c' and *cur != 'T' and *cur != 't')
         continue;
 
       std::string_view key = split(cur, line_end, ':');
 
       auto get_value = [&] {
         std::string_view value = split(cur, line_end, '\r');
-        while (value[0] == ' ')
+        while (value.size() and value[0] == ' ')
           value = std::string_view(value.data() + 1, value.size() - 1);
         return value;
       };
 
-      if (key == "Content-Length")
-        content_length_ = atoi(get_value().data());
-      else if (key == "Content-Type") {
+      if (key == "Content-Length") {
+        std::string_view v = get_value();
+        char* parse_end = nullptr;
+        long l = v.size() ? strtol(v.data(), &parse_end, 10) : 0;
+        // A negative, non-numeric or absurdly large Content-Length must never
+        // reach read_whole_body()/read_body(): it is used to size a
+        // std::string_view over the read buffer, and a bad value there
+        // fabricates an out-of-bounds view (e.g. size_t(-1) bytes long).
+        content_length_ = (parse_end != v.data() and l > 0 and l <= INT_MAX) ? int(l) : 0;
+      } else if (key == "Content-Type") {
         content_type_ = get_value();
-        chunked_ = (content_type_ == "chunked");
+      } else if (key == "Transfer-Encoding") {
+        chunked_ = (get_value() == "chunked");
       }
     }
   }
@@ -808,6 +818,12 @@ template <typename F> auto make_http_processor(F handler) {
 }
 catch (const std::runtime_error& e) {
   std::cerr << "Error: " << e.what() << std::endl;
+  return;
+} catch (...) {
+  // Last line of defense: an exception escaping here would unwind out of the
+  // fiber and terminate the whole process instead of just closing this
+  // connection.
+  std::cerr << "Error: unknown exception" << std::endl;
   return;
 }
 };
