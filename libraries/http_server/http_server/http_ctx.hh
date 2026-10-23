@@ -350,27 +350,51 @@ template <typename FIBER> struct generic_http_ctx {
     output_stream << "Content-Length: " << file_size << "\r\n\r\n";
     output_stream.flush();
 
-    off_t offset = 0;
-    lseek(fd, (size_t)0, 0);
-    while (offset < file_size) {
-#if __APPLE__ // sendfile on macos is slightly different...
-      off_t nwritten = 0;
-      int ret = ::sendfile(fd, socket_fd, offset, &nwritten, nullptr, 0);
-      offset += nwritten;
-      if (ret == 0 && nwritten == 0) break; // end of file.
-#else
-      int ret = ::sendfile(socket_fd, fd, &offset, file_size - offset);
-#endif
-      if (ret != -1) {
-        if (offset < file_size) {
-          continue; // this->fiber.yield();
+    if (this->fiber.ssl) {
+      // TLS: ::sendfile would write the body straight to the raw TCP socket,
+      // bypassing OpenSSL. Read the file in chunks and push each one through
+      // fiber.write() so it reaches SSL_write(). fiber.write() already handles
+      // EAGAIN internally, so no manual yield() is needed here.
+      // Note: file serving over TLS is therefore not zero-copy. SSL_sendfile()
+      // would require kernel TLS (kTLS), which is not reliably available.
+      lseek(fd, 0, SEEK_SET);
+      char buf[4096];
+      ssize_t n;
+      while ((n = read(fd, buf, sizeof(buf))) > 0) {
+        if (!this->fiber.write(buf, n)) {
+          close(fd);
+          std::cerr << "Internal error: write failed: " << strerror(errno) << std::endl;
+          throw http_error::not_found("Internal error: write failed.");
         }
-      } else if (errno == EAGAIN) {
-        this->fiber.yield();
-      } else {
+      }
+      if (n == -1) {
         close(fd);
-        std::cerr << "Internal error: sendfile failed: " << strerror(errno) << std::endl;
-        throw http_error::not_found("Internal error: sendfile failed.");
+        std::cerr << "Internal error: read failed: " << strerror(errno) << std::endl;
+        throw http_error::not_found("Internal error: read failed.");
+      }
+    } else {
+      off_t offset = 0;
+      lseek(fd, (size_t)0, 0);
+      while (offset < file_size) {
+#if __APPLE__ // sendfile on macos is slightly different...
+        off_t nwritten = 0;
+        int ret = ::sendfile(fd, socket_fd, offset, &nwritten, nullptr, 0);
+        offset += nwritten;
+        if (ret == 0 && nwritten == 0) break; // end of file.
+#else
+        int ret = ::sendfile(socket_fd, fd, &offset, file_size - offset);
+#endif
+        if (ret != -1) {
+          if (offset < file_size) {
+            continue; // this->fiber.yield();
+          }
+        } else if (errno == EAGAIN) {
+          this->fiber.yield();
+        } else {
+          close(fd);
+          std::cerr << "Internal error: sendfile failed: " << strerror(errno) << std::endl;
+          throw http_error::not_found("Internal error: sendfile failed.");
+        }
       }
     }
 

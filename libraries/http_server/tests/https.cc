@@ -1,3 +1,7 @@
+#include <filesystem>
+#include <fstream>
+#include <memory>
+
 #include <lithium_http_server.hh>
 #include <lithium_http_client.hh>
 #include "symbols.hh"
@@ -75,4 +79,41 @@ int main() {
   //system("openssl req -new -newkey rsa:4096 -x509 -sha256 -days 365 -nodes -out ./server.crt -keyout ./server.key -subj \"/CN=localhost\"");
   http_serve(my_api, 12335, s::non_blocking, s::ssl_key = "./server.key", s::ssl_certificate = "./server.crt", s::ssl_ciphers = "ALL:!NULL");
   assert(http_get("https://localhost:12335/hello_world", s::disable_check_certificate).body == "hello world.");
+
+  // Serve files over HTTPS. Regression test: send_file() used to push the body
+  // straight to the raw TCP socket via ::sendfile(), bypassing OpenSSL, which
+  // corrupted the TLS stream ("bad record type") and leaked file contents.
+  {
+    namespace fs = std::filesystem;
+    fs::path root(fs::temp_directory_path() / "lithium_test_https_webroot");
+    fs::create_directories(root);
+    auto root_deleter = [](fs::path* root){ fs::remove_all(*root); };
+    std::unique_ptr<fs::path, decltype(root_deleter)> tmp_remover(&root, root_deleter);
+
+    // A small file.
+    {
+      std::ofstream o((root / "small.txt").string());
+      o << "hello world.";
+    }
+    // A file whose size is not a multiple of the 4096-byte chunk size (5000
+    // bytes) to exercise the tail of the read loop.
+    {
+      std::ofstream o((root / "tail.txt").string());
+      for (int i = 0; i < 5000; i++)
+        o << "x";
+    }
+
+    http_api file_api;
+    file_api.add_subapi("/test", serve_directory(root.string()));
+    http_serve(file_api, 12336, s::non_blocking, s::ssl_key = "./server.key", s::ssl_certificate = "./server.crt", s::ssl_ciphers = "ALL:!NULL");
+
+    auto small = http_get("https://localhost:12336/test/small.txt", s::disable_check_certificate);
+    assert(small.status == 200);
+    assert(small.body == "hello world.");
+
+    auto tail = http_get("https://localhost:12336/test/tail.txt", s::disable_check_certificate);
+    assert(tail.status == 200);
+    assert(tail.body.size() == 5000);
+    assert(tail.body == std::string(5000, 'x'));
+  }
 }
