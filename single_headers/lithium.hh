@@ -2931,18 +2931,20 @@ json_error_code json_decode2(P& p, std::tuple<O...>& tu, json_tuple_<S...> schem
     return err;
 
   bool first = true;
-  auto err = p.eat('[');
-  if (err)
+  if (auto err = p.eat('['))
     return err;
 
-  auto decode_one_element = [&first, &p, &err](auto& value, auto value_schema) {
+  json_error_code element_err = JSON_OK;
+  auto decode_one_element = [&first, &p, &element_err](auto& value, auto value_schema) {
+    if (element_err)
+      return element_err;
     if (!first) {
-      if ((err = p.eat(',')))
-        return err;
+      if ((element_err = p.eat(',')))
+        return element_err;
     }
     first = false;
-    if ((err = json_decode2(p, value, value_schema)))
-      return err;
+    if ((element_err = json_decode2(p, value, value_schema)))
+      return element_err;
     p.eat_spaces();
     return JSON_OK;
   };
@@ -2950,7 +2952,10 @@ json_error_code json_decode2(P& p, std::tuple<O...>& tu, json_tuple_<S...> schem
   json_decode_tuple_elements(decode_one_element, tu, schema.elements,
                              std::make_index_sequence<sizeof...(O)>{});
 
-  if ((err = p.eat(']')))
+  if (element_err)
+    return element_err;
+
+  if (auto err = p.eat(']'))
     return err;
   else
     return JSON_OK;

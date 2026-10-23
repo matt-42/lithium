@@ -4,6 +4,12 @@
 
 using namespace li;
 
+template <int N> struct nested_tuple {
+  using type = std::tuple<typename nested_tuple<N - 1>::type>;
+};
+template <> struct nested_tuple<0> { using type = int; };
+template <int N> using nested_tuple_t = typename nested_tuple<N>::type;
+
 int main() {
   { // Simple deserializer.
     std::string input = R"json({"test1":12,"test2":"John"})json";
@@ -115,6 +121,25 @@ int main() {
     err = json_decode("[[1]]", tu, 2);
     assert(!err);
     assert(std::get<0>(std::get<0>(tu)) == 1);
+  }
+
+  {
+    // A depth limit error must not be discarded while unwinding the recursion.
+    nested_tuple_t<10> deep;
+    std::string deep_input(10, '[');
+    deep_input += "1";
+    deep_input += std::string(10, ']');
+
+    assert(json_decode(deep_input, deep, 6));
+    assert(json_decode(deep_input, deep, 10).good());
+  }
+
+  {
+    // A failing element must not be overwritten by the enclosing bracket check.
+    std::tuple<int, int> tu;
+    std::string input = R"json(["not_an_int",42])json";
+
+    assert(json_decode(input, tu));
   }
 
   {
